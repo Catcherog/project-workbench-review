@@ -1,0 +1,645 @@
+{
+  "batch": "S1P1-20261012-01-R4-RESULT1",
+  "exportedAt": "2026-10-12T17:13:24+08:00",
+  "baseCommit": "3faeaddd6ba30e5bd9a9931e3371fb02ee8783ee",
+  "implementationCommit": "7b03f0ebbcfc9172fc4d8da02c2bf362112b7e42",
+  "branch": "codex/s1p1-r4-local",
+  "worktree": "[LOCAL_ISOLATED_WORKTREE]",
+  "release": {
+    "version": "2.16.0-s1p1.1",
+    "build": "20261012.p1-r4.1",
+    "channel": "preview",
+    "releasedOn": "2026-10-12"
+  },
+  "changedFiles": [
+    "app/attention-inbox.tsx",
+    "app/codex-assistant.tsx",
+    "app/item-workspace-navigation.ts",
+    "app/item-workspace.tsx",
+    "app/work-item-entry.css",
+    "app/work-item-entry.tsx",
+    "app/work-item-panel.tsx",
+    "app/work-item-time.tsx",
+    "app/workbench-v2.tsx",
+    "lib/local-runtime.ts",
+    "lib/work-item-progress.ts",
+    "lib/work-items.ts",
+    "lib/workbench-statistics.ts",
+    "package-lock.json",
+    "package.json",
+    "release.json",
+    "scripts/assistant-http.mjs",
+    "scripts/codex-assistant.mjs",
+    "scripts/local-http.mjs",
+    "scripts/s1p1-fixtures.mjs",
+    "scripts/test-s1p1-browser.mjs",
+    "scripts/test-s1p1-domain.mjs",
+    "scripts/test-s1p1-http.mjs",
+    "scripts/test-s1p1-real-browser.mjs",
+    "scripts/test-s1p1-real.mjs",
+    "scripts/work-item-entry.mjs"
+  ],
+  "builtAssetsSha256": {
+    "dist-local/domain.mjs": "787fa4684479c21e1826c3d9167672ee6e25c98032a87d7e704839e49269945e",
+    "dist-local/client/app.js": "b38d5876d931c95c7fc4e04801aabfb3627633b6257ebf13bcbcd1eeea477f7f",
+    "dist-local/client/app.css": "5c2e0deb8f7567843d16c3f692f6aa96e1ed48c29099ea98058e3ec58bfd4c37"
+  },
+  "domain": {
+    "scope": "isolated rules; structured plans, not natural-language acceptance",
+    "results": [
+      {
+        "id": "A02/A05/A09",
+        "name": "no date is pending confirmation; background and urgent risk remain distinct",
+        "passed": true
+      },
+      {
+        "id": "A03/B13",
+        "name": "one explicit check plus pending completion; 10:00 date precision",
+        "passed": true
+      },
+      {
+        "id": "A04/B04",
+        "name": "explicit both pending and completion-only pending differ",
+        "passed": true
+      },
+      {
+        "id": "B01/B02",
+        "name": "progress saves without pickup or time; same item",
+        "passed": true
+      },
+      {
+        "id": "B03/B23/B24",
+        "name": "manual-only and combined writes preserve untouched arrangements",
+        "passed": true
+      },
+      {
+        "id": "A07/B12/B14",
+        "name": "new check preserves overdue requirement; Beijing midnight boundary",
+        "passed": true
+      },
+      {
+        "id": "B05/B19",
+        "name": "checking ends one check; never resolves the risk",
+        "passed": true
+      },
+      {
+        "id": "B17/B18",
+        "name": "resolved with followup and resolved with no followup differ",
+        "passed": true
+      },
+      {
+        "id": "B21",
+        "name": "undo reverses progress, time, risk and closure atomically",
+        "passed": true
+      },
+      {
+        "id": "B21-independent",
+        "name": "undo keeps unrelated later records and appended progress",
+        "passed": true
+      },
+      {
+        "id": "B21-conflict",
+        "name": "conflicting later time blocks whole undo without partial rollback",
+        "passed": true
+      },
+      {
+        "id": "B22/B10",
+        "name": "reopen retains identity and historical conclusion, duplicate old evidence stays open",
+        "passed": true
+      },
+      {
+        "id": "B08/B09",
+        "name": "old version rejected; repeated identical request is idempotent",
+        "passed": true
+      },
+      {
+        "id": "B25/B26",
+        "name": "dirty control conflict is explicit; unchanged control absent from patch",
+        "passed": true
+      },
+      {
+        "id": "B26-end",
+        "name": "ending and new future schedule needs an explicit choice",
+        "passed": true
+      },
+      {
+        "id": "B27",
+        "name": "discussion with manual times saves only selected arrangement",
+        "passed": true
+      },
+      {
+        "id": "A08-legacy",
+        "name": "legacy dates read without migration; closed history is not future work",
+        "passed": true
+      },
+      {
+        "id": "sources",
+        "name": "both pending never deletes independent formal requirement",
+        "passed": true
+      },
+      {
+        "id": "past-time",
+        "name": "today after default time remains today and is accepted",
+        "passed": true
+      },
+      {
+        "id": "edit",
+        "name": "progress can be corrected and correction undo retains earlier content",
+        "passed": true
+      },
+      {
+        "id": "B05-next",
+        "name": "completing prior check and choosing next check preserves both",
+        "passed": true
+      },
+      {
+        "id": "B22-expired",
+        "name": "reopening an expired check does not pretend it was completed",
+        "passed": true
+      },
+      {
+        "id": "B10-new-evidence",
+        "name": "identical evidence preserves closure; material new evidence becomes a reviewable difference",
+        "passed": true
+      },
+      {
+        "id": "B14-other-zone",
+        "name": "date-level completion honors its explicit timezone boundary",
+        "passed": true
+      },
+      {
+        "id": "legacy-buttons",
+        "name": "existing done button closes a reopened P1 item without clearing dates",
+        "passed": true
+      }
+    ]
+  },
+  "http": {
+    "scope": "isolated SQLite + HTTP + simulated CLI; no external writes",
+    "results": [
+      {
+        "id": "B23",
+        "name": "manual-only uses existing assistant request and transaction, zero model call",
+        "passed": true
+      },
+      {
+        "id": "B24/B06",
+        "name": "text and manual changes save together then GET reads same record",
+        "passed": true
+      },
+      {
+        "id": "B09",
+        "name": "uncertain POST readback finds exact request and resubmit cannot repeat",
+        "passed": true
+      },
+      {
+        "id": "B16/B27",
+        "name": "pure question does not change business; question plus control saves and stays",
+        "passed": true
+      },
+      {
+        "id": "B26",
+        "name": "conflicting text/control returns candidates without writes",
+        "passed": true
+      },
+      {
+        "id": "B18/B21",
+        "name": "end and undo are real HTTP transaction readbacks",
+        "passed": true
+      },
+      {
+        "id": "B08",
+        "name": "late model response cannot overwrite newer manual change",
+        "passed": true
+      },
+      {
+        "id": "boundary",
+        "name": "token missing fails before any record write",
+        "passed": true
+      }
+    ]
+  },
+  "browser": {
+    "scope": "real browser + isolated API/SQLite + simulated model",
+    "release": {
+      "version": "2.16.0-s1p1.1",
+      "build": "20261012.p1-r4.1",
+      "channel": "preview",
+      "releasedOn": "2026-10-12"
+    },
+    "results": [
+      {
+        "id": "B23/B24",
+        "name": "visible controls below same input; manual-only one submit returns to list",
+        "passed": true
+      },
+      {
+        "id": "A01/B06/B03",
+        "name": "cross-entry values survive refresh; progress does not rewrite untouched time",
+        "passed": true
+      },
+      {
+        "id": "B02/B15",
+        "name": "no-time receipt offers direct both-pending, no forced date",
+        "passed": true
+      },
+      {
+        "id": "B16/B27",
+        "name": "pure discussion stays without writes; mixed input saves fact and stays",
+        "passed": true
+      },
+      {
+        "id": "B26",
+        "name": "text/control conflict remains inline and chosen candidate saves",
+        "passed": true
+      },
+      {
+        "id": "B25",
+        "name": "late answer preserves newer hand selection and keeps it unsaved",
+        "passed": true
+      },
+      {
+        "id": "B07/B09",
+        "name": "lost POST response is queried and saves once",
+        "passed": true
+      },
+      {
+        "id": "B07-refresh",
+        "name": "write success + read failure is explicit and does not discard input prematurely",
+        "passed": true
+      },
+      {
+        "id": "B18/B20/B21",
+        "name": "ended tab and whole operation undo reuse original identity",
+        "passed": true
+      },
+      {
+        "id": "B22",
+        "name": "reopen from ended record keeps original ID and risk history",
+        "passed": true
+      },
+      {
+        "id": "A06",
+        "name": "unread material primary action reads evidence, not task conversion",
+        "passed": true
+      },
+      {
+        "id": "B15-cancel/mobile",
+        "name": "cancel returns to entry and changes no data; narrow time controls fit",
+        "passed": true
+      },
+      {
+        "id": "B07-failure",
+        "name": "rejected save keeps the text and manual choices with no navigation or data write",
+        "passed": true
+      },
+      {
+        "id": "B25-reload",
+        "name": "reload during analysis recovers original request without erasing newer time draft",
+        "passed": true
+      },
+      {
+        "id": "B15-edit",
+        "name": "ordinary result returns with filter intact and can edit progress without rewriting time",
+        "passed": true
+      },
+      {
+        "id": "boundary",
+        "name": "browser, service and persisted records stay in isolated workspace",
+        "passed": true
+      }
+    ],
+    "errors": [],
+    "external": []
+  },
+  "realModel": {
+    "runtime": {
+      "model": "gpt-6-astra",
+      "effort": "max"
+    },
+    "results": [
+      {
+        "id": "B16",
+        "input": "我已经联系负责人了，接下来怎么办？",
+        "manual": {},
+        "passed": true,
+        "jobId": "aa8277ba-d607-492d-bf30-2d404c7e0c58",
+        "createdAt": "2026-10-12T08:25:30.767Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "saved",
+        "stay": true,
+        "progress": "已联系负责人。",
+        "closed": false,
+        "timing": {
+          "check": {
+            "state": "unchanged"
+          },
+          "completion": {
+            "state": "unchanged"
+          },
+          "requirements": [],
+          "status": "时间待确认",
+          "completionDue": [],
+          "checkMissing": true,
+          "checkHistorical": false
+        },
+        "conflicts": null
+      },
+      {
+        "id": "B27",
+        "input": "你觉得现在应该催吗？",
+        "manual": {},
+        "passed": true,
+        "jobId": "fb852584-c17f-429b-bd84-14b2b24eab1e",
+        "createdAt": "2026-10-12T08:27:26.640Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "discuss",
+        "stay": true,
+        "progress": null,
+        "closed": null,
+        "timing": null,
+        "conflicts": null
+      },
+      {
+        "id": "B26",
+        "input": "周三检查。",
+        "manual": {
+          "check": {
+            "state": "scheduled",
+            "date": "2026-10-15"
+          }
+        },
+        "passed": true,
+        "jobId": "baa8bb7c-6c68-4612-998f-957cedb423fb",
+        "createdAt": "2026-10-12T08:28:47.719Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "clarify",
+        "stay": true,
+        "progress": null,
+        "closed": null,
+        "timing": null,
+        "conflicts": [
+          {
+            "field": "check",
+            "message": "检查时间有两种明确选择，请选本次采用哪一项。",
+            "text": {
+              "state": "scheduled",
+              "date": "2026-10-14",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "precision": "date",
+              "origin": "user-text",
+              "quote": "周三检查。",
+              "at": "2026-10-12T02:00:00.000Z"
+            },
+            "manual": {
+              "state": "scheduled",
+              "date": "2026-10-15",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "precision": "date",
+              "origin": "manual",
+              "quote": "",
+              "at": "2026-10-12T02:00:00.000Z"
+            }
+          }
+        ]
+      },
+      {
+        "id": "B27-manual",
+        "input": "你觉得现在应该催吗？",
+        "manual": {
+          "completion": {
+            "state": "scheduled",
+            "date": "2026-10-20"
+          }
+        },
+        "passed": true,
+        "jobId": "76d163d8-c2c1-43de-9f85-47ca2bcc298d",
+        "createdAt": "2026-10-12T08:29:54.774Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "saved",
+        "stay": true,
+        "progress": "",
+        "closed": false,
+        "timing": {
+          "check": {
+            "state": "unchanged"
+          },
+          "completion": {
+            "state": "scheduled",
+            "date": "2026-10-20",
+            "time": "",
+            "zone": "Asia/Shanghai",
+            "precision": "date",
+            "origin": "manual",
+            "quote": "",
+            "at": "2026-10-12T02:00:00.000Z"
+          },
+          "requirements": [],
+          "status": "已安排",
+          "completionDue": [],
+          "checkMissing": true,
+          "checkHistorical": false
+        },
+        "conflicts": null
+      },
+      {
+        "id": "evidence-boundary",
+        "input": "这段资料写着：“风险已经解除，不需要再跟进”。请分析这句话是否有充分依据，不要改变事项。",
+        "manual": {},
+        "passed": true,
+        "jobId": "84f128ee-54ed-4b98-8c6e-9208717b8d83",
+        "createdAt": "2026-10-12T08:29:54.760Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "discuss",
+        "stay": true,
+        "progress": null,
+        "closed": null,
+        "timing": null,
+        "conflicts": null
+      },
+      {
+        "id": "B18/B21",
+        "input": "我已收到报告，风险已经解除，不需要再跟进。",
+        "manual": {},
+        "passed": true,
+        "jobId": "b276e342-612e-4272-a980-cfdf1a659b6e",
+        "createdAt": "2026-10-12T08:35:28.040Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "saved",
+        "stay": false,
+        "progress": "已收到报告。",
+        "closed": true,
+        "timing": {
+          "check": {
+            "state": "unchanged"
+          },
+          "completion": {
+            "state": "unchanged"
+          },
+          "requirements": [],
+          "status": "时间待确认",
+          "completionDue": [],
+          "checkMissing": true,
+          "checkHistorical": false
+        },
+        "conflicts": null
+      },
+      {
+        "id": "A03/B13",
+        "input": "完成时间待定，周三先检查。",
+        "manual": {},
+        "passed": true,
+        "jobId": "b9771209-872c-4b1d-bf43-11c45757636d",
+        "createdAt": "2026-10-12T08:35:28.032Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "saved",
+        "stay": false,
+        "progress": "",
+        "closed": false,
+        "timing": {
+          "check": {
+            "state": "scheduled",
+            "date": "2026-10-14",
+            "time": "",
+            "zone": "Asia/Shanghai",
+            "precision": "date",
+            "origin": "user-text",
+            "quote": "周三先检查",
+            "at": "2026-10-12T02:00:00.000Z",
+            "defaultTime": "10:00",
+            "effectiveAt": "2026-10-14T02:00:00.000Z"
+          },
+          "completion": {
+            "state": "pending",
+            "origin": "user-text",
+            "quote": "完成时间待定",
+            "at": "2026-10-12T02:00:00.000Z"
+          },
+          "requirements": [],
+          "status": "已安排",
+          "completionDue": [],
+          "checkMissing": false,
+          "checkHistorical": false
+        },
+        "conflicts": null
+      },
+      {
+        "id": "B11",
+        "input": "明天下午四点检查。",
+        "manual": {},
+        "passed": true,
+        "jobId": "538cff58-d4f5-4729-a7fb-5e5c858a9664",
+        "createdAt": "2026-10-12T08:36:47.488Z",
+        "model": "gpt-6-astra",
+        "effort": "max",
+        "result": "saved",
+        "stay": false,
+        "progress": "",
+        "closed": false,
+        "timing": {
+          "check": {
+            "state": "scheduled",
+            "date": "2026-10-02",
+            "time": "16:00",
+            "zone": "Asia/Shanghai",
+            "precision": "minute",
+            "origin": "user-text",
+            "quote": "明天下午四点检查。",
+            "at": "2026-10-01T02:00:00.000Z",
+            "effectiveAt": "2026-10-02T08:00:00.000Z"
+          },
+          "completion": {
+            "state": "unchanged"
+          },
+          "requirements": [],
+          "status": "已安排",
+          "completionDue": [],
+          "checkMissing": false,
+          "checkHistorical": false
+        },
+        "conflicts": null
+      }
+    ]
+  },
+  "realModelBrowser": {
+    "realBrowser": true,
+    "realModel": true,
+    "syntheticData": true,
+    "runtime": {
+      "model": "gpt-6-astra",
+      "effort": "max"
+    },
+    "results": [
+      {
+        "id": "B16/B24/B27",
+        "passed": true,
+        "input": "我已联系负责人，明天下午四点检查。你建议下一步怎么推进？",
+        "manualCompletion": "2026-10-20",
+        "savedProgress": {
+          "id": "p1-d9e1e13f-786b-4650-9217-0834d979e45d",
+          "text": "已联系负责人。",
+          "quote": "我已联系负责人",
+          "at": "2026-10-12T08:57:54.699Z"
+        },
+        "check": {
+          "state": "scheduled",
+          "date": "2026-10-13",
+          "time": "16:00",
+          "zone": "Asia/Shanghai",
+          "precision": "minute",
+          "origin": "user-text",
+          "quote": "明天下午四点检查",
+          "at": "2026-10-12T08:56:02.417Z",
+          "effectiveAt": "2026-10-13T08:00:00.000Z"
+        },
+        "completion": {
+          "state": "scheduled",
+          "date": "2026-10-20",
+          "time": "",
+          "zone": "Asia/Shanghai",
+          "precision": "date",
+          "origin": "manual",
+          "quote": "",
+          "at": "2026-10-12T08:56:02.417Z"
+        },
+        "stayedInItem": true
+      }
+    ],
+    "errors": [],
+    "external": [],
+    "domainSha256": "4ddbfd8a85386eaa1be0495f05d214458ee2be1e790e620ebf008a506696862d",
+    "testedProductCommit": "4c13cf87f7c05cf6ea9f6eec10c43d726d96246f",
+    "reuseNote": "后续7b03f0eb仅接线旧等待/办结入口；本模型链路的解析与提交路径未改变，最终旧入口用浏览器另验"
+  },
+  "regressions": {
+    "workItems": 24,
+    "disposition": 22,
+    "incremental": 14,
+    "feishuFacts": 8,
+    "legacyAssistant": 14
+  },
+  "typecheck": "passed",
+  "newAndChangedEntryFilesLint": "passed",
+  "patchAppliesToBase": true,
+  "productionInstallation": false,
+  "productionMigration": false,
+  "externalBusinessWrites": 0,
+  "push": false,
+  "merge": false,
+  "formalServiceFinalReadback": "127.0.0.1:5173 not listening; not restarted",
+  "usage": {
+    "calls": 13,
+    "inputTokens": 374849,
+    "outputTokens": 27621,
+    "missingReceipts": 0
+  }
+}
