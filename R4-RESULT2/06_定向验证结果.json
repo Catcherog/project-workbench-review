@@ -1,0 +1,919 @@
+{
+  "batch": "S1P1-20261012-01-R4-RESULT2",
+  "sourceImplementationCommit": "cae2968fd347c7b7a97df37a9e43b054c98cc263",
+  "release": {
+    "version": "2.16.0-s1p1.2",
+    "build": "20261013.p1-r4-fix1.1",
+    "channel": "preview",
+    "releasedOn": "2026-10-13"
+  },
+  "static": {
+    "at": "2026-10-13T01:46:19.982267+00:00",
+    "results": [
+      {
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exitCode": 0,
+        "seconds": 0.28
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        "exitCode": 0,
+        "seconds": 1.25
+      },
+      {
+        "command": [
+          "npx",
+          "eslint",
+          "app/work-item-entry.tsx",
+          "app/work-item-time.tsx",
+          "lib/work-item-progress.ts",
+          "scripts/work-item-entry.mjs",
+          "scripts/test-s1p1-fix1-domain.mjs",
+          "scripts/test-s1p1-fix1-browser.mjs"
+        ],
+        "exitCode": 0,
+        "seconds": 1.57
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exitCode": 0,
+        "seconds": 0.02
+      }
+    ]
+  },
+  "suites": [
+    {
+      "name": "FIX1规则",
+      "count": 11,
+      "passed": true,
+      "scope": "FIX1 domain operations; synthetic inputs, no model or external writes",
+      "results": [
+        {
+          "id": "F01-restore",
+          "name": "旧检查首次写入后撤销，摘要/状态/nextCheckAt恢复，保留后增进展",
+          "passed": true,
+          "evidence": {
+            "summary": "2026-10-14 08:00 · legacy",
+            "status": "已安排",
+            "nextCheckAt": "2026-10-14T08:00:00+08:00",
+            "progress": [
+              {
+                "id": "7e4f5fc9-42bd-4ee3-8ea8-cc0425c88263",
+                "text": "已收到初稿",
+                "quote": "已收到初稿",
+                "at": "2026-10-12T02:00:00.000Z"
+              }
+            ]
+          }
+        },
+        {
+          "id": "F01-presence",
+          "name": "恢复缺省/空对象/null/空数组原存在状态，不覆盖后来字段",
+          "passed": true,
+          "evidence": {
+            "initialContainers": 6,
+            "laterFieldRetained": true
+          }
+        },
+        {
+          "id": "F01-empty-clear",
+          "name": "已有空时间对象回退旧安排，明确clear/pending不回退",
+          "passed": true,
+          "evidence": {
+            "emptyFallback": true,
+            "explicitClearAndPendingPreserved": true
+          }
+        },
+        {
+          "id": "F01-atomic",
+          "name": "后续同字段变动阻止整次撤销且不修改进展",
+          "passed": true,
+          "evidence": {
+            "atomic": true
+          }
+        },
+        {
+          "id": "F02-binding",
+          "name": "选择绑定显示候选，手选/文字/模型候选变化使旧选择失效",
+          "passed": true,
+          "evidence": {
+            "initial": "2026-10-15",
+            "newCandidate": "2026-10-16",
+            "saved": "2026-10-16",
+            "oldBareChoiceRejected": true
+          }
+        },
+        {
+          "id": "F03-identity",
+          "name": "创建→修改→再次修改→撤销第二次修改，同一进展与独立操作",
+          "passed": true,
+          "evidence": {
+            "progressId": "7dc08556-6bcc-4bc2-945b-ccbaaf3dcd98",
+            "operationIds": [
+              "7dc08556-6bcc-4bc2-945b-ccbaaf3dcd98",
+              "622a79c0-9640-455b-995b-05840939c0dc",
+              "a698ab86-9695-4ec2-a732-d7a1bd44ad72"
+            ],
+            "restored": "已收到初稿"
+          }
+        },
+        {
+          "id": "F04-version",
+          "name": "纯时间提交仍受版本校验，核对新版本可保存",
+          "passed": true,
+          "evidence": {
+            "oldVersion": 1,
+            "checkedVersion": 2,
+            "saved": "2026-10-16"
+          }
+        },
+        {
+          "id": "F05-states",
+          "name": "资料无后续/新增等待/有效安排/两项待定保留分类及正确回执",
+          "passed": true,
+          "evidence": {
+            "statuses": [
+              "无需时间安排",
+              "时间待确认",
+              "已安排",
+              "明确待定"
+            ],
+            "nature": "reference"
+          }
+        },
+        {
+          "id": "F05-active",
+          "name": "资料当前待核实/待决策/明确继续与历史已结束相区分",
+          "passed": true,
+          "evidence": {
+            "activeCases": 3,
+            "closedHistoricalWaiting": false
+          }
+        },
+        {
+          "id": "F06-boundaries",
+          "name": "按检查/完成、日期/时刻、时区比较边界，并保持日期精度",
+          "passed": true,
+          "evidence": [
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T09:59:59+08:00",
+              "conflict": true,
+              "summary": "2026-10-13 · 默认 10:00",
+              "due": []
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T10:00:00+08:00",
+              "conflict": false,
+              "summary": "2026-10-13 · 默认 10:00",
+              "due": []
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T15:00:00+08:00",
+              "conflict": true,
+              "summary": "2026-10-13",
+              "due": [
+                "今日到期"
+              ]
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T23:59:59+08:00",
+              "conflict": true,
+              "summary": "2026-10-13",
+              "due": [
+                "今日到期"
+              ]
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-14T00:00:00+08:00",
+              "conflict": false,
+              "summary": "2026-10-13",
+              "due": [
+                "要求时间已过，完成情况待核实"
+              ]
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "-04:00",
+              "now": "2026-10-13T20:00:00+08:00",
+              "conflict": true,
+              "summary": "2026-10-13 · 默认 10:00 -04:00",
+              "due": []
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "-04:00",
+              "now": "2026-10-13T14:00:00Z",
+              "conflict": false,
+              "summary": "2026-10-13 · 默认 10:00 -04:00",
+              "due": []
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "-04:00",
+              "now": "2026-10-14T03:59:59Z",
+              "conflict": true,
+              "summary": "2026-10-13 -04:00",
+              "due": [
+                "今日到期"
+              ]
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "-04:00",
+              "now": "2026-10-14T04:00:00Z",
+              "conflict": false,
+              "summary": "2026-10-13 -04:00",
+              "due": [
+                "要求时间已过，完成情况待核实"
+              ]
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "",
+              "zone": "UTC",
+              "now": "2026-10-13T23:59:59Z",
+              "conflict": true,
+              "summary": "2026-10-13 UTC",
+              "due": [
+                "今日到期"
+              ]
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-14",
+              "time": "",
+              "zone": "+14:00",
+              "now": "2026-10-14T09:59:59Z",
+              "conflict": true,
+              "summary": "2026-10-14 +14:00",
+              "due": [
+                "今日到期"
+              ]
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "16:00",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T15:00:00+08:00",
+              "conflict": true,
+              "summary": "2026-10-13 16:00",
+              "due": []
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "16:00",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T16:00:00+08:00",
+              "conflict": false,
+              "summary": "2026-10-13 16:00",
+              "due": []
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "10:00",
+              "zone": "-04:00",
+              "now": "2026-10-13T13:59:59Z",
+              "conflict": true,
+              "summary": "2026-10-13 10:00 -04:00",
+              "due": []
+            },
+            {
+              "key": "check",
+              "date": "2026-10-13",
+              "time": "10:00",
+              "zone": "-04:00",
+              "now": "2026-10-13T14:00:00Z",
+              "conflict": false,
+              "summary": "2026-10-13 10:00 -04:00",
+              "due": []
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "16:00",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T15:00:00+08:00",
+              "conflict": true,
+              "summary": "2026-10-13 16:00",
+              "due": []
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "16:00",
+              "zone": "Asia/Shanghai",
+              "now": "2026-10-13T16:00:00+08:00",
+              "conflict": false,
+              "summary": "2026-10-13 16:00",
+              "due": [
+                "要求时间已过，完成情况待核实"
+              ]
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "10:00",
+              "zone": "-04:00",
+              "now": "2026-10-13T13:59:59Z",
+              "conflict": true,
+              "summary": "2026-10-13 10:00 -04:00",
+              "due": []
+            },
+            {
+              "key": "completion",
+              "date": "2026-10-13",
+              "time": "10:00",
+              "zone": "-04:00",
+              "now": "2026-10-13T14:00:00Z",
+              "conflict": false,
+              "summary": "2026-10-13 10:00 -04:00",
+              "due": [
+                "要求时间已过，完成情况待核实"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F06-choice-history",
+          "name": "结束选择也绑定安排；未触碰的历史时间不作为新安排",
+          "passed": true,
+          "evidence": {
+            "changedCandidateRejected": true,
+            "untouchedHistoricalTimeRetained": true
+          }
+        }
+      ],
+      "evidenceGeneratedAt": "2026-10-13T01:46:32.176706+00:00"
+    },
+    {
+      "name": "FIX1浏览器",
+      "count": 9,
+      "passed": true,
+      "scope": "real Chromium / local API / isolated SQLite; simulated model; synthetic records",
+      "results": [
+        {
+          "id": "F01-UI",
+          "name": "旧时间→新安排→后来进展→撤销后回显旧时间",
+          "passed": true,
+          "evidence": {
+            "summary": "2026-10-14 08:00 · legacy",
+            "status": "已安排",
+            "nextCheckAt": "2026-10-14T08:00:00+08:00",
+            "laterProgress": "已收到初稿"
+          }
+        },
+        {
+          "id": "F02-UI",
+          "name": "处理期间修改时间和文字，旧候选不可操作，新候选与保存一致",
+          "passed": true,
+          "evidence": {
+            "obsolete": "2026-10-15",
+            "visibleCandidate": "2026-10-16",
+            "saved": "2026-10-16",
+            "textEditInvalidated": true
+          }
+        },
+        {
+          "id": "F02-reload",
+          "name": "分析中刷新仍保留较新草稿，旧clarify不重新成为可选项",
+          "passed": true,
+          "evidence": {
+            "restoredDraft": "2026-10-17",
+            "executableOldCandidates": 0
+          }
+        },
+        {
+          "id": "F03-UI",
+          "name": "列表回执和留场回执连续修改同一进展，撤销第二次修改",
+          "passed": true,
+          "evidence": {
+            "progressId": "p1-e2e46f7a-b296-4f2c-898d-b5443c270fea",
+            "count": 2,
+            "restored": "已收到初稿",
+            "bothEditEntrances": true
+          }
+        },
+        {
+          "id": "F04-UI",
+          "name": "纯时间草稿版本变化可核对继续；核对后再次变更仍被服务拒绝",
+          "passed": true,
+          "evidence": {
+            "emptyText": true,
+            "retained": "2026-10-18",
+            "postAcknowledgementRaceRejected": true,
+            "saved": "2026-10-18"
+          }
+        },
+        {
+          "id": "F05-UI",
+          "name": "资料新增等待出现时间缺口，可补安排和两项待定",
+          "passed": true,
+          "evidence": {
+            "statuses": [
+              "无需时间安排",
+              "时间待确认",
+              "已安排",
+              "明确待定"
+            ],
+            "nature": "reference"
+          }
+        },
+        {
+          "id": "F06-UI",
+          "name": "其他时区日期完成要求保留精度，结束冲突须明确选择",
+          "passed": true,
+          "evidence": {
+            "date": "2026-10-16",
+            "zone": "-04:00",
+            "precision": "date",
+            "display": "2026-10-16 -04:00",
+            "effectiveAtPresent": false
+          }
+        },
+        {
+          "id": "B15-position",
+          "name": "普通保存返回后项目筛选、搜索、原排序和非零浏览位置保留",
+          "passed": true,
+          "evidence": {
+            "filter": "p",
+            "query": "模拟浏览位置",
+            "before": {
+              "ids": [
+                "sources:p1-scroll-1",
+                "sources:p1-scroll-10",
+                "sources:p1-scroll-11",
+                "sources:p1-scroll-12",
+                "sources:p1-scroll-13",
+                "sources:p1-scroll-14",
+                "sources:p1-scroll-15",
+                "sources:p1-scroll-16",
+                "sources:p1-scroll-17",
+                "sources:p1-scroll-18",
+                "sources:p1-scroll-19",
+                "sources:p1-scroll-2",
+                "sources:p1-scroll-20",
+                "sources:p1-scroll-21",
+                "sources:p1-scroll-22",
+                "sources:p1-scroll-23",
+                "sources:p1-scroll-24",
+                "sources:p1-scroll-25",
+                "sources:p1-scroll-26",
+                "sources:p1-scroll-27",
+                "sources:p1-scroll-28",
+                "sources:p1-scroll-29",
+                "sources:p1-scroll-3",
+                "sources:p1-scroll-30",
+                "sources:p1-scroll-31",
+                "sources:p1-scroll-32",
+                "sources:p1-scroll-33",
+                "sources:p1-scroll-34",
+                "sources:p1-scroll-35",
+                "sources:p1-scroll-36",
+                "sources:p1-scroll-4",
+                "sources:p1-scroll-5",
+                "sources:p1-scroll-6",
+                "sources:p1-scroll-7",
+                "sources:p1-scroll-8",
+                "sources:p1-scroll-9"
+              ],
+              "position": {
+                "window": 1736,
+                "containers": [
+                  {
+                    "className": "v2-main",
+                    "top": 0
+                  },
+                  {
+                    "className": "v2-content",
+                    "top": 0
+                  }
+                ]
+              },
+              "top": 490.65625
+            },
+            "after": {
+              "ids": [
+                "sources:p1-scroll-1",
+                "sources:p1-scroll-10",
+                "sources:p1-scroll-11",
+                "sources:p1-scroll-12",
+                "sources:p1-scroll-13",
+                "sources:p1-scroll-14",
+                "sources:p1-scroll-15",
+                "sources:p1-scroll-16",
+                "sources:p1-scroll-17",
+                "sources:p1-scroll-18",
+                "sources:p1-scroll-19",
+                "sources:p1-scroll-2",
+                "sources:p1-scroll-20",
+                "sources:p1-scroll-21",
+                "sources:p1-scroll-22",
+                "sources:p1-scroll-23",
+                "sources:p1-scroll-24",
+                "sources:p1-scroll-25",
+                "sources:p1-scroll-26",
+                "sources:p1-scroll-27",
+                "sources:p1-scroll-28",
+                "sources:p1-scroll-29",
+                "sources:p1-scroll-3",
+                "sources:p1-scroll-30",
+                "sources:p1-scroll-31",
+                "sources:p1-scroll-32",
+                "sources:p1-scroll-33",
+                "sources:p1-scroll-34",
+                "sources:p1-scroll-35",
+                "sources:p1-scroll-36",
+                "sources:p1-scroll-4",
+                "sources:p1-scroll-5",
+                "sources:p1-scroll-6",
+                "sources:p1-scroll-7",
+                "sources:p1-scroll-8",
+                "sources:p1-scroll-9"
+              ],
+              "position": {
+                "window": 1885,
+                "containers": [
+                  {
+                    "className": "v2-main",
+                    "top": 0
+                  },
+                  {
+                    "className": "v2-content",
+                    "top": 0
+                  }
+                ]
+              },
+              "top": 491.234375
+            },
+            "sortControl": "页面使用原有优先级排序，无独立手动排序控件",
+            "scrollMeaning": "新增回执改变页面高度，scrollY可变；同一事项在视口的top误差须小于2像素"
+          }
+        },
+        {
+          "id": "boundary",
+          "name": "隔离页面→真实HTTP→SQLite→回执，无真实外发",
+          "passed": true,
+          "evidence": {
+            "consoleErrors": [],
+            "externalRequests": [],
+            "externalBusinessWrites": 0
+          }
+        }
+      ],
+      "evidenceGeneratedAt": "2026-10-13T01:45:12.190387+00:00"
+    },
+    {
+      "name": "相关R4规则复跑",
+      "count": 25,
+      "passed": true,
+      "scope": "isolated rules; structured plans, not natural-language acceptance",
+      "results": [
+        {
+          "id": "A02/A05/A09",
+          "name": "no date is pending confirmation; background and urgent risk remain distinct",
+          "passed": true
+        },
+        {
+          "id": "A03/B13",
+          "name": "one explicit check plus pending completion; 10:00 date precision",
+          "passed": true
+        },
+        {
+          "id": "A04/B04",
+          "name": "explicit both pending and completion-only pending differ",
+          "passed": true
+        },
+        {
+          "id": "B01/B02",
+          "name": "progress saves without pickup or time; same item",
+          "passed": true
+        },
+        {
+          "id": "B03/B23/B24",
+          "name": "manual-only and combined writes preserve untouched arrangements",
+          "passed": true
+        },
+        {
+          "id": "A07/B12/B14",
+          "name": "new check preserves overdue requirement; Beijing midnight boundary",
+          "passed": true
+        },
+        {
+          "id": "B05/B19",
+          "name": "checking ends one check; never resolves the risk",
+          "passed": true
+        },
+        {
+          "id": "B17/B18",
+          "name": "resolved with followup and resolved with no followup differ",
+          "passed": true
+        },
+        {
+          "id": "B21",
+          "name": "undo reverses progress, time, risk and closure atomically",
+          "passed": true
+        },
+        {
+          "id": "B21-independent",
+          "name": "undo keeps unrelated later records and appended progress",
+          "passed": true
+        },
+        {
+          "id": "B21-conflict",
+          "name": "conflicting later time blocks whole undo without partial rollback",
+          "passed": true
+        },
+        {
+          "id": "B22/B10",
+          "name": "reopen retains identity and historical conclusion, duplicate old evidence stays open",
+          "passed": true
+        },
+        {
+          "id": "B08/B09",
+          "name": "old version rejected; repeated identical request is idempotent",
+          "passed": true
+        },
+        {
+          "id": "B25/B26",
+          "name": "dirty control conflict is explicit; unchanged control absent from patch",
+          "passed": true
+        },
+        {
+          "id": "B26-end",
+          "name": "ending and new future schedule needs an explicit choice",
+          "passed": true
+        },
+        {
+          "id": "B27",
+          "name": "discussion with manual times saves only selected arrangement",
+          "passed": true
+        },
+        {
+          "id": "A08-legacy",
+          "name": "legacy dates read without migration; closed history is not future work",
+          "passed": true
+        },
+        {
+          "id": "sources",
+          "name": "both pending never deletes independent formal requirement",
+          "passed": true
+        },
+        {
+          "id": "past-time",
+          "name": "today after default time remains today and is accepted",
+          "passed": true
+        },
+        {
+          "id": "edit",
+          "name": "progress can be corrected and correction undo retains earlier content",
+          "passed": true
+        },
+        {
+          "id": "B05-next",
+          "name": "completing prior check and choosing next check preserves both",
+          "passed": true
+        },
+        {
+          "id": "B22-expired",
+          "name": "reopening an expired check does not pretend it was completed",
+          "passed": true
+        },
+        {
+          "id": "B10-new-evidence",
+          "name": "identical evidence preserves closure; material new evidence becomes a reviewable difference",
+          "passed": true
+        },
+        {
+          "id": "B14-other-zone",
+          "name": "date-level completion honors its explicit timezone boundary",
+          "passed": true
+        },
+        {
+          "id": "legacy-buttons",
+          "name": "existing done button closes a reopened P1 item without clearing dates",
+          "passed": true
+        }
+      ],
+      "evidenceGeneratedAt": "2026-10-13T01:46:32.266023+00:00"
+    },
+    {
+      "name": "相关R4 HTTP复跑",
+      "count": 8,
+      "passed": true,
+      "scope": "isolated SQLite + HTTP + simulated CLI; no external writes",
+      "results": [
+        {
+          "id": "B23",
+          "name": "manual-only uses existing assistant request and transaction, zero model call",
+          "passed": true
+        },
+        {
+          "id": "B24/B06",
+          "name": "text and manual changes save together then GET reads same record",
+          "passed": true
+        },
+        {
+          "id": "B09",
+          "name": "uncertain POST readback finds exact request and resubmit cannot repeat",
+          "passed": true
+        },
+        {
+          "id": "B16/B27",
+          "name": "pure question does not change business; question plus control saves and stays",
+          "passed": true
+        },
+        {
+          "id": "B26",
+          "name": "conflicting text/control returns candidates without writes",
+          "passed": true
+        },
+        {
+          "id": "B18/B21",
+          "name": "end and undo are real HTTP transaction readbacks",
+          "passed": true
+        },
+        {
+          "id": "B08",
+          "name": "late model response cannot overwrite newer manual change",
+          "passed": true
+        },
+        {
+          "id": "boundary",
+          "name": "token missing fails before any record write",
+          "passed": true
+        }
+      ],
+      "evidenceGeneratedAt": "2026-10-13T01:46:35.305036+00:00"
+    },
+    {
+      "name": "相关R4浏览器复跑",
+      "count": 16,
+      "passed": true,
+      "scope": "real browser + isolated API/SQLite + simulated model",
+      "results": [
+        {
+          "id": "B23/B24",
+          "name": "visible controls below same input; manual-only one submit returns to list",
+          "passed": true
+        },
+        {
+          "id": "A01/B06/B03",
+          "name": "cross-entry values survive refresh; progress does not rewrite untouched time",
+          "passed": true
+        },
+        {
+          "id": "B02/B15",
+          "name": "no-time receipt offers direct both-pending, no forced date",
+          "passed": true
+        },
+        {
+          "id": "B16/B27",
+          "name": "pure discussion stays without writes; mixed input saves fact and stays",
+          "passed": true
+        },
+        {
+          "id": "B26",
+          "name": "text/control conflict remains inline and chosen candidate saves",
+          "passed": true
+        },
+        {
+          "id": "B25",
+          "name": "late answer preserves newer hand selection and keeps it unsaved",
+          "passed": true
+        },
+        {
+          "id": "B07/B09",
+          "name": "lost POST response is queried and saves once",
+          "passed": true
+        },
+        {
+          "id": "B07-refresh",
+          "name": "write success + read failure is explicit and does not discard input prematurely",
+          "passed": true
+        },
+        {
+          "id": "B18/B20/B21",
+          "name": "ended tab and whole operation undo reuse original identity",
+          "passed": true
+        },
+        {
+          "id": "B22",
+          "name": "reopen from ended record keeps original ID and risk history",
+          "passed": true
+        },
+        {
+          "id": "A06",
+          "name": "unread material primary action reads evidence, not task conversion",
+          "passed": true
+        },
+        {
+          "id": "B15-cancel/mobile",
+          "name": "cancel returns to entry and changes no data; narrow time controls fit",
+          "passed": true
+        },
+        {
+          "id": "B07-failure",
+          "name": "rejected save keeps the text and manual choices with no navigation or data write",
+          "passed": true
+        },
+        {
+          "id": "B25-reload",
+          "name": "reload during analysis recovers original request without erasing newer time draft",
+          "passed": true
+        },
+        {
+          "id": "B15-edit",
+          "name": "ordinary result returns with filter intact and can edit progress without rewriting time",
+          "passed": true
+        },
+        {
+          "id": "boundary",
+          "name": "browser, service and persisted records stay in isolated workspace",
+          "passed": true
+        }
+      ],
+      "evidenceGeneratedAt": "2026-10-13T01:43:48.931063+00:00"
+    }
+  ],
+  "supplementalF06ScreenshotRun": {
+    "countedAgain": false,
+    "scope": "real Chromium / local API / isolated SQLite; simulated model; synthetic records",
+    "results": [
+      {
+        "id": "F06-UI",
+        "name": "其他时区日期完成要求保留精度，结束冲突须明确选择",
+        "passed": true,
+        "evidence": {
+          "date": "2026-10-16",
+          "zone": "-04:00",
+          "precision": "date",
+          "display": "2026-10-16 -04:00",
+          "effectiveAtPresent": false
+        }
+      },
+      {
+        "id": "boundary",
+        "name": "隔离页面→真实HTTP→SQLite→回执，无真实外发",
+        "passed": true,
+        "evidence": {
+          "consoleErrors": [],
+          "externalRequests": [],
+          "externalBusinessWrites": 0
+        }
+      }
+    ]
+  },
+  "evidenceReuse": {
+    "realModel": "R4 historical evidence only, not rerun for FIX1",
+    "broad82Regression": "not rerun, not counted as current pass"
+  },
+  "notes": [
+    "69 groups/checks include 19 boundary combinations inside one F06 rule group; combinations not double-counted.",
+    "The browser fixture emits deterministic structured model output; DOM, HTTP, SQLite and screenshots are real.",
+    "B15 checks original row identity, order and viewport offset; scrollY changes with added receipt height."
+  ]
+}
