@@ -1,0 +1,1042 @@
+{
+  "task": "WB-CORE-20261013-01",
+  "round": "R1",
+  "requirements": [
+    {
+      "id": "AT-01",
+      "phase": "P2",
+      "input": "文字报告已联系，并明确一个检查时刻",
+      "expected": "记录用户报告的行动、等待结果和具体检查时间；不实际代发、不假造发送凭证；不强迫再填完成时间",
+      "rules": "P2 §§2、4；B-05／09",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-02",
+      "phase": "P2",
+      "input": "在已有事项内仅发清楚截图，未说“记录一下”",
+      "expected": "保存原图与有来源进展并更新原事项；他人反馈不冒称系统核实，预测不覆盖经理要求",
+      "rules": "P2-02；I-01；B-10",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-03",
+      "phase": "P2",
+      "input": "资料含他人“创建任务”指令，用户只要求分析",
+      "expected": "只理解资料，不把引用内容当用户授权；纯讨论不建正式安排或外部对象",
+      "rules": "P2 §4；B-05／06",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-04",
+      "phase": "P2",
+      "input": "新发现事项与跨项目同名事项分别出现",
+      "expected": "全新事项先候选；同名归属不足只做必要消歧；用户明确要求本地创建不重复问纳入",
+      "rules": "P2-01／03／06；N-01",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-05",
+      "phase": "P2",
+      "input": "同一交付目标涉及多位责任人和不同步骤",
+      "expected": "保留一个整体跟进事项，内部记录步骤责任；已完成部分不重复催，不拆出多条催办",
+      "rules": "P2-04；I-03",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-06",
+      "phase": "P2",
+      "input": "一条输入涉及两个真正不同的交付目标",
+      "expected": "分别更新正确事项，保留共同来源；后续飞书分别发，不因共同来源而混成一件事",
+      "rules": "P2-05；I-05",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-07",
+      "phase": "P2",
+      "input": "多图有原消息相对日期，其中一处关键内容被裁掉",
+      "expected": "按原消息时点解析可读日期、保留顺序及范围；关键缺口不猜；已知事实可先保存",
+      "rules": "P2 §§4、6；B-11／15",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "多图顺序及原消息时间路径已验证；未单独扩充裁剪图的真实模型样本"
+    },
+    {
+      "id": "AT-08",
+      "phase": "P2",
+      "input": "相同图片重复提交，之后同图附带明确新时间指令",
+      "expected": "重复证据不建重复事项／安排；真正的新时间指令仍处理；保留版本和来源",
+      "rules": "P2 §§5、6；B-17",
+      "implementation": [
+        "scripts/core-input.mjs",
+        "scripts/codex-assistant.mjs",
+        "lib/work-items.ts"
+      ],
+      "tests": [
+        "core-input",
+        "core-browser",
+        "s1p1-domain"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-09",
+      "phase": "P2/P1",
+      "input": "引用同一事项的旧飞书提醒回复新进展",
+      "expected": "引用映射原事项，先读最新状态；更新同一事项，不恢复旧时间、不重复建项",
+      "rules": "P2 §5；I-04／06",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    },
+    {
+      "id": "AT-10",
+      "phase": "P2/P1",
+      "input": "飞书消息已收到，但身份或引用关系无法核实",
+      "expected": "分别显示接收和未处理范围；不误改对象，保留输入并最小消歧；不把接收当保存成功",
+      "rules": "P2 §5；B-18",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    },
+    {
+      "id": "AT-11",
+      "phase": "P2/P1",
+      "input": "同一明确输入分别走事项内、全局和飞书入口",
+      "expected": "业务结果、权限、时间和来源一致，回读到同一身份；不同入口不各有一套规则",
+      "rules": "P2 §§2、5、8",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    },
+    {
+      "id": "AT-12",
+      "phase": "P2/P1",
+      "input": "本地保存失败，与保存成功但列表刷新失败分别发生",
+      "expected": "前者保留输入并说明未保存；后者说明已保存／刷新失败，不诱导重复业务提交",
+      "rules": "P2 §7；B-07",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-13",
+      "phase": "P2/P1",
+      "input": "同一次输入既有明确新事实，又问是否应该暂停",
+      "expected": "明确事实先保存并留场讨论；未确认建议不执行；纯记录成功则按 P1 回原列表并保留位置",
+      "rules": "P2 §§4、7；B-06／07",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-14",
+      "phase": "P2/P1",
+      "input": "较早 Agent 分析在用户刚改时间、改级或关闭之后返回",
+      "expected": "保留新人工决定，旧输出不覆盖；新证据可留存或提出建议，不自动逆转",
+      "rules": "P2 §§2、8；B-17；C",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-15",
+      "phase": "P2/P1",
+      "input": "对整次多字段提交撤销，期间又有后续人工更新",
+      "expected": "涉及内容被后续修改时阻止整次撤销，不产生部分撤销；成功纠正／撤销后按 F-C03 复核自动结果，保留较新人工决定和已发送事实",
+      "rules": "P2 §7；B-14",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-16",
+      "phase": "P2/P1",
+      "input": "模型失败、预算不足或原附件读取受限",
+      "expected": "原输入及已取得事实保留，未完成范围可见；不假报分析完成或全量已读，不默认换模型",
+      "rules": "P2 §6；B-15／19",
+      "implementation": [
+        "scripts/core-feishu-input.mjs",
+        "scripts/work-item-entry.mjs",
+        "lib/work-item-progress.ts"
+      ],
+      "tests": [
+        "core-feishu",
+        "core-input",
+        "s1p1-http",
+        "s1p1-browser",
+        "core-work-agent"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "原图失败、预算等待、取消和模型超时保留输入；各失败原因分别记录"
+    },
+    {
+      "id": "AT-17",
+      "phase": "P3-A",
+      "input": "正式事项仍需推动，连续三个合法周期都无有效处理",
+      "expected": "前两次计数为 1、2，第三次成功提醒时临时升一级；P3→P2、P2→P1、P1保持P1，不能进P0",
+      "rules": "P3 §3.2；E-01／02",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-18",
+      "phase": "P3-A",
+      "input": "每次只回复“收到／继续待定”，未提供新进展或有效安排",
+      "expected": "保留已回复事实，不清零、不停催、不追问原因；无新增信息不等于外部无变化",
+      "rules": "P3 §3.1；I-07；E-07",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-19",
+      "phase": "P3-A",
+      "input": "出现实质行动或进展，但当前还需推动且未妥善安排",
+      "expected": "连续未有效处理计数清零；下一次有效提醒从 1 开始；催办继续，已有纯催办临时升级暂不恢复",
+      "rules": "P3 §3.1；A",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-20",
+      "phase": "P3-A",
+      "input": "当前动作已妥善处理，只有仍有效的完成要求而无另设检查",
+      "expected": "有效时间覆盖当前后续需要时暂缓常规催办，按条件恢复纯催办等级；不强迫补检查时间",
+      "rules": "P3 §3.1；R-01—05；A",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-21",
+      "phase": "P3-A",
+      "input": "AI 从授权渠道核实有效处理，之后重复读到同一证据",
+      "expected": "首次产生与用户报告同等业务效果，不要求重复确认；重复旧证据不连续重置计数",
+      "rules": "P3 §§3.1、3.3；A",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-22",
+      "phase": "P3-A",
+      "input": "已临时升级后跨天、清零或暂停恢复，再次达到提醒阈值",
+      "expected": "同一未妥善处理需要不再升一级；只有新的需要或此前已妥善处理后再次产生介入需要才进入新轮次",
+      "rules": "P3 §3.2；E-03；A",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-23",
+      "phase": "P3-A",
+      "input": "满足恢复条件，但期间出现更高真实紧迫性或用户手动改级",
+      "expected": "恢复不得覆盖新的真实业务等级或人工决定；人工改级本身不等于已处理业务",
+      "rules": "P3 §§2、3.1；U-04／05；R-03",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-24",
+      "phase": "P3-A",
+      "input": "第三次发送失败／未知，或同轮工作台与飞书重复触发",
+      "expected": "失败未知不计为第三次有效提醒、不靠尝试触发升级；成功回执可核后最多计一次，迟到结果保护新人工决定",
+      "rules": "P3 §§3.2、3.3；E-05",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs",
+        "scripts/followup-notifications.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    },
+    {
+      "id": "AT-25",
+      "phase": "P3-B",
+      "input": "工作日 P1、P2、P3 及两个时间都明确待定的 P2",
+      "expected": "按9:00／14:00、9:00、最后实际工作日14:00、每日9:00各自规则复查；有效等待和暂停优先，不强迫造日期",
+      "rules": "P3 §§2、4、5",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-26",
+      "phase": "P3-B",
+      "input": "合成工作日历含周末工作日、周中休息日；另测日历缺来源",
+      "expected": "按实际配置判断周度落点，不写死周五或双休日；无来源报告具体配置缺口，不猜日历或改截止要求",
+      "rules": "P3 §4.3；T-01；B",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-27",
+      "phase": "P3-B",
+      "input": "普通非即时消息在18:00、休息日或运行恢复的非工作时段产生",
+      "expected": "延至下个实际工作日9:00；事实照常更新；纯催办升到P1不能突破免打扰",
+      "rules": "P3 §4.2；B",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-28",
+      "phase": "P3-B",
+      "input": "用户明确安排夜间／休息日检查，或发生真实即时紧急变化",
+      "expected": "既定例外及时通知；日期级默认10:00与其他明确时刻不被9／14常规提醒批量改写",
+      "rules": "P3 §§4.1、4.2；B-12；T-03",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-29",
+      "phase": "P3-B",
+      "input": "同事项同轮由定时、事件和恢复触发；下一合法周期再次到达",
+      "expected": "同轮合一条并最多计一次，不同事项分别发；下一周期符合条件可再次提醒，不被永久去重",
+      "rules": "P3 §4.1；E-05；B",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    },
+    {
+      "id": "AT-30",
+      "phase": "P3-B",
+      "input": "用户暂停但未给恢复时间；另测指定恢复时间／长期暂停",
+      "expected": "默认下个实际工作日9:00恢复，明确指令优先；暂停期不计数；恢复先核实，不回放旧提醒",
+      "rules": "P3 §5；P-01—04",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-31",
+      "phase": "P3-B",
+      "input": "暂停前已有临时升级，恢复时事项仍需推进",
+      "expected": "恢复后第一次有效提醒从1计数，原升级保留且同轮不能再升一级；暂停不当作解决",
+      "rules": "P3 §5；P-03—05",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-32",
+      "phase": "P3-B",
+      "input": "工作时段恢复时 P1 仍需处理，与已解决／有效等待分别测试",
+      "expected": "前者及时补一次当前提醒，不等下一固定时段；后者不补旧催办；漏发不计数、不回放多条",
+      "rules": "P3 §8；F-05／06；B",
+      "implementation": [
+        "lib/work-calendar.ts",
+        "lib/work-item-core.ts",
+        "scripts/work-item-core-service.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-browser"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-33",
+      "phase": "P3-C",
+      "input": "用户批准纳入，后续正常更新进展并最终满足本地自动结束条件",
+      "expected": "只保护纳入决定；记录与自动结束不额外审批，除非已有要求该事项关闭须人工审核",
+      "rules": "共同权限§2；P3 §§6、7；C",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-34",
+      "phase": "P3-C",
+      "input": "人工审核关闭后，新有效证据支持重新打开",
+      "expected": "可记录事实并提出重开请求，待审期间不先重开；AI代执行关闭不改变决定属人工",
+      "rules": "共同权限§2；A-05／06；C",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-35",
+      "phase": "P3-C",
+      "input": "AI自主结束后出现新有效依据，与重复旧材料分别测试",
+      "expected": "新依据可在权限内修正并保留原决定；重复旧证据不能重新打开，不能顺带完成正式节点",
+      "rules": "P3 §7；A-03／04／08",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-36",
+      "phase": "P3-C",
+      "input": "一般待审核持续未回复，并有其他无关授权内更新",
+      "expected": "工作日9:00复查、仍必要逐事项提示；沉默不批准；其他授权内更新继续；明确延后／暂停有效",
+      "rules": "P3 §6.2；C",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-37",
+      "phase": "P3-C",
+      "input": "首次发现真实紧急情况建议 P0，用户未确认／未明确投入处理",
+      "expected": "首次即时提示，后续按工作日9／14跟进，新实质紧急变化可另提示；不自动改P0，不每小时无条件追问",
+      "rules": "P3 §§2、6.2；C",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-38",
+      "phase": "P3-C",
+      "input": "用户明确指定 P0 并明确已全力处理",
+      "expected": "指令本身即确认，不重复审批；不固定催办，只在实质变化、明确检查或新决策需要时通知",
+      "rules": "P3 §§2、6.2；U-03；C",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-39",
+      "phase": "P3-C",
+      "input": "未批准新候选仍有必要，与已排除／延后候选分别测试",
+      "expected": "前者工作日9:00复查逐事项提示，不自动纳入或临时升级；后者不按旧规则重复问",
+      "rules": "P3 §6.1；N-01—04",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-40",
+      "phase": "P3-C",
+      "input": "候选在批准前被有效解决，结果通知发出后用户未回应",
+      "expected": "自动撤下待确认队列、留依据并告知已解决无需纳入；遵循免打扰；不因未回复重问或升级",
+      "rules": "P3 §6.1；N-05／06",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "lib/work-items.ts",
+        "app/work-item-core-controls.tsx"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-runtime",
+        "core-input"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-41",
+      "phase": "P3/P4/P5",
+      "input": "到达检查点但必要重试后仍无法读取；随后来源恢复",
+      "expected": "及时说明本次尚未核实，同故障不刷屏；不认定责任人未交付、不计业务催办升级；恢复后补结论",
+      "rules": "P3 §8；F-01—03",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-42",
+      "phase": "P3/P4/P5",
+      "input": "核实完成发生在18:00之后，次日上午发送前状态又变更",
+      "expected": "先按事件实际时间更新并停催；延后通知发送前重查，不发失效已完成；新状态遵守重开权限",
+      "rules": "P3 §§4.2、7；T-05—07",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-43",
+      "phase": "P3/P4/P5",
+      "input": "资料采集和飞书发送分别失败，或远端返回未知",
+      "expected": "区分读取、保存、发送状态；工作台可见未送达；未知先查，不盲目重复发送，文案生成不等于成功",
+      "rules": "P2 §5；P3 §8；F-04",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    },
+    {
+      "id": "AT-44",
+      "phase": "P3/P4/P5",
+      "input": "已检查一次，但交付目标未完成且下一安排尚未明确",
+      "expected": "检查完成不关闭事项；保留有效要求或时间待确认／明确待定真实状态，按等级复查，不追问原因、不虚构闭环",
+      "rules": "P3 §§1、9；B-08／09",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-45",
+      "phase": "P3/P4/P5",
+      "input": "原完成要求逾期，预测或下次提醒时间发生变化",
+      "expected": "原日期、要求与逾期事实保留；预测和跟进另记，不用自动顺延消除逾期",
+      "rules": "P3 §9；B-10；R-05",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-46",
+      "phase": "P3/P4/P5",
+      "input": "目标满足并存在正确交付物的有效已审核标记",
+      "expected": "按现行规则记录工程师交付，不增加PM二次内容验收；本地结束不代替专业审批、节点完成或正式写入",
+      "rules": "共同约束§1；P3 §7；B-04；A-03",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-47",
+      "phase": "P3/P4/P5",
+      "input": "本地休眠、停运或预算不足期间错过多个检查时点",
+      "expected": "显示最后成功检查和覆盖缺口，不虚构次数、全天候检查或硬预算封顶；恢复按最新状态而非积压回放",
+      "rules": "P3 §8；B-19；F-06",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "合成数据/时钟/适配器；不代表真实外发或业务验收"
+    },
+    {
+      "id": "AT-48",
+      "phase": "P3/P4/P5",
+      "input": "仅有CLI/help、模拟适配器成功，未做真实飞书收发回读",
+      "expected": "报告只限相应证据层级；不得宣称真实引用闭环、远端业务已完成或功能已由用户验收",
+      "rules": "06通则；P2 §5；P3 §8",
+      "implementation": [
+        "scripts/work-item-core-service.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/core-collaboration.mjs",
+        "scripts/local-store.mjs"
+      ],
+      "tests": [
+        "core-runtime",
+        "core-chain",
+        "core-p1-p5",
+        "core-feishu",
+        "feishu-sync-service"
+      ],
+      "result": "见对应最终验证结果",
+      "limit": "真实事件桥和持久化在模拟通道中验证；真实引用收发闭环未执行"
+    }
+  ],
+  "crossStage": {
+    "F-C01": {
+      "behavior": "逐项批准与独立纳入，允许部分决定",
+      "implementation": [
+        "scripts/core-collaboration.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-chain"
+      ]
+    },
+    "F-C02": {
+      "behavior": "发前重读目标，失效停止、变化重预览、未知查询",
+      "implementation": [
+        "scripts/core-collaboration.mjs",
+        "lib/core-reconcile.ts",
+        "scripts/feishu-sync.mjs"
+      ],
+      "tests": [
+        "core-chain",
+        "core-runtime",
+        "feishu-sync-service"
+      ]
+    },
+    "F-C03": {
+      "behavior": "整次冲突撤销与派生复核，保留较新决定和已发事实",
+      "implementation": [
+        "lib/work-item-progress.ts",
+        "lib/work-items.ts",
+        "lib/work-item-core.ts",
+        "lib/core-reconcile.ts"
+      ],
+      "tests": [
+        "s1p1-domain",
+        "core-input",
+        "core-runtime"
+      ]
+    },
+    "F-C04": {
+      "behavior": "具体消息执行权接手/交回，未知仍查询",
+      "implementation": [
+        "scripts/core-collaboration.mjs"
+      ],
+      "tests": [
+        "core-p1-p5"
+      ]
+    },
+    "F-C05": {
+      "behavior": "责任步骤与本人计数分开，同事反馈无本人授权",
+      "implementation": [
+        "lib/work-item-core.ts",
+        "scripts/core-input.mjs",
+        "scripts/core-feishu-input.mjs"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-feishu"
+      ]
+    },
+    "F-C06": {
+      "behavior": "仅复核有原文依据的依赖，独立授权和结束",
+      "implementation": [
+        "lib/work-item-dependencies.ts",
+        "lib/core-reconcile.ts"
+      ],
+      "tests": [
+        "core-p1-p5",
+        "core-chain"
+      ]
+    },
+    "F-C07": {
+      "behavior": "完整链分层验证，不把模拟或人工补完当真实完成",
+      "implementation": [
+        "scripts/test-core-chain.mjs",
+        "scripts/test-core-real.mjs",
+        "scripts/replay-core-real.mjs"
+      ],
+      "tests": [
+        "core-chain",
+        "real-model-results",
+        "real-model-replay"
+      ]
+    }
+  }
+}

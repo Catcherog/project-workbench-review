@@ -1,0 +1,20 @@
+PASS core preflight refresh reads only registered targets and propagates incomplete-read failure
+PASS legacy missing nodes stay visible without backing off unchanged incremental reads
+PASS unapproved writes blocked; approved exact payload writes once and readback persists
+PASS local edits after preparation invalidate exact approval
+PASS server-held patch tampering invalidates fingerprint
+PASS remote drift after preparation stops all writes
+PASS mismatched preflight identity cannot authorize write
+PASS mismatched readback identity cannot claim success
+PASS older preflight snapshot cannot authorize write
+PASS uncertain transport result reconciles by read only without duplicate writes
+PASS reconciliation verifies the originally approved target, not a changed binding
+PASS restart recovers sending to needs_reconcile and expires approved runs
+PASS one outstanding job per workspace
+PASS incomplete reads preserve data and outstanding conflict records
+PASS missing object responses are failures rather than successful empty polls
+PASS keeping local conflict value still needs a separate exact write approval
+PASS adopting remote conflict value changes local mirror only
+PASS conflict resolution rereads source and refuses a stale displayed value
+PASS backup retains sync evidence; restore disables polling and expires approvals
+PASS 19 isolated Feishu service checks; no production store or real CLI accessed
