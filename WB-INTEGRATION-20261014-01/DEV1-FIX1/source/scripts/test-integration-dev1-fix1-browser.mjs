@@ -1,0 +1,117 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
+import {mkdirSync,readdirSync,readFileSync,writeFileSync} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {setTimeout as delay} from 'node:timers/promises';
+import * as d from '../dist-local/domain.mjs';
+import {startCoreFixture} from './core-fixtures.mjs';
+import {fixtureState} from './s1p1-fixtures.mjs';
+
+// Original React build, HTTP and SQLite. Only data and external transport are synthetic.
+const reproduce=process.env.PM_EXPECT_BASELINE_BUGS==='1';
+const mode=reproduce?'baseline-reproduction':'fixed';
+const output=path.resolve(process.env.PM_FIX1_OUTPUT||'output/dev1-fix1/browser');mkdirSync(output,{recursive:true});
+const {chromium}=createRequire(process.env.PM_PLAYWRIGHT_MODULE||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'))('playwright');
+const cache=path.join(os.homedir(),'.agent-browser/browsers');
+const executablePath=process.env.PM_CHROME_PATH||path.join(cache,readdirSync(cache).filter(x=>x.startsWith('chrome-')).sort().at(-1),'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
+const outbound=[],remote=new Map(),transport={mode:'ok'};
+const client={simulation:true,identity:async()=>({scope:'tenant/app',userId:'ou_self',appId:'app',tenantKey:'tenant'}),run:async args=>{
+  if(args[1]==='+messages-send'){
+    if(transport.mode==='pause-send')await new Promise(resolve=>{transport.releaseSend=resolve;});
+    const id='om_fix1_'+(outbound.length+1),text=args[args.indexOf('--text')+1];
+    outbound.push({id,text,key:args[args.indexOf('--idempotency-key')+1]});remote.set(id,{message_id:id,msg_type:'text',content:text,sender:{id:'ou_self'}});return {message_id:id};
+  }
+  if(args[1]==='+messages-mget'){
+    if(transport.mode==='pause-readback')await new Promise(resolve=>{transport.releaseRead=resolve;});
+    return {messages:[remote.get(args[args.indexOf('--message-ids')+1])].filter(Boolean)};
+  }
+  throw Error('Unexpected synthetic transport request');
+}};
+const app=await startCoreFixture({client}),browser=await chromium.launch({executablePath,headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'Asia/Shanghai'}),page=await context.newPage();
+const results=[],errors=[],external=[],posts=[],screenshots=[];let workspaceId,ids,batchId;
+page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
+page.on('request',r=>{if(r.method()==='POST')posts.push({path:new URL(r.url()).pathname,body:r.postDataJSON()});});
+await context.route('**/*',route=>{const u=new URL(route.request().url());if(['http:','https:'].includes(u.protocol)&&u.origin!==app.origin){external.push(u.origin);return route.abort();}return route.continue();});
+const state=()=>app.store.load(workspaceId),record=id=>state().sources.find(r=>r.id===id),messages=()=>record(batchId).reminderRun.items;
+const collab=()=>page.locator('.wb-int-collaboration').last(),batch=()=>collab().getByRole('region',{name:'协作批次 '+batchId,exact:true});
+const card=i=>batch().locator('[data-message-id]').nth(i),box=i=>card(i).getByRole('checkbox');
+const save=()=>batch().getByRole('button',{name:'保存本批所选决定（不发送）',exact:true});
+const execute=()=>batch().getByRole('button',{name:/^执行本批已批准消息/});
+const discard=i=>card(i).getByRole('button',{name:'放弃这份本地草稿（不改变消息）',exact:true});
+async function until(fn){for(let i=0;i<200;i++){const v=await fn();if(v)return v;await delay(30);}throw Error('Expected durable state not reached');}
+async function shot(name,element){if(element)await element.scrollIntoViewIfNeeded();const file=mode+'-'+name+'.png';await page.screenshot({path:path.join(output,file)});screenshots.push(file);}
+async function core(action,extra={}){return app.api('/api/v2/core',{workspaceId,action,...extra});}
+async function decide(decisions=[],admissions=[]){return core('decide-messages',{sourceId:batchId,requestId:crypto.randomUUID(),decisions,admissions});}
+async function externalDecision(i,action,extra={}){const m=messages()[i];return decide([{id:m.id,fingerprint:m.fingerprint,action,...extra}]);}
+async function open(){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId,view:'assistant'}));await collab().locator(':scope > summary').click();await ready();await batch().waitFor();}
+async function ready(){await until(()=>collab().getByRole('button',{name:'重新读取当前记录',exact:true}).isEnabled());assert.equal(await collab().getByRole('alert').count(),0,await collab().innerText());}
+async function reread(){await collab().getByRole('button',{name:'重新读取当前记录',exact:true}).click();await ready();}
+async function setup(name,{candidate=false}={}){
+  workspaceId='fix1-'+name;const fixture=fixtureState(workspaceId);ids=fixture.ids;const s=fixture.s;
+  s.people=[{id:'engineer',title:'合成责任人',projectIds:['p'],sourceIds:[],version:1,identityVerified:true,feishuUserId:'ou_engineer',feishuIdType:'open_id',feishuAppId:'app',feishuTenantKey:'tenant'}];
+  s.sources.push({id:'fix-proof',title:'合成恢复验证依据',excerpt:'请核对两项合成工作，等待责任人反馈。',projectIds:['p'],sourceIds:[],version:1});
+  if(candidate)for(const id of [ids.action,ids.risk])d.ensureCore(s.sources.find(r=>r.id===id)).admission='candidate';
+  app.store.insert(s);const proof=s.sources.find(r=>r.id==='fix-proof');
+  const drafts=[ids.action,ids.risk].map((id,i)=>({id:'draft-'+i,workItemId:id,title:'合成消息 '+i,text:'原始完整正文 '+i,recipientId:'engineer',channel:'private',proof:[{sourceId:proof.id,fingerprint:d.coreProofFingerprint(proof),quote:proof.excerpt}]}));
+  const r=await core('prepare-messages',{requestId:crypto.randomUUID(),messages:drafts});batchId=r.source.id;return drafts;
+}
+async function check(id,name,fn,{baseline=true}={}){
+  if(reproduce&&!baseline)return;
+  if(process.env.PM_FIX1_CASES&&!process.env.PM_FIX1_CASES.split(',').some(p=>id.startsWith(p)))return;
+  try{const evidence=await fn();results.push({id,name,verified:true,meaning:reproduce?'Known defect reproduced, not acceptance':'Fixed product scenario passed',evidence});console.log(reproduce?'REPRODUCED':'PASS',id,name);}
+  catch(e){results.push({id,name,verified:false,error:e.stack});await shot('failure-'+id);throw e;}
+}
+try{
+  await check('B01-A','external message fingerprint changes retire the old choice; new approval is explicit',async()=>{
+    await setup('b01a');await open();const old=messages()[0].fingerprint;await box(0).check();await externalDecision(0,'edit',{text:'外部入口保存的新正文'});const current=messages()[0].fingerprint;assert.notEqual(current,old);await reread();assert.equal(await box(0).isChecked(),false);assert.equal(messages()[0].stage,'pending_review');const start=posts.length;await box(0).check();await save().click();
+    if(reproduce){await collab().getByRole('alert').filter({hasText:'所选预览指纹已变化'}).waitFor();assert.equal(posts.length,start);}
+    else{await card(0).getByText('已批准，尚未发送',{exact:true}).waitFor();const writes=posts.slice(start);assert.equal(writes.length,1);assert.deepEqual(writes[0].body.decisions,[{id:messages()[0].id,fingerprint:current,action:'approve'}]);assert.equal(messages()[0].approvalHistory[0].fingerprint,current);}
+    await shot('b01a-current-selection',card(0));return {old,current,postCount:posts.length-start};
+  });
+  await check('B01-B','external candidate version change permits explicit current-version admission without approval or send',async()=>{
+    await setup('b01b',{candidate:true});await open();const label=()=>batch().getByRole('checkbox',{name:/将「模拟培训材料」纳入跟进/});await label().check();const prior=record(ids.action),current=d.workItemState(state(),prior);
+    await app.api('/api/v2/work-items',{workspaceId,sourceId:prior.id,action:'core-priority',priority:'P3',expectedVersion:prior.version,expectedBasis:current.basis,requestId:crypto.randomUUID()});const version=record(ids.action).version;assert.ok(version>prior.version);await reread();assert.equal(await label().isChecked(),false);assert.equal(d.coreState(record(ids.action)).admission,'candidate');const start=posts.length;await label().check();await save().click();
+    if(reproduce){await collab().getByRole('alert').filter({hasText:'候选版本或纳入状态已变化'}).waitFor();assert.equal(posts.length,start);}
+    else{await until(()=>d.coreState(record(ids.action)).admission==='managed');assert.deepEqual(posts.slice(start)[0].body.admissions,[{id:prior.id,expectedVersion:version}]);assert.deepEqual(posts.slice(start)[0].body.decisions,[]);assert.ok(messages().every(m=>m.stage==='pending_review'));}
+    return {oldVersion:prior.version,currentVersion:version,postCount:posts.length-start};
+  });
+  await check('B01-C','externally approved selected message exits selection without replaying its approval',async()=>{
+    await setup('b01c');await open();await box(0).check();await externalDecision(0,'approve');const history=structuredClone(messages()[0].approvalHistory);await reread();assert.equal(await box(0).count(),0);const start=posts.length;await box(1).check();await save().click();
+    if(reproduce){await collab().getByRole('alert').filter({hasText:'旧批准不重复保存'}).waitFor();assert.equal(posts.length,start);}
+    else{await card(1).getByText('已批准，尚未发送',{exact:true}).waitFor();assert.deepEqual(posts.slice(start)[0].body.decisions.map(m=>m.id),[messages()[1].id]);assert.deepEqual(messages()[0].approvalHistory,history);}
+    return {firstApprovalCount:messages()[0].approvalHistory.length,postCount:posts.length-start};
+  });
+  await check('B01-D','valid simultaneous selection survives when another selected message becomes stale',async()=>{
+    await setup('b01d');await open();await box(0).check();await box(1).check();await externalDecision(0,'edit',{text:'甲的新正文'});await reread();assert.equal(await box(0).isChecked(),false);assert.equal(await box(1).isChecked(),true);const start=posts.length;await save().click();await card(1).getByText('已批准，尚未发送',{exact:true}).waitFor();assert.equal(messages()[0].stage,'pending_review');assert.deepEqual(posts.slice(start)[0].body.decisions.map(m=>m.id),[messages()[1].id]);return {validSelectionPreserved:true,replacementAutomaticallyApproved:false};
+  },{baseline:false});
+  for(const terminal of ['cancelled','readback_verified'])await check(terminal==='cancelled'?'B02-A':'B02-B','read-only '+terminal+' message retains draft and local-only discard',async()=>{
+    await setup('b02-'+terminal);if(terminal==='readback_verified')await externalDecision(0,'approve');await open();const draft='尚未提交的本地草稿 '+terminal;await card(0).getByRole('textbox').fill(draft);
+    if(terminal==='cancelled')await externalDecision(0,'cancel');else await core('execute-messages',{sourceId:batchId});
+    await externalDecision(1,'approve');await reread();assert.equal(messages()[0].stage,terminal);assert.equal(await card(0).getByRole('textbox').count(),0);await batch().locator('.wb-int-execution > summary').click();assert.equal(await execute().isDisabled(),true);assert.match(await batch().innerText(),/未保存或过期草稿/);
+    const prior=structuredClone(state()),beforePosts=posts.length,beforeSends=outbound.length;
+    if(reproduce){assert.equal(await discard(0).count(),0);}
+    else{await card(0).getByText('未提交的本地草稿（不是发送记录）',{exact:true}).click();await card(0).getByText(draft,{exact:true}).waitFor();await shot('b02-'+terminal+'-draft',discard(0));await discard(0).click();await until(()=>execute().isEnabled());assert.deepEqual(state(),prior);assert.equal(posts.length,beforePosts);assert.equal(outbound.length,beforeSends);assert.equal(await card(0).getByText(draft,{exact:true}).count(),0);const cached=await page.evaluate(w=>JSON.parse(sessionStorage.getItem('wb-integration:message-drafts:v1:'+w)||'{}'),workspaceId);assert.equal(Object.keys(cached).length,0);}
+    return {stage:terminal,serverText:messages()[0].text,draft,postDelta:posts.length-beforePosts,sendDelta:outbound.length-beforeSends,executionBlocked:await execute().isDisabled()};
+  });
+  await check('B02-C','same-tab refresh and entry reopening retain draft; discarded cache never revives',async()=>{
+    const evidence=[];for(const terminal of ['cancelled','readback_verified']){
+      await setup('b02c-'+terminal);if(terminal==='readback_verified')await externalDecision(0,'approve');await open();const draft='刷新后仍待本人决定 '+terminal;await card(0).getByRole('textbox').fill(draft);if(terminal==='cancelled')await externalDecision(0,'cancel');else await core('execute-messages',{sourceId:batchId});await externalDecision(1,'approve');await reread();await page.reload();await collab().locator(':scope > summary').click();await ready();await card(0).getByText('未提交的本地草稿（不是发送记录）',{exact:true}).click();await card(0).getByText(draft,{exact:true}).waitFor();
+      await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId,view:'attention'}));await open();await card(0).getByText('未提交的本地草稿（不是发送记录）',{exact:true}).click();await card(0).getByText(draft,{exact:true}).waitFor();const before=structuredClone(state()),writes=posts.length,sends=outbound.length;await discard(0).click();await page.reload();await collab().locator(':scope > summary').click();await ready();assert.equal(await discard(0).count(),0);assert.equal(await card(0).getByText(draft,{exact:true}).count(),0);assert.deepEqual(state(),before);assert.equal(posts.length,writes);assert.equal(outbound.length,sends);evidence.push({terminal,refreshRetained:true,reentryRetained:true,discardPersisted:true,postDelta:0,sendDelta:0});
+    }return evidence;
+  },{baseline:false});
+  await check('B01-E','removed preparation draft choices retire while existing selected drafts remain',async()=>{
+    const drafts=await setup('b01e');let s=state();d.ensureCore(s.sources.find(r=>r.id===ids.action)).messageDrafts=drafts;s.revision++;app.store.save(s,s.revision-1);await open();const section=()=>collab().locator('.wb-int-section').filter({hasText:'待准备的协作草稿'});await section().locator('summary').click();for(const check of await section().getByRole('checkbox').all())await check.check();s=state();s.sources.find(r=>r.id===ids.action).workItem.core.messageDrafts=[drafts[1]];s.revision++;app.store.save(s,s.revision-1);await reread();assert.equal(await section().getByRole('checkbox').count(),1);assert.equal(await section().getByRole('checkbox').isChecked(),true);const before=posts.length;await section().getByRole('button',{name:'准备所选完整预览 · 1 条',exact:true}).click();await collab().getByText('完整预览已保存；尚未批准或发送。',{exact:true}).waitFor();assert.deepEqual(posts.slice(before)[0].body.messages.map(m=>m.id),[drafts[1].id]);return {projectionChange:'synthetic model output persisted in fixture',retainedDraft: drafts[1].id};
+  },{baseline:false});
+  await check('GUARD-inflight','sending and sent without readback keep batch execution blocked',async()=>{
+    await setup('inflight');await externalDecision(0,'approve');transport.mode='pause-send';const pending=core('execute-messages',{sourceId:batchId});
+    try{await until(()=>transport.releaseSend);await open();await card(0).getByText('执行中，等待结果',{exact:true}).waitFor();await batch().locator('.wb-int-execution > summary').click();assert.equal(await execute().isDisabled(),true);const before=posts.length;transport.mode='pause-readback';transport.releaseSend();await until(()=>transport.releaseRead);await reread();await card(0).getByText('已发送，待回读发送事实',{exact:true}).waitFor();assert.equal(await execute().isDisabled(),true);transport.mode='ok';transport.releaseRead();await pending;assert.equal(posts.length,before);return {states:['sending','sent'],uiPostDelta:0};}finally{transport.mode='ok';transport.releaseSend?.();transport.releaseRead?.();await pending;delete transport.releaseSend;delete transport.releaseRead;}
+  },{baseline:false});
+  await check('BOUNDARY','all business objects are isolated; no real external calls or scheduler activation',async()=>{
+    assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.equal(app.core.settings(workspaceId).enabled,false);return {consoleErrors:errors,externalRequests:external,realExternalWrites:0,simulatedSends:outbound.length,schedulerEnabled:false};
+  },{baseline:false});
+}finally{
+  writeFileSync(path.join(output,mode+'-results.json'),JSON.stringify({mode,scope:'Original product React/HTTP/SQLite with synthetic business data and external transport; baseline verified means defect reproduced, not acceptance',productFileSha256:createHash('sha256').update(readFileSync('app/integration/core-collaboration-panel.tsx')).digest('hex'),results,posts,screenshots,errors,external,simulatedSends:outbound.length},null,2)+'\n');await browser.close();await app.close();
+}

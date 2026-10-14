@@ -1,0 +1,45 @@
+--- a/app/integration/core-collaboration-panel.tsx
++++ b/app/integration/core-collaboration-panel.tsx
+@@ -96,6 +96,20 @@
+     void load();
+   }, [scope, workspaceId, revision, load]);
+   useEffect(() => () => { epoch.current.advance(); }, [scope]);
++  useEffect(() => {
++    if (!view) return;
++    // Keep only choices still bound to a current version/state. Never select a replacement automatically.
++    const approvalKeys = new Set(view.runs.flatMap(batch => batch.items.filter(canApprove).map(m => approvalKey(batch.id,m))));
++    const admissionKeys = new Set(view.items.filter(item => item.core.admission === 'candidate').map(admissionKey));
++    const draftKeys = new Set(draftsFromView(view).map(draft => draft.id));
++    const retain = (old: Set<string>, valid: Set<string>) => {
++      const next = new Set([...old].filter(key => valid.has(key)));
++      return next.size === old.size ? old : next;
++    };
++    setSelected(old => retain(old,approvalKeys));
++    setAdmissions(old => retain(old,admissionKeys));
++    setDraftsSelected(old => retain(old,draftKeys));
++  }, [view]);
+   const disabled = busy || loading || !fresh || !view || previousScope.current !== scope;
+   const toggle = (set: (fn: (old: Set<string>) => Set<string>) => void, key: string, checked: boolean) => set(old => { const next = new Set(old); if (checked) next.add(key); else next.delete(key); return next; });
+   function putEdit(key: string, value?: EditDraft) {
+@@ -173,6 +187,13 @@
+           <button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => cancelCommand(batch,m,crypto.randomUUID()))}>取消此消息</button>
+         </div>
+       </div> : <p className="wb-int-full-text">{m.text}</p>}
++      {edit && !editable && <details className="wb-int-history">
++        <summary>未提交的本地草稿（不是发送记录）</summary>
++        <p className="wb-int-muted">消息当前只读。草稿仍保留，不覆盖服务器正文或已发事实；放弃草稿只清理本地编辑缓存。</p>
++        <p>草稿收件范围：{options.find(p => p.id === edit.recipientId)?.title || edit.recipientId}</p>
++        <p className="wb-int-full-text">{edit.text}</p>
++        <button type="button" disabled={!!disabled || !!pending} onClick={() => putEdit(key)}>放弃这份本地草稿（不改变消息）</button>
++      </details>}
+       <p className="wb-int-muted">当前通道发送文本；下列来源或原图身份是依据，不表示附件已随消息发送。</p>
+       <details><summary>依据与当前预览指纹</summary><code>{m.fingerprint}</code><ProofList proof={m.proof}/></details>
+       {m.previewChanges && <details><summary>本次业务前提变化</summary>{['交付物','负责人','计划日期','要求日期','交付要求'].map(k => {
+@@ -238,6 +259,7 @@
+           </fieldset>}
+           {shown.map(m => messageCard(batch,m))}
+           {filter !== 'all' && <p className="wb-int-warning">当前有筛选，仅显示 {shown.length}/{batch.items.length} 条。发送必须切回全部记录核对完整批次。</p>}
++          <p className="wb-int-muted">回读更新会取消失效勾选；新版本仍需你重新核对并选择，不自动批准或纳入。</p>
+           <div className="wb-int-actions"><button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => decisionCommand(batch,view,selected,admissions,edits,crypto.randomUUID()))}>保存本批所选决定（不发送）</button>
+             <button type="button" disabled={!!disabled} onClick={() => protect(() => reconcileCommand(batch))}>查询本批实际发送结果</button>
+           </div>
