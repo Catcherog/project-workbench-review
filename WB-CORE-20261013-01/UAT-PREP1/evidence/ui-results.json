@@ -1,0 +1,99 @@
+{
+  "task": "UAT-PREP1 delegated UI test",
+  "method": "Built-in browser accessibility clicks, typing, file chooser, reload and rendered-state readback",
+  "nativeComputerUse": {
+    "status": "blocked",
+    "error": "Sender process is not authenticated",
+    "desktopActions": 0
+  },
+  "results": [
+    {
+      "id": "U1-text",
+      "passed": true,
+      "evidence": "02-text-save",
+      "method": "browser UI click and type"
+    },
+    {
+      "id": "U1-reopen-persistence",
+      "passed": true,
+      "originalUserRecordPreserved": true
+    },
+    {
+      "id": "U1-image",
+      "passed": true,
+      "evidence": "03-image-save",
+      "note": "图1上传并保存成功；聊天历史确认存在“手动时间安排”的显示误标，另记UI-01。"
+    },
+    {
+      "id": "U2-first-workday",
+      "passed": true
+    },
+    {
+      "id": "U2-dedup",
+      "passed": true,
+      "note": "再次点击相同9点按钮后可见状态不变，仍1轮。"
+    },
+    {
+      "id": "U2-restday",
+      "passed": true
+    },
+    {
+      "id": "U2-next-workday",
+      "passed": true
+    },
+    {
+      "id": "U3-budget-failure",
+      "passed": true,
+      "evidence": "05-budget-failed"
+    },
+    {
+      "id": "U3-budget-resume",
+      "passed": true,
+      "evidence": "06-budget-resumed"
+    },
+    {
+      "id": "U3-resume-dedup",
+      "passed": true,
+      "note": "再次点击恢复后，原文和处理记录数量仍为6/4。"
+    },
+    {
+      "id": "U3-partial-save",
+      "passed": true,
+      "evidence": "09-partial-save-feedback"
+    },
+    {
+      "id": "U4-dependency",
+      "passed": true,
+      "evidence": "10-dependency-impact"
+    },
+    {
+      "id": "U5-preview",
+      "passed": true,
+      "evidence": "11-collaboration-preview"
+    },
+    {
+      "id": "U5-edit-persistence",
+      "passed": true,
+      "evidence": "12-edited-draft-persisted"
+    },
+    {
+      "id": "U5-cancel",
+      "passed": true,
+      "evidence": "13-cancelled-draft"
+    }
+  ],
+  "findings": [
+    {
+      "id": "UI-01",
+      "kind": "display",
+      "summary": "纯图片输入在聊天历史中显示为“手动时间安排”",
+      "observed": "图1上传与保存成功，但对应用户消息标题为手动时间安排。",
+      "expected": "使用图片输入或附件说明，避免误导为时间安排。",
+      "evidence": "08-image-history-label",
+      "productChanged": false
+    }
+  ],
+  "formalAcceptanceRecorded": false,
+  "realBusinessOutbound": false,
+  "sourceCodeChanged": false
+}

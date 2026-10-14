@@ -1,0 +1,124 @@
+Browser tab: 3, Title: "UAT-PREP1 用户验收卡", URL: "http://127.0.0.1:5189/".
+0 AXWebArea UAT-PREP1 用户验收卡, URL: 127.0.0.1:5189/
+	1 container
+		2 heading UAT-PREP1 · 用户验收卡, Value: 1
+			3 text UAT-PREP1 · 用户验收卡
+		4 text 已过审产品：2.17.0-core.2 · 构建 20261014.core-r2-fix1.1
+		5 link Description: 打开原产品预览, Value: 127.0.0.1:5188/?workspaceId=uat-prep1&view=attention
+		6 link Description: 下载合成反馈图片, Value: 127.0.0.1:5189/sample.png
+	7 text 这是一套独立的合成验收环境。
+	8 text 产品界面沿用现有版本。本卡是辅助操作与记录页面。模型回复为固定测试替身，飞书和电脑通知均为模拟回执；没有调用真实模型或真实外发。
+	9 text 测试时钟仅在点击下方按钮时推进。这里的“通过”由你操作后记录，Cortana 的准备自检不会代填。
+	10 text 原产品已连接 · 2.17.0-core.2 · 合成工作区 · 真实外发关闭
+	11 container u1
+		12 heading 1 · 统一文字、原图输入与落账, Value: 2
+			13 text 1 · 统一文字、原图输入与落账
+		14 container
+			15 link Description: 打开「01 统一输入／部分保存」, Value: 127.0.0.1:5188/?workspaceId=uat-prep1&view=attention&record=p1-action
+			16 text ，点「记录进展 / 讨论」，先发送下面的文字，再重新进入，单独上传合成图片。
+		17 text 已联系负责人，已收到合成样件。
+		18 text 预期：本次输入保留来源；文字保存一条进展，原图按上传顺序保留，图片处理后仍回到原事项。对同一回执不重复落账；需要时可使用原来的撤销。
+		19 text 图像理解内容是固定合成输出；本步骤验证原图传递、保存和回执链，不验收真实模型对任意图片的判断。
+		20 container
+			21 text 实际结果 
+			22 pop up button (collapsed, settable) Description: U1 实际结果, Value: 未操作, Secondary Actions: Expand
+				23 menu
+					24 (selected) 未操作
+					25 通过
+					26 有差异
+		27 text entry area (settable) U1 备注
+	28 container u2
+		29 heading 2 · 关闭事项的重开待审, Value: 2
+			30 text 2 · 关闭事项的重开待审
+		31 container
+			32 link Description: 打开「02 已关闭事项／重开待审核」, Value: 127.0.0.1:5188/?workspaceId=uat-prep1&view=attention&record=uat-closed
+			33 text 。本例已有合成新证据，但事项仍关闭。
+		34 text 依次模拟：08:59 不提示 → 工作日 09:00 提示审核 → 再点一次仍只有一轮 → 合成休息日不提示 → 下个工作日新增一轮。
+		35 container
+			36 button 模拟 10/14 08:59
+			37 button 模拟 10/14 09:00
+			38 button 模拟 10/15 休息日
+			39 button 模拟 10/16 09:00
+		118 text 合成时钟：2026/10/16 09:00:00
+业务状态：保持关闭；重开建议：待人工审核
+普通催办计数：0；已记录审核提醒：2 轮
+本次判断：本轮已取得通知回执
+		41 text 预期：业务保持关闭、重开决定仍待审，普通催办计数为 0。同一轮电脑与飞书两个模拟通道均保留回执，不自动批准。
+		42 text 这里的提醒判断来自产品服务实时返回；现有产品页中的关闭状态、提醒回执可对照查看。本卡展示不代表产品已有额外的待审专用页面。
+		43 container
+			44 text 实际结果 
+			45 pop up button (collapsed, settable) Description: U2 实际结果, Value: 未操作, Secondary Actions: Expand
+				46 menu
+					47 (selected) 未操作
+					48 通过
+					49 有差异
+		50 text entry area (settable) U2 备注
+	51 container u3
+		52 heading 3 · 失败与部分保存如实反馈, Value: 2
+			53 text 3 · 失败与部分保存如实反馈
+		54 container
+			55 button 接收一条合成同事输入：预算不足
+			56 button 恢复该合成输入
+		57 text 尚未运行同事输入场景。
+		58 text 预期：失败时原输入保留，业务状态为“未保存／等待额度”；恢复后仍是同一输入，成功落账一次。上述额度只属于隔离数据库，不改变正式额度。
+		59 container
+			60 text 等待本项完成后，再在
+			61 link Description: 原事项的「记录进展 / 讨论」, Value: 127.0.0.1:5188/?workspaceId=uat-prep1&view=attention&record=p1-action
+			62 text 发送：
+		63 text 已收到合成样件，准备资料时出现后段失败，你觉得接下来怎么做？
+		64 text 预期：明确事实已经保存；后续准备显示“未完成／合成超时”，不能把整个输入说成失败或全部完成。也可在处理中点原有取消按钮，核对已经落账的内容是否保留。
+		65 container
+			66 text 实际结果 
+			67 pop up button (collapsed, settable) Description: U3 实际结果, Value: 未操作, Secondary Actions: Expand
+				68 menu
+					69 (selected) 未操作
+					70 通过
+					71 有差异
+		72 text entry area (settable) U3 备注
+	73 container u4
+		74 heading 4 · 依赖时长与评审影响, Value: 2
+			75 text 4 · 依赖时长与评审影响
+		76 container
+			77 text 在
+			78 link Description: 原事项输入框, Value: 127.0.0.1:5188/?workspaceId=uat-prep1&view=attention&record=p1-action
+			79 text 发送：
+		80 text 已联系负责人，确认测试评审依赖：剩余最短2小时、最长6小时，已共享；有效窗口仅1小时，已确认无法并行压缩。你觉得需要向谁说明影响？
+		81 text 预期：保留 2—6 小时时长范围和 1 小时窗口，指出至少存在 1 小时缺口，准备说明评审影响；“已共享时长”不能替代“相关人已知晓风险影响”。不重复提出已被排除的并行压缩，也不自动改正式计划。
+		82 text 等待本项显示最终结果，再进入第 5 项，避免同时修改同一事项。如果出现“事项已更新”，先核对当前记录，再点“已核对当前记录，继续”。本例使用合成模型结果通过真实引用校验、依赖计算及保存链。最终代码的一次复杂链真实模型调用另列为待执行。
+		83 container
+			84 text 实际结果 
+			85 pop up button (collapsed, settable) Description: U4 实际结果, Value: 未操作, Secondary Actions: Expand
+				86 menu
+					87 (selected) 未操作
+					88 通过
+					89 有差异
+		90 text entry area (settable) U4 备注
+	91 container u5
+		92 heading 5 · 资料准备与第三方完整预览, Value: 2
+			93 text 5 · 资料准备与第三方完整预览
+		94 button 准备本地合成协作草稿
+		95 text 资料与协作已准备，未批准或发送。请到原事项展开完整预览。
+		96 container
+			97 text 随后打开
+			98 link Description: 原事项, Value: 127.0.0.1:5188/?workspaceId=uat-prep1&view=attention&record=p1-action
+			99 text ，展开「协作消息」，点「准备完整预览」。
+		100 text 预期：能核对具体报告、节点、收件人和完整正文；可以保存修改、取消某条或本人接手。停在完整预览即可，本轮不要求点击发送。即使误点，预览实例也只能返回模拟通道结果。
+		101 text 报告“已提交”不代替源头“已审核”，资料准备不替责任人完成报告，不自动完成节点。
+		102 container
+			103 text 实际结果 
+			104 pop up button (collapsed, settable) Description: U5 实际结果, Value: 未操作, Secondary Actions: Expand
+				105 menu
+					106 (selected) 未操作
+					107 通过
+					108 有差异
+		109 text entry area (settable) U5 备注
+	110 container
+		111 heading 记录本轮实际操作, Value: 2
+			112 text 记录本轮实际操作
+		113 text 保留“未操作”也是有效记录；界面不顺、字段不清和结果不符都写进对应备注。
+		114 button 保存我的验收记录, ID: save
+		115 button (collapsed) 最近一次产品接口返回（用于核对）, Secondary Actions: Expand
+			116 text 最近一次产品接口返回（用于核对）
+		117 text 真实飞书闭环、真实模型、公司日历和生产启用不由这张合成验收卡自动通过。
+
+The focused UI element is 0 AXWebArea UAT-PREP1 用户验收卡, URL: 127.0.0.1:5189/
