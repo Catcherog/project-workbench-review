@@ -1,0 +1,87 @@
+{
+  "scope": "real Chromium / local API / isolated SQLite; simulated model; synthetic records",
+  "release": {
+    "version": "2.17.0-core.3",
+    "build": "20261014.uat-ui01.1",
+    "channel": "preview",
+    "releasedOn": "2026-10-14"
+  },
+  "results": [
+    {
+      "id": "F01-UI",
+      "name": "旧时间→新安排→后来进展→撤销后回显旧时间",
+      "passed": true,
+      "evidence": {
+        "summary": "2026-10-14 08:00 · legacy",
+        "status": "已安排",
+        "nextCheckAt": "2026-10-14T08:00:00+08:00",
+        "laterProgress": "已收到初稿"
+      }
+    },
+    {
+      "id": "F03-UI",
+      "name": "列表回执和留场回执连续修改同一进展，撤销第二次修改",
+      "passed": true,
+      "evidence": {
+        "progressId": "p1-032c5a20-5859-47da-ba70-4b6ed3ef0e1e",
+        "count": 2,
+        "restored": "已收到初稿",
+        "bothEditEntrances": true
+      }
+    },
+    {
+      "id": "F04-UI",
+      "name": "纯时间草稿版本变化可核对继续；核对后再次变更仍被服务拒绝",
+      "passed": true,
+      "evidence": {
+        "emptyText": true,
+        "retained": "2026-10-18",
+        "postAcknowledgementRaceRejected": true,
+        "saved": "2026-10-18"
+      }
+    },
+    {
+      "id": "F06-UI",
+      "name": "其他时区日期完成要求保留精度，结束冲突须明确选择",
+      "passed": true,
+      "evidence": {
+        "date": "2026-10-16",
+        "zone": "-04:00",
+        "precision": "date",
+        "display": "2026-10-16 -04:00",
+        "effectiveAtPresent": false
+      }
+    },
+    {
+      "id": "boundary",
+      "name": "隔离页面→真实HTTP→SQLite→回执，无真实外发",
+      "passed": true,
+      "evidence": {
+        "consoleErrors": [],
+        "externalRequests": [],
+        "externalBusinessWrites": 0
+      }
+    }
+  ],
+  "screenshots": [
+    "08-legacy-time-restored.png",
+    "11-second-edit-undone.png",
+    "12-time-only-version-recovery.png",
+    "16-zone-date-end-conflict.png",
+    "16b-zone-date-saved.png"
+  ],
+  "errors": [],
+  "external": [],
+  "mutations": [
+    "/api/v2/codex/jobs",
+    "/api/v2/work-items",
+    "/api/v2/codex/jobs",
+    "/api/v2/codex/jobs",
+    "/api/v2/codex/jobs",
+    "/api/v2/work-items",
+    "/api/v2/codex/jobs",
+    "/api/v2/codex/jobs",
+    "/api/v2/codex/jobs",
+    "/api/v2/codex/jobs"
+  ]
+}

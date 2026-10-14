@@ -1,0 +1,105 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const fs = require('node:fs');
+if (!process.env.WB_PLAN1_COMPILED) throw new Error('Run node scripts/test-integration-plan1.mjs first.');
+const m = require(path.join(process.env.WB_PLAN1_COMPILED,'core-collaboration-model.js'));
+const c = require(path.join(process.env.WB_PLAN1_COMPILED,'core-collaboration-client.js'));
+const r = require(path.join(process.env.WB_PLAN1_COMPILED,'receipt-presentation.js'));
+const message = (extra = {}) => ({id:'message-1',workItemId:'item-1',title:'合成报告甲',text:'完整正文\n第二段',fingerprint:'fp-1',stage:'pending_review',executionOwner:'ai',recipient:{id:'ou_synthetic',localId:'person-1',name:'测试责任人',channel:'private'},proof:[{sourceId:'proof-1',quote:'合成依据'}],approvalHistory:[],...extra});
+const item = (extra = {}) => ({id:'item-1',title:'合成事项甲',version:3,projectNames:['合成测试项目'],core:{admission:'candidate'},...extra});
+const batch = (items = [message()]) => ({id:'batch-1',version:4,projectNames:['合成测试项目'],items});
+const view = (extra = {}) => ({people:[{id:'person-1',title:'测试责任人',identityVerified:true}],groups:[],items:[item()],runs:[batch()],notices:[],inputs:[],...extra});
+test('DEV1同批跨事项补读真实候选版本并保留原事项批次范围', async()=>{
+ const other=message({id:'message-2',workItemId:'item-2'}),b=batch([message(),other]);
+ const scoped=view({runs:[b]}),full=view({items:[item({version:4}),item({id:'item-2',version:7}),item({id:'unrelated'})],runs:[b,{...batch([message({id:'unrelated-message',workItemId:'unrelated'})]),id:'other-batch'}]});
+ const urls=[];const actual=await c.readCoreView(async url=>{urls.push(url);return urls.length===1?scoped:full;},'workspace','item-1');
+ assert.deepEqual(urls,['/api/v2/core?workspaceId=workspace&sourceId=item-1','/api/v2/core?workspaceId=workspace']);
+ assert.deepEqual(actual.items.map(i=>[i.id,i.version]),[['item-1',4],['item-2',7]]);assert.equal(actual.runs.length,1);
+});
+const selection = (b) => new Set(b.items.map(msg => m.approvalKey(b.id,msg)));
+const draft = (extra={}) => ({id:'draft-1',workItemId:'item-1',title:'草稿甲',text:'合成正文',recipientId:'person-1',channel:'private',proof:[{sourceId:'proof-1'}],...extra});
+const saved = (extra={}) => ({operationId:'operation-1',sourceId:'item-1',at:'2026-10-14T01:00:00Z',...extra});
+
+for (const stage of ['pending_review','approved','sending','sent','readback_verified','failed_not_sent','unknown','needs_preview','blocked','stopped','cancelled']) {
+  test('状态映射保持真实阶段：'+stage, () => {
+    assert.ok(m.STAGES[stage]); assert.ok(m.stagePresentation({stage}).label);
+    assert.equal(m.isExecutionCandidate(message({stage})), ['approved','failed_not_sent'].includes(stage));
+  });
+}
+test('未知新阶段只读，不回退成可发送', () => { const x=message({stage:'future_state'}); assert.equal(m.canApprove(x),false);assert.equal(m.canEdit(x),false);assert.equal(m.canChangeAuthority(x),false);assert.match(m.stagePresentation(x).label,/未识别/); });
+test('执行权与发送阶段正交；本人接手不表示已发送', () => {const x=message({stage:'unknown',executionOwner:'human'});assert.match(m.ownerLabel(x),/本人/);assert.match(m.stagePresentation(x).label,/未知/);assert.equal(m.isExecutionCandidate(x),false);});
+test('未知执行权不能执行或自动接手', () => {const x=message({stage:'approved',executionOwner:'future'});assert.equal(m.isExecutionCandidate(x),false);assert.equal(m.canChangeAuthority(x),false);});
+test('完整真实投影可解析，不修改输入', () => {const v=view();const before=JSON.stringify(v);assert.equal(m.parseCoreView(v),v);assert.equal(JSON.stringify(v),before);});
+test('缺失批次字段拒绝，不伪造空成功', () => {const v=view();delete v.runs;assert.throws(()=>m.parseCoreView(v));});
+test('同批重复消息身份拒绝', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message(),message()])]}))));
+test('跨批选择键无碰撞', () => assert.notEqual(m.messageKey('a:b','c'),m.messageKey('a','b:c')));
+test('异常收件人拒绝启用操作', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message({recipient:null})])]}))));
+test('异常历史正文拒绝而非渲染对象', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message({approvalHistory:[{text:{invalid:1}}]})])]}))));
+test('来源字段保留完整，不伪造附件', () => {const proof=[{sourceId:'s',quote:'完整依据',kind:'image',attachmentId:'img-2',fingerprint:'pf'}];const x=message({proof});assert.deepEqual(m.parseCoreView(view({runs:[batch([x])]})).runs[0].items[0].proof,proof);});
+test('URL 编码保留工作区和原事项', () => assert.equal(m.viewUrl('space / ?','item&x'),'/api/v2/core?workspaceId=space%20%2F%20%3F&sourceId=item%26x'));
+test('缺工作区停止，不猜测默认工作区', () => assert.throws(()=>m.viewUrl('')));
+test('仅批准消息不隐式纳入', () => {const b=batch();const cmd=m.decisionCommand(b,view(),selection(b),new Set(),{},'req-1');assert.equal(cmd.decisions.length,1);assert.deepEqual(cmd.admissions,[]);assert.equal(cmd.requestId,'req-1');});
+test('仅纳入候选不批准消息', () => {const v=view(),cmd=m.decisionCommand(v.runs[0],v,new Set(),new Set([m.admissionKey(v.items[0])]),{},'r');assert.deepEqual(cmd.decisions,[]);assert.deepEqual(cmd.admissions,[{id:'item-1',expectedVersion:3}]);});
+test('联合决定仍是两个独立数组', () => {const v=view(),b=v.runs[0];const cmd=m.decisionCommand(b,v,selection(b),new Set([m.admissionKey(v.items[0])]),{},'r');assert.equal(cmd.decisions[0].fingerprint,'fp-1');assert.equal(cmd.admissions[0].expectedVersion,3);});
+test('缺纳入前置不代替用户勾选', () => {const b=batch([message({dependsOnAdmission:true})]);assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),{},'r'),/独立纳入/);});
+test('明确同时纳入满足依赖，仍不发送', () => {const v=view(),b=batch([message({dependsOnAdmission:true})]);const cmd=m.decisionCommand(b,v,selection(b),new Set([m.admissionKey(v.items[0])]),{},'r');assert.equal(cmd.action,'decide-messages');assert.equal(cmd.admissions.length,1);});
+test('已管理事项无需重复纳入', () => {const b=batch([message({dependsOnAdmission:true})]);const v=view({items:[item({core:{admission:'managed'}})]});assert.equal(m.decisionCommand(b,v,selection(b),new Set(),{},'r').admissions.length,0);});
+test('依赖事项在当前投影缺失则阻止批准', () => {const b=batch([message({dependsOnAdmission:true})]);assert.throws(()=>m.decisionCommand(b,view({items:[]}),selection(b),new Set(),{},'r'));});
+test('旧候选版本选择不会替换为新版本批准', () => {const v=view();assert.throws(()=>m.decisionCommand(v.runs[0],v,new Set(),new Set([m.admissionKey(item({version:2}))]),{},'r'),/版本/);});
+test('旧指纹勾选不批准新正文', () => {const old=batch();const current=batch([message({fingerprint:'fp-2',text:'新正文'})]);assert.throws(()=>m.decisionCommand(current,view(),selection(old),new Set(),{},'r'),/指纹/);});
+test('批准前有未保存正文修改即停止', () => {const b=batch(),edit={[m.messageKey(b.id,b.items[0].id)]:{fingerprint:'fp-1',text:'未保存修改',recipientId:'person-1'}};assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),edit,'r'),/先保存/);});
+test('批准前收件人修改也必须先保存', () => {const b=batch(),edit={[m.messageKey(b.id,b.items[0].id)]:{fingerprint:'fp-1',text:b.items[0].text,recipientId:'person-2'}};assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),edit,'r'));});
+test('未修改的原文草稿不会阻断批准', () => {const b=batch(),x=b.items[0],edit={[m.messageKey(b.id,x.id)]:{fingerprint:x.fingerprint,text:x.text,recipientId:m.recipientId(x)}};assert.equal(m.decisionCommand(b,view(),selection(b),new Set(),edit,'r').decisions.length,1);});
+test('部分批准只提交选中决定', () => {const b=batch([message(),message({id:'message-2'})]);const cmd=m.decisionCommand(b,view(),new Set([m.approvalKey(b.id,b.items[1])]),new Set(),{},'r');assert.deepEqual(cmd.decisions.map(d=>d.id),['message-2']);});
+test('已有批准不得作为新批准重放', () => {const b=batch([message({stage:'approved'})]);assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),{},'r'),/旧批准/);});
+test('前提变化必须保存新预览，不直接重用旧批准', () => {const b=batch([message({stage:'needs_preview'})]);assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),{},'r'));});
+test('编辑保留批次、消息、原指纹与稳定请求身份', () => {const b=batch(),x=b.items[0];const cmd=m.editCommand(b,x,{fingerprint:'fp-1',text:'修改后完整正文',recipientId:'person-2'},'edit-request');assert.deepEqual(cmd,{action:'decide-messages',sourceId:'batch-1',requestId:'edit-request',decisions:[{id:'message-1',fingerprint:'fp-1',action:'edit',text:'修改后完整正文',recipientId:'person-2'}]});});
+test('过期编辑不能覆盖新预览', () => assert.throws(()=>m.editCommand(batch(),message(),{fingerprint:'old',text:'正文',recipientId:'person-1'},'r')));
+test('空白正文不保存', () => assert.throws(()=>m.editCommand(batch(),message(),{fingerprint:'fp-1',text:'  ',recipientId:'person-1'},'r')));
+test('4000字正文允许，4001字拒绝', () => {const x={fingerprint:'fp-1',recipientId:'person-1'};assert.equal(m.editCommand(batch(),message(),{...x,text:'甲'.repeat(4000)},'r').decisions[0].text.length,4000);assert.throws(()=>m.editCommand(batch(),message(),{...x,text:'甲'.repeat(4001)},'r'));});
+test('取消消息不混入事项纳入或关闭', () => {const cmd=m.cancelCommand(batch(),message(),'r');assert.equal(cmd.decisions[0].action,'cancel');assert.equal(cmd.admissions,undefined);assert.equal(cmd.operationId,undefined);});
+test('已发消息不允许从 UI 取消或重写', () => {const x=message({stage:'sent'});assert.throws(()=>m.cancelCommand(batch(),x,'r'));assert.equal(m.canEdit(x),false);});
+test('接手请求使用 action 与 authorityAction 两层', () => assert.deepEqual(m.authorityCommand(batch(),message()),{action:'message-authority',sourceId:'batch-1',messageId:'message-1',expectedFingerprint:'fp-1',authorityAction:'takeover'}));
+test('交回系统不附带 execute', () => {const cmd=m.authorityCommand(batch(),message({executionOwner:'human'}));assert.equal(cmd.authorityAction,'release');assert.equal(cmd.action,'message-authority');});
+test('未知、sending、sent 均只进入查询路径', () => {for(const stage of ['unknown','sending','sent']){const b=batch([message({stage})]);assert.equal(m.needsReconcile(b.items[0]),true);assert.equal(m.executionPlan(b,{}).allowed,false);assert.equal(m.reconcileCommand(b).action,'reconcile-messages');}});
+test('本批未知结果先查询，不夹带其他已批准执行', () => {const b=batch([message({stage:'approved',approvedHash:'fp-1'}),message({id:'m2',stage:'unknown'})]);assert.equal(m.executionPlan(b,{}).allowed,false);});
+test('执行范围明确包括已批准及明确未发重试', () => {const b=batch([message({stage:'approved',approvedHash:'fp-1'}),message({id:'m2',stage:'failed_not_sent',approvedHash:'fp-1'}),message({id:'m3',stage:'readback_verified'})]);const plan=m.executionPlan(b,{});assert.equal(plan.allowed,true);assert.equal(plan.messages.length,2);assert.equal(plan.retryCount,1);assert.deepEqual(m.executeCommand(b,{}),{action:'execute-messages',sourceId:'batch-1'});});
+test('人工接手从实际批次执行候选中排除', () => {const b=batch([message({stage:'approved',approvedHash:'fp-1',executionOwner:'human'})]);assert.equal(m.executionPlan(b,{}).messages.length,0);assert.throws(()=>m.executeCommand(b,{}));});
+test('已批准但指纹不符，不能展示为就绪', () => {const b=batch([message({stage:'approved',approvedHash:'old'})]);assert.equal(m.executionPlan(b,{}).allowed,false);});
+test('执行前有过期或未保存草稿，必须核对', () => {const x=message({stage:'approved',approvedHash:'fp-1'}),b=batch([x]);assert.equal(m.executionPlan(b,{[m.messageKey(b.id,x.id)]:{fingerprint:'old',text:x.text,recipientId:'person-1'}}).allowed,false);});
+test('空草稿选择不生成准备请求', () => assert.throws(()=>m.prepareCommand([draft()],new Set(),'r')));
+test('最多20条，不静默裁剪成批准子集', () => {const drafts=Array.from({length:21},(_,i)=>draft({id:'d'+i}));assert.throws(()=>m.prepareCommand(drafts,new Set(drafts.map(d=>d.id)),'r'));assert.equal(m.prepareCommand(drafts,new Set(drafts.slice(0,20).map(d=>d.id)),'r').messages.length,20);});
+test('准备保留原文、图像依据、目标、顺序', () => {const d=draft({targetId:'target-1',nodeId:'node-1',proof:[{sourceId:'p',kind:'image',attachmentId:'i2'}]});assert.deepEqual(m.prepareCommand([d],new Set([d.id]),'r').messages,[d]);});
+test('交付物草稿继承实际 delivery proof', () => {const d=draft({proof:undefined}),v=view({items:[item({core:{delivery:{messages:[d],proof:[{sourceId:'proof-real'}]}}})]});assert.deepEqual(m.draftsFromView(v)[0].proof,[{sourceId:'proof-real'}]);});
+test('电脑排队不映射为展示成功', () => assert.equal(m.noticeLabel('desktop',{stage:'sent',readback:{delivery:'queued'}}),'已排队，尚未展示'));
+test('电脑提交不伪装成有效送达', () => assert.equal(m.noticeLabel('desktop',{stage:'sent',readback:{delivery:'submitted'}}),'已提交电脑通知'));
+test('撤销回执优先于保存、关闭等旧标志', () => assert.match(r.receiptPresentation(saved({undoneAt:'2026-10-14T02:00:00Z',closed:true})).title,/已撤销/));
+test('纯图重复明确不重复保存', () => assert.match(r.receiptPresentation(saved({duplicate:true})).title,/未重复保存/));
+test('部分保存明确保护较新安排', () => assert.match(r.receiptPresentation(saved({pendingChanges:[{id:'new'}]})).title,/较新安排未被覆盖/));
+test('无完整持久回执不能标已保存', () => assert.match(r.receiptPresentation({}).title,/回执不完整/));
+test('业务保存和后段失败分别投影', () => {const v=r.inputSavePresentation({status:'saved',jobStatus:'cancelled',save:{status:'saved',receipt:saved()},preparation:{status:'incomplete',reason:'后段超时'}});assert.equal(v.saved,true);assert.equal(v.preparation,'incomplete');assert.equal(v.jobStatus,'cancelled');});
+test('job completed 或缓存 status saved 不代替持久回执', () => assert.equal(r.inputSavePresentation({status:'saved',jobStatus:'completed',save:{status:'not_saved'}}).saved,false));
+test('已撤销的历史保存不继续标有效', () => assert.equal(r.inputSavePresentation({save:{status:'saved',receipt:saved({undoneAt:'now'})}}).saved,false));
+test('时间格式仅用真实回执且固定北京时间', () => {assert.match(r.receiptTimestamp('2026-10-14T01:00:00Z'),/09:00:00/);assert.match(r.receiptTimestamp('not-a-date'),/未提供/);});
+
+function transport({postError,getError,data=view()}={}) {const calls=[];const request=async(url,body)=>{calls.push({url,body:body===undefined?undefined:structuredClone(body)});if(body!==undefined){if(postError)throw postError;return {durable:true};}if(getError)throw getError;return structuredClone(data);};return {calls,request};}
+test('真实适配函数：一次POST后一次GET，无自动execute', async()=>{const t=transport();const result=await c.performCoreCommand(t.request,'w','item-1',{action:'decide-messages',requestId:'r',sourceId:'b',decisions:[]});assert.equal(result.acknowledgement,'received');assert.equal(t.calls.length,2);assert.equal(t.calls[0].body.workspaceId,'w');assert.equal(t.calls[1].body,undefined);assert.ok(!t.calls.some(x=>x.body?.action==='execute-messages'));});
+test('HTTP已返回但刷新失败，不提示重新提交', async()=>{const t=transport({getError:new Error('read failed')});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',requestId:'r'});assert.equal(result.acknowledgement,'received');assert.equal(result.readbackError,'read failed');assert.equal(t.calls.length,2);});
+test('网络未知先回读，既不称未保存也不自动重发', async()=>{const t=transport({postError:new Error('network')});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'execute-messages',sourceId:'b'});assert.equal(result.acknowledgement,'unknown');assert.ok(result.view);assert.equal(t.calls.length,2);});
+test('409冲突明确拒绝但仍尝试读当前记录', async()=>{const t=transport({postError:Object.assign(new Error('stale'),{status:409})});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',requestId:'r'});assert.equal(result.acknowledgement,'rejected');assert.ok(result.view);assert.equal(t.calls.length,2);});
+test('500不能被当成未写入', async()=>{const t=transport({postError:Object.assign(new Error('after-write'),{status:500})});assert.equal((await c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',requestId:'r'})).acknowledgement,'unknown');});
+test('未知提交加读回失败也不再次POST', async()=>{const t=transport({postError:new Error('unknown'),getError:new Error('offline')});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'prepare-messages',requestId:'stable'});assert.equal(result.acknowledgement,'unknown');assert.equal(result.readbackError,'offline');assert.equal(t.calls.filter(x=>x.body).length,1);});
+test('显式续办原决定可保留同一请求全文和身份', async()=>{const t=transport();const command={action:'decide-messages',sourceId:'b',requestId:'original-request',decisions:[{id:'m',fingerprint:'f',action:'approve'}]};await c.performCoreCommand(t.request,'w',undefined,command);await c.performCoreCommand(t.request,'w',undefined,command);assert.deepEqual(t.calls[0].body,t.calls[2].body);assert.equal(t.calls[0].body.requestId,'original-request');});
+test('禁止额外参数覆盖工作区', async()=>{const t=transport();await assert.rejects(c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',workspaceId:'other'}));assert.equal(t.calls.length,0);});
+test('返回非法投影不假装已刷新', async()=>{const t=transport({data:{}});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'prepare-messages',requestId:'r'});assert.equal(result.acknowledgement,'received');assert.ok(result.readbackError);assert.equal(result.view,undefined);});
+test('旧上下文/旧读取结果被epoch丢弃', ()=>{const e=new c.ScopeEpoch();const old=e.advance();const next=e.advance();assert.equal(e.isCurrent(old),false);assert.equal(e.isCurrent(next),true);e.advance();assert.equal(e.isCurrent(next),false);});
+test('批准历史全文不会被模型适配器截断或改为当前正文', ()=>{const old='旧批准\n'+('长'.repeat(3900));const x=message({text:'新正文',approvalHistory:[{text:old,fingerprint:'old',recipient:message().recipient}]});assert.equal(m.parseCoreView(view({runs:[batch([x])]})).runs[0].items[0].approvalHistory[0].text,old);});
+test('结果全部完成后批次仍存在，可重新进入', ()=>{const v=m.parseCoreView(view({runs:[batch([message({stage:'readback_verified'})])]}));assert.equal(v.runs.length,1);assert.equal(v.runs[0].items[0].stage,'readback_verified');});
+// Structural checks do not pretend to be React rendering or a product browser test.
+test('DEV1 Q01已接受，两步发送入口开启且仍受整批范围门控', ()=>{const source=fs.readFileSync(path.join(process.env.WB_PLAN1_SOURCE_ROOT,'app/integration/core-collaboration-panel.tsx'),'utf8');assert.match(source,/executionUiConfirmed = true/);assert.match(source,/if \(executionUiConfirmed && filter === 'all'\)/);});
+test('新UI没有原型业务状态、假日期或内存撤销入口', ()=>{const folder=path.join(process.env.WB_PLAN1_SOURCE_ROOT,'app/integration');for(const name of fs.readdirSync(folder).filter(x=>/\.(ts|tsx)$/.test(x))){const source=fs.readFileSync(path.join(folder,name),'utf8');assert.doesNotMatch(source,/window\.openai|widgetState|lastOperation|模拟发送|10月13日 · 周二/);}});
+test('样式不包含全局button/input规则且正文无玻璃', ()=>{const css=fs.readFileSync(path.join(process.env.WB_PLAN1_SOURCE_ROOT,'app/integration/apple-integration.css'),'utf8');assert.doesNotMatch(css,/(?:^|\n)\s*(?:button|input|textarea|body|html)\s*[{,]/);assert.match(css,/prefers-reduced-motion/);assert.match(css,/forced-colors/);assert.match(css,/\.v2-app \.wb-int-batch/);});
+
+test('异常可选错误字段也拒绝，避免把对象渲染为正文', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message({error:{bad:true}})])]}))));
+test('批准历史异常指纹拒绝，缺失历史正文仍如实保留', () => {assert.throws(()=>m.parseCoreView(view({runs:[batch([message({approvalHistory:[{fingerprint:{bad:1}}]})])]})));assert.equal(m.parseCoreView(view({runs:[batch([message({approvalHistory:[{fingerprint:'old'}]})])]})).runs[0].items[0].approvalHistory[0].text,undefined);});

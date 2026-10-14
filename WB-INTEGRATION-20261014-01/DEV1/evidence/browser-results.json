@@ -1,0 +1,1250 @@
+{
+  "scope": "Original compiled product, real Chromium, HTTP and isolated SQLite; synthetic model/images/transport; no A1 replay",
+  "results": [
+    {
+      "id": "INPUT-contexts",
+      "name": "four original contexts save one text record and return with the same item and view",
+      "passed": true,
+      "evidence": [
+        {
+          "view": "project",
+          "sourceId": "p1-action",
+          "operationId": "p1-94e79c2e-c922-44b5-be13-28f59836e737",
+          "progress": "已收到 project 合成反馈"
+        },
+        {
+          "view": "attention",
+          "sourceId": "p1-action",
+          "operationId": "p1-db62330a-4e94-4141-9949-5a9c27be2a97",
+          "progress": "已收到 attention 合成反馈"
+        },
+        {
+          "view": "inbox",
+          "sourceId": "p1-action",
+          "operationId": "p1-c15d1433-b786-4ce4-9793-ca634c361799",
+          "progress": "已收到 inbox 合成反馈"
+        },
+        {
+          "view": "weekly",
+          "sourceId": "p1-action",
+          "operationId": "p1-91bb1161-c5e9-445c-964e-b9f81832e4c2",
+          "progress": "已收到 weekly 合成反馈"
+        }
+      ]
+    },
+    {
+      "id": "INPUT-images",
+      "name": "pure and multiple original images keep identity/order through upload, save and reload",
+      "passed": true,
+      "evidence": {
+        "sourceId": "input-1db1990240988f42eae44a7dbca09b09",
+        "attachments": [
+          {
+            "id": "file-7b7c23a6-7445-49ff-9c04-9d8251fec7ba",
+            "name": "synthetic-2.png",
+            "sha256": "5e708f8ebce62e9752b6af76174da0401ef743b20829b6c008e24dd702f5dd83"
+          },
+          {
+            "id": "file-22883ced-bc1c-4e0d-a77d-ab71ad41eee3",
+            "name": "synthetic-1.png",
+            "sha256": "96200af061db15a92a9ebbf61cda28d3bc82da9d119d3388f0a05e9345012ac1"
+          }
+        ],
+        "count": 6
+      }
+    },
+    {
+      "id": "INPUT-before-failure",
+      "name": "save failure keeps the text draft without a false success receipt",
+      "passed": true
+    },
+    {
+      "id": "INPUT-refresh-failure",
+      "name": "saved record survives display read failure and reload without duplicate input",
+      "passed": true,
+      "evidence": {
+        "operationId": "p1-d77f65cb-5cb4-4f48-8ef2-5e146ba4556d",
+        "blockedReadRequests": 1
+      }
+    },
+    {
+      "id": "INPUT-preparation",
+      "name": "first-stage durable receipt remains saved while synthetic later preparation runs and fails",
+      "passed": true,
+      "evidence": {
+        "operationId": "p1-0c081f4a-62e3-48dc-907f-90781fc8586d",
+        "firstStage": "saved",
+        "laterStage": "synthetic failure"
+      }
+    },
+    {
+      "id": "INPUT-race",
+      "name": "changing manual time while analysis runs retires stale choices without changing saved business timing",
+      "passed": true,
+      "evidence": {
+        "savedDate": "2026-10-16",
+        "staleChoices": 0,
+        "rawInputMayPersist": true
+      }
+    },
+    {
+      "id": "MSG-prepare",
+      "name": "real browser prepares selected complete messages and preserves the full long body",
+      "passed": true,
+      "evidence": {
+        "batchId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "messageIds": [
+          "reminder-core-9de56ea75e32560928d06850b5944e76:0",
+          "reminder-core-9de56ea75e32560928d06850b5944e76:1",
+          "reminder-core-9de56ea75e32560928d06850b5944e76:2"
+        ]
+      }
+    },
+    {
+      "id": "MSG-edit-partial",
+      "name": "editing requires a new fingerprint; independent admission and partial approval do not send",
+      "passed": true,
+      "evidence": {
+        "originalFingerprint": "1d929df1ae47e35b48fdc3aef7707b6706eaf64e9e142022742e7bb41127dd32",
+        "newFingerprint": "6f74cad63f7e1b0ee62c628d4a6310cee0a414359e202aefd96f258c68b83211",
+        "approved": 1,
+        "unsent": 3,
+        "admission": "managed"
+      }
+    },
+    {
+      "id": "MSG-execute",
+      "name": "two-step batch scope matches persisted sends; manual ownership, result reentry and filter guards work",
+      "passed": true,
+      "evidence": {
+        "batchId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "sends": 3,
+        "messageIds": [
+          "om_dev1_1",
+          "om_dev1_2",
+          "om_dev1_3"
+        ]
+      }
+    },
+    {
+      "id": "RECOVERY-conflict",
+      "name": "409 is a known rejection; a newer server preview cannot be overwritten by a stale draft",
+      "passed": true,
+      "evidence": {
+        "httpStatus": 409,
+        "serverText": "另一窗口已保存的新正文"
+      }
+    },
+    {
+      "id": "RECOVERY-readback",
+      "name": "decision acknowledgement and projection read failure stay distinct; reread does not replay approval",
+      "passed": true,
+      "evidence": {
+        "blockedReads": 1,
+        "approvalWrites": 1
+      }
+    },
+    {
+      "id": "RECOVERY-unknown",
+      "name": "unknown sends are queried first; verified non-send, takeover and release never silently retry",
+      "passed": true,
+      "evidence": {
+        "attempts": 2,
+        "sends": 1
+      }
+    },
+    {
+      "id": "RECOVERY-response-lost",
+      "name": "lost execute response reads durable result and never sends the batch twice",
+      "passed": true,
+      "evidence": {
+        "durableStage": "readback_verified",
+        "simulatedSends": 1
+      }
+    },
+    {
+      "id": "UI-navigation",
+      "name": "five entry points retain project order and the original item identity",
+      "passed": true,
+      "evidence": {
+        "projectOrder": [
+          "p"
+        ],
+        "views": [
+          "overview",
+          "attention",
+          "inbox",
+          "weekly",
+          "assistant"
+        ],
+        "sourceId": "p1-action"
+      }
+    },
+    {
+      "id": "RECOVERY-sent",
+      "name": "sent without readback remains distinct until original simulated receipt is verified",
+      "passed": true
+    },
+    {
+      "id": "UI-scope",
+      "name": "late response from previous workspace cannot replace current records",
+      "passed": true,
+      "evidence": {
+        "lateResponseIgnored": true
+      }
+    },
+    {
+      "id": "UI-large-narrow",
+      "name": "20-message batch remains usable with narrow viewport, keyboard focus, a smaller window and long text",
+      "passed": true,
+      "evidence": {
+        "messages": 20,
+        "narrowWidth": {
+          "scroll": 390,
+          "client": 390
+        },
+        "keyboard": true,
+        "smallWindow": {
+          "width": 720,
+          "height": 525
+        }
+      }
+    },
+    {
+      "id": "GUARDS",
+      "name": "account change, changed proof and restored workspace prevent unapproved replay through original HTTP service",
+      "passed": true,
+      "evidence": {
+        "accountMismatch": "rejected",
+        "restored": "rejected",
+        "proofChange": "needs_preview",
+        "newSends": 0
+      }
+    },
+    {
+      "id": "BOUNDARY",
+      "name": "browser and service use isolated persistence with no real external traffic or scheduler enablement",
+      "passed": true,
+      "evidence": {
+        "consoleErrors": [],
+        "externalRequests": [],
+        "realExternalWrites": 0,
+        "simulatedSends": 6,
+        "dataDir": "output/core-p1-p5-r1/input-mJXNyz",
+        "schedulerEnabled": false
+      }
+    }
+  ],
+  "screenshots": [
+    "receipt-project.png",
+    "receipt-attention.png",
+    "receipt-inbox.png",
+    "receipt-weekly.png",
+    "images-reloaded.png",
+    "input-failure-preserved.png",
+    "saved-display-read-failure.png",
+    "saved-preparation-running.png",
+    "saved-preparation-failed.png",
+    "manual-time-current-choice.png",
+    "messages-complete-preview.png",
+    "independent-decision-history.png",
+    "batch-execution-scope.png",
+    "results-reentered.png",
+    "preview-version-conflict.png",
+    "unknown-reconciled.png",
+    "nav-overview.png",
+    "nav-attention.png",
+    "nav-inbox.png",
+    "nav-weekly.png",
+    "nav-assistant.png",
+    "sent-awaits-readback.png",
+    "large-batch-390.png",
+    "large-batch-small-window.png"
+  ],
+  "errors": [],
+  "external": [],
+  "simulatedSends": 6,
+  "simulatedAttempts": 7,
+  "mutations": [
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "e70257b0-5b41-411b-ab6f-f1a5677648da",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 project 合成反馈",
+        "clientDraft": {
+          "text": "已收到 project 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:35.296Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "1a6a084c-2480-41d5-884a-adca20bb500e",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 attention 合成反馈",
+        "clientDraft": {
+          "text": "已收到 attention 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "94e79c2e-c922-44b5-be13-28f59836e737",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:35.827Z",
+          "expectedVersion": 3,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "34c3dbbf1817a66b9a126a3a",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "13790340-0374-40fa-bd5a-53b293161f27",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 inbox 合成反馈",
+        "clientDraft": {
+          "text": "已收到 inbox 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "db62330a-4e94-4141-9949-5a9c27be2a97",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:36.342Z",
+          "expectedVersion": 5,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "f31138b7183f0e63cb3e6e92",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "74b38cd4-6e8e-4634-aca4-eb1b4e166624",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 weekly 合成反馈",
+        "clientDraft": {
+          "text": "已收到 weekly 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "c15d1433-b786-4ce4-9793-ca634c361799",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:36.860Z",
+          "expectedVersion": 7,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "8c8db4809897774cd91cabf",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/attachments",
+      "body": {
+        "workspaceId": "core-input",
+        "name": "synthetic-1.png",
+        "mime": "image/png",
+        "attachmentPayload": {
+          "bytes": 25411
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "d05f8c4c-d0df-482a-bc08-34dcd86e90c3",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [
+          "file-4a647911-e063-4531-9474-20e7b73d4d5b"
+        ],
+        "text": "",
+        "clientDraft": {
+          "text": "",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": [
+            {
+              "id": "file-4a647911-e063-4531-9474-20e7b73d4d5b",
+              "name": "synthetic-1.png",
+              "mime": "image/png",
+              "size": 25411,
+              "sha256": "96200af061db15a92a9ebbf61cda28d3bc82da9d119d3388f0a05e9345012ac1",
+              "url": "/api/v2/attachments/file-4a647911-e063-4531-9474-20e7b73d4d5b?workspaceId=core-input"
+            }
+          ]
+        },
+        "parentJobId": "91bb1161-c5e9-445c-964e-b9f81832e4c2",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:37.477Z",
+          "expectedVersion": 9,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "97b1064d3e980c39e9b3af14",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/attachments",
+      "body": {
+        "workspaceId": "core-input",
+        "name": "synthetic-2.png",
+        "mime": "image/png",
+        "attachmentPayload": {
+          "bytes": 26207
+        }
+      }
+    },
+    {
+      "path": "/api/v2/attachments",
+      "body": {
+        "workspaceId": "core-input",
+        "name": "synthetic-1.png",
+        "mime": "image/png",
+        "attachmentPayload": {
+          "bytes": 25411
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "0badee53-3bb3-49c9-8e8e-b56740d5f2fa",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [
+          "file-7b7c23a6-7445-49ff-9c04-9d8251fec7ba",
+          "file-22883ced-bc1c-4e0d-a77d-ab71ad41eee3"
+        ],
+        "text": "",
+        "clientDraft": {
+          "text": "",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": [
+            {
+              "id": "file-7b7c23a6-7445-49ff-9c04-9d8251fec7ba",
+              "name": "synthetic-2.png",
+              "mime": "image/png",
+              "size": 26207,
+              "sha256": "5e708f8ebce62e9752b6af76174da0401ef743b20829b6c008e24dd702f5dd83",
+              "url": "/api/v2/attachments/file-7b7c23a6-7445-49ff-9c04-9d8251fec7ba?workspaceId=core-input"
+            },
+            {
+              "id": "file-22883ced-bc1c-4e0d-a77d-ab71ad41eee3",
+              "name": "synthetic-1.png",
+              "mime": "image/png",
+              "size": 25411,
+              "sha256": "96200af061db15a92a9ebbf61cda28d3bc82da9d119d3388f0a05e9345012ac1",
+              "url": "/api/v2/attachments/file-22883ced-bc1c-4e0d-a77d-ab71ad41eee3?workspaceId=core-input"
+            }
+          ]
+        },
+        "parentJobId": "e8979e52-1699-4fd9-a2bc-c2df081f5314",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:37.927Z",
+          "expectedVersion": 10,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "93e73c8064e1157c6d8de2bf",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "fd8c8ab6-23f1-40e4-bce7-ce73d46cf982",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到合成失败恢复反馈",
+        "clientDraft": {
+          "text": "已收到合成失败恢复反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "6c9b3e15-28fe-478c-bd01-fa419070f604",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:38.577Z",
+          "expectedVersion": 11,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "4aa364287f7a3a0ccc5de687",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "beb821a9-cf3c-4ca9-ae80-edf5923e0b2b",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到合成失败恢复反馈",
+        "clientDraft": {
+          "text": "已收到合成失败恢复反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "6c9b3e15-28fe-478c-bd01-fa419070f604",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:38.676Z",
+          "expectedVersion": 11,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "4aa364287f7a3a0ccc5de687",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "53a20181-9023-4af1-8bc8-de93a193f176",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到保存后刷新失败的合成反馈",
+        "clientDraft": {
+          "text": "已收到保存后刷新失败的合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "8ff6d166-b327-499b-aefe-a280b652caea",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:39.127Z",
+          "expectedVersion": 13,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "488a485d50840c966d87184",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "adbefe8e-10b6-4ba1-b025-f44a49b37a41",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到合成反馈，需要核对评审资料",
+        "clientDraft": {
+          "text": "已收到合成反馈，需要核对评审资料",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "d77f65cb-5cb4-4f48-8ef2-5e146ba4556d",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:39.727Z",
+          "expectedVersion": 15,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "aac444d3876344ffccdea996",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "b32ecc8e-bc86-47ad-ae04-bdf8b16b3f6d",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "延迟长：周三检查",
+        "clientDraft": {
+          "text": "延迟长：周三检查",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-15",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "0c081f4a-62e3-48dc-907f-90781fc8586d",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:41.827Z",
+          "expectedVersion": 17,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "37e69e503ecdaca41b750baf",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-15",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "abb913e7-e623-4b6b-8462-32fdc43cd3a5",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "延迟：周三检查",
+        "clientDraft": {
+          "text": "延迟：周三检查",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "6c17087e-7a5e-495f-a60f-974e496d165a",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:43.675Z",
+          "expectedVersion": 17,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "37e69e503ecdaca41b750baf",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "92e00b5f-6a1a-4d5b-87a6-77a684225dc1",
+        "requestId": "2a1dfdc0-ded3-466b-83f0-4628e25b86c1",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "延迟：周三检查",
+        "clientDraft": {
+          "text": "延迟：周三检查",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "54e585af-a413-49d8-89a2-62721e66e9d3",
+        "p1Input": {
+          "occurredAt": "2026-10-14T07:51:45.526Z",
+          "expectedVersion": 17,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "37e69e503ecdaca41b750baf",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {
+            "check": {
+              "choice": "manual",
+              "fingerprint": "[\"check\",\"延迟：周三检查\",[\"scheduled\",\"2026-10-14\",\"\",\"Asia/Shanghai\"],[\"scheduled\",\"2026-10-16\",\"\",\"Asia/Shanghai\"]]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "prepare-messages",
+        "requestId": "a7135c41-a752-4d42-b6c4-d55ac8bcb2af",
+        "messages": [
+          {
+            "id": "draft-0",
+            "workItemId": "p1-action",
+            "title": "合成协作 0",
+            "text": "请核对合成样件 0",
+            "recipientId": "engineer",
+            "channel": "private",
+            "proof": [
+              {
+                "sourceId": "dev1-proof",
+                "fingerprint": "8c7a449fa53c09dc",
+                "quote": "DEV1 合成有效来源：需要核对样件和报告。"
+              }
+            ],
+            "dependsOnAdmission": false
+          },
+          {
+            "id": "draft-1",
+            "workItemId": "p1-action",
+            "title": "合成协作 1",
+            "text": "长正文\n核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。核对合成资料。",
+            "recipientId": "engineer",
+            "channel": "private",
+            "proof": [
+              {
+                "sourceId": "dev1-proof",
+                "fingerprint": "8c7a449fa53c09dc",
+                "quote": "DEV1 合成有效来源：需要核对样件和报告。"
+              }
+            ],
+            "dependsOnAdmission": false
+          },
+          {
+            "id": "draft-2",
+            "workItemId": "p1-risk",
+            "title": "合成协作 2",
+            "text": "请核对合成样件 2",
+            "recipientId": "engineer",
+            "channel": "private",
+            "proof": [
+              {
+                "sourceId": "dev1-proof",
+                "fingerprint": "8c7a449fa53c09dc",
+                "quote": "DEV1 合成有效来源：需要核对样件和报告。"
+              }
+            ],
+            "dependsOnAdmission": true
+          }
+        ],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "requestId": "fe5685b8-69d2-4a2b-8a3b-df1614ada65f",
+        "decisions": [
+          {
+            "id": "reminder-core-9de56ea75e32560928d06850b5944e76:0",
+            "fingerprint": "1d929df1ae47e35b48fdc3aef7707b6706eaf64e9e142022742e7bb41127dd32",
+            "action": "edit",
+            "text": "已编辑的完整合成正文，等待本人批准。",
+            "recipientId": "engineer"
+          }
+        ],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "requestId": "6bcfc050-e718-4d75-8580-ce9da874a88f",
+        "decisions": [
+          {
+            "id": "reminder-core-9de56ea75e32560928d06850b5944e76:0",
+            "fingerprint": "6f74cad63f7e1b0ee62c628d4a6310cee0a414359e202aefd96f258c68b83211",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "requestId": "8c5c8042-b175-49aa-979f-c21b2919a43c",
+        "decisions": [],
+        "admissions": [
+          {
+            "id": "p1-risk",
+            "expectedVersion": 1
+          }
+        ],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "requestId": "472c8b47-0e2d-49e5-bd18-26d851a85340",
+        "decisions": [
+          {
+            "id": "reminder-core-9de56ea75e32560928d06850b5944e76:1",
+            "fingerprint": "4477c6938ecc8880a8bdb6a0adf963d34462787bbe866f2ffb5ed7330b3631b6",
+            "action": "approve"
+          },
+          {
+            "id": "reminder-core-9de56ea75e32560928d06850b5944e76:2",
+            "fingerprint": "c4d572f4af35575b4d298cdded53675a83c08bd4d9b1e7809862b961accb3ea5",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "message-authority",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "messageId": "reminder-core-9de56ea75e32560928d06850b5944e76:2",
+        "expectedFingerprint": "c4d572f4af35575b4d298cdded53675a83c08bd4d9b1e7809862b961accb3ea5",
+        "authorityAction": "takeover",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "message-authority",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "messageId": "reminder-core-9de56ea75e32560928d06850b5944e76:2",
+        "expectedFingerprint": "c4d572f4af35575b4d298cdded53675a83c08bd4d9b1e7809862b961accb3ea5",
+        "authorityAction": "release",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-9de56ea75e32560928d06850b5944e76",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-39abdaecf7eca6c326fc0ea47f127ade",
+        "requestId": "249546e4-3d00-4ecb-a4d6-03161ccc3691",
+        "decisions": [
+          {
+            "id": "reminder-core-39abdaecf7eca6c326fc0ea47f127ade:0",
+            "fingerprint": "865bbb9cb5ebe5ea4a94929b7006a87444297f5046d63bd75daaaf9dea1b4bfe",
+            "action": "edit",
+            "text": "本地尚未保存的合成草稿",
+            "recipientId": "engineer"
+          }
+        ],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-06ac821eea7b025890078fcc4fa3223c",
+        "requestId": "f24f201a-4210-463a-9433-19d99966f84d",
+        "decisions": [
+          {
+            "id": "reminder-core-06ac821eea7b025890078fcc4fa3223c:0",
+            "fingerprint": "d026c6cebc60ec22637b57b22acfc4c3397ca02aa32da358048b9a24aa733dcf",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-1c53370b4143da0c6f883f9168d286b2",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "reconcile-messages",
+        "sourceId": "reminder-core-1c53370b4143da0c6f883f9168d286b2",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "message-authority",
+        "sourceId": "reminder-core-1c53370b4143da0c6f883f9168d286b2",
+        "messageId": "reminder-core-1c53370b4143da0c6f883f9168d286b2:0",
+        "expectedFingerprint": "635ad707f28e81e92a7b6542975709bdcf9eaba456bdf06653d7d812b5faa20c",
+        "authorityAction": "takeover",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "reconcile-messages",
+        "sourceId": "reminder-core-1c53370b4143da0c6f883f9168d286b2",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "message-authority",
+        "sourceId": "reminder-core-1c53370b4143da0c6f883f9168d286b2",
+        "messageId": "reminder-core-1c53370b4143da0c6f883f9168d286b2:0",
+        "expectedFingerprint": "635ad707f28e81e92a7b6542975709bdcf9eaba456bdf06653d7d812b5faa20c",
+        "authorityAction": "release",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-1c53370b4143da0c6f883f9168d286b2",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-d3f8be4b18cb17b51605c3775bb3ff65",
+        "workspaceId": "core-input"
+      }
+    }
+  ]
+}

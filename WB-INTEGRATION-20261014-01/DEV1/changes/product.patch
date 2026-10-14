@@ -1,0 +1,1147 @@
+diff --git a/app/integration/apple-integration.css b/app/integration/apple-integration.css
+new file mode 100644
+index 00000000..ebdb2b54
+--- /dev/null
++++ b/app/integration/apple-integration.css
+@@ -0,0 +1,180 @@
++/* WB-INTEGRATION-20261014-01 / PLAN1. Derived from fixed UI R2 light tokens.
++   Imported once, after workbench-v2.css. No global button/input reset, fake dates,
++   alternate business state or changes to the original navigation/overlay geometry. */
++.v2-app {
++  --wb-i-bg: #f8f9fc;
++  --wb-i-surface: #fff;
++  --wb-i-text: #20252f;
++  --wb-i-muted: #5f6877;
++  --wb-i-line: #e5e8ef;
++  --wb-i-blue: #0065d8;
++  --wb-i-blue-fill: #edf4ff;
++  --wb-i-green: #2b7256;
++  --wb-i-green-fill: #edf7f1;
++  --wb-i-amber: #875511;
++  --wb-i-amber-fill: #fff5e6;
++  --wb-i-red: #b74746;
++  --wb-i-red-fill: #fff0ee;
++  --wb-i-glass: rgb(247 250 255 / 0.84);
++  --wb-i-shadow: 0 10px 30px rgb(26 40 70 / 0.08);
++  --wb-i-radius: 20px;
++  --ink: var(--wb-i-text);
++  --muted: var(--wb-i-muted);
++  --line: var(--wb-i-line);
++  --green: var(--wb-i-blue);
++  --wash: var(--wb-i-bg);
++  --bg: var(--wb-i-bg);
++  color: var(--wb-i-text);
++  background: var(--wb-i-bg);
++  color-scheme: light;
++}
++.v2-app .v2-sidebar {
++  background: var(--wb-i-glass);
++  border-color: rgb(255 255 255 / 0.94);
++  box-shadow: 1px 0 18px rgb(26 40 70 / 0.04);
++  -webkit-backdrop-filter: blur(28px) saturate(1.4);
++  backdrop-filter: blur(28px) saturate(1.4);
++}
++.v2-app .v2-sidebar nav > button {
++  color: var(--wb-i-muted);
++  border-radius: 12px;
++  min-height: 44px;
++}
++.v2-app .v2-sidebar nav > button.active {
++  color: var(--wb-i-text);
++  background: rgb(255 255 255 / 0.88);
++  box-shadow: 0 1px 4px rgb(26 40 70 / 0.10), inset 0 1px 0 #fff;
++}
++.v2-app .v2-sidebar nav > button.active svg { color: var(--wb-i-blue); }
++.v2-app .v2-sidebar nav > button:hover { background: var(--wb-i-blue-fill); }
++.v2-app .v2-workspace { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: 14px; }
++.v2-app .v2-brand > span { background: linear-gradient(145deg, #88b1f0, #4c75bc); color: #fff; box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.65); }
++.v2-app .v2-main { background: var(--wb-i-bg); }
++.v2-app .v2-topbar {
++  background: var(--wb-i-glass);
++  border-color: var(--wb-i-line);
++  -webkit-backdrop-filter: blur(24px);
++  backdrop-filter: blur(24px);
++}
++.v2-app .v2-page-heading h1 { color: var(--wb-i-text); font-size: 27px; font-weight: 600; letter-spacing: -0.7px; }
++.v2-app .v2-page-heading p,
++.v2-app .v2-breadcrumb,
++.v2-app .v2-save-state { color: var(--wb-i-muted); }
++/* Existing input, image, manual-time and receipt DOM/callbacks are deliberately retained. */
++.v2-app .p1-entry,
++.v2-app .p1-receipt,
++.v2-app .wb-int-core {
++  color: var(--wb-i-text);
++  background: var(--wb-i-surface);
++  border: 1px solid var(--wb-i-line);
++  border-radius: var(--wb-i-radius);
++  box-shadow: var(--wb-i-shadow);
++  min-width: 0;
++}
++.v2-app .p1-entry .ca-toolbar { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: var(--wb-i-radius) var(--wb-i-radius) 0 0; }
++.v2-app .p1-entry .ca-user-message { background: var(--wb-i-blue-fill); color: var(--wb-i-text); }
++.v2-app .p1-entry .ca-assistant-message { background: var(--wb-i-surface); color: var(--wb-i-text); }
++.v2-app .p1-receipt { padding: 20px; }
++.v2-app .wb-int-core { padding: 20px; margin-block: 16px; }
++.v2-app .wb-int-core > details { border-top: 1px solid var(--wb-i-line); padding-block: 12px; }
++.v2-app .wb-int-receipt-heading { display: grid; gap: 5px; margin-bottom: 12px; }
++.v2-app .wb-int-receipt-heading strong { font-size: 15px; color: var(--wb-i-green); }
++.v2-app .wb-int-receipt-heading[data-tone="neutral"] strong { color: var(--wb-i-muted); }
++.v2-app .wb-int-receipt-heading[data-tone="amber"] strong { color: var(--wb-i-amber); }
++.v2-app .wb-int-receipt-heading[data-tone="blue"] strong { color: var(--wb-i-blue); }
++.v2-app .wb-int-receipt-heading small { color: var(--wb-i-muted); font-size: 12px; }
++.v2-app .wb-int-collaboration { margin-block: 16px; min-width: 0; color: var(--wb-i-text); font-size: 14px; line-height: 1.6; }
++.v2-app .wb-int-collaboration > summary { font-weight: 600; padding: 12px 4px; min-height: 44px; }
++.v2-app .wb-int-body { display: grid; gap: 16px; min-width: 0; }
++.v2-app .wb-int-body p { margin: 0 0 10px; overflow-wrap: anywhere; }
++.v2-app .wb-int-body :is(h3,h4) { margin: 0 0 8px; font-weight: 600; line-height: 1.5; }
++.v2-app .wb-int-body h3 { font-size: 17px; }
++.v2-app .wb-int-body h4 { font-size: 15px; }
++.v2-app .wb-int-body code { font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: normal; overflow-wrap: anywhere; }
++.v2-app .wb-int-toolbar,
++.v2-app .wb-int-actions,
++.v2-app .wb-int-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
++.v2-app .wb-int-toolbar { justify-content: space-between; }
++.v2-app .wb-int-toolbar p { margin: 0; color: var(--wb-i-muted); }
++.v2-app .wb-int-body button {
++  font: inherit;
++  font-size: 13px;
++  color: var(--wb-i-blue);
++  background: var(--wb-i-surface);
++  border: 1px solid var(--wb-i-line);
++  border-radius: 999px;
++  padding: 8px 14px;
++  min-height: 40px;
++  max-width: 100%;
++  white-space: normal;
++  text-align: center;
++  cursor: pointer;
++}
++.v2-app .wb-int-body button:hover:not(:disabled) { background: var(--wb-i-blue-fill); }
++.v2-app .wb-int-body button:disabled { opacity: 0.55; cursor: not-allowed; }
++.v2-app .wb-int-body button.wb-int-primary { color: #fff; background: var(--wb-i-blue); border-color: var(--wb-i-blue); }
++.v2-app .wb-int-body button.wb-int-primary:hover:not(:disabled) { background: #0056b8; }
++.v2-app .wb-int-body button[aria-pressed="true"] { background: var(--wb-i-blue-fill); border-color: var(--wb-i-blue); }
++.v2-app .wb-int-batch,
++.v2-app .wb-int-section { min-width: 0; background: var(--wb-i-surface); border: 1px solid var(--wb-i-line); border-radius: var(--wb-i-radius); padding: 20px; }
++.v2-app .wb-int-message { min-width: 0; border-top: 1px solid var(--wb-i-line); padding-block: 20px; }
++.v2-app .wb-int-message-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
++.v2-app .wb-int-message-heading > div { min-width: 0; }
++.v2-app .wb-int-tag { display: inline-flex; flex-shrink: 0; padding: 4px 8px; border-radius: 7px; font-size: 12px; color: var(--wb-i-muted); background: var(--wb-i-bg); }
++.v2-app .wb-int-tag[data-tone="blue"] { color: var(--wb-i-blue); background: var(--wb-i-blue-fill); }
++.v2-app .wb-int-tag[data-tone="green"] { color: var(--wb-i-green); background: var(--wb-i-green-fill); }
++.v2-app .wb-int-tag[data-tone="amber"] { color: var(--wb-i-amber); background: var(--wb-i-amber-fill); }
++.v2-app .wb-int-tag[data-tone="red"] { color: var(--wb-i-red); background: var(--wb-i-red-fill); }
++.v2-app .wb-int-body .wb-int-muted { color: var(--wb-i-muted); font-size: 12px; }
++.v2-app .wb-int-full-text,
++.v2-app .wb-int-proof-list blockquote { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; line-height: 1.7; }
++.v2-app .wb-int-body blockquote { margin: 8px 0; border-left: 3px solid var(--wb-i-line); padding: 4px 12px; }
++.v2-app .wb-int-proof-list { padding-inline-start: 20px; }
++.v2-app .wb-int-proof-list li { margin-block: 10px; }
++.v2-app .wb-int-editor { display: grid; gap: 12px; margin-block: 12px; min-width: 0; }
++.v2-app .wb-int-editor > label { display: grid; gap: 6px; min-width: 0; }
++.v2-app .wb-int-editor :is(input,select,textarea),
++.v2-app .wb-int-warning select { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--wb-i-line); border-radius: 12px; background: var(--wb-i-surface); color: var(--wb-i-text); padding: 10px 12px; }
++.v2-app .wb-int-editor textarea { resize: vertical; min-height: 150px; line-height: 1.7; }
++.v2-app .wb-int-check { display: flex; align-items: flex-start; gap: 10px; padding-block: 10px; min-height: 44px; }
++.v2-app .wb-int-check input { flex: 0 0 16px; width: 16px; height: 16px; margin-top: 4px; accent-color: var(--wb-i-blue); }
++.v2-app .wb-int-admissions { min-width: 0; border: 1px solid var(--wb-i-line); border-radius: 12px; padding: 12px; margin-block: 14px; }
++.v2-app .wb-int-admissions legend { padding-inline: 6px; font-weight: 600; }
++.v2-app .wb-int-history,
++.v2-app .wb-int-execution { margin-block: 14px; border-top: 1px solid var(--wb-i-line); padding-top: 10px; }
++.v2-app .wb-int-history article,
++.v2-app .wb-int-draft,
++.v2-app .wb-int-section > article { padding-block: 14px; border-bottom: 1px solid var(--wb-i-line); }
++.v2-app .wb-int-body summary { min-height: 40px; padding-block: 8px; }
++.v2-app .wb-int-warning { background: var(--wb-i-amber-fill); color: var(--wb-i-amber); border-radius: 12px; padding: 14px; }
++.v2-app .wb-int-feedback { background: var(--wb-i-blue-fill); border-radius: 12px; padding: 14px; }
++.v2-app .wb-int-error { color: var(--wb-i-red); background: var(--wb-i-red-fill); border-radius: 12px; padding: 12px; }
++.v2-app .wb-int-body :is(button,input,select,textarea,summary):focus-visible,
++.v2-app .wb-int-collaboration > summary:focus-visible { outline: 3px solid var(--wb-i-blue); outline-offset: 3px; }
++@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
++  .v2-app .v2-sidebar, .v2-app .v2-topbar { background: #f7faff; }
++}
++@media (max-width: 700px) {
++  .v2-app .wb-int-batch, .v2-app .wb-int-section, .v2-app .wb-int-core, .v2-app .p1-receipt { padding: 14px; }
++  .v2-app .wb-int-message-heading { flex-direction: column; }
++  .v2-app .wb-int-tag { flex-shrink: 1; white-space: normal; }
++  .v2-app .wb-int-actions > button { flex: 1 1 170px; min-height: 44px; }
++}
++@media (prefers-reduced-motion: reduce) {
++  .v2-app .wb-int-body button { transition: none; }
++}
++@media (prefers-reduced-transparency: reduce) {
++  .v2-app .v2-sidebar, .v2-app .v2-topbar { background: #f7faff; -webkit-backdrop-filter: none; backdrop-filter: none; }
++}
++@media (forced-colors: active) {
++  .v2-app .v2-sidebar, .v2-app .v2-topbar { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; }
++  .v2-app .wb-int-tag { border: 1px solid CanvasText; }
++  .v2-app .wb-int-body button { border: 1px solid ButtonText; }
++}
++
++/* Existing ItemWorkspace dialog: retain native dialog/focus/scroll behavior and only restyle surfaces. */
++.v2-app .iw-dialog { background: var(--wb-i-surface); color: var(--wb-i-text); border-color: var(--wb-i-line); border-radius: 24px; box-shadow: 0 18px 55px rgb(26 40 70 / 0.18); }
++.v2-app .iw-dialog .iw-top { background: var(--wb-i-surface); border-color: var(--wb-i-line); }
++.v2-app .iw-dialog .iw-content { background: var(--wb-i-bg); }
++.v2-app .iw-dialog .iw-block { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: 16px; }
++.v2-app .iw-dialog .iw-context { color: var(--wb-i-muted); }
+diff --git a/app/integration/core-collaboration-client.ts b/app/integration/core-collaboration-client.ts
+new file mode 100644
+index 00000000..2f40f62f
+--- /dev/null
++++ b/app/integration/core-collaboration-client.ts
+@@ -0,0 +1,36 @@
++import { parseCoreView, viewUrl, type CoreRequest, type CoreCommand, type CoreView } from './core-collaboration-model';
++export type CommandResult = {
++  acknowledgement: 'received' | 'rejected' | 'unknown';
++  view?: CoreView; operationError?: string; readbackError?: string;
++};
++export const explainError = (error: unknown) => error instanceof Error ? error.message : String(error);
++export async function readCoreView(request: CoreRequest, workspaceId: string, sourceId?: string): Promise<CoreView> {
++  const scoped = parseCoreView(await request(viewUrl(workspaceId, sourceId)));
++  if (!sourceId || !scoped.runs.some(b => b.items.some(m => !scoped.items.some(i => i.id === m.workItemId)))) return scoped;
++  // The service returns entire batches but only the current item in a scoped view.
++  // Read a fresh full projection so related admissions have real versions, then keep this item's batches.
++  const full = parseCoreView(await request(viewUrl(workspaceId)));
++  const runs = full.runs.filter(b => b.items.some(m => m.workItemId === sourceId));
++  const related = new Set([sourceId, ...runs.flatMap(b => b.items.map(m => m.workItemId))]);
++  return {...scoped, people: full.people, groups: full.groups, runs, items: full.items.filter(i => related.has(i.id))};
++}
++/** Exactly one POST, then one projection read. No automatic send, approval replay or retry loop. */
++export async function performCoreCommand(request: CoreRequest, workspaceId: string, sourceId: string | undefined, command: CoreCommand): Promise<CommandResult> {
++  if (!workspaceId || !command.action || 'workspaceId' in command) throw new Error('操作必须绑定当前工作区，不能由额外参数覆盖。');
++  let acknowledgement: CommandResult['acknowledgement'] = 'received', operationError: string | undefined;
++  try { await request('/api/v2/core', { ...command, workspaceId }); }
++  catch (error) {
++    const status = typeof error === 'object' && error ? (error as {status?: unknown}).status : undefined;
++    // A 5xx/network error may follow a durable write. Never claim that nothing was saved.
++    acknowledgement = typeof status === 'number' && [400,401,403,404,409,422,429].includes(status) ? 'rejected' : 'unknown';
++    operationError = explainError(error);
++  }
++  try { return { acknowledgement, operationError, view: await readCoreView(request, workspaceId, sourceId) }; }
++  catch (error) { return { acknowledgement, operationError, readbackError: explainError(error) }; }
++}
++/** Scope epochs suppress stale GET/POST completions after navigation, refresh or unmount. */
++export class ScopeEpoch {
++  private value = 0;
++  advance(): number { return ++this.value; }
++  isCurrent(ticket: number): boolean { return ticket === this.value; }
++}
+diff --git a/app/integration/core-collaboration-model.ts b/app/integration/core-collaboration-model.ts
+new file mode 100644
+index 00000000..e3f44b98
+--- /dev/null
++++ b/app/integration/core-collaboration-model.ts
+@@ -0,0 +1,170 @@
++/** WB-INTEGRATION-20261014-01 / PLAN1. UI projection only; the core service owns business state. */
++export type CoreRequest = <T = unknown>(url: string, body?: unknown) => Promise<T>;
++export type CoreCommand = Record<string, unknown> & { action: string };
++export type Proof = { sourceId: string; quote?: string; kind?: string; attachmentId?: string; fingerprint?: string };
++export type Recipient = { id: string; localId?: string; name: string; channel: 'private' | 'group' };
++export type Approval = { at?: string; fingerprint?: string; recipient?: Recipient; text?: string; proof?: Proof[] };
++export type Message = {
++  id: string; workItemId: string; title: string; text: string; fingerprint: string;
++  stage: string; executionOwner: string; recipient: Recipient; approvedHash?: string;
++  nodeName?: string; purpose?: string; dependsOnAdmission?: boolean; proof?: Proof[];
++  approvalHistory?: Approval[]; error?: string; messageId?: string;
++  previewChanges?: { previous?: { target?: Record<string, unknown> }; current?: { target?: Record<string, unknown> } };
++};
++export type DraftMessage = {
++  id: string; workItemId: string; title: string; text: string; recipientId: string;
++  channel: 'private' | 'group'; purpose?: string; proof?: Proof[]; [key: string]: unknown;
++};
++export type CoreItem = {
++  id: string; title: string; version: number; projectNames: string[];
++  core: { admission?: string; delivery?: { messages?: DraftMessage[]; proof?: Proof[] }; messageDrafts?: DraftMessage[] };
++};
++export type Batch = { id: string; version: number; projectNames: string[]; items: Message[] };
++export type Person = { id: string; title: string; identityVerified?: boolean };
++export type Notice = {
++  id: string; title: string; createdAt?: string;
++  channels: Record<string, { stage?: string; error?: string; readback?: { delivery?: string } }>;
++};
++export type InputEnvelope = { id: string; version: number; status: string; excerpt?: string; error?: string };
++export type CoreView = { people: Person[]; groups: Person[]; items: CoreItem[]; runs: Batch[]; notices: Notice[]; inputs: InputEnvelope[] };
++export type EditDraft = { fingerprint: string; text: string; recipientId: string };
++export type Tone = 'neutral' | 'blue' | 'green' | 'amber' | 'red';
++export const STAGES: Readonly<Record<string, { label: string; tone: Tone }>> = {
++  pending_review: { label: '待完整预览', tone: 'amber' },
++  approved: { label: '已批准，尚未发送', tone: 'blue' },
++  sending: { label: '执行中，等待结果', tone: 'blue' },
++  sent: { label: '已发送，待回读发送事实', tone: 'blue' },
++  readback_verified: { label: '发送事实已回读', tone: 'green' },
++  failed_not_sent: { label: '已核实未发出', tone: 'red' },
++  unknown: { label: '结果未知，先查询', tone: 'amber' },
++  needs_preview: { label: '前提变化，须保存新预览', tone: 'amber' },
++  blocked: { label: '前提尚未核实', tone: 'amber' },
++  stopped: { label: '已无必要，停止执行', tone: 'neutral' },
++  cancelled: { label: '已取消此消息', tone: 'neutral' },
++};
++const record = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
++const text = (x: unknown): x is string => typeof x === 'string';
++const nonempty = (x: unknown): x is string => text(x) && x.length > 0;
++const unique = (values: string[]) => new Set(values).size === values.length;
++const strings = (x: unknown): x is string[] => Array.isArray(x) && x.every(text);
++function isRecipient(x: unknown): x is Recipient {
++  return record(x) && nonempty(x.id) && text(x.name) && ['private', 'group'].includes(String(x.channel)) && (x.localId === undefined || text(x.localId));
++}
++function isProofs(x: unknown): x is Proof[] {
++  return Array.isArray(x) && x.every(p => record(p) && nonempty(p.sourceId) && ['quote','kind','attachmentId','fingerprint'].every(k => p[k] === undefined || text(p[k])));
++}
++function isDraft(x: unknown): x is DraftMessage {
++  return record(x) && ['id','workItemId','title','text','recipientId'].every(k => text(x[k])) && ['private','group'].includes(String(x.channel)) && (x.proof === undefined || isProofs(x.proof));
++}
++function isMessage(x: unknown): x is Message {
++  if (!record(x) || !['id','workItemId','fingerprint'].every(k => nonempty(x[k])) || !['title','text','stage','executionOwner'].every(k => text(x[k])) || !isRecipient(x.recipient)) return false;
++  if (['approvedHash','nodeName','purpose','error','messageId'].some(k => x[k] !== undefined && !text(x[k]))) return false;
++  if (x.dependsOnAdmission !== undefined && typeof x.dependsOnAdmission !== 'boolean') return false;
++  if (x.proof !== undefined && !isProofs(x.proof)) return false;
++  if (x.approvalHistory !== undefined && (!Array.isArray(x.approvalHistory) || !x.approvalHistory.every(a => record(a) && ['text','at','fingerprint'].every(k => a[k] === undefined || text(a[k])) && (a.recipient === undefined || isRecipient(a.recipient)) && (a.proof === undefined || isProofs(a.proof))))) return false;
++  return x.previewChanges === undefined || record(x.previewChanges);
++}
++/** Invalid/partial snapshots are NOT turned into an empty successful result. Unknown stages remain read-only. */
++export function parseCoreView(value: unknown): CoreView {
++  if (!record(value) || !['people','groups','items','runs','notices','inputs'].every(k => Array.isArray(value[k]))) throw new Error('协作返回结构不完整；未启用操作，请重新读取。');
++  const people = value.people as unknown[], groups = value.groups as unknown[], items = value.items as unknown[], runs = value.runs as unknown[], notices = value.notices as unknown[], inputs = value.inputs as unknown[];
++  const person = (p: unknown) => record(p) && nonempty(p.id) && text(p.title) && (p.identityVerified === undefined || typeof p.identityVerified === 'boolean');
++  if (![...people, ...groups].every(person)) throw new Error('收件人投影不可用；未启用操作。');
++  if (!items.every(i => record(i) && nonempty(i.id) && text(i.title) && Number.isInteger(i.version) && strings(i.projectNames) && record(i.core) && (i.core.admission === undefined || text(i.core.admission)) &&
++      (i.core.messageDrafts === undefined || Array.isArray(i.core.messageDrafts) && i.core.messageDrafts.every(isDraft)) &&
++      (i.core.delivery === undefined || record(i.core.delivery) && (i.core.delivery.messages === undefined || Array.isArray(i.core.delivery.messages) && i.core.delivery.messages.every(isDraft)) && (i.core.delivery.proof === undefined || isProofs(i.core.delivery.proof))))) throw new Error('事项投影不可用；未启用操作。');
++  if (!runs.every(b => record(b) && nonempty(b.id) && Number.isInteger(b.version) && strings(b.projectNames) && Array.isArray(b.items) && b.items.every(isMessage) && unique((b.items as Message[]).map(m => m.id)))) throw new Error('消息批次投影不可用；未启用操作。');
++  if (!notices.every(n => record(n) && nonempty(n.id) && text(n.title) && (n.createdAt === undefined || text(n.createdAt)) && record(n.channels) && Object.values(n.channels).every(c => record(c) && ['stage','error'].every(k => c[k] === undefined || text(c[k])) && (c.readback === undefined || record(c.readback) && (c.readback.delivery === undefined || text(c.readback.delivery)))))) throw new Error('提醒回执投影不可用；请重新读取。');
++  if (!inputs.every(i => record(i) && nonempty(i.id) && Number.isInteger(i.version) && text(i.status) && ['excerpt','error'].every(k => i[k] === undefined || text(i[k])))) throw new Error('输入投影不可用；请重新读取。');
++  for (const collection of [people, groups, items, runs, notices, inputs]) {
++    if (!unique(collection.map(x => (x as {id: string}).id))) throw new Error('投影身份重复；未启用操作。');
++  }
++  return value as unknown as CoreView;
++}
++export const messageKey = (batchId: string, messageId: string) => JSON.stringify([batchId, messageId]);
++export const approvalKey = (batchId: string, m: Pick<Message, 'id' | 'fingerprint'>) => JSON.stringify([batchId, m.id, m.fingerprint]);
++export const admissionKey = (item: Pick<CoreItem, 'id' | 'version'>) => JSON.stringify([item.id, item.version]);
++export const recipientId = (m: Message) => m.recipient.localId || m.recipient.id;
++export const stagePresentation = (m: Pick<Message, 'stage'>) => STAGES[m.stage] || { label: '未识别状态（' + m.stage + '），仅供查阅', tone: 'amber' as Tone };
++export const ownerLabel = (m: Pick<Message, 'executionOwner'>) => m.executionOwner === 'human' ? '本人接手执行' : m.executionOwner === 'ai' ? '由系统执行' : '执行权未识别';
++export const canEdit = (m: Message) => ['pending_review','needs_preview','approved','failed_not_sent'].includes(m.stage);
++export const canApprove = (m: Message) => m.stage === 'pending_review';
++export const canChangeAuthority = (m: Message) => !!STAGES[m.stage] && ['ai','human'].includes(m.executionOwner) && !['cancelled','stopped','readback_verified'].includes(m.stage);
++export const needsReconcile = (m: Message) => ['unknown','sending','sent'].includes(m.stage);
++export const isExecutionCandidate = (m: Message) => m.executionOwner === 'ai' && ['approved','failed_not_sent'].includes(m.stage);
++export const draftChanged = (m: Message, edit?: EditDraft) => !!edit && (edit.text !== m.text || edit.recipientId !== recipientId(m));
++export const draftStale = (m: Message, edit?: EditDraft) => !!edit && edit.fingerprint !== m.fingerprint;
++export const draftsFromView = (view: CoreView): DraftMessage[] => view.items.flatMap(i => [
++  ...(i.core.delivery?.messages || []).map(m => ({...m, proof: i.core.delivery?.proof || m.proof})),
++  ...(i.core.messageDrafts || []),
++]);
++export function viewUrl(workspaceId: string, sourceId?: string): string {
++  if (!workspaceId) throw new Error('缺少工作区身份。');
++  return '/api/v2/core?workspaceId=' + encodeURIComponent(workspaceId) + (sourceId ? '&sourceId=' + encodeURIComponent(sourceId) : '');
++}
++function requireRequestId(requestId: string) { if (!requestId) throw new Error('缺少原请求身份。'); }
++export function prepareCommand(drafts: DraftMessage[], selected: ReadonlySet<string>, requestId: string): CoreCommand {
++  requireRequestId(requestId);
++  const messages = drafts.filter(m => selected.has(m.id));
++  if (!messages.length || messages.length > 20 || !unique(messages.map(m => m.id)) || messages.length !== selected.size) throw new Error('请明确选择 1–20 条不同的完整草稿。');
++  return { action: 'prepare-messages', requestId, messages };
++}
++/** Admissions and approvals use independent selection sets and remain separate arrays on the wire. */
++export function decisionCommand(batch: Batch, view: CoreView, selected: ReadonlySet<string>, admissions: ReadonlySet<string>, edits: Readonly<Record<string, EditDraft>>, requestId: string): CoreCommand {
++  requireRequestId(requestId);
++  const inBatch = batch.items.filter(m => selected.has(approvalKey(batch.id, m)));
++  const batchSelections = [...selected].filter(key => { try { return JSON.parse(key)[0] === batch.id; } catch { return false; } });
++  if (batchSelections.length !== inBatch.length) throw new Error('所选预览指纹已变化，请重新核对后勾选。');
++  for (const m of inBatch) {
++    const edit = edits[messageKey(batch.id,m.id)];
++    if (!canApprove(m)) throw new Error('所选消息状态已变化；旧批准不重复保存。');
++    if (draftStale(m, edit) || draftChanged(m, edit)) throw new Error('先保存修改并回读新指纹，再批准实际正文。');
++  }
++  const related = new Set(batch.items.map(m => m.workItemId));
++  const chosen = view.items.filter(i => related.has(i.id) && admissions.has(admissionKey(i)));
++  const relatedSelections = [...admissions].filter(key => { try { return related.has(JSON.parse(key)[0]); } catch { return false; } });
++  if (chosen.length !== relatedSelections.length || chosen.some(i => i.core.admission !== 'candidate')) throw new Error('候选版本或纳入状态已变化，请重新核对。');
++  for (const m of inBatch) {
++    if (!m.dependsOnAdmission) continue;
++    const item = view.items.find(i => i.id === m.workItemId);
++    if (!item || item.core.admission !== 'managed' && !chosen.some(i => i.id === item.id)) throw new Error('这条消息依赖独立纳入决定；未替你勾选纳入。');
++  }
++  if (!inBatch.length && !chosen.length) throw new Error('尚未选择本批需要保存的决定。');
++  return { action: 'decide-messages', sourceId: batch.id, requestId,
++    decisions: inBatch.map(m => ({ id: m.id, fingerprint: m.fingerprint, action: 'approve' })),
++    admissions: chosen.map(i => ({ id: i.id, expectedVersion: i.version })) };
++}
++export function editCommand(batch: Batch, m: Message, edit: EditDraft, requestId: string): CoreCommand {
++  requireRequestId(requestId);
++  if (!canEdit(m) || draftStale(m, edit)) throw new Error('预览或消息状态已变化，草稿保留；先核对最新版本。');
++  if (!edit.text.trim() || edit.text.trim().length > 4000 || !edit.recipientId) throw new Error('请保留 1–4000 字完整正文和明确收件人。');
++  return { action: 'decide-messages', sourceId: batch.id, requestId, decisions: [{ id: m.id, fingerprint: m.fingerprint, action: 'edit', text: edit.text, recipientId: edit.recipientId }] };
++}
++export function cancelCommand(batch: Batch, m: Message, requestId: string): CoreCommand {
++  requireRequestId(requestId); if (!canEdit(m)) throw new Error('已有发送记录或状态不支持取消；请先核对结果。');
++  return { action: 'decide-messages', sourceId: batch.id, requestId, decisions: [{ id: m.id, fingerprint: m.fingerprint, action: 'cancel' }] };
++}
++export function authorityCommand(batch: Batch, m: Message): CoreCommand {
++  if (!canChangeAuthority(m)) throw new Error('这条消息不支持改变执行权。');
++  return { action: 'message-authority', sourceId: batch.id, messageId: m.id, expectedFingerprint: m.fingerprint, authorityAction: m.executionOwner === 'human' ? 'release' : 'takeover' };
++}
++export function executionPlan(batch: Batch, edits: Readonly<Record<string, EditDraft>>) {
++  const messages = batch.items.filter(isExecutionCandidate);
++  const unresolved = batch.items.filter(needsReconcile);
++  const dirty = batch.items.some(m => draftChanged(m, edits[messageKey(batch.id,m.id)]) || draftStale(m, edits[messageKey(batch.id,m.id)]));
++  const unbound = messages.some(m => m.approvedHash !== m.fingerprint);
++  const reason = unresolved.length ? '本批存在待核实发送结果，先查询；不会自动重发。' : dirty ? '本批有未保存或过期草稿；先保存或明确放弃草稿。' : unbound ? '批准指纹尚未匹配当前预览；先核对。' : !messages.length ? '本批没有可由系统执行的已批准消息。' : '';
++  return { messages, reason, allowed: !reason, retryCount: messages.filter(m => m.stage === 'failed_not_sent').length };
++}
++export function executeCommand(batch: Batch, edits: Readonly<Record<string, EditDraft>>): CoreCommand {
++  const plan = executionPlan(batch, edits); if (!plan.allowed) throw new Error(plan.reason);
++  // The current API executes a batch. Do not invent messageIds or claim per-message scope.
++  return { action: 'execute-messages', sourceId: batch.id };
++}
++export function reconcileCommand(batch: Batch): CoreCommand { return { action: 'reconcile-messages', sourceId: batch.id }; }
++export function noticeLabel(channel: string, value: Notice['channels'][string]) {
++  const delivery = value.readback?.delivery;
++  if (channel === 'desktop' && delivery === 'queued') return '已排队，尚未展示';
++  if (channel === 'desktop' && delivery === 'submitted') return '已提交电脑通知';
++  return STAGES[value.stage || '']?.label || value.stage || '尚无可核实结果';
++}
+diff --git a/app/integration/core-collaboration-panel.tsx b/app/integration/core-collaboration-panel.tsx
+new file mode 100644
+index 00000000..0a3ca748
+--- /dev/null
++++ b/app/integration/core-collaboration-panel.tsx
+@@ -0,0 +1,257 @@
++"use client";
++import { useCallback, useEffect, useRef, useState } from 'react';
++import {
++  admissionKey, approvalKey, authorityCommand, canApprove, canChangeAuthority, canEdit,
++  cancelCommand, decisionCommand, draftChanged, draftStale, draftsFromView, editCommand,
++  executeCommand, executionPlan, messageKey, needsReconcile, noticeLabel, ownerLabel,
++  prepareCommand, recipientId, reconcileCommand, stagePresentation,
++  type Approval, type Batch, type CoreCommand, type CoreRequest, type CoreView, type EditDraft,
++  type Message, type Proof,
++} from './core-collaboration-model';
++import { explainError, performCoreCommand, readCoreView, ScopeEpoch } from './core-collaboration-client';
++import { receiptTimestamp } from './receipt-presentation';
++
++type Props = {
++  workspaceId: string; sourceId?: string; revision?: number; request: CoreRequest;
++  onChanged?: () => Promise<unknown>;
++  /** Q01 accepted in DEV1: separate decision/save and batch execution. No external-send authorization. */
++  executionUiConfirmed?: boolean;
++};
++type EditState = { workspaceId: string; values: Record<string, EditDraft> };
++const storageKey = (workspaceId: string) => 'wb-integration:message-drafts:v1:' + workspaceId;
++function readEdits(workspaceId: string): EditState {
++  try {
++    const raw: unknown = JSON.parse(sessionStorage.getItem(storageKey(workspaceId)) || '{}');
++    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {workspaceId, values: {}};
++    const values: Record<string, EditDraft> = {};
++    for (const [key, value] of Object.entries(raw)) {
++      if (value && typeof value === 'object' && ['fingerprint','text','recipientId'].every(k => typeof (value as Record<string, unknown>)[k] === 'string')) values[key] = value as EditDraft;
++    }
++    return {workspaceId, values};
++  } catch { return {workspaceId, values: {}}; }
++}
++function ProofList({proof}: {proof?: Proof[]}) {
++  return proof?.length ? <ul className="wb-int-proof-list">{proof.map((p, i) => <li key={JSON.stringify([p.sourceId,p.attachmentId,i])}>
++    <code>{p.sourceId}</code>{p.attachmentId && <span> · 原图身份 {p.attachmentId}</span>}
++    {p.quote && <blockquote>{p.quote}</blockquote>}
++  </li>)}</ul> : <p className="wb-int-muted">未返回该记录的依据原文；不补造历史。</p>;
++}
++function ApprovalHistory({history}: {history?: Approval[]}) {
++  return <details className="wb-int-history"><summary>批准历史 · {history?.length || 0} 条</summary>
++    {!history?.length && <p className="wb-int-muted">当前没有可读取的批准历史；不据此推断已发送。</p>}
++    {history?.map((h, i) => <article key={JSON.stringify([h.at,h.fingerprint,i])}>
++      <h4>{receiptTimestamp(h.at)}</h4>
++      <p>当时收件人：{h.recipient ? h.recipient.name + ' · ' + (h.recipient.channel === 'group' ? '群聊' : '私聊') : '历史收件人未提供'}</p>
++      <p className="wb-int-full-text">{typeof h.text === 'string' ? h.text : '历史完整正文未提供；不能用当前正文冒充。'}</p>
++      <p className="wb-int-muted">批准指纹：<code>{h.fingerprint || '未提供'}</code></p>
++      <ProofList proof={h.proof}/>
++    </article>)}
++  </details>;
++}
++function resultCopy(action: string): string {
++  switch (action) {
++    case 'prepare-messages': return '完整预览已保存；尚未批准或发送。';
++    case 'decide-messages': return '所选决定已保存；本次没有发送消息。';
++    case 'execute-messages': return '执行请求已返回；请逐条查看发送与回读结果，不代表业务完成。';
++    case 'reconcile-messages': return '已查询原发送结果；结果未知的消息没有自动重发。';
++    case 'message-authority': return '执行权请求已处理；接手或交回不表示发送成功。';
++    default: return '操作请求已返回；请查看当前记录。';
++  }
++}
++
++/** Replacement for the original export, keeping every existing caller and transport contract. */
++export function CoreCollaborationPanel({workspaceId, sourceId, revision, request, onChanged, executionUiConfirmed = true}: Props) {
++  const [view, setView] = useState<CoreView | null>(null);
++  const [loading, setLoading] = useState(true), [fresh, setFresh] = useState(false), [busy, setBusy] = useState(false);
++  const [error, setError] = useState(''), [feedback, setFeedback] = useState('');
++  const [selected, setSelected] = useState<Set<string>>(new Set()), [admissions, setAdmissions] = useState<Set<string>>(new Set());
++  const [draftsSelected, setDraftsSelected] = useState<Set<string>>(new Set());
++  const [editState, setEditState] = useState<EditState>(() => readEdits(workspaceId));
++  const [fields, setFields] = useState<Record<string,string>>({});
++  const [filter, setFilter] = useState<'all' | 'review' | 'results'>('all');
++  const [pending, setPending] = useState<CoreCommand | null>(null);
++  const epoch = useRef(new ScopeEpoch()), busyTicket = useRef<number | null>(null), refreshQueued = useRef(false);
++  const callback = useRef(onChanged); callback.current = onChanged;
++  const edits = editState.workspaceId === workspaceId ? editState.values : {};
++  const scope = JSON.stringify([workspaceId, sourceId || '']);
++  const previousScope = useRef(scope);
++  useEffect(() => {
++    // Local storage is a draft cache, never a message/save/send ledger.
++    try { sessionStorage.setItem(storageKey(editState.workspaceId), JSON.stringify(editState.values)); } catch { /* Keep the draft in this mounted UI. */ }
++  }, [editState]);
++  const load = useCallback(async () => {
++    if (busyTicket.current !== null) { refreshQueued.current = true; return; }
++    refreshQueued.current = false;
++    const ticket = epoch.current.advance(); setLoading(true); setFresh(false); setError('');
++    try { const next = await readCoreView(request, workspaceId, sourceId); if (epoch.current.isCurrent(ticket)) { setView(next); setFresh(true); } }
++    catch (cause) { if (epoch.current.isCurrent(ticket)) setError('无法读取最新协作记录：' + explainError(cause)); }
++    finally { if (epoch.current.isCurrent(ticket)) setLoading(false); }
++  }, [request, workspaceId, sourceId]);
++  useEffect(() => {
++    if (previousScope.current !== scope) {
++      previousScope.current = scope; busyTicket.current = null; setBusy(false); setView(null);
++      setSelected(new Set()); setAdmissions(new Set()); setDraftsSelected(new Set());
++      setFields({}); setFeedback(''); setPending(null); setEditState(readEdits(workspaceId)); setFilter('all');
++    }
++    void load();
++  }, [scope, workspaceId, revision, load]);
++  useEffect(() => () => { epoch.current.advance(); }, [scope]);
++  const disabled = busy || loading || !fresh || !view || previousScope.current !== scope;
++  const toggle = (set: (fn: (old: Set<string>) => Set<string>) => void, key: string, checked: boolean) => set(old => { const next = new Set(old); if (checked) next.add(key); else next.delete(key); return next; });
++  function putEdit(key: string, value?: EditDraft) {
++    setEditState(old => { const values = {...(old.workspaceId === workspaceId ? old.values : {})}; if (value) values[key] = value; else delete values[key]; return {workspaceId, values}; });
++  }
++  function protect(build: () => CoreCommand) {
++    if (disabled || busyTicket.current !== null) return;
++    try { void run(build()); } catch (cause) { setError(explainError(cause)); }
++  }
++  async function run(command: CoreCommand, retryOriginal = false) {
++    if (busyTicket.current !== null || disabled) return;
++    const ticket = epoch.current.advance(); busyTicket.current = ticket; setBusy(true); setError(''); setFeedback('');
++    try {
++      // An uncertain prepare/decision is retried only by explicit user action, after reading current facts, using the identical requestId/body.
++      if (retryOriginal) await readCoreView(request, workspaceId, sourceId);
++      if (!epoch.current.isCurrent(ticket)) return;
++      const result = await performCoreCommand(request, workspaceId, sourceId, command);
++      if (!epoch.current.isCurrent(ticket)) return;
++      if (result.view) { setView(result.view); setFresh(true); } else setFresh(false);
++      if (result.acknowledgement === 'unknown') {
++        setPending(command);
++        setFeedback('请求结果尚未完全核实；没有自动重试。' + (result.view ? '下方为当前回读记录。' : '先重新读取，勿重复提交。'));
++      } else {
++        setPending(null);
++        if (result.acknowledgement === 'received') {
++          setFeedback(resultCopy(command.action));
++          if (command.action === 'prepare-messages') setDraftsSelected(new Set());
++          if (command.action === 'decide-messages') {
++            const batchId = String(command.sourceId);
++            setSelected(old => new Set([...old].filter(key => { try { return JSON.parse(key)[0] !== batchId; } catch { return false; } })));
++            const doneAdmissions = command.admissions as {id: string; expectedVersion: number}[] | undefined;
++            setAdmissions(old => new Set([...old].filter(key => !doneAdmissions?.some(i => key === admissionKey({id:i.id,version:i.expectedVersion})))));
++            if (result.view) for (const d of (command.decisions || []) as {id: string; action: string}[]) {
++              if (d.action === 'edit' || d.action === 'cancel') putEdit(messageKey(batchId,d.id));
++            }
++          }
++        }
++      }
++      if (result.operationError || result.readbackError) setError([
++        result.operationError,
++        result.readbackError && (result.acknowledgement === 'received' ? '操作已返回，但显示回读失败；只重新读取，不重新提交：' : '当前记录回读失败：') + result.readbackError,
++      ].filter(Boolean).join('；'));
++      if (result.acknowledgement === 'received') {
++        try { await callback.current?.(); }
++        catch { if (epoch.current.isCurrent(ticket)) setError('操作已返回，外层页面刷新失败；请重新读取，不重复提交。'); }
++      }
++    } catch (cause) { if (epoch.current.isCurrent(ticket)) setError(explainError(cause) + '；未自动重放原请求。'); }
++    finally { if (busyTicket.current === ticket) { busyTicket.current = null; setBusy(false); if (refreshQueued.current) void load(); } }
++  }
++  const drafts = view ? draftsFromView(view) : [];
++  const messages = view?.runs.flatMap(b => b.items) || [];
++  const pendingCount = messages.filter(m => ['pending_review','needs_preview','blocked'].includes(m.stage)).length;
++  function messageCard(batch: Batch, m: Message) {
++    const key = messageKey(batch.id,m.id), edit = edits[key];
++    const currentDraft: EditDraft = edit || {fingerprint:m.fingerprint,text:m.text,recipientId:recipientId(m)};
++    const presentation = stagePresentation(m), editable = canEdit(m), stale = draftStale(m, edit);
++    const options = m.recipient.channel === 'group' ? view!.groups : view!.people;
++    return <article className="wb-int-message" key={key} data-tone={presentation.tone} data-message-id={m.id}>
++      <header className="wb-int-message-heading"><div><h4>{m.nodeName ? m.nodeName + ' · ' : ''}{m.title}</h4><p className="wb-int-muted">事项身份：<code>{m.workItemId}</code>{sourceId && m.workItemId !== sourceId ? ' · 同批其他事项' : ''}</p></div>
++        <span className="wb-int-tag" data-tone={presentation.tone}>{presentation.label}</span>
++      </header>
++      <p>{m.recipient.name} · {m.recipient.channel === 'group' ? '群聊' : '私聊'} · {ownerLabel(m)}</p>
++      {canApprove(m) && <label className="wb-int-check"><input type="checkbox" disabled={!!disabled || !!pending || stale || draftChanged(m,edit)} checked={selected.has(approvalKey(batch.id,m))} onChange={e => toggle(setSelected,approvalKey(batch.id,m),e.target.checked)}/>批准这一版完整消息（不等于纳入事项）</label>}
++      {editable ? <div className="wb-int-editor">
++        <label>收件范围<select aria-label={'收件范围 ' + m.title} disabled={!!disabled || !!pending} value={currentDraft.recipientId} onChange={e => putEdit(key,{...currentDraft,recipientId:e.target.value})}>
++          {!options.some(p => p.id === currentDraft.recipientId) && <option value={currentDraft.recipientId}>{m.recipient.name}（当前范围未列出，需核实）</option>}
++          {options.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
++        </select></label>
++        <label>完整正文<textarea aria-label={'完整正文 ' + m.title} rows={6} maxLength={4000} disabled={!!disabled || !!pending} value={currentDraft.text} onChange={e => putEdit(key,{...currentDraft,text:e.target.value})}/></label>
++        {stale && <p role="status">这份本地草稿基于旧预览，尚未覆盖较新内容。先阅读下方当前正文，再选择如何继续。</p>}
++        {stale && <details><summary>当前服务器正文与收件人</summary><p>{m.recipient.name}</p><p className="wb-int-full-text">{m.text}</p><button type="button" disabled={!!disabled || !!pending} onClick={() => putEdit(key,{...currentDraft,fingerprint:m.fingerprint})}>保留草稿，以当前版本重新核对</button></details>}
++        <div className="wb-int-actions">
++          <button type="button" disabled={!!disabled || !!pending || stale} onClick={() => protect(() => editCommand(batch,m,currentDraft,crypto.randomUUID()))}>保存修改并回读预览</button>
++          {edit && <button type="button" disabled={!!disabled || !!pending} onClick={() => putEdit(key)}>放弃本地修改，使用当前预览</button>}
++          <button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => cancelCommand(batch,m,crypto.randomUUID()))}>取消此消息</button>
++        </div>
++      </div> : <p className="wb-int-full-text">{m.text}</p>}
++      <p className="wb-int-muted">当前通道发送文本；下列来源或原图身份是依据，不表示附件已随消息发送。</p>
++      <details><summary>依据与当前预览指纹</summary><code>{m.fingerprint}</code><ProofList proof={m.proof}/></details>
++      {m.previewChanges && <details><summary>本次业务前提变化</summary>{['交付物','负责人','计划日期','要求日期','交付要求'].map(k => {
++        const before = m.previewChanges?.previous?.target?.[k], after = m.previewChanges?.current?.target?.[k];
++        return before === after ? null : <p key={k}>{k}：{String(before ?? '未提供')} → {String(after ?? '未提供')}</p>;
++      })}</details>}
++      <ApprovalHistory history={m.approvalHistory}/>
++      {canChangeAuthority(m) && <button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => authorityCommand(batch,m))}>{m.executionOwner === 'human' ? '明确交回系统（不立即发送）' : '这条由我执行'}</button>}
++      {m.stage === 'sending' && <p className="wb-int-muted">已发起的请求可能仍在执行；接手不能撤回已发出的请求，先查询实际结果。</p>}
++      {m.error && <p className="wb-int-error" role="status">{m.error}</p>}
++      {m.messageId && <p className="wb-int-muted">原消息身份：<code>{m.messageId}</code></p>}
++      {m.stage === 'sent' || m.stage === 'readback_verified' ? <p className="wb-int-muted">发送事实不表示已读、知晓、认可或业务完成。</p> : null}
++    </article>;
++  }
++  return <details className="wb-int-collaboration" aria-label="协作消息预览">
++    <summary>协作消息 · 待决定 {pendingCount} · 历史与结果 {messages.length} 条</summary>
++    <div className="wb-int-body" aria-busy={busy || loading}>
++      <header className="wb-int-toolbar"><p>当前需要 → 逐项决定 → 依据与历史</p><button type="button" disabled={busy || loading} onClick={() => void load()}>重新读取当前记录</button></header>
++      {loading && <p role="status">正在读取持久协作记录…</p>}
++      {!fresh && view && <p role="status">当前显示的是上一份回读，操作已停用；请先重新读取。</p>}
++      {feedback && <p className="wb-int-feedback" role="status">{feedback}</p>}
++      {error && <p className="wb-int-error" role="alert">{error}</p>}
++      {pending && <section className="wb-int-warning" aria-label="尚未核实的请求">
++        <p>原操作：{pending.action}。{typeof pending.requestId === 'string' && <>原请求身份：<code>{pending.requestId}</code>。</>}没有自动生成新请求重试。</p>
++        {typeof pending.requestId === 'string' && ['decide-messages','prepare-messages'].includes(pending.action) && <button type="button" disabled={!!disabled} onClick={() => void run(pending,true)}>先查询，再按原身份核实／续办</button>}
++        <button type="button" disabled={!!disabled} onClick={() => {setPending(null);setSelected(new Set());setFeedback('继续以已回读的当前状态操作；没有重放上一请求，也未把未知结果当作成功。');}}>已核对当前状态，继续（不重试）</button>
++      </section>}
++      {drafts.length > 0 && <details className="wb-int-section"><summary>待准备的协作草稿 · {drafts.length} 条</summary>
++        <p className="wb-int-muted">每批最多 20 条；准备完整预览不会批准或发送。</p>
++        {drafts.map(m => <article key={m.id} className="wb-int-draft">
++          <label className="wb-int-check"><input type="checkbox" disabled={!!disabled || !!pending || !draftsSelected.has(m.id) && draftsSelected.size >= 20} checked={draftsSelected.has(m.id)} onChange={e => toggle(setDraftsSelected,m.id,e.target.checked)}/>{m.title} · {view?.people.find(p => p.id === m.recipientId)?.title || view?.groups.find(g => g.id === m.recipientId)?.title || '接收人待核实'}</label>
++          <p className="wb-int-full-text">{m.text}</p>
++          {m.channel === 'private' && view?.people.find(p => p.id === m.recipientId)?.identityVerified !== true && <div className="wb-int-editor">
++            <label>完整姓名或工作邮箱<input disabled={!!disabled || !!pending} value={fields['query:'+m.id] || ''} onChange={e => setFields(old => ({...old,['query:'+m.id]:e.target.value}))}/></label>
++            <button type="button" disabled={!!disabled || !!pending || !m.recipientId} onClick={() => protect(() => ({action:'resolve-recipient',personId:m.recipientId,query:fields['query:'+m.id] || ''}))}>核对收件人身份</button>
++          </div>}
++        </article>)}
++        <button type="button" disabled={!!disabled || !!pending || !draftsSelected.size} onClick={() => protect(() => prepareCommand(drafts,draftsSelected,crypto.randomUUID()))}>准备所选完整预览 · {draftsSelected.size} 条</button>
++      </details>}
++      {!!view?.notices.length && <details className="wb-int-section"><summary>本人提醒回执 · {view.notices.length} 条</summary>{view.notices.map(n => <article key={n.id}>
++        <h4>{n.title}</h4><small>{receiptTimestamp(n.createdAt)}</small>
++        {Object.entries(n.channels).map(([channel,value]) => <p key={channel}>{channel === 'desktop' ? '电脑通知' : '飞书本人信息'}：{noticeLabel(channel,value)}{value.error ? ' · ' + value.error : ''}</p>)}
++        <button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => ({action:'reconcile-notice',sourceId:n.id}))}>查询这轮提醒</button>
++      </article>)}</details>}
++      {view?.inputs.filter(i => ['budget_wait','waiting','failed','needs_association'].includes(i.status)).map(i => <section key={i.id} className="wb-int-warning">
++        <p>{i.status === 'budget_wait' ? '等待后台额度恢复' : i.status === 'waiting' ? '原输入已排队' : i.status === 'needs_association' ? '这条引用尚未关联事项' : '这条输入尚未处理完成'}：{i.excerpt}{i.error ? ' · ' + i.error : ''}</p>
++        <p className="wb-int-muted">这是输入接收／处理状态，不代替业务保存回执。</p>
++        {i.status === 'needs_association' && <><label>对应事项<select disabled={!!disabled || !!pending} value={fields['target:'+i.id] || ''} onChange={e => setFields(old => ({...old,['target:'+i.id]:e.target.value}))}>
++          <option value="">请选择具体事项</option>{view.items.map(item => <option key={item.id} value={item.id}>{item.title} · {item.projectNames.join('、')}</option>)}
++        </select></label><button type="button" disabled={!!disabled || !!pending || !fields['target:'+i.id]} onClick={() => protect(() => ({action:'associate-input',sourceId:i.id,targetId:fields['target:'+i.id],expectedVersion:i.version}))}>关联并处理原输入</button></>}
++      </section>)}
++      {!!view?.runs.length && <nav className="wb-int-filters" aria-label="协作记录筛选">{(['all','review','results'] as const).map(value => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{value === 'all' ? '全部记录' : value === 'review' ? '待决定' : '历史与结果'}</button>)}</nav>}
++      {view?.runs.map(batch => {
++        const shown = batch.items.filter(m => filter === 'all' || (filter === 'review' ? ['pending_review','needs_preview','blocked'].includes(m.stage) : !['pending_review','needs_preview','blocked'].includes(m.stage)));
++        // Entire batches are previewed; the backend execution scope cannot be narrowed by UI selection.
++        const plan = executionPlan(batch,edits);
++        const candidates = view.items.filter(i => i.core.admission === 'candidate' && batch.items.some(m => m.workItemId === i.id));
++        if (!shown.length && filter !== 'all') return null;
++        return <section key={batch.id} className="wb-int-batch" aria-label={'协作批次 ' + batch.id}>
++          <header><h3>{batch.projectNames.join('、') || '归属待核实'} · {batch.items.length} 条独立消息</h3><p className="wb-int-muted">同一批次身份：<code>{batch.id}</code></p></header>
++          {!!candidates.length && <fieldset className="wb-int-admissions" disabled={!!disabled || !!pending}><legend>独立决定：候选纳入</legend>
++            {candidates.map(i => <label className="wb-int-check" key={admissionKey(i)}><input type="checkbox" checked={admissions.has(admissionKey(i))} onChange={e => toggle(setAdmissions,admissionKey(i),e.target.checked)}/>将「{i.title}」纳入跟进（版本 {i.version}；不等于批准或发送消息）</label>)}
++          </fieldset>}
++          {shown.map(m => messageCard(batch,m))}
++          {filter !== 'all' && <p className="wb-int-warning">当前有筛选，仅显示 {shown.length}/{batch.items.length} 条。发送必须切回全部记录核对完整批次。</p>}
++          <div className="wb-int-actions"><button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => decisionCommand(batch,view,selected,admissions,edits,crypto.randomUUID()))}>保存本批所选决定（不发送）</button>
++            <button type="button" disabled={!!disabled} onClick={() => protect(() => reconcileCommand(batch))}>查询本批实际发送结果</button>
++          </div>
++          <details className="wb-int-execution"><summary>本批执行范围 · {plan.messages.length} 条{plan.retryCount ? '，其中明确未发重试 ' + plan.retryCount + ' 条' : ''}</summary>
++            <p>执行接口按整批处理：本批已批准、执行权为系统且符合最新前提的消息。上方勾选仅决定批准范围，不是发送过滤器。</p>
++            {plan.messages.map(m => <p key={m.id}>{m.title} → {m.recipient.name}{m.stage === 'failed_not_sent' ? '（已核实未发，将尝试原发送）' : ''}</p>)}
++            {plan.reason && <p role="status">{plan.reason}</p>}
++            {!executionUiConfirmed && <p role="status">PLAN1 Q01：发送按钮的分步交互待确认。本开发批次不启用发送入口。</p>}
++            <button type="button" className="wb-int-primary" disabled={!!disabled || !!pending || filter !== 'all' || !plan.allowed || !executionUiConfirmed} onClick={() => { if (executionUiConfirmed && filter === 'all') protect(() => executeCommand(batch,edits)); }}>执行本批已批准消息 · {plan.messages.length} 条</button>
++          </details>
++        </section>;
++      })}
++      {view && !view.runs.length && !drafts.length && <p>当前没有已准备的第三方消息；协作记录入口保留。</p>}
++      {view && filter === 'review' && !pendingCount && <p>本次没有待决定消息。历史与结果仍可从上方入口查看。</p>}
++    </div>
++  </details>;
++}
+diff --git a/app/integration/receipt-heading.tsx b/app/integration/receipt-heading.tsx
+new file mode 100644
+index 00000000..c7d711f2
+--- /dev/null
++++ b/app/integration/receipt-heading.tsx
+@@ -0,0 +1,10 @@
++"use client";
++import { receiptPresentation, receiptTimestamp, type SavedReceipt } from './receipt-presentation';
++/** Presentational replacement inside P1Receipt. Existing undo/version/conflict callbacks stay in the original component. */
++export function IntegrationReceiptHeading({receipt}: {receipt: SavedReceipt}) {
++  const view = receiptPresentation(receipt);
++  return <header className="wb-int-receipt-heading" data-tone={view.tone}>
++    <strong>{view.title}</strong>
++    <small>{receiptTimestamp(receipt.at)} · 保存记录</small>
++  </header>;
++}
+diff --git a/app/integration/receipt-presentation.ts b/app/integration/receipt-presentation.ts
+new file mode 100644
+index 00000000..53a17f46
+--- /dev/null
++++ b/app/integration/receipt-presentation.ts
+@@ -0,0 +1,28 @@
++/** Accepts the existing P1 receipt, never an LLM answer or job.status. No writes and no date parsing of user input. */
++export type SavedReceipt = {
++  operationId?: string; sourceId?: string; at?: string; undoneAt?: string; duplicate?: boolean;
++  closed?: boolean; pendingChanges?: unknown[]; progress?: string;
++};
++export function receiptPresentation(receipt: SavedReceipt) {
++  if (!receipt.operationId || !receipt.sourceId) return { title: '保存回执不完整，请重新读取', tone: 'amber' as const };
++  if (receipt.undoneAt) return { title: '本次操作已撤销', tone: 'neutral' as const };
++  if (receipt.duplicate) return { title: '同一原图已记录，本次未重复保存', tone: 'blue' as const };
++  if (receipt.pendingChanges?.length) return { title: '本次记录已保留；较新安排未被覆盖', tone: 'amber' as const };
++  if (receipt.closed) return { title: '已保存，已移入“已结束”', tone: 'green' as const };
++  return { title: '本地记录已保存', tone: 'green' as const };
++}
++export function receiptTimestamp(at?: string): string {
++  if (!at || !Number.isFinite(Date.parse(at))) return '保存时间未提供';
++  return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(at)) + '（北京时间）';
++}
++export type SaveProjection = {
++  status?: string; save?: {status?: string; receipt?: SavedReceipt};
++  preparation?: {status?: string; reason?: string; error?: string}; jobStatus?: string;
++};
++/** R2-FIX1 colleague contract: only save.status + durable receipt support a saved label. */
++export function inputSavePresentation(value: SaveProjection) {
++  const receipt = value.save?.receipt;
++  const saved = value.save?.status === 'saved' && !!receipt?.operationId && !receipt.undoneAt;
++  return { saved, title: saved ? '业务记录已保存' : receipt?.undoneAt ? '原保存已撤销' : '尚无有效业务保存回执',
++    preparation: value.preparation?.status || '', preparationReason: value.preparation?.reason || value.preparation?.error || '', jobStatus: value.jobStatus || '' };
++}
+diff --git a/app/work-item-core-controls.tsx b/app/work-item-core-controls.tsx
+index e06c6db4..1b0a1168 100644
+--- a/app/work-item-core-controls.tsx
++++ b/app/work-item-core-controls.tsx
+@@ -1,5 +1,6 @@
+ "use client";
+-import {useCallback,useEffect,useState} from 'react';
++import {useState} from 'react';
++import {CoreCollaborationPanel} from './integration/core-collaboration-panel';
+ import type {Item} from '../lib/domain';
+ import type {V2State} from '../lib/v2-types';
+ import {workItemState} from '../lib/work-items';
+@@ -11,7 +12,7 @@ export function WorkItemCoreControls({s,source,request,refresh}:{s:V2State;sourc
+   async function operate(action:string,extra:Value={}){
+     if(busy)return;setBusy(true);setError('');try{const state=workItemState(s,source);await request('/api/v2/work-items',{workspaceId:s.workspaceId,sourceId:source.id,expectedVersion:source.version,expectedBasis:state.basis,expectedEvidenceBasis:state.liveEvidenceBasis,requestId:crypto.randomUUID(),action,...extra});await refresh();}catch(e){setError(e instanceof Error?e.message:'本次未能保存');}finally{setBusy(false);}
+   }
+-  return <section aria-label="持续跟进"><p><strong>{c.admission==='candidate'?'待纳入候选':c.admission==='withdrawn'?'已撤下候选':'持续跟进'}</strong> · {effectivePriority(source)}{c.cycle.temp?'（临时催办等级）':''} · 连续有效提醒 {c.cycle.count} 次</p>
++  return <section className="wb-int-core" aria-label="持续跟进"><p><strong>{c.admission==='candidate'?'待纳入候选':c.admission==='withdrawn'?'已撤下候选':'持续跟进'}</strong> · {effectivePriority(source)}{c.cycle.temp?'（临时催办等级）':''} · 连续有效提醒 {c.cycle.count} 次</p>
+     <p>{c.need.description}{c.need.arranged?' · 当前已妥善安排':''}{c.pause?' · 提醒已暂停':''}</p>
+     {c.admission==='candidate'&&<button type="button" className="v2-button" disabled={busy} onClick={()=>void operate('core-admit')}>纳入跟进</button>}
+     <details><summary>优先级与提醒安排</summary><label>优先级<select aria-label="优先级" value={priority} onChange={e=>setPriority(e.target.value as typeof priority)}>{['P0','P1','P2','P3'].map(p=><option key={p}>{p}</option>)}</select></label>{priority==='P0'&&<label><input type="checkbox" checked={fullFocus} onChange={e=>setFullFocus(e.target.checked)}/>已明确全力处理</label>}<button className="v2-button" disabled={busy} onClick={()=>void operate('core-priority',{priority,fullFocus})}>保存优先级</button>
+@@ -25,24 +26,4 @@ export function WorkItemCoreControls({s,source,request,refresh}:{s:V2State;sourc
+     <CoreCollaborationPanel workspaceId={s.workspaceId} sourceId={source.id} revision={source.version} request={request} onChanged={refresh}/>
+   </section>;
+ }
+-const stageLabels:Record<string,string>={pending_review:'待预览',approved:'已批准待执行',cancelled:'已取消',sending:'执行中',sent:'已发送待回读',readback_verified:'已回读发送事实',failed_not_sent:'已核实未发出',unknown:'结果未知，需查询',needs_preview:'前提变化，需重新预览',blocked:'前提尚未核实',stopped:'已无必要，停止执行'};
+-export function CoreCollaborationPanel({workspaceId,sourceId,revision,request,onChanged}:{workspaceId:string;sourceId?:string;revision?:number;request:AssistantRequest;onChanged?:()=>Promise<unknown>}){
+-  const [view,setView]=useState<Value|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[selected,setSelected]=useState<string[]>([]),[edits,setEdits]=useState<Record<string,string>>({});
+-  const load=useCallback(async()=>{const result=await request<Value>('/api/v2/core?workspaceId='+encodeURIComponent(workspaceId)+(sourceId?'&sourceId='+encodeURIComponent(sourceId):''));setView(result);},[workspaceId,sourceId,request]);
+-  useEffect(()=>{let alive=true;void request<Value>('/api/v2/core?workspaceId='+encodeURIComponent(workspaceId)+(sourceId?'&sourceId='+encodeURIComponent(sourceId):'')).then(v=>{if(alive)setView(v);}).catch(e=>{if(alive)setError(String(e.message));});return()=>{alive=false;};},[workspaceId,sourceId,revision,request]);
+-  async function run(action:string,extra:Value){setBusy(true);setError('');try{await request('/api/v2/core',{workspaceId,action,...extra});await load();await onChanged?.();}catch(e){setError(e instanceof Error?e.message:'本次未完成');}finally{setBusy(false);}}
+-  async function approve(batch:Value){
+-    const messages=batch.items.filter((m:Value)=>selected.includes(m.id));if(!messages.length)return;
+-    if(messages.some((m:Value)=>edits[m.id]!==undefined&&edits[m.id]!==m.text||edits['recipient:'+m.id]&&edits['recipient:'+m.id]!==m.recipient.localId&&edits['recipient:'+m.id]!==m.recipient.id)){setError('先保存修改，再确认当前完整正文。');return;}
+-    setBusy(true);setError('');try{await request('/api/v2/core',{workspaceId,sourceId:batch.id,action:'decide-messages',requestId:crypto.randomUUID(),decisions:messages.map((m:Value)=>({id:m.id,fingerprint:m.fingerprint,action:'approve'}))});await request('/api/v2/core',{workspaceId,sourceId:batch.id,action:'execute-messages'});setSelected([]);await load();await onChanged?.();}catch(e){setError(e instanceof Error?e.message:'执行结果尚未核实');await load();}finally{setBusy(false);}
+-  }
+-  const drafts=view?.items.flatMap((i:Value)=>[...(i.core.delivery?.messages||[]).map((m:Value)=>({...m,proof:i.core.delivery.proof})),...(i.core.messageDrafts||[])])||[];
+-  return <details aria-label="协作消息预览"><summary>协作消息{view?.runs?.length?' · '+view.runs.length+' 批':''}</summary>{drafts.length>0&&<><div>{drafts.map((m:Value)=><div key={m.id}><p>{m.title} · 拟发给 {view?.people.find((p:Value)=>p.id===m.recipientId)?.title||view?.groups.find((g:Value)=>g.id===m.recipientId)?.title||'接收人待核实'}</p><p>{m.text}</p>{m.channel==='private'&&view?.people.find((p:Value)=>p.id===m.recipientId)?.identityVerified!==true&&<><label>完整姓名或工作邮箱<input value={edits['query:'+m.id]||''} onChange={e=>setEdits(v=>({...v,['query:'+m.id]:e.target.value}))}/></label><button className="v2-text-button" disabled={busy||!m.recipientId} onClick={()=>void run('resolve-recipient',{personId:m.recipientId,query:edits['query:'+m.id]||''})}>核对收件人身份</button></>}</div>)}</div><button className="v2-button" disabled={busy} onClick={()=>void run('prepare-messages',{messages:drafts,requestId:crypto.randomUUID()})}>准备完整预览</button></>}
+-    {!!view?.notices?.length&&<details><summary>本人提醒回执</summary>{view.notices.map((notice:Value)=><div key={notice.id}><p>{notice.title} · {notice.createdAt}</p>{Object.entries(notice.channels as Record<string,Value>).map(([channel,value])=><p key={channel}>{channel==='desktop'?'电脑通知':'飞书本人信息'}：{value.readback?.delivery==='queued'?'已排队，尚未展示':value.readback?.delivery==='submitted'?'已提交电脑通知':stageLabels[value.stage]||value.stage}{value.error?' · '+value.error:''}</p>)}<button className="v2-text-button" disabled={busy} onClick={()=>void run('reconcile-notice',{sourceId:notice.id})}>查询这轮提醒</button></div>)}</details>}
+-    {view?.inputs.filter((i:Value)=>['budget_wait','waiting','failed'].includes(i.status)).map((i:Value)=><p key={i.id} role="status">{i.status==='budget_wait'?'等待后台额度恢复':i.status==='waiting'?'原输入已排队':'这条输入尚未处理完成'}：{i.excerpt?.slice(0,120)}{i.error?' · '+i.error:''}</p>)}
+-    {view?.inputs.filter((i:Value)=>i.status==='needs_association').map((i:Value)=><div key={i.id}><p>这条引用尚未关联事项：{i.excerpt}</p><label>对应事项<select value={edits['target:'+i.id]||''} onChange={e=>setEdits(v=>({...v,['target:'+i.id]:e.target.value}))}><option value="">请选择具体事项</option>{view.items.map((target:Value)=><option key={target.id} value={target.id}>{target.title} · {target.projectNames.join('、')}</option>)}</select></label><button className="v2-button" disabled={busy||!edits['target:'+i.id]} onClick={()=>void run('associate-input',{sourceId:i.id,targetId:edits['target:'+i.id],expectedVersion:i.version})}>关联并处理原输入</button></div>)}
+-    {view?.runs.map((batch:Value)=><section key={batch.id}><p>{batch.projectNames.join('、')} · {batch.items.length} 条独立消息</p>{batch.items.map((m:Value)=><div key={m.id}><label><input type="checkbox" checked={selected.includes(m.id)} disabled={busy||!['pending_review','needs_preview','approved','failed_not_sent'].includes(m.stage)} onChange={e=>setSelected(v=>e.target.checked?[...v,m.id]:v.filter(id=>id!==m.id))}/>{m.nodeName?m.nodeName+' · ':''}{m.title} · {m.recipient.name}（{m.recipient.channel==='group'?'群聊':'私聊'}）</label><p>{stageLabels[m.stage]||m.stage} · {m.executionOwner==='human'?'本人接手执行':'由系统执行'}</p><label>收件范围<select aria-label={'收件范围 '+m.title} disabled={busy||!['pending_review','needs_preview','approved','failed_not_sent'].includes(m.stage)} value={edits['recipient:'+m.id]||m.recipient.localId||m.recipient.id} onChange={e=>setEdits(v=>({...v,['recipient:'+m.id]:e.target.value}))}>{(m.recipient.channel==='group'?view.groups:view.people).map((p:Value)=><option key={p.id} value={p.id}>{p.title}</option>)}</select></label><label>完整正文<textarea aria-label={'完整正文 '+m.title} rows={4} value={edits[m.id]??m.text} disabled={busy||!['pending_review','needs_preview','approved','failed_not_sent'].includes(m.stage)} onChange={e=>setEdits(v=>({...v,[m.id]:e.target.value}))}/></label>
+-      {['pending_review','needs_preview','approved','failed_not_sent'].includes(m.stage)&&<><button className="v2-text-button" disabled={busy} onClick={()=>void run('decide-messages',{sourceId:batch.id,requestId:crypto.randomUUID(),decisions:[{id:m.id,fingerprint:m.fingerprint,action:'edit',text:edits[m.id]??m.text,recipientId:edits['recipient:'+m.id]||m.recipient.localId||m.recipient.id}]})}>保存修改</button><button className="v2-text-button" disabled={busy} onClick={()=>void run('decide-messages',{sourceId:batch.id,requestId:crypto.randomUUID(),decisions:[{id:m.id,fingerprint:m.fingerprint,action:'cancel'}]})}>取消此消息</button></>}
+-      {!['cancelled','stopped','readback_verified'].includes(m.stage)&&<button className="v2-text-button" disabled={busy} onClick={()=>void run('message-authority',{sourceId:batch.id,messageId:m.id,expectedFingerprint:m.fingerprint,authorityAction:m.executionOwner==='human'?'release':'takeover'})}>{m.executionOwner==='human'?'明确交回系统':'这条由我执行'}</button>}{m.previewChanges&&<details><summary>本次预览变化</summary><p>请核对当前正文、收件范围及变化后的业务条件。</p>{['交付物','负责人','计划日期','要求日期','交付要求'].filter(key=>m.previewChanges.previous?.target?.[key]!==m.previewChanges.current?.target?.[key]).map(key=><p key={key}>{key}：{String(m.previewChanges.previous?.target?.[key]||'未提供')} → {String(m.previewChanges.current?.target?.[key]||'未提供')}</p>)}</details>}{m.error&&<p role="status">{m.error}</p>}</div>)}
+-      <button className="v2-button" disabled={busy||!batch.items.some((m:Value)=>selected.includes(m.id))} onClick={()=>void approve(batch)}>确认所选并发送</button><button className="v2-text-button" disabled={busy} onClick={()=>void run('reconcile-messages',{sourceId:batch.id})}>查询实际发送结果</button></section>)}{view&&!view.runs.length&&!drafts.length&&<p>当前没有已准备的第三方消息。</p>}{error&&<p role="alert">{error}</p>}</details>;
+-}
++export {CoreCollaborationPanel};
+diff --git a/app/work-item-entry.tsx b/app/work-item-entry.tsx
+index c175c6c3..900e13b6 100644
+--- a/app/work-item-entry.tsx
++++ b/app/work-item-entry.tsx
+@@ -16,6 +16,7 @@ import {InputImages,type InputImage} from './input-images';
+ import {WorkItemAssistant} from './work-item-assistant';
+ import {readInputDraft,writeInputDraft} from './local-draft';
+ import {workItemInputLabel} from './work-item-input-label';
++import {IntegrationReceiptHeading} from './integration/receipt-heading';
+ import './work-item-entry.css';
+ 
+ type Value=Omit<Item,'id'|'title'|'projectIds'|'sourceIds'>;
+@@ -62,7 +63,8 @@ export function WorkItemEntry({s,source,request,onReview}:Props){
+   if(outcome?.status==='saved'){
+    if(!newer)setTimes({check:timeDraft(outcome.receipt.timing.check),completion:timeDraft(outcome.receipt.timing.completion)});
+    setExpected({version:outcome.receipt.version,basis:outcome.receipt.basis,evidence:outcome.receipt.evidence});setReceipt(outcome.receipt);setNotice(newer?'上一条已保存；本次新输入仍保留。':'');
+-   try{await navigation?.saved?.(outcome.receipt,!!outcome.stay||newer);}catch{setError('记录已保存，页面刷新失败。可以重新读取，勿重复提交。');}
++   const preparationUnfinished=['incomplete','partial'].includes(job.coreWorkOutcome?.status);
++   try{await navigation?.saved?.(outcome.receipt,!!outcome.stay||newer||preparationUnfinished);}catch{setError('记录已保存，页面刷新失败。可以重新读取，勿重复提交。');}
+   }
+  }
+  useEffect(()=>{if(!runningId)return;let active=true;let timer:ReturnType<typeof setTimeout>;const poll=async()=>{try{const result=await request<{job:Value}>('/api/v2/codex/jobs/'+runningId+'?workspaceId='+encodeURIComponent(s.workspaceId));if(active){adopt(result.job);if(result.job.status!=='running')await finishRef.current(result.job);}}catch{if(active)setError('暂时无法读取处理结果，正在查询原操作，输入保留。');}if(active)timer=setTimeout(poll,600);};timer=setTimeout(poll,200);return()=>{active=false;clearTimeout(timer);};},[runningId,request,s.workspaceId]); // Completion reads the current draft through generation; input is never reset while a job runs.
+@@ -103,7 +105,7 @@ export function P1Receipt({receipt,s,request,onOpen,onTime,onEdit,onRefresh}:{re
+  const live=s.receipts['work-item:'+receipt.operationId]?.result||receipt;const inactive=!!live.undoneAt;
+  async function undo(){if(busy)return;setBusy(true);setError('');try{await localOperation(request,{workspaceId:s.workspaceId,sourceId:receipt.sourceId,requestId:'undo-'+receipt.operationId,action:'p1-undo',operationId:receipt.operationId});try{await onRefresh();}catch{setError('撤销已保存，显示刷新失败，请重新读取。');}}catch(e){setError(explain(e));}finally{setBusy(false);}}
+  async function pending(){if(!row||!c||busy)return;setBusy(true);try{const entry={intent:'record',progress:'',progressQuote:'',waitingFor:'',waitingResult:'',waitingQuote:'',checkCompleted:false,checkQuote:'',riskDecision:'none',riskQuote:'',followup:'unchanged',followupQuote:'',check:{state:'unchanged'},completion:{state:'unchanged'},clarification:''};const body=pendingOperation.current||{workspaceId:s.workspaceId,sourceId:row.id,requestId:'pending-'+receipt.operationId,action:'p1-submit',expectedVersion:row.version,expectedBasis:c.basis,expectedEvidenceBasis:c.liveEvidenceBasis,entry,input:{text:'',occurredAt:new Date().toISOString(),manual:{check:{state:'pending'},completion:{state:'pending'}}}};pendingOperation.current=body;const result=await localOperation(request,body);await onRefresh(result);}catch(e){setError(explain(e));}finally{setBusy(false);}}
+- return <section className="p1-receipt" aria-label="本次保存回执"><strong>{inactive?'本次操作已撤销':receipt.duplicate?'同一原图已记录，本次未重复保存':receipt.pendingChanges?.length?'已保留本次记录；较新安排未被覆盖':receipt.closed?'已保存，已移入“已结束”':'本地记录已保存'}</strong><small>{new Date(receipt.at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})} · 保存记录</small>{receipt.progress&&<p>{receipt.progress}</p>}{receipt.pendingChanges?.map((p:Value)=><p key={p.id} role="status">{p.message}</p>)}{c&&!c.closed&&!inactive&&<p>{c.timing.status}{c.timing.status==='时间待确认'?' · 后续时间待补':''}</p>}{c&&!c.closed&&c.timing.completionDue.map((v,i)=><p className="p1-overdue" key={i}>{v.node.date} · {v.label}</p>)}<div className="p1-actions">{onOpen&&<button className="v2-text-button" onClick={onOpen}>查看记录</button>}{!inactive&&!receipt.duplicate&&<><button className="v2-text-button" onClick={onEdit}>修改记录</button><button className="v2-text-button" disabled={busy} onClick={()=>void undo()}><Undo2 size={14}/>撤销本次操作</button></>}{c&&!c.closed&&!inactive&&<><button className="v2-text-button" onClick={onTime}>设置时间</button>{c.timing.status==='时间待确认'&&<button className="v2-text-button" disabled={busy} onClick={()=>void pending()}>目前都待定</button>}</>}</div>{error&&<p role="alert">{error}</p>}</section>;
++ return <section className="p1-receipt" aria-label="本次保存回执"><IntegrationReceiptHeading receipt={live}/>{receipt.progress&&<p>{receipt.progress}</p>}{receipt.pendingChanges?.map((p:Value)=><p key={p.id} role="status">{p.message}</p>)}{c&&!c.closed&&!inactive&&<p>{c.timing.status}{c.timing.status==='时间待确认'?' · 后续时间待补':''}</p>}{c&&!c.closed&&c.timing.completionDue.map((v,i)=><p className="p1-overdue" key={i}>{v.node.date} · {v.label}</p>)}<div className="p1-actions">{onOpen&&<button className="v2-text-button" onClick={onOpen}>查看记录</button>}{!inactive&&!receipt.duplicate&&<><button className="v2-text-button" onClick={onEdit}>修改记录</button><button className="v2-text-button" disabled={busy} onClick={()=>void undo()}><Undo2 size={14}/>撤销本次操作</button></>}{c&&!c.closed&&!inactive&&<><button className="v2-text-button" onClick={onTime}>设置时间</button>{c.timing.status==='时间待确认'&&<button className="v2-text-button" disabled={busy} onClick={()=>void pending()}>目前都待定</button>}</>}</div>{error&&<p role="alert">{error}</p>}</section>;
+ }
+ 
+ async function localOperation(request:AssistantRequest,body:Value){
+diff --git a/app/workbench-v2.tsx b/app/workbench-v2.tsx
+index 8c681438..8545fd5e 100644
+--- a/app/workbench-v2.tsx
++++ b/app/workbench-v2.tsx
+@@ -46,6 +46,7 @@ import { hydrateStateCollections } from '../lib/feishu-collaboration';
+ import { DeskPet } from './desk-pet';
+ import {DesktopNotificationBridge,DesktopNotificationSettings} from './desktop-notifications';
+ import './workbench-v2.css';
++import './integration/apple-integration.css';
+ 
+ type Command = (value: Record<string, any>) => Promise<any>;
+ type FormField = { key: string; label: string; type?: 'date' | 'datetime-local' | 'text' | 'textarea' | 'boolean' | 'choice' | 'objects' | 'person' | 'json' | 'list' | 'planStage'; choices?: string[]; options?: {value:string;label:string}[]; kinds?: V2Kind[]; advanced?: boolean; hint?: string };
+@@ -297,7 +298,7 @@ export default function WorkbenchV2(){
+   const collaborationDirty=useRef(false);
+   useEffect(()=>{const beforeUnload=(event:BeforeUnloadEvent)=>{if(formDirty.current||collaborationDirty.current||projectDirty.current){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',beforeUnload);return()=>window.removeEventListener('beforeunload',beforeUnload)},[]);
+   const token=useRef(''),workspaceRef=useRef(workspace),busyRef=useRef(false),latest=useRef(s),formDirty=useRef(false),routeRef=useRef(window.location.href);latest.current=s;workspaceRef.current=workspace;
+-  const request=useCallback(async(url:string,body?:any)=>{const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{'X-Workbench-Token':token.current,'X-Workbench-Client':'ui',...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});let d:any;try{d=await r.json()}catch{throw Error('本地服务返回了无法读取的响应，请检查服务状态。')}if(!r.ok){const e:any=new Error(d.error||'本地保存失败');e.details=d.errors;e.state=d.state;throw e}return d},[]);
++  const request=useCallback(async(url:string,body?:any)=>{const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{'X-Workbench-Token':token.current,'X-Workbench-Client':'ui',...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});let d:any;try{d=await r.json()}catch{throw Error('本地服务返回了无法读取的响应，请检查服务状态。')}if(!r.ok){const e:any=new Error(d.error||'本地保存失败');e.status=r.status;e.details=d.errors;e.state=d.state;throw e}return d},[]);
+   const refresh=useCallback(async()=>{const active=workspaceRef.current;const st=await request('/api/v2/status');if(workspaceRef.current!==active)return;token.current=st.csrfToken;setStatus(st);const selectedWorkspace=st.workspaces?.some((w:any)=>w.id===active)?active:st.workspaces?.find((w:any)=>w.type==='official')?.id||st.workspaces?.[0]?.id;if(!selectedWorkspace)throw Error('没有可读取的工作区，请检查本地数据库。');if(selectedWorkspace!==active){workspaceRef.current=selectedWorkspace;setWorkspace(selectedWorkspace)}const next=hydrateStateCollections(await request('/api/v2/snapshot?workspaceId='+encodeURIComponent(selectedWorkspace)));if(workspaceRef.current===selectedWorkspace)setS(current=>current&&current.workspaceId===next.workspaceId&&current.revision>next.revision?current:next)},[request]);
+   useEffect(()=>{let active=true;const read=()=>{const requestWorkspace=workspaceRef.current;void refresh().catch(e=>{if(active&&workspaceRef.current===requestWorkspace)setError(e)})};read();const t=setInterval(()=>{if(!busyRef.current)read()},3500);return()=>{active=false;clearInterval(t)}},[workspace,refresh]);
+   useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),5500);return()=>clearTimeout(t)},[toast]);
+diff --git a/scripts/core-collaboration.mjs b/scripts/core-collaboration.mjs
+index 3060b800..03fb2b9a 100644
+--- a/scripts/core-collaboration.mjs
++++ b/scripts/core-collaboration.mjs
+@@ -93,7 +93,7 @@ export class CoreCollaboration {
+       if(!person?.identityVerified||person.feishuUserId!==m.recipient.id||person.feishuAppId!==m.recipient.appId||person.feishuTenantKey!==m.recipient.tenantKey)return {stage:'needs_preview',reason:'接收人身份或所属账号范围已变化'};
+     }else if(!s.sources.some(r=>r.chatScope?.state==='active'&&r.chatScope.chatId===m.recipient.id&&r.chatScope.scope===m.recipient.scope&&r.projectIds.some(p=>row.projectIds.includes(p))))return {stage:'needs_preview',reason:'群身份或与当前项目的关系已变化'};
+     const c=row.workItem.core,delivery=c?.delivery;
+-    const finished=delivery?.targetId===m.targetId&&delivery.delivered&&this.domain.validCoreProofs(s,delivery.proof)||row.workItem.p1?.lifecycle?.state==='closed'&&c?.assessment?.goalSatisfied&&this.domain.validCoreProofs(s,c.assessment.proof);
++    const finished=delivery?.targetId===m.targetId&&delivery?.delivered&&this.domain.validCoreProofs(s,delivery.proof)||row.workItem.p1?.lifecycle?.state==='closed'&&c?.assessment?.goalSatisfied&&this.domain.validCoreProofs(s,c.assessment.proof);
+     if(finished)return {stage:'stopped',reason:'可靠新事实表明这条协作已无必要'};
+     if(row.workItem.p1?.lifecycle?.state==='closed')return {stage:'needs_preview',reason:'本人已结束本地跟进，请核对这条未执行协作是否仍需要'};
+     if(m.targetBasis!==digest(targetSnapshot(s,m)))return {stage:'needs_preview',reason:'关联对象、负责人、业务日期或交付要求已变化'};
+diff --git a/scripts/test-integration-dev1-browser.mjs b/scripts/test-integration-dev1-browser.mjs
+new file mode 100644
+index 00000000..093e242c
+--- /dev/null
++++ b/scripts/test-integration-dev1-browser.mjs
+@@ -0,0 +1,138 @@
++import assert from 'node:assert/strict';
++import {createRequire} from 'node:module';
++import {mkdirSync,readdirSync,writeFileSync} from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {setTimeout as delay} from 'node:timers/promises';
++import * as d from '../dist-local/domain.mjs';
++import {startCoreFixture} from './core-fixtures.mjs';
++
++const output=path.resolve(process.env.PM_DEV1_OUTPUT||'output/dev1/browser');mkdirSync(output,{recursive:true});
++const {chromium}=createRequire(process.env.PM_PLAYWRIGHT_MODULE||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'))('playwright');
++const cache=path.join(os.homedir(),'.agent-browser/browsers');
++const executablePath=process.env.PM_CHROME_PATH||path.join(cache,readdirSync(cache).filter(x=>x.startsWith('chrome-')).sort().at(-1),'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
++const remote=new Map(),outbound=[],attempts=[],transport={mode:'ok'},identity={scope:'tenant/app',userId:'ou_self',appId:'app',tenantKey:'tenant'};
++const client={simulation:true,identity:async()=>({...identity}),lookupByKey:async key=>transport.mode==='verified-not-sent'?{status:'not_sent',verified:true}:null,run:async args=>{
++  if(args[1]==='+messages-send'){
++    attempts.push(args);
++    if(transport.mode==='unknown')throw Error('合成发送连接中断，结果未知');
++    if(transport.mode==='not-sent')throw Object.assign(Error('合成通道明确拒绝，尚未发出'),{definitelyNotSent:true});
++    const id='om_dev1_'+(outbound.length+1);outbound.push(args);remote.set(id,{message_id:id,msg_type:'text',content:args[args.indexOf('--text')+1],sender:{id:'ou_self'}});return {message_id:id};
++  }
++  if(args[1]==='+messages-mget'){if(transport.mode==='delayed-readback')await new Promise(r=>{transport.release=r;});return {messages:transport.mode==='readback-missing'?[]:[remote.get(args[args.indexOf('--message-ids')+1])].filter(Boolean)};}
++  throw Error('Unexpected adapter operation: '+args.slice(0,2).join(' '));
++}};
++const app=await startCoreFixture({client}),browser=await chromium.launch({executablePath,headless:true}),context=await browser.newContext({viewport:{width:1440,height:1050},timezoneId:'Asia/Shanghai'}),page=await context.newPage();
++const results=[],errors=[],external=[],requests=[],screenshots=[],responses=[],failedRequests=[];page.setDefaultTimeout(12000);
++page.on('pageerror',e=>errors.push(e.message));page.on('requestfailed',r=>failedRequests.push({url:r.url(),error:r.failure()}));page.on('response',async r=>{if(r.url().includes('/api/v2/core')&&r.request().method()==='POST')responses.push({status:r.status(),action:r.request().postDataJSON()?.action,body:await r.text().catch(()=>'<unread>')});});page.on('request',r=>{if(r.method()==='POST'){const body=r.postDataJSON();if(body?.base64){body.attachmentPayload={bytes:Buffer.from(body.base64,'base64').length};delete body.base64;}requests.push({path:new URL(r.url()).pathname,body});}});
++await context.route('**/*',route=>{const u=new URL(route.request().url());if(['http:','https:'].includes(u.protocol)&&u.origin!==app.origin){external.push(u.origin);return route.abort();}return route.continue();});
++const state=()=>app.state(),record=id=>state().sources.find(r=>r.id===id),panel=()=>page.locator('.iw-dialog'),entry=()=>panel().locator('.p1-entry'),input=()=>entry().locator('[data-assistant-input]'),receipt=()=>page.getByRole('region',{name:'本次保存回执',exact:true}).last(),collab=()=>page.locator('.wb-int-collaboration').last();
++const count=id=>record(id).workItem.p1?.progress?.length||0;
++async function shot(name){await page.screenshot({path:path.join(output,name+'.png')});screenshots.push(name+'.png');}
++async function until(fn){for(let i=0;i<200;i++){const v=await fn();if(v)return v;await delay(40);}throw Error('Expected persisted state not reached');}
++async function check(id,name,fn){if(process.env.PM_DEV1_CASES&&!process.env.PM_DEV1_CASES.split(',').some(p=>id.startsWith(p)))return;try{const evidence=await fn();results.push({id,name,passed:true,evidence});console.log('PASS',id,name);}catch(e){results.push({id,name,passed:false,error:e.stack});await shot('failure-'+id);throw e;}}
++async function goto(view='attention',id,extra={}){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view,...(id?{record:id}:{}),...extra}));await page.locator('.v2-app').waitFor();if(id)await panel().locator('.work-item-panel').waitFor();}
++async function compose(id=app.ids.action,view='attention',extra={}){await goto(view,id,extra);await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await entry().waitFor();await until(()=>entry().getByRole('button',{name:'发送',exact:true}).isVisible());}
++async function send(){await entry().getByRole('button',{name:'发送',exact:true}).click();}
++async function returned(){await panel().waitFor({state:'detached'});await receipt().waitFor();}
++async function openCollab(id){await goto(id?'attention':'assistant',id);await collab().locator(':scope > summary').click();await until(()=>collab().getByRole('button',{name:'重新读取当前记录',exact:true}).isEnabled());assert.equal(await collab().getByRole('alert').count(),0,await collab().innerText());}
++async function reread(){await collab().getByRole('button',{name:'重新读取当前记录',exact:true}).click();await until(()=>collab().getByRole('button',{name:'重新读取当前记录',exact:true}).isEnabled());}
++const row=(id,extra={})=>({id,title:id,projectIds:['p'],sourceIds:[],version:1,...extra});
++function mutate(fn){const s=state();fn(s);s.revision++;app.store.save(s,s.revision-1);}
++async function prepare(messages,id){return app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'prepare-messages',messages,requestId:id});}
++async function decide(batch,decisions,admissions=[]){return app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'decide-messages',sourceId:batch,requestId:crypto.randomUUID(),decisions,admissions});}
++const batchUI=id=>collab().getByRole('region',{name:'协作批次 '+id,exact:true});
++async function newBatch(name,{size=1,approve=false}={}){
++  const proof=record('dev1-proof'),messages=Array.from({length:size},(_,i)=>({id:name+'-'+i,workItemId:app.ids.action,title:name+' '+i,text:'合成完整消息 '+name+' '+i+'\n'+(size>1?'长内容 '.repeat(200):'请核对原始依据。'),recipientId:'engineer',channel:'private',proof:[{sourceId:proof.id,fingerprint:d.coreProofFingerprint(proof),quote:proof.excerpt}]}));
++  const r=await prepare(messages,crypto.randomUUID()),id=r.source.id;if(approve)await decide(id,r.source.reminderRun.items.map(m=>({id:m.id,fingerprint:m.fingerprint,action:'approve'})));return id;
++}
++async function executeUI(id){const b=batchUI(id);await b.locator('.wb-int-execution > summary').click();await b.getByRole('button',{name:/^执行本批已批准消息/}).click();await until(()=>b.getByRole('button',{name:'查询本批实际发送结果',exact:true}).isEnabled());}
++let batchId;
++try{
++  await check('INPUT-contexts','four original contexts save one text record and return with the same item and view',async()=>{
++    const evidence=[];
++    for(const view of ['project','attention','inbox','weekly']){
++      const before=count(app.ids.action);await compose(app.ids.action,view,view==='project'?{projectId:'p'}:{});await input().fill('已收到 '+view+' 合成反馈');await send();await returned();
++      assert.equal(count(app.ids.action),before+1);assert.equal(new URL(page.url()).searchParams.get('view'),view);assert.equal(new URL(page.url()).searchParams.has('record'),false);assert.match(await receipt().innerText(),/本地记录已保存/);
++      const live=d.entryReceipts(state(),app.ids.action)[0];assert.ok(state().receipts['work-item:'+live.operationId]);evidence.push({view,sourceId:live.sourceId,operationId:live.operationId,progress:live.progress});await shot('receipt-'+view);
++      await receipt().getByRole('button',{name:'查看记录',exact:true}).click();assert.equal(new URL(page.url()).searchParams.get('record'),app.ids.action);
++    }
++    return evidence;
++  });
++  await check('INPUT-images','pure and multiple original images keep identity/order through upload, save and reload',async()=>{
++    const imageFiles=[];for(let i=1;i<=2;i++){await page.setContent('<main style="padding:40px;font:28px sans-serif;background:#f8f9fc"><h1>DEV1 合成原图 '+i+'</h1><p>样件已收到，仅用于隔离验证。</p></main>');const file=path.join(output,'synthetic-'+i+'.png');await page.screenshot({path:file});imageFiles.push(file);}
++    const before=count(app.ids.action);await compose();await entry().getByLabel('添加原图',{exact:true}).setInputFiles(imageFiles[0]);await entry().getByText('图1 · synthetic-1.png',{exact:true}).waitFor();await send();await returned();assert.equal(count(app.ids.action),before+1);
++    await compose();await entry().getByText('图片输入',{exact:true}).last().waitFor();await entry().getByLabel('添加原图',{exact:true}).setInputFiles([imageFiles[1],imageFiles[0]]);await entry().getByText('图2 · synthetic-1.png',{exact:true}).waitFor();await send();await returned();
++    const original=state().sources.filter(r=>r.inputEnvelope&&r.attachments?.length===2).at(-1);assert.deepEqual(original.attachments.map(a=>a.name),['synthetic-2.png','synthetic-1.png']);assert.equal(count(app.ids.action),before+2);await page.reload();await compose();await entry().getByText('图片输入',{exact:true}).last().waitFor();await shot('images-reloaded');return {sourceId:original.id,attachments:original.attachments.map(a=>({id:a.id,name:a.name,sha256:a.sha256})),count:count(app.ids.action)};
++  });
++  await check('INPUT-before-failure','save failure keeps the text draft without a false success receipt',async()=>{
++    const before=count(app.ids.action);await compose();await input().fill('已收到合成失败恢复反馈');
++    const fail=route=>route.request().method()==='POST'?route.fulfill({status:422,contentType:'application/json',body:JSON.stringify({error:'DEV1 合成提交前拒绝'})}):route.continue();await page.route('**/api/v2/codex/jobs',fail);await send();await entry().getByRole('alert').filter({hasText:'DEV1 合成提交前拒绝'}).waitFor();assert.equal(await input().inputValue(),'已收到合成失败恢复反馈');assert.equal(count(app.ids.action),before);await shot('input-failure-preserved');await page.unroute('**/api/v2/codex/jobs',fail);await send();await returned();assert.equal(count(app.ids.action),before+1);
++  });
++  await check('INPUT-refresh-failure','saved record survives display read failure and reload without duplicate input',async()=>{
++    await compose();const before=count(app.ids.action);await input().fill('已收到保存后刷新失败的合成反馈');
++    let blocked=0;const fail=route=>{blocked++;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'DEV1 合成显示回读失败'})});};await page.route('**/api/v2/snapshot?*',fail);await send();await entry().getByRole('alert').filter({hasText:'记录已保存'}).waitFor();assert.equal(count(app.ids.action),before+1);const op=d.entryReceipts(state(),app.ids.action)[0].operationId;await shot('saved-display-read-failure');await page.unroute('**/api/v2/snapshot?*',fail);await page.reload();await compose();assert.equal(count(app.ids.action),before+1);assert.equal(d.entryReceipts(state(),app.ids.action)[0].operationId,op);return {operationId:op,blockedReadRequests:blocked};
++  });
++  await check('INPUT-preparation','first-stage durable receipt remains saved while synthetic later preparation runs and fails',async()=>{
++    let release;app.assistant.coreWorkAnalyse=async()=>{await new Promise(r=>{release=r;});throw Error('DEV1 合成后段超时');};
++    try{await compose();const before=count(app.ids.action);await input().fill('已收到合成反馈，需要核对评审资料');await send();await until(()=>release);await entry().getByText('本地记录已保存，正在核对相关依赖与协作准备…',{exact:true}).waitFor();assert.equal(count(app.ids.action),before+1);const op=d.entryReceipts(state(),app.ids.action)[0].operationId;await shot('saved-preparation-running');release();await entry().getByText(/依赖与协作分析超时/).first().waitFor();assert.equal(count(app.ids.action),before+1);assert.equal(d.entryReceipts(state(),app.ids.action)[0].operationId,op);await shot('saved-preparation-failed');await entry().locator('.wb-int-collaboration > summary').click();await entry().getByText('当前没有已准备的第三方消息；协作记录入口保留。',{exact:true}).waitFor();return {operationId:op,firstStage:'saved',laterStage:'synthetic failure'};}finally{release?.();app.assistant.coreWorkAnalyse=undefined;}
++  });
++  await check('INPUT-race','changing manual time while analysis runs retires stale choices without changing saved business timing',async()=>{
++    await compose();const before=structuredClone(record(app.ids.action).workItem.p1);await input().fill('延迟长：周三检查');await entry().getByLabel('检查时间状态',{exact:true}).selectOption('scheduled');await entry().getByLabel('检查日期',{exact:true}).fill('2026-10-15');await send();await entry().getByText('正在理解本次输入…',{exact:false}).waitFor();await entry().getByLabel('检查日期',{exact:true}).fill('2026-10-16');await input().fill('延迟：周三检查');await entry().getByText(/旧冲突候选已失效/).waitFor();assert.equal(await entry().locator('.p1-conflict').count(),0);assert.deepEqual(record(app.ids.action).workItem.p1,before);await send();await entry().locator('.p1-conflict').waitFor();await entry().getByLabel(/手选安排.*2026-10-16/).check();await send();await returned();assert.equal(record(app.ids.action).workItem.p1.check.date,'2026-10-16');await shot('manual-time-current-choice');return {savedDate:'2026-10-16',staleChoices:0,rawInputMayPersist:true};
++  });
++  // Fixture data are synthetic model outputs; preparation/approval/execution use the original product HTTP service.
++  mutate(s=>{s.people=[row('engineer',{title:'合成责任人',identityVerified:true,feishuUserId:'ou_engineer',feishuIdType:'open_id',feishuAppId:'app',feishuTenantKey:'tenant'})];s.sources.push(row('dev1-proof',{excerpt:'DEV1 合成有效来源：需要核对样件和报告。'}));d.ensureCore(s.sources.find(r=>r.id===app.ids.risk)).admission='candidate';const proof=s.sources.find(r=>r.id==='dev1-proof');const messages=[0,1,2].map(i=>({id:'draft-'+i,workItemId:i===2?app.ids.risk:app.ids.action,title:'合成协作 '+i,text:i===1?'长正文\n'+'核对合成资料。'.repeat(420):'请核对合成样件 '+i,recipientId:'engineer',channel:'private',proof:[{sourceId:proof.id,fingerprint:d.coreProofFingerprint(proof),quote:proof.excerpt}],dependsOnAdmission:i===2}));d.ensureCore(s.sources.find(r=>r.id===app.ids.action)).messageDrafts=messages;});
++  await check('MSG-prepare','real browser prepares selected complete messages and preserves the full long body',async()=>{
++    await openCollab();const drafts=collab().locator('.wb-int-section').filter({hasText:'待准备的协作草稿'});await drafts.locator('summary').click();for(const box of await drafts.getByRole('checkbox').all())await box.check();await drafts.getByRole('button',{name:'准备所选完整预览 · 3 条',exact:true}).click();await collab().getByText('完整预览已保存；尚未批准或发送。',{exact:true}).waitFor();batchId=state().sources.find(r=>r.reminderRun?.core).id;await batchUI(batchId).waitFor();assert.equal(outbound.length,0);assert.equal(record(batchId).reminderRun.items.length,3);assert.equal(await batchUI(batchId).getByRole('textbox',{name:'完整正文 合成协作 1',exact:true}).inputValue(),record(batchId).reminderRun.items[1].text);await shot('messages-complete-preview');return {batchId,messageIds:record(batchId).reminderRun.items.map(m=>m.id)};
++  });
++  await check('MSG-edit-partial','editing requires a new fingerprint; independent admission and partial approval do not send',async()=>{
++    await openCollab(app.ids.action);await batchUI(batchId).getByRole('checkbox',{name:/将「模拟认证风险」纳入跟进/}).waitFor();const b=batchUI(batchId),m=record(batchId).reminderRun.items[0],card=b.locator('[data-message-id]').nth(0),old=m.fingerprint;
++    await card.getByRole('checkbox').check();await card.getByRole('textbox').fill('已编辑的完整合成正文，等待本人批准。');assert.equal(await card.getByRole('checkbox').isDisabled(),true);await card.getByRole('button',{name:'保存修改并回读预览',exact:true}).click();await until(()=>record(batchId).reminderRun.items[0].fingerprint!==old);await until(()=>card.getByRole('checkbox').isEnabled());assert.equal(await card.getByRole('checkbox').isChecked(),false);await card.getByRole('checkbox').check();await b.getByRole('button',{name:'保存本批所选决定（不发送）',exact:true}).click();await card.getByText('已批准，尚未发送',{exact:true}).waitFor();assert.equal(record(batchId).reminderRun.items[1].stage,'pending_review');assert.equal(d.coreState(record(app.ids.risk)).admission,'candidate');assert.equal(outbound.length,0);await card.getByText('批准历史 · 1 条',{exact:true}).click();assert.equal(await card.locator('.wb-int-history .wb-int-full-text').innerText(),'已编辑的完整合成正文，等待本人批准。');
++    await b.getByRole('checkbox',{name:/将「模拟认证风险」纳入跟进/}).check();await b.getByRole('button',{name:'保存本批所选决定（不发送）',exact:true}).click();await until(()=>d.coreState(record(app.ids.risk)).admission==='managed');assert.equal(record(batchId).reminderRun.items[2].stage,'pending_review');await shot('independent-decision-history');return {originalFingerprint:old,newFingerprint:record(batchId).reminderRun.items[0].fingerprint,approved:1,unsent:3,admission:'managed'};
++  });
++  await check('MSG-execute','two-step batch scope matches persisted sends; manual ownership, result reentry and filter guards work',async()=>{
++    const b=batchUI(batchId);await b.locator('[data-message-id]').nth(1).getByRole('checkbox').check();await b.locator('[data-message-id]').nth(2).getByRole('checkbox').check();await b.getByRole('button',{name:'保存本批所选决定（不发送）',exact:true}).click();await until(()=>record(batchId).reminderRun.items.every(m=>m.stage==='approved'));assert.equal(outbound.length,0);
++    await b.locator('[data-message-id]').nth(2).getByRole('button',{name:'这条由我执行',exact:true}).click();await until(()=>record(batchId).reminderRun.items[2].executionOwner==='human');await b.locator('.wb-int-execution > summary').click();await b.getByRole('button',{name:'执行本批已批准消息 · 2 条',exact:true}).waitFor();
++    await collab().getByRole('button',{name:'历史与结果',exact:true}).click();assert.equal(await b.getByRole('button',{name:'执行本批已批准消息 · 2 条',exact:true}).isDisabled(),true);await collab().getByRole('button',{name:'全部记录',exact:true}).click();await b.locator('.wb-int-execution').scrollIntoViewIfNeeded();await shot('batch-execution-scope');await b.getByRole('button',{name:'执行本批已批准消息 · 2 条',exact:true}).click();await until(()=>outbound.length===2&&record(batchId).reminderRun.items.filter(m=>m.stage==='readback_verified').length===2);await until(()=>b.getByRole('button',{name:'明确交回系统（不立即发送）',exact:true}).isEnabled());assert.equal(record(batchId).reminderRun.items[2].stage,'approved');
++    await b.getByRole('button',{name:'明确交回系统（不立即发送）',exact:true}).click();await until(()=>record(batchId).reminderRun.items[2].executionOwner==='ai');assert.equal(outbound.length,2);await b.getByRole('button',{name:'执行本批已批准消息 · 1 条',exact:true}).click();await until(()=>outbound.length===3&&record(batchId).reminderRun.items.every(m=>m.stage==='readback_verified'));await openCollab();assert.equal(await collab().locator(':scope > summary').innerText(),'协作消息 · 待决定 0 · 历史与结果 3 条');assert.equal(outbound.length,3);await shot('results-reentered');return {batchId,sends:3,messageIds:record(batchId).reminderRun.items.map(m=>m.messageId)};
++  });
++  await check('RECOVERY-conflict','409 is a known rejection; a newer server preview cannot be overwritten by a stale draft',async()=>{
++    const id=await newBatch('版本冲突');await openCollab();const b=batchUI(id),card=b.locator('[data-message-id]').first(),m=record(id).reminderRun.items[0];await card.getByRole('textbox').fill('本地尚未保存的合成草稿');await decide(id,[{id:m.id,fingerprint:m.fingerprint,action:'edit',text:'另一窗口已保存的新正文'}]);await card.getByRole('button',{name:'保存修改并回读预览',exact:true}).click();await collab().getByRole('alert').filter({hasText:'预览已变化'}).waitFor();assert.equal(await collab().getByRole('region',{name:'尚未核实的请求'}).count(),0);assert.equal(record(id).reminderRun.items[0].text,'另一窗口已保存的新正文');assert.equal(await card.getByRole('textbox').inputValue(),'本地尚未保存的合成草稿');await card.getByText(/这份本地草稿基于旧预览/).waitFor();await shot('preview-version-conflict');await card.getByRole('button',{name:'放弃本地修改，使用当前预览',exact:true}).click();return {httpStatus:409,serverText:record(id).reminderRun.items[0].text};
++  });
++  await check('RECOVERY-readback','decision acknowledgement and projection read failure stay distinct; reread does not replay approval',async()=>{
++    const id=await newBatch('决定回读失败');await openCollab();const b=batchUI(id);await b.getByRole('checkbox').check();const before=requests.length;let blocked=0;
++    const fail=route=>{if(route.request().method()==='GET'){blocked++;return route.fulfill({status:503,contentType:'application/json',body:'{"error":"合成协作回读失败"}'});}return route.continue();};await page.route('**/api/v2/core?*',fail);await b.getByRole('button',{name:'保存本批所选决定（不发送）',exact:true}).click();await collab().getByRole('alert').filter({hasText:'显示回读失败'}).waitFor();assert.equal(record(id).reminderRun.items[0].stage,'approved');assert.equal(await b.getByRole('button',{name:'保存本批所选决定（不发送）',exact:true}).isDisabled(),true);await page.unroute('**/api/v2/core?*',fail);await reread();assert.equal(requests.slice(before).filter(r=>r.body?.action==='decide-messages').length,1);assert.equal(record(id).reminderRun.items[0].approvalHistory.length,1);return {blockedReads:blocked,approvalWrites:1};
++  });
++  await check('RECOVERY-unknown','unknown sends are queried first; verified non-send, takeover and release never silently retry',async()=>{
++    const id=await newBatch('未知结果',{approve:true});await openCollab();const b=batchUI(id),before=outbound.length,attemptBefore=attempts.length;transport.mode='unknown';await executeUI(id);await b.getByText('结果未知，先查询',{exact:true}).waitFor();assert.equal(attempts.length,attemptBefore+1);assert.equal(await b.getByRole('button',{name:/^执行本批已批准消息/}).isDisabled(),true);await b.getByRole('button',{name:'查询本批实际发送结果',exact:true}).click();await until(()=>b.getByRole('button',{name:'这条由我执行',exact:true}).isEnabled());assert.equal(attempts.length,attemptBefore+1);assert.equal(record(id).reminderRun.items[0].stage,'unknown');
++    await b.getByRole('button',{name:'这条由我执行',exact:true}).click();await until(()=>record(id).reminderRun.items[0].executionOwner==='human');transport.mode='verified-not-sent';await b.getByRole('button',{name:'查询本批实际发送结果',exact:true}).click();await b.getByText('已核实未发出',{exact:true}).first().waitFor();assert.equal(outbound.length,before);await b.getByRole('button',{name:'明确交回系统（不立即发送）',exact:true}).click();await until(()=>record(id).reminderRun.items[0].executionOwner==='ai');await b.locator('.wb-int-execution > summary').getByText(/明确未发重试 1 条/).waitFor();transport.mode='ok';await b.getByRole('button',{name:'执行本批已批准消息 · 1 条',exact:true}).click();await b.getByText('发送事实已回读',{exact:true}).waitFor();assert.equal(outbound.length,before+1);await shot('unknown-reconciled');return {attempts:attempts.length-attemptBefore,sends:outbound.length-before};
++  });
++  await check('RECOVERY-response-lost','lost execute response reads durable result and never sends the batch twice',async()=>{
++    const id=await newBatch('响应丢失',{approve:true});await openCollab();const before=outbound.length,b=batchUI(id);let lost=false;
++    const lose=async route=>{if(route.request().method()==='POST'&&route.request().postDataJSON()?.action==='execute-messages'){await route.fetch();lost=true;await route.abort('failed');}else await route.continue();};await page.route('**/api/v2/core',lose);await executeUI(id);await collab().getByRole('region',{name:'尚未核实的请求'}).waitFor();await b.getByText('发送事实已回读',{exact:true}).waitFor();assert.ok(lost);assert.equal(outbound.length,before+1);await page.unroute('**/api/v2/core',lose);await collab().getByRole('button',{name:'已核对当前状态，继续（不重试）',exact:true}).click();await openCollab();assert.equal(outbound.length,before+1);return {durableStage:record(id).reminderRun.items[0].stage,simulatedSends:1};
++  });
++  await check('UI-navigation','five entry points retain project order and the original item identity',async()=>{
++    const order=state().projects.map(r=>r.id),views=[['项目','overview'],['风险','attention'],['数据','inbox'],['周例会','weekly'],['助手','assistant']];await goto();for(const [name,view]of views){await page.locator('.v2-sidebar nav').getByRole('button',{name:new RegExp('^'+name+'(?:\\s+\\d+)?$')}).click();assert.equal(new URL(page.url()).searchParams.get('view'),view);assert.deepEqual(state().projects.map(r=>r.id),order);await shot('nav-'+view);}return {projectOrder:order,views:views.map(x=>x[1]),sourceId:app.ids.action};
++  });
++  await check('RECOVERY-sent','sent without readback remains distinct until original simulated receipt is verified',async()=>{
++    const id=await newBatch('发送待回读',{approve:true}),before=outbound.length;transport.mode='delayed-readback';const executing=app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'execute-messages',sourceId:id});
++    try{await until(()=>transport.release);await openCollab();const b=batchUI(id);await b.getByText('已发送，待回读发送事实',{exact:true}).waitFor();await b.locator('.wb-int-execution > summary').click();assert.equal(await b.getByRole('button',{name:/^执行本批已批准消息/}).isDisabled(),true);await shot('sent-awaits-readback');transport.mode='ok';transport.release();await executing;await reread();await b.getByText('发送事实已回读',{exact:true}).waitFor();assert.equal(outbound.length,before+1);}finally{transport.mode='ok';transport.release?.();delete transport.release;await executing;}
++  });
++  await check('UI-scope','late response from previous workspace cannot replace current records',async()=>{
++    const second=d.emptyState('dev1-second','DEV1 第二隔离空间','demo');app.store.insert(second);await openCollab();let release,held=false,finishHeld;const heldDone=new Promise(resolve=>{finishHeld=resolve;});
++    const hold=async route=>{if(!held){held=true;const r=await route.fetch();await new Promise(resolve=>{release=resolve;});await route.fulfill({response:r});finishHeld();}else await route.continue();};await page.route('**/api/v2/core?workspaceId=core-input',hold);await collab().getByRole('button',{name:'重新读取当前记录',exact:true}).click();await until(()=>release);await page.locator('#workspace-select').selectOption('dev1-second');await until(()=>new URL(page.url()).searchParams.get('workspaceId')==='dev1-second');release();await heldDone;await page.unroute('**/api/v2/core?workspaceId=core-input',hold);await collab().locator(':scope > summary').click();await collab().getByText('当前没有已准备的第三方消息；协作记录入口保留。',{exact:true}).waitFor();assert.equal(await collab().locator('.wb-int-message').count(),0);await page.locator('#workspace-select').selectOption(app.workspaceId);await until(()=>new URL(page.url()).searchParams.get('workspaceId')===app.workspaceId);return {lateResponseIgnored:true};
++  });
++  await check('UI-large-narrow','20-message batch remains usable with narrow viewport, keyboard focus, a smaller window and long text',async()=>{
++    const id=await newBatch('大批次',{size:20});await openCollab();const b=batchUI(id);assert.equal(await b.locator('[data-message-id]').count(),20);await page.setViewportSize({width:390,height:844});await b.locator('[data-message-id]').last().getByRole('textbox').fill('窄屏末项合成草稿');await page.keyboard.press('Tab');assert.ok(await page.evaluate(()=>document.activeElement?.tagName==='BUTTON'));const width=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));assert.ok(width.scroll<=width.client+1,JSON.stringify(width));await shot('large-batch-390');await page.setViewportSize({width:720,height:525});await b.locator('[data-message-id]').first().getByRole('textbox').focus();await page.keyboard.press('Tab');await shot('large-batch-small-window');await page.setViewportSize({width:1440,height:1050});return {messages:20,narrowWidth:width,keyboard:true,smallWindow:{width:720,height:525}};
++  });
++  await check('GUARDS','account change, changed proof and restored workspace prevent unapproved replay through original HTTP service',async()=>{
++    const id=await newBatch('执行前提核对',{approve:true}),before=outbound.length,body={workspaceId:app.workspaceId,action:'execute-messages',sourceId:id};identity.userId='ou_other';try{await assert.rejects(()=>app.api('/api/v2/core',body),/账号已变化/);}finally{identity.userId='ou_self';}
++    const restored=structuredClone(state());restored.workspaceId='dev1-restored';restored.name='DEV1 合成恢复副本';restored.workspaceType='restored';app.store.insert(restored);await assert.rejects(()=>app.api('/api/v2/core',{...body,workspaceId:'dev1-restored'}),/恢复工作区不重放外发/);
++    mutate(s=>{const proof=s.sources.find(r=>r.id==='dev1-proof');proof.excerpt+=' 合成后续来源变化';proof.version++;});await app.api('/api/v2/core',body);assert.equal(record(id).reminderRun.items[0].stage,'needs_preview');assert.equal(outbound.length,before);return {accountMismatch:'rejected',restored:'rejected',proofChange:'needs_preview',newSends:0};
++  });
++  await check('BOUNDARY','browser and service use isolated persistence with no real external traffic or scheduler enablement',async()=>{assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.equal(app.core.settings(app.workspaceId).enabled,false);assert.equal(state().actions.length,0);return {consoleErrors:errors,externalRequests:external,realExternalWrites:0,simulatedSends:outbound.length,dataDir:path.relative(process.cwd(),app.dataDir),schedulerEnabled:false};});
++}finally{
++  writeFileSync(path.join(output,'transport-debug.json'),JSON.stringify({responses,failedRequests,runs:state().sources.filter(r=>r.reminderRun?.core)},null,2));
++  writeFileSync(path.join(output,'browser-results.json'),JSON.stringify({scope:'Original compiled product, real Chromium, HTTP and isolated SQLite; synthetic model/images/transport; no A1 replay',results,screenshots,errors,external,simulatedSends:outbound.length,simulatedAttempts:attempts.length,mutations:requests},null,2)+'\n');
++  await browser.close();await app.close();
++}
+diff --git a/scripts/test-integration-plan1.mjs b/scripts/test-integration-plan1.mjs
+new file mode 100644
+index 00000000..8f70db44
+--- /dev/null
++++ b/scripts/test-integration-plan1.mjs
+@@ -0,0 +1,40 @@
++/** Isolated contract tests, no package install, browser, model, server or external write. */
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {fileURLToPath} from 'node:url';
++import {createRequire} from 'node:module';
++import {spawnSync} from 'node:child_process';
++const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const require = createRequire(import.meta.url);
++function findTypeScript() {
++  try { return {api: require('typescript'), bin: require.resolve('typescript/bin/tsc')}; } catch { /* Check an already installed global compiler, without installing. */ }
++  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
++    const candidate = path.join(dir, process.platform === 'win32' ? 'tsc' : 'tsc');
++    try {
++      const bin = fs.realpathSync(candidate), pkg = path.resolve(path.dirname(bin), '..');
++      return {api: require(pkg), bin};
++    } catch { /* continue */ }
++  }
++  throw new Error('An existing TypeScript compiler is required. No dependencies were installed.');
++}
++const ts = findTypeScript(), out = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-plan1-contracts-'));
++try {
++  const files = ['core-collaboration-model.ts','core-collaboration-client.ts','receipt-presentation.ts'].map(f => path.join(root,'app/integration',f));
++  const checked = spawnSync(process.execPath,[ts.bin,'--strict','--target','ES2022','--module','commonjs','--lib','ES2022,DOM','--skipLibCheck','--outDir',out,...files],{encoding:'utf8'});
++  process.stdout.write(checked.stdout || ''); process.stderr.write(checked.stderr || '');
++  if (checked.status !== 0) throw new Error('Strict typecheck of actual pure TS modules failed.');
++  console.log('PASS: strict typecheck of 3 actual pure TypeScript modules.');
++  for (const name of ['core-collaboration-panel.tsx','receipt-heading.tsx']) {
++    const code = fs.readFileSync(path.join(root,'app/integration',name),'utf8');
++    const result = ts.api.transpileModule(code,{fileName:name,reportDiagnostics:true,compilerOptions:{target:ts.api.ScriptTarget.ES2022,module:ts.api.ModuleKind.CommonJS,jsx:ts.api.JsxEmit.ReactJSX}});
++    const errors = (result.diagnostics || []).filter(d => d.category === ts.api.DiagnosticCategory.Error);
++    if (errors.length) throw new Error(errors.map(d => ts.api.flattenDiagnosticMessageText(d.messageText,'\n')).join('\n'));
++  }
++  console.log('PASS: TSX syntax/transpilation for 2 actual components (NOT full React typecheck/rendering).');
++  const tests = spawnSync(process.execPath,['--test',path.join(root,'tests/integration/plan1-contracts.test.cjs')],{
++    encoding:'utf8',env:{...process.env,WB_PLAN1_COMPILED:out,WB_PLAN1_SOURCE_ROOT:root},
++  });
++  process.stdout.write(tests.stdout || ''); process.stderr.write(tests.stderr || '');
++  process.exitCode = tests.status ?? 1;
++} finally { fs.rmSync(out,{recursive:true,force:true}); }
+diff --git a/scripts/test-s1p1-fix1-browser.mjs b/scripts/test-s1p1-fix1-browser.mjs
+index 3db53fd4..c79cc0a7 100644
+--- a/scripts/test-s1p1-fix1-browser.mjs
++++ b/scripts/test-s1p1-fix1-browser.mjs
+@@ -31,9 +31,10 @@ try{
+   await compose(app.ids.action);assert.equal(await entry().getByLabel('检查日期',{exact:true}).inputValue(),'2026-10-14');assert.equal(await entry().getByLabel('检查具体时刻（可选）',{exact:true}).inputValue(),'08:00');await shot('08-legacy-time-restored.png');return {summary:d.timeLabel(after.timing.check),status:after.timing.status,nextCheckAt:after.nextCheckAt,laterProgress:'已收到初稿'};
+  });
+  await check('F02-UI','处理期间修改时间和文字，旧候选不可操作，新候选与保存一致',async()=>{
+-  await compose(app.ids.action);await message().fill('延迟长：周三检查');await selectTime('检查','2026-10-15');await entry().getByLabel('检查具体时刻（可选）',{exact:true}).fill('');const before=state().revision;
++  await compose(app.ids.action);await message().fill('延迟长：周三检查');await selectTime('检查','2026-10-15');await entry().getByLabel('检查具体时刻（可选）',{exact:true}).fill('');const before=structuredClone(record(app.ids.action).workItem.p1);
+   await send().click();await entry().getByText('正在理解本次输入…',{exact:false}).waitFor();await selectTime('检查','2026-10-16');await message().fill('延迟：周三检查');
+-  await entry().getByText(/旧冲突候选已失效/).waitFor();assert.equal(await entry().locator('.p1-conflict').count(),0);assert.equal(await entry().getByLabel('检查日期',{exact:true}).inputValue(),'2026-10-16');assert.equal(state().revision,before);await shot('09-obsolete-conflict-retired.png');
++  await entry().getByText(/旧冲突候选已失效/).waitFor();assert.equal(await entry().locator('.p1-conflict').count(),0);assert.equal(await entry().getByLabel('检查日期',{exact:true}).inputValue(),'2026-10-16');assert.deepEqual(record(app.ids.action).workItem.p1,before); // Raw input persistence may advance the workspace revision; business timing must stay unchanged.
++  await shot('09-obsolete-conflict-retired.png');
+   await send().click();await entry().locator('.p1-conflict').waitFor();const label=entry().getByLabel(/手选安排.*2026-10-16/);await label.check();
+   await message().fill('补充文字：周三检查');assert.equal(await entry().locator('.p1-conflict').count(),0);await send().click();await entry().locator('.p1-conflict').waitFor();assert.equal(await entry().getByLabel(/手选安排/).isChecked(),false);
+   await entry().getByLabel(/手选安排.*2026-10-16/).check();await shot('10-current-conflict-candidate.png');await send().click();await returned();assert.equal(record(app.ids.action).workItem.p1.check.date,'2026-10-16');return {obsolete:'2026-10-15',visibleCandidate:'2026-10-16',saved:'2026-10-16',textEditInvalidated:true};
+diff --git a/tests/integration/plan1-contracts.test.cjs b/tests/integration/plan1-contracts.test.cjs
+new file mode 100644
+index 00000000..c347389b
+--- /dev/null
++++ b/tests/integration/plan1-contracts.test.cjs
+@@ -0,0 +1,105 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const path = require('node:path');
++const fs = require('node:fs');
++if (!process.env.WB_PLAN1_COMPILED) throw new Error('Run node scripts/test-integration-plan1.mjs first.');
++const m = require(path.join(process.env.WB_PLAN1_COMPILED,'core-collaboration-model.js'));
++const c = require(path.join(process.env.WB_PLAN1_COMPILED,'core-collaboration-client.js'));
++const r = require(path.join(process.env.WB_PLAN1_COMPILED,'receipt-presentation.js'));
++const message = (extra = {}) => ({id:'message-1',workItemId:'item-1',title:'合成报告甲',text:'完整正文\n第二段',fingerprint:'fp-1',stage:'pending_review',executionOwner:'ai',recipient:{id:'ou_synthetic',localId:'person-1',name:'测试责任人',channel:'private'},proof:[{sourceId:'proof-1',quote:'合成依据'}],approvalHistory:[],...extra});
++const item = (extra = {}) => ({id:'item-1',title:'合成事项甲',version:3,projectNames:['合成测试项目'],core:{admission:'candidate'},...extra});
++const batch = (items = [message()]) => ({id:'batch-1',version:4,projectNames:['合成测试项目'],items});
++const view = (extra = {}) => ({people:[{id:'person-1',title:'测试责任人',identityVerified:true}],groups:[],items:[item()],runs:[batch()],notices:[],inputs:[],...extra});
++test('DEV1同批跨事项补读真实候选版本并保留原事项批次范围', async()=>{
++ const other=message({id:'message-2',workItemId:'item-2'}),b=batch([message(),other]);
++ const scoped=view({runs:[b]}),full=view({items:[item({version:4}),item({id:'item-2',version:7}),item({id:'unrelated'})],runs:[b,{...batch([message({id:'unrelated-message',workItemId:'unrelated'})]),id:'other-batch'}]});
++ const urls=[];const actual=await c.readCoreView(async url=>{urls.push(url);return urls.length===1?scoped:full;},'workspace','item-1');
++ assert.deepEqual(urls,['/api/v2/core?workspaceId=workspace&sourceId=item-1','/api/v2/core?workspaceId=workspace']);
++ assert.deepEqual(actual.items.map(i=>[i.id,i.version]),[['item-1',4],['item-2',7]]);assert.equal(actual.runs.length,1);
++});
++const selection = (b) => new Set(b.items.map(msg => m.approvalKey(b.id,msg)));
++const draft = (extra={}) => ({id:'draft-1',workItemId:'item-1',title:'草稿甲',text:'合成正文',recipientId:'person-1',channel:'private',proof:[{sourceId:'proof-1'}],...extra});
++const saved = (extra={}) => ({operationId:'operation-1',sourceId:'item-1',at:'2026-10-14T01:00:00Z',...extra});
++
++for (const stage of ['pending_review','approved','sending','sent','readback_verified','failed_not_sent','unknown','needs_preview','blocked','stopped','cancelled']) {
++  test('状态映射保持真实阶段：'+stage, () => {
++    assert.ok(m.STAGES[stage]); assert.ok(m.stagePresentation({stage}).label);
++    assert.equal(m.isExecutionCandidate(message({stage})), ['approved','failed_not_sent'].includes(stage));
++  });
++}
++test('未知新阶段只读，不回退成可发送', () => { const x=message({stage:'future_state'}); assert.equal(m.canApprove(x),false);assert.equal(m.canEdit(x),false);assert.equal(m.canChangeAuthority(x),false);assert.match(m.stagePresentation(x).label,/未识别/); });
++test('执行权与发送阶段正交；本人接手不表示已发送', () => {const x=message({stage:'unknown',executionOwner:'human'});assert.match(m.ownerLabel(x),/本人/);assert.match(m.stagePresentation(x).label,/未知/);assert.equal(m.isExecutionCandidate(x),false);});
++test('未知执行权不能执行或自动接手', () => {const x=message({stage:'approved',executionOwner:'future'});assert.equal(m.isExecutionCandidate(x),false);assert.equal(m.canChangeAuthority(x),false);});
++test('完整真实投影可解析，不修改输入', () => {const v=view();const before=JSON.stringify(v);assert.equal(m.parseCoreView(v),v);assert.equal(JSON.stringify(v),before);});
++test('缺失批次字段拒绝，不伪造空成功', () => {const v=view();delete v.runs;assert.throws(()=>m.parseCoreView(v));});
++test('同批重复消息身份拒绝', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message(),message()])]}))));
++test('跨批选择键无碰撞', () => assert.notEqual(m.messageKey('a:b','c'),m.messageKey('a','b:c')));
++test('异常收件人拒绝启用操作', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message({recipient:null})])]}))));
++test('异常历史正文拒绝而非渲染对象', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message({approvalHistory:[{text:{invalid:1}}]})])]}))));
++test('来源字段保留完整，不伪造附件', () => {const proof=[{sourceId:'s',quote:'完整依据',kind:'image',attachmentId:'img-2',fingerprint:'pf'}];const x=message({proof});assert.deepEqual(m.parseCoreView(view({runs:[batch([x])]})).runs[0].items[0].proof,proof);});
++test('URL 编码保留工作区和原事项', () => assert.equal(m.viewUrl('space / ?','item&x'),'/api/v2/core?workspaceId=space%20%2F%20%3F&sourceId=item%26x'));
++test('缺工作区停止，不猜测默认工作区', () => assert.throws(()=>m.viewUrl('')));
++test('仅批准消息不隐式纳入', () => {const b=batch();const cmd=m.decisionCommand(b,view(),selection(b),new Set(),{},'req-1');assert.equal(cmd.decisions.length,1);assert.deepEqual(cmd.admissions,[]);assert.equal(cmd.requestId,'req-1');});
++test('仅纳入候选不批准消息', () => {const v=view(),cmd=m.decisionCommand(v.runs[0],v,new Set(),new Set([m.admissionKey(v.items[0])]),{},'r');assert.deepEqual(cmd.decisions,[]);assert.deepEqual(cmd.admissions,[{id:'item-1',expectedVersion:3}]);});
++test('联合决定仍是两个独立数组', () => {const v=view(),b=v.runs[0];const cmd=m.decisionCommand(b,v,selection(b),new Set([m.admissionKey(v.items[0])]),{},'r');assert.equal(cmd.decisions[0].fingerprint,'fp-1');assert.equal(cmd.admissions[0].expectedVersion,3);});
++test('缺纳入前置不代替用户勾选', () => {const b=batch([message({dependsOnAdmission:true})]);assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),{},'r'),/独立纳入/);});
++test('明确同时纳入满足依赖，仍不发送', () => {const v=view(),b=batch([message({dependsOnAdmission:true})]);const cmd=m.decisionCommand(b,v,selection(b),new Set([m.admissionKey(v.items[0])]),{},'r');assert.equal(cmd.action,'decide-messages');assert.equal(cmd.admissions.length,1);});
++test('已管理事项无需重复纳入', () => {const b=batch([message({dependsOnAdmission:true})]);const v=view({items:[item({core:{admission:'managed'}})]});assert.equal(m.decisionCommand(b,v,selection(b),new Set(),{},'r').admissions.length,0);});
++test('依赖事项在当前投影缺失则阻止批准', () => {const b=batch([message({dependsOnAdmission:true})]);assert.throws(()=>m.decisionCommand(b,view({items:[]}),selection(b),new Set(),{},'r'));});
++test('旧候选版本选择不会替换为新版本批准', () => {const v=view();assert.throws(()=>m.decisionCommand(v.runs[0],v,new Set(),new Set([m.admissionKey(item({version:2}))]),{},'r'),/版本/);});
++test('旧指纹勾选不批准新正文', () => {const old=batch();const current=batch([message({fingerprint:'fp-2',text:'新正文'})]);assert.throws(()=>m.decisionCommand(current,view(),selection(old),new Set(),{},'r'),/指纹/);});
++test('批准前有未保存正文修改即停止', () => {const b=batch(),edit={[m.messageKey(b.id,b.items[0].id)]:{fingerprint:'fp-1',text:'未保存修改',recipientId:'person-1'}};assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),edit,'r'),/先保存/);});
++test('批准前收件人修改也必须先保存', () => {const b=batch(),edit={[m.messageKey(b.id,b.items[0].id)]:{fingerprint:'fp-1',text:b.items[0].text,recipientId:'person-2'}};assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),edit,'r'));});
++test('未修改的原文草稿不会阻断批准', () => {const b=batch(),x=b.items[0],edit={[m.messageKey(b.id,x.id)]:{fingerprint:x.fingerprint,text:x.text,recipientId:m.recipientId(x)}};assert.equal(m.decisionCommand(b,view(),selection(b),new Set(),edit,'r').decisions.length,1);});
++test('部分批准只提交选中决定', () => {const b=batch([message(),message({id:'message-2'})]);const cmd=m.decisionCommand(b,view(),new Set([m.approvalKey(b.id,b.items[1])]),new Set(),{},'r');assert.deepEqual(cmd.decisions.map(d=>d.id),['message-2']);});
++test('已有批准不得作为新批准重放', () => {const b=batch([message({stage:'approved'})]);assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),{},'r'),/旧批准/);});
++test('前提变化必须保存新预览，不直接重用旧批准', () => {const b=batch([message({stage:'needs_preview'})]);assert.throws(()=>m.decisionCommand(b,view(),selection(b),new Set(),{},'r'));});
++test('编辑保留批次、消息、原指纹与稳定请求身份', () => {const b=batch(),x=b.items[0];const cmd=m.editCommand(b,x,{fingerprint:'fp-1',text:'修改后完整正文',recipientId:'person-2'},'edit-request');assert.deepEqual(cmd,{action:'decide-messages',sourceId:'batch-1',requestId:'edit-request',decisions:[{id:'message-1',fingerprint:'fp-1',action:'edit',text:'修改后完整正文',recipientId:'person-2'}]});});
++test('过期编辑不能覆盖新预览', () => assert.throws(()=>m.editCommand(batch(),message(),{fingerprint:'old',text:'正文',recipientId:'person-1'},'r')));
++test('空白正文不保存', () => assert.throws(()=>m.editCommand(batch(),message(),{fingerprint:'fp-1',text:'  ',recipientId:'person-1'},'r')));
++test('4000字正文允许，4001字拒绝', () => {const x={fingerprint:'fp-1',recipientId:'person-1'};assert.equal(m.editCommand(batch(),message(),{...x,text:'甲'.repeat(4000)},'r').decisions[0].text.length,4000);assert.throws(()=>m.editCommand(batch(),message(),{...x,text:'甲'.repeat(4001)},'r'));});
++test('取消消息不混入事项纳入或关闭', () => {const cmd=m.cancelCommand(batch(),message(),'r');assert.equal(cmd.decisions[0].action,'cancel');assert.equal(cmd.admissions,undefined);assert.equal(cmd.operationId,undefined);});
++test('已发消息不允许从 UI 取消或重写', () => {const x=message({stage:'sent'});assert.throws(()=>m.cancelCommand(batch(),x,'r'));assert.equal(m.canEdit(x),false);});
++test('接手请求使用 action 与 authorityAction 两层', () => assert.deepEqual(m.authorityCommand(batch(),message()),{action:'message-authority',sourceId:'batch-1',messageId:'message-1',expectedFingerprint:'fp-1',authorityAction:'takeover'}));
++test('交回系统不附带 execute', () => {const cmd=m.authorityCommand(batch(),message({executionOwner:'human'}));assert.equal(cmd.authorityAction,'release');assert.equal(cmd.action,'message-authority');});
++test('未知、sending、sent 均只进入查询路径', () => {for(const stage of ['unknown','sending','sent']){const b=batch([message({stage})]);assert.equal(m.needsReconcile(b.items[0]),true);assert.equal(m.executionPlan(b,{}).allowed,false);assert.equal(m.reconcileCommand(b).action,'reconcile-messages');}});
++test('本批未知结果先查询，不夹带其他已批准执行', () => {const b=batch([message({stage:'approved',approvedHash:'fp-1'}),message({id:'m2',stage:'unknown'})]);assert.equal(m.executionPlan(b,{}).allowed,false);});
++test('执行范围明确包括已批准及明确未发重试', () => {const b=batch([message({stage:'approved',approvedHash:'fp-1'}),message({id:'m2',stage:'failed_not_sent',approvedHash:'fp-1'}),message({id:'m3',stage:'readback_verified'})]);const plan=m.executionPlan(b,{});assert.equal(plan.allowed,true);assert.equal(plan.messages.length,2);assert.equal(plan.retryCount,1);assert.deepEqual(m.executeCommand(b,{}),{action:'execute-messages',sourceId:'batch-1'});});
++test('人工接手从实际批次执行候选中排除', () => {const b=batch([message({stage:'approved',approvedHash:'fp-1',executionOwner:'human'})]);assert.equal(m.executionPlan(b,{}).messages.length,0);assert.throws(()=>m.executeCommand(b,{}));});
++test('已批准但指纹不符，不能展示为就绪', () => {const b=batch([message({stage:'approved',approvedHash:'old'})]);assert.equal(m.executionPlan(b,{}).allowed,false);});
++test('执行前有过期或未保存草稿，必须核对', () => {const x=message({stage:'approved',approvedHash:'fp-1'}),b=batch([x]);assert.equal(m.executionPlan(b,{[m.messageKey(b.id,x.id)]:{fingerprint:'old',text:x.text,recipientId:'person-1'}}).allowed,false);});
++test('空草稿选择不生成准备请求', () => assert.throws(()=>m.prepareCommand([draft()],new Set(),'r')));
++test('最多20条，不静默裁剪成批准子集', () => {const drafts=Array.from({length:21},(_,i)=>draft({id:'d'+i}));assert.throws(()=>m.prepareCommand(drafts,new Set(drafts.map(d=>d.id)),'r'));assert.equal(m.prepareCommand(drafts,new Set(drafts.slice(0,20).map(d=>d.id)),'r').messages.length,20);});
++test('准备保留原文、图像依据、目标、顺序', () => {const d=draft({targetId:'target-1',nodeId:'node-1',proof:[{sourceId:'p',kind:'image',attachmentId:'i2'}]});assert.deepEqual(m.prepareCommand([d],new Set([d.id]),'r').messages,[d]);});
++test('交付物草稿继承实际 delivery proof', () => {const d=draft({proof:undefined}),v=view({items:[item({core:{delivery:{messages:[d],proof:[{sourceId:'proof-real'}]}}})]});assert.deepEqual(m.draftsFromView(v)[0].proof,[{sourceId:'proof-real'}]);});
++test('电脑排队不映射为展示成功', () => assert.equal(m.noticeLabel('desktop',{stage:'sent',readback:{delivery:'queued'}}),'已排队，尚未展示'));
++test('电脑提交不伪装成有效送达', () => assert.equal(m.noticeLabel('desktop',{stage:'sent',readback:{delivery:'submitted'}}),'已提交电脑通知'));
++test('撤销回执优先于保存、关闭等旧标志', () => assert.match(r.receiptPresentation(saved({undoneAt:'2026-10-14T02:00:00Z',closed:true})).title,/已撤销/));
++test('纯图重复明确不重复保存', () => assert.match(r.receiptPresentation(saved({duplicate:true})).title,/未重复保存/));
++test('部分保存明确保护较新安排', () => assert.match(r.receiptPresentation(saved({pendingChanges:[{id:'new'}]})).title,/较新安排未被覆盖/));
++test('无完整持久回执不能标已保存', () => assert.match(r.receiptPresentation({}).title,/回执不完整/));
++test('业务保存和后段失败分别投影', () => {const v=r.inputSavePresentation({status:'saved',jobStatus:'cancelled',save:{status:'saved',receipt:saved()},preparation:{status:'incomplete',reason:'后段超时'}});assert.equal(v.saved,true);assert.equal(v.preparation,'incomplete');assert.equal(v.jobStatus,'cancelled');});
++test('job completed 或缓存 status saved 不代替持久回执', () => assert.equal(r.inputSavePresentation({status:'saved',jobStatus:'completed',save:{status:'not_saved'}}).saved,false));
++test('已撤销的历史保存不继续标有效', () => assert.equal(r.inputSavePresentation({save:{status:'saved',receipt:saved({undoneAt:'now'})}}).saved,false));
++test('时间格式仅用真实回执且固定北京时间', () => {assert.match(r.receiptTimestamp('2026-10-14T01:00:00Z'),/09:00:00/);assert.match(r.receiptTimestamp('not-a-date'),/未提供/);});
++
++function transport({postError,getError,data=view()}={}) {const calls=[];const request=async(url,body)=>{calls.push({url,body:body===undefined?undefined:structuredClone(body)});if(body!==undefined){if(postError)throw postError;return {durable:true};}if(getError)throw getError;return structuredClone(data);};return {calls,request};}
++test('真实适配函数：一次POST后一次GET，无自动execute', async()=>{const t=transport();const result=await c.performCoreCommand(t.request,'w','item-1',{action:'decide-messages',requestId:'r',sourceId:'b',decisions:[]});assert.equal(result.acknowledgement,'received');assert.equal(t.calls.length,2);assert.equal(t.calls[0].body.workspaceId,'w');assert.equal(t.calls[1].body,undefined);assert.ok(!t.calls.some(x=>x.body?.action==='execute-messages'));});
++test('HTTP已返回但刷新失败，不提示重新提交', async()=>{const t=transport({getError:new Error('read failed')});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',requestId:'r'});assert.equal(result.acknowledgement,'received');assert.equal(result.readbackError,'read failed');assert.equal(t.calls.length,2);});
++test('网络未知先回读，既不称未保存也不自动重发', async()=>{const t=transport({postError:new Error('network')});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'execute-messages',sourceId:'b'});assert.equal(result.acknowledgement,'unknown');assert.ok(result.view);assert.equal(t.calls.length,2);});
++test('409冲突明确拒绝但仍尝试读当前记录', async()=>{const t=transport({postError:Object.assign(new Error('stale'),{status:409})});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',requestId:'r'});assert.equal(result.acknowledgement,'rejected');assert.ok(result.view);assert.equal(t.calls.length,2);});
++test('500不能被当成未写入', async()=>{const t=transport({postError:Object.assign(new Error('after-write'),{status:500})});assert.equal((await c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',requestId:'r'})).acknowledgement,'unknown');});
++test('未知提交加读回失败也不再次POST', async()=>{const t=transport({postError:new Error('unknown'),getError:new Error('offline')});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'prepare-messages',requestId:'stable'});assert.equal(result.acknowledgement,'unknown');assert.equal(result.readbackError,'offline');assert.equal(t.calls.filter(x=>x.body).length,1);});
++test('显式续办原决定可保留同一请求全文和身份', async()=>{const t=transport();const command={action:'decide-messages',sourceId:'b',requestId:'original-request',decisions:[{id:'m',fingerprint:'f',action:'approve'}]};await c.performCoreCommand(t.request,'w',undefined,command);await c.performCoreCommand(t.request,'w',undefined,command);assert.deepEqual(t.calls[0].body,t.calls[2].body);assert.equal(t.calls[0].body.requestId,'original-request');});
++test('禁止额外参数覆盖工作区', async()=>{const t=transport();await assert.rejects(c.performCoreCommand(t.request,'w',undefined,{action:'decide-messages',workspaceId:'other'}));assert.equal(t.calls.length,0);});
++test('返回非法投影不假装已刷新', async()=>{const t=transport({data:{}});const result=await c.performCoreCommand(t.request,'w',undefined,{action:'prepare-messages',requestId:'r'});assert.equal(result.acknowledgement,'received');assert.ok(result.readbackError);assert.equal(result.view,undefined);});
++test('旧上下文/旧读取结果被epoch丢弃', ()=>{const e=new c.ScopeEpoch();const old=e.advance();const next=e.advance();assert.equal(e.isCurrent(old),false);assert.equal(e.isCurrent(next),true);e.advance();assert.equal(e.isCurrent(next),false);});
++test('批准历史全文不会被模型适配器截断或改为当前正文', ()=>{const old='旧批准\n'+('长'.repeat(3900));const x=message({text:'新正文',approvalHistory:[{text:old,fingerprint:'old',recipient:message().recipient}]});assert.equal(m.parseCoreView(view({runs:[batch([x])]})).runs[0].items[0].approvalHistory[0].text,old);});
++test('结果全部完成后批次仍存在，可重新进入', ()=>{const v=m.parseCoreView(view({runs:[batch([message({stage:'readback_verified'})])]}));assert.equal(v.runs.length,1);assert.equal(v.runs[0].items[0].stage,'readback_verified');});
++// Structural checks do not pretend to be React rendering or a product browser test.
++test('DEV1 Q01已接受，两步发送入口开启且仍受整批范围门控', ()=>{const source=fs.readFileSync(path.join(process.env.WB_PLAN1_SOURCE_ROOT,'app/integration/core-collaboration-panel.tsx'),'utf8');assert.match(source,/executionUiConfirmed = true/);assert.match(source,/if \(executionUiConfirmed && filter === 'all'\)/);});
++test('新UI没有原型业务状态、假日期或内存撤销入口', ()=>{const folder=path.join(process.env.WB_PLAN1_SOURCE_ROOT,'app/integration');for(const name of fs.readdirSync(folder).filter(x=>/\.(ts|tsx)$/.test(x))){const source=fs.readFileSync(path.join(folder,name),'utf8');assert.doesNotMatch(source,/window\.openai|widgetState|lastOperation|模拟发送|10月13日 · 周二/);}});
++test('样式不包含全局button/input规则且正文无玻璃', ()=>{const css=fs.readFileSync(path.join(process.env.WB_PLAN1_SOURCE_ROOT,'app/integration/apple-integration.css'),'utf8');assert.doesNotMatch(css,/(?:^|\n)\s*(?:button|input|textarea|body|html)\s*[{,]/);assert.match(css,/prefers-reduced-motion/);assert.match(css,/forced-colors/);assert.match(css,/\.v2-app \.wb-int-batch/);});
++
++test('异常可选错误字段也拒绝，避免把对象渲染为正文', () => assert.throws(()=>m.parseCoreView(view({runs:[batch([message({error:{bad:true}})])]}))));
++test('批准历史异常指纹拒绝，缺失历史正文仍如实保留', () => {assert.throws(()=>m.parseCoreView(view({runs:[batch([message({approvalHistory:[{fingerprint:{bad:1}}]})])]})));assert.equal(m.parseCoreView(view({runs:[batch([message({approvalHistory:[{fingerprint:'old'}]})])]})).runs[0].items[0].approvalHistory[0].text,undefined);});
