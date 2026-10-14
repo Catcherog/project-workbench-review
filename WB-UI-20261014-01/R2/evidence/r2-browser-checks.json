@@ -1,0 +1,489 @@
+{
+  "task": "WB-UI-20261014-01",
+  "round": "R2",
+  "layer": "Actual complete HTML in browser via visible user controls; synthetic front-end only",
+  "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+  "total": 32,
+  "checks": [
+    {
+      "id": "B01-01",
+      "scenario": "连续输入不丢焦点；只发消息保存编辑正文、收件人、随附资料与模拟结果",
+      "passed": true,
+      "expected_visible": [
+        "已批准消息记录",
+        "陈禾，请仅核对版本 B；保留 <待确认> 原文。\n暂不修改方案。",
+        "陈禾 · 资料所有者 · 飞书私聊",
+        "随附资料：无",
+        "已模拟发送",
+        "尚未批准纳入，可继续处理。"
+      ],
+      "absent": [
+        "这项缺口已纳入本地跟进"
+      ],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-send-only",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:18:44.724Z"
+    },
+    {
+      "id": "B01-02",
+      "scenario": "刷新后实际批准内容保留，已发消息不重新进入发送选择",
+      "passed": true,
+      "expected_visible": [
+        "已批准消息记录",
+        "陈禾，请仅核对版本 B；保留 <待确认> 原文。\n暂不修改方案。",
+        "原批准内容保留，不重复执行。"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-send-only",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:18:45.025Z"
+    },
+    {
+      "id": "B01-03",
+      "scenario": "先发送后纳入：补办剩余决定，原发送记录不重放",
+      "passed": true,
+      "expected_visible": [
+        "这项缺口已纳入本地跟进",
+        "原消息批准记录保留，未重复发送。",
+        "陈禾，请仅核对版本 B；保留 <待确认> 原文。\n暂不修改方案。",
+        "两项均已处理"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-send-only",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:18:45.835Z"
+    },
+    {
+      "id": "B01-04",
+      "scenario": "先纳入不暗含发送，编辑稿保留且可继续批准",
+      "passed": true,
+      "expected_visible": [
+        "这项缺口已纳入本地跟进",
+        "尚未发送，可继续预览批准。"
+      ],
+      "absent": [
+        "已批准消息记录"
+      ],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-adopt-first",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:29.449Z"
+    },
+    {
+      "id": "B01-05",
+      "scenario": "先纳入后发送，沿用原事项与编辑稿",
+      "passed": true,
+      "expected_visible": [
+        "原纳入记录保留。",
+        "已批准消息记录",
+        "陈禾，请核对样机版本 C。",
+        "两项均已处理"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-adopt-first",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:30.360Z"
+    },
+    {
+      "id": "B01-06",
+      "scenario": "空选择或空正文不执行批准，保留未完成选项",
+      "passed": true,
+      "expected_visible": [
+        "消息正文不能为空",
+        "本次所选内容尚未执行。"
+      ],
+      "absent": [
+        "这项缺口已纳入本地跟进"
+      ],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-both",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:32.673Z"
+    },
+    {
+      "id": "B01-07",
+      "scenario": "两项同时批准且再次进入不生成重复动作",
+      "passed": true,
+      "expected_visible": [
+        "这项缺口已纳入本地跟进",
+        "陈禾，请核对版本 D。",
+        "两项均已处理"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b01-both",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:33.072Z"
+    },
+    {
+      "id": "B02-01",
+      "scenario": "无待发条目时概览仍提供原结果入口",
+      "passed": true,
+      "expected_visible": [
+        "没有待预览消息。",
+        "查看已有处理结果"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/mixed.html?case=final-b02-results",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:36.025Z"
+    },
+    {
+      "id": "B02-02",
+      "scenario": "重入原消息后保留成功、失败、未知及操作",
+      "passed": true,
+      "expected_visible": [
+        "已发送",
+        "明确未发出",
+        "查询发送结果",
+        "这条我来发送"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/mixed.html?case=final-b02-results",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:36.432Z"
+    },
+    {
+      "id": "B02-03",
+      "scenario": "人工接手后刷新不重试，未知仍需查询",
+      "passed": true,
+      "expected_visible": [
+        "已由你接手",
+        "交回助手继续这条",
+        "查询发送结果"
+      ],
+      "absent": [
+        "模拟故障恢复"
+      ],
+      "url": "http://127.0.0.1:5938/preview/mixed.html?case=final-b02-results",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:36.836Z"
+    },
+    {
+      "id": "B02-04",
+      "scenario": "先查询未知，核实原发送事实而不重发",
+      "passed": true,
+      "expected_visible": [
+        "模拟查询完成：此前已经发出",
+        "本次没有重新发送。",
+        "已由你接手"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/mixed.html?case=final-b02-results",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:37.307Z"
+    },
+    {
+      "id": "B02-05",
+      "scenario": "明确交回后仅重试失败记录，成功无重复发送入口",
+      "passed": true,
+      "expected_visible": [
+        "模拟发送成功"
+      ],
+      "absent": [
+        "模拟故障恢复",
+        "查询发送结果",
+        "这条我来发送"
+      ],
+      "url": "http://127.0.0.1:5938/preview/mixed.html?case=final-b02-results",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:19:38.547Z"
+    },
+    {
+      "id": "B03-project",
+      "scenario": "从project保存后返回原上下文并显示回执与适用撤销",
+      "passed": true,
+      "expected_visible": [
+        "已保存到原事项",
+        "进展已记录；",
+        "撤销本次操作"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b03-project",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:29.852Z",
+      "additional_observed": "回执撤销实际执行成功，撤销后仍在同一返回上下文"
+    },
+    {
+      "id": "B03-risk",
+      "scenario": "从risk保存后返回原上下文并显示回执与适用撤销",
+      "passed": true,
+      "expected_visible": [
+        "已保存到原事项",
+        "进展已记录；",
+        "撤销本次操作"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b03-risk",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:31.576Z",
+      "additional_observed": "回执撤销实际执行成功，撤销后仍在同一返回上下文"
+    },
+    {
+      "id": "B03-data",
+      "scenario": "从data保存后返回原上下文并显示回执与适用撤销",
+      "passed": true,
+      "expected_visible": [
+        "已保存到原事项",
+        "进展已记录；",
+        "撤销本次操作"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b03-data",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:33.561Z",
+      "additional_observed": "回执撤销实际执行成功，撤销后仍在同一返回上下文"
+    },
+    {
+      "id": "B03-weekly",
+      "scenario": "从weekly保存后返回原上下文并显示回执与适用撤销",
+      "passed": true,
+      "expected_visible": [
+        "已保存到原事项",
+        "进展已记录；",
+        "撤销本次操作"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b03-weekly",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:35.516Z",
+      "additional_observed": "回执撤销实际执行成功，撤销后仍在同一返回上下文"
+    },
+    {
+      "id": "B03-save-failure-project",
+      "scenario": "从project提交save-failure时留场保留输入，无成功假回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存失败：输入与时间选择已保留，尚未写入。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-failure.html?case=final-b03-save-failure-project",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:37.442Z"
+    },
+    {
+      "id": "B03-save-failure-risk",
+      "scenario": "从risk提交save-failure时留场保留输入，无成功假回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存失败：输入与时间选择已保留，尚未写入。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-failure.html?case=final-b03-save-failure-risk",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:38.942Z"
+    },
+    {
+      "id": "B03-save-failure-data",
+      "scenario": "从data提交save-failure时留场保留输入，无成功假回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存失败：输入与时间选择已保留，尚未写入。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-failure.html?case=final-b03-save-failure-data",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:40.720Z"
+    },
+    {
+      "id": "B03-save-failure-weekly",
+      "scenario": "从weekly提交save-failure时留场保留输入，无成功假回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存失败：输入与时间选择已保留，尚未写入。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-failure.html?case=final-b03-save-failure-weekly",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:42.489Z"
+    },
+    {
+      "id": "B03-save-unknown-project",
+      "scenario": "从project提交save-unknown时留场保留输入，无成功假回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存结果未知：正在核查，不重复提交；输入已保留。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-unknown.html?case=final-b03-save-unknown-project",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:44.306Z"
+    },
+    {
+      "id": "B03-save-unknown-risk",
+      "scenario": "从risk提交save-unknown时留场保留输入，无成功假回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存结果未知：正在核查，不重复提交；输入已保留。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-unknown.html?case=final-b03-save-unknown-risk",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:20:46.023Z"
+    },
+    {
+      "id": "B03-save-unknown-data",
+      "scenario": "数据入口保存未知：重新取得当前按钮后实际点击，输入保留且无成功回执",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存结果未知：正在核查，不重复提交；输入已保留。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-unknown.html?case=final-b03-save-unknown-data",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:21:48.957Z"
+    },
+    {
+      "id": "B03-save-unknown-weekly",
+      "scenario": "周例会入口保存未知仍留场保留输入",
+      "passed": true,
+      "expected_visible": [
+        "模拟保存结果未知：正在核查，不重复提交；输入已保留。"
+      ],
+      "absent": [
+        "明确内容已保存",
+        "已保存到原事项"
+      ],
+      "url": "http://127.0.0.1:5938/preview/save-unknown.html?case=final-b03-save-unknown-weekly",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:21:50.900Z"
+    },
+    {
+      "id": "B04-01",
+      "scenario": "保存 A 后进入 B 历史撤销，明确阻止跨事项隐式撤销",
+      "passed": true,
+      "expected_visible": [
+        "当前事项没有可撤销的本地提交；未改动其他事项。",
+        "验证报告交付"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-cross",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:22:33.373Z",
+      "additional_observed": "随后回到 A 的原始记录，保存内容仍在；B 未撤销 A"
+    },
+    {
+      "id": "B04-02",
+      "scenario": "保存后暂停进入版本冲突，阻止整次撤销",
+      "passed": true,
+      "expected_visible": [
+        "整次撤销已阻止：此事项的进展或提醒设置已有后续修改",
+        "暂停常规提醒"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-cross",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:22:56.538Z",
+      "additional_observed": "返回处理面板后暂停/恢复按钮状态与最新设置一致，原保存进展保留"
+    },
+    {
+      "id": "B04-03",
+      "scenario": "暂停后恢复仍记录后续修改，不被旧快照覆盖",
+      "passed": true,
+      "expected_visible": [
+        "整次撤销已阻止：此事项的进展或提醒设置已有后续修改",
+        "恢复常规提醒"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-cross",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:22:58.755Z",
+      "additional_observed": "返回处理面板后暂停/恢复按钮状态与最新设置一致，原保存进展保留"
+    },
+    {
+      "id": "B04-04",
+      "scenario": "正确目标且无后续事项修改时，正常撤销可用",
+      "passed": true,
+      "expected_visible": [
+        "本次本地操作已撤销",
+        "历史和外部发送事实保留。"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-external",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:24:02.699Z"
+    },
+    {
+      "id": "B04-07",
+      "scenario": "其他事项后续修改不误阻止当前事项正常撤销",
+      "passed": true,
+      "expected_visible": [
+        "本次本地操作已撤销"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-unrelated",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:24:51.211Z"
+    },
+    {
+      "id": "B04-05",
+      "scenario": "正常撤销后及刷新恢复仍保留三条模拟发送事实",
+      "passed": true,
+      "expected_visible": [
+        "本批处理结果",
+        "模拟发送成功"
+      ],
+      "absent": [
+        "模拟故障恢复"
+      ],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-external",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:24:51.712Z"
+    },
+    {
+      "id": "B04-06",
+      "scenario": "同一事项后续有效修改仍阻止整次撤销",
+      "passed": true,
+      "expected_visible": [
+        "整次撤销已阻止",
+        "模拟后续有效更新"
+      ],
+      "absent": [
+        "已撤销整次本地操作"
+      ],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b04-related",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:24:53.415Z"
+    },
+    {
+      "id": "B02-06",
+      "scenario": "部分批准后未选消息仍待预览，已有结果可重入",
+      "passed": true,
+      "expected_visible": [
+        "完整预览本批消息",
+        "查看已有处理结果",
+        "申请工装资料访问权限"
+      ],
+      "absent": [],
+      "url": "http://127.0.0.1:5938/preview/light.html?case=final-b02-partial",
+      "source_sha256": "2b20289aa64784788397e5cf0a2236b9d0ace3aacac3adec9ecf994f3c27e0e2",
+      "checked_at_utc": "2026-10-14T02:24:55.146Z"
+    }
+  ],
+  "console_logs": [],
+  "execution_notes": [
+    "Actual browser used pointer, accessibility click, native text entry, checkboxes, keyboard activation and reload; no hidden application state injection or function substitution.",
+    "A previous candidate exposed self-persistence echo re-rendering during input; fixed inside B01, then all 32 final checks use the final source hash. Earlier candidate results are kept local and excluded from final count.",
+    "Some automation clicks failed to resolve a moving/stale target. Current page state was inspected before retargeting the visible accessibility control or using keyboard activation; no duplicate business action was inferred.",
+    "An initial assertion matched generic explanatory text instead of a result status; corrected to inspect visible status tags.",
+    "Inherited 10+12 observations, R1 5 checks and GPT 13 substitute assertions are not part of the 32 R2 browser checks."
+  ]
+}
