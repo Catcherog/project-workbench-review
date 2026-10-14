@@ -1,0 +1,197 @@
+{
+  "date": "2026-10-13",
+  "phase": "独立 UI 讨论原型，待用户体验与审阅",
+  "user_confirmed": [
+    "沿用已讨论的使用动线与信息分层",
+    "UI 全盘参考苹果：圆润、半透明玻璃、简约易上手",
+    "验收使用电脑实际操作，汇报使用感受与改进建议"
+  ],
+  "prototype": "source/workbench-apple-glass.html",
+  "design": [
+    "保留项目、风险、数据、周例会、助手五个入口与项目排序出发约束",
+    "玻璃用于导航、工具栏和操作浮层；正文使用稳定阅读底色",
+    "文字与手动时间一次提交；普通成功返回，混合讨论留场",
+    "跨项目消息集中预览，收件人与正文完整展示，可部分批准",
+    "浅色与深色；窗口缩窄时重新排布并展开长消息正文"
+  ],
+  "reference": "https://developer.apple.com/design/human-interface-guidelines/materials",
+  "verification_layer": "通过本机可视浏览器实际点击、输入、勾选、滚动、缩放窗口与读取屏幕；所有项目、人员、保存及发送结果均为虚构和前端模拟",
+  "earlier_observed_checks": [
+    {
+      "scenario": "普通明确记录保存后返回原列表，保留原协调需要",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "明确检查时间从示例文字提取并在回执回显",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "无冲突的整次本地撤销恢复相关进展与时间",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "混合输入保存明确事实并留场讨论，建议不自动采用",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "后续修改冲突阻止整次撤销并说明原因",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "只修改时间，不填写文字也可提交",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "解除且无后续一次提交进入已结束，同页可找到原事项",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "集中完整预览、修改正文、取消勾选后只模拟发送所选消息",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "只批准具体消息，不暗中批准候选纳入",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    },
+    {
+      "scenario": "同批模拟显示成功、明确未发出和结果未知",
+      "result": "passed after relevant fixes",
+      "evidence": "Original source-thread browser operation record, retained locally; summarized here."
+    }
+  ],
+  "followup_checks": [
+    {
+      "scenario": "人工接手单条发送后显示执行权归属",
+      "passed": true
+    },
+    {
+      "scenario": "未知结果先查询，核实此前已发送而不重发",
+      "passed": true
+    },
+    {
+      "scenario": "恢复页面后人工接手不自动交回或重试",
+      "passed": true
+    },
+    {
+      "scenario": "明确交回后按原批准重试明确未发出的消息",
+      "passed": true
+    },
+    {
+      "scenario": "保存失败留在原处，保留输入并准确说明未写入",
+      "passed": true
+    },
+    {
+      "scenario": "保存未知单独呈现，保留草稿而不假报成功",
+      "passed": true
+    },
+    {
+      "scenario": "390像素窄窗口首屏无横向溢出",
+      "passed": true,
+      "measure": {
+        "icons": 14,
+        "scrollWidth": 358,
+        "width": 358
+      }
+    },
+    {
+      "scenario": "窄窗口完整消息自动展开且页面不横向溢出",
+      "passed": true,
+      "measure": [
+        {
+          "clientHeight": 114,
+          "label": "给林夏的完整消息",
+          "scrollHeight": 116,
+          "width": 302
+        },
+        {
+          "clientHeight": 114,
+          "label": "给周远的完整消息",
+          "scrollHeight": 116,
+          "width": 302
+        },
+        {
+          "clientHeight": 114,
+          "label": "给陈禾的完整消息",
+          "scrollHeight": 116,
+          "width": 302
+        }
+      ]
+    },
+    {
+      "scenario": "320像素内容宽度下事项输入与时间区不横向溢出",
+      "passed": true,
+      "measure": {
+        "scrollWidth": 320,
+        "width": 320
+      }
+    },
+    {
+      "scenario": "键盘 Escape 返回原列表",
+      "passed": true
+    },
+    {
+      "scenario": "打开事项自动对齐顶部，标题在首屏可见",
+      "passed": true,
+      "measure": {
+        "bottom": 117.1875,
+        "top": 89.1875
+      }
+    },
+    {
+      "scenario": "预览打开后直接缩窄窗口，全文高度随宽度重算",
+      "passed": true,
+      "measure": [
+        {
+          "height": 154,
+          "scroll": 156
+        },
+        {
+          "height": 154,
+          "scroll": 156
+        },
+        {
+          "height": 128,
+          "scroll": 130
+        }
+      ]
+    }
+  ],
+  "fixed_during_experience": [
+    "本地预览的原生表单提交未产生反馈，改为明确的交互事件并复测",
+    "回执及历史部分按钮未正确接续操作，修复后撤销与混合讨论通过",
+    "历史页需要直接呈现整次撤销冲突原因",
+    "消息正文宽窗留白过多，缩紧空白且窄窗全文自动展开",
+    "缩窄已打开的预览后，正文高度随宽度重新计算",
+    "打开事项定位顶部，关闭返回原列表位置",
+    "记录普通进展不抹去原协调需要"
+  ],
+  "experience": [
+    "列表先给当前需要与关键时间，进入事项即可记录和调整安排，接续路径清楚",
+    "完整预览与本次批准范围相邻，减少往返切换；成功、失败和未知回执各自清楚",
+    "正文的高对比稳定底色比全页透明更适合长时间读业务信息"
+  ],
+  "recommendations": [
+    "保留当前玻璃强度与清楚的正文底色",
+    "正式界面接入后用多项目长消息、大批量待处理与真实模型等待检查阅读负担和交互反馈",
+    "正式产品验收仍需使用电脑走完整业务链；本轮不替代后端、真实通道和用户最终验收"
+  ],
+  "limits": [
+    "原型未调用真实模型、没有识图能力，文本只支持说明性示例与明确手动控件",
+    "没有接入正式工作台、业务数据、采集调度或真实发送",
+    "本轮没有修改其他聊天的工作树、产品源码或已确认功能文档"
+  ],
+  "screenshots": [],
+  "original_source_sha256": "c52981a7bcb5d174edbefba0cec074462a490eba4d66a1cf589ad64c756bd48d",
+  "public_source_sha256": "73dc202edf890d06a163ced755f708cda72415ddcc8dfe64724211499e87dba3",
+  "evidence_kind": "INHERITED_2026_10_13_BROWSER_RUN: not rerun during publication unless separately listed in publication-checks.json.",
+  "screenshot_note": "Original screenshots withheld because they show a personal alias. Fresh screenshots of the public copy are separately included."
+}

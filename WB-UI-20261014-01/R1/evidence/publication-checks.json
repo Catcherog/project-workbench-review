@@ -1,0 +1,112 @@
+{
+  "task": "WB-UI-20261014-01",
+  "round": "R1",
+  "date": "2026-10-14",
+  "layer": "Fresh public-copy browser smoke checks; synthetic front-end only",
+  "public_source_sha256": "73dc202edf890d06a163ced755f708cda72415ddcc8dfe64724211499e87dba3",
+  "browser_checks": [
+    {
+      "scenario": "公开浅色页加载，五个导航与脱敏称呼可见",
+      "passed": true,
+      "evidence": "fresh browser AX"
+    },
+    {
+      "scenario": "普通输入提交产生原事项保存回执并返回风险列表",
+      "passed": true,
+      "observed": "已保存到原事项；协调需要仍保留",
+      "limit": "自然语言时间仅为原型示例匹配，未作为业务时间理解验收"
+    },
+    {
+      "scenario": "撤销本次本地操作还原原安排",
+      "passed": true,
+      "observed": "检查时间恢复到10月13日16:00，撤销回执可见"
+    },
+    {
+      "scenario": "集中预览显示三条完整消息与收件人",
+      "passed": true,
+      "evidence": "AX includes complete values for all three message editors"
+    },
+    {
+      "scenario": "取消勾选一条后只模拟发送两条并保留剩余一条",
+      "passed": true,
+      "observed": "确认按钮由3条变为2条；两条成功回执，继续预览剩余1条"
+    }
+  ],
+  "console_logs": [],
+  "known_limit": {
+    "natural_language_time": "The input 明天下午 was handled by the simplified fixture matcher as 10月14日10:00. This is recorded as a prototype limitation, not a passed semantic-time test."
+  },
+  "screenshots": [
+    "screenshots/desktop-overview.png",
+    "screenshots/desktop-item.png",
+    "screenshots/desktop-message-preview.png"
+  ],
+  "historical_checks": "22 prior observations are inherited only after original source SHA-256 match, not rerun in this publication turn.",
+  "package_checks": {
+    "source_javascript_syntax": "PASS: node --check",
+    "original_source_matches_historical_sha256": true,
+    "reversible_alias_only_deidentification": true,
+    "export_wrappers": [
+      {
+        "file": "preview/index.html",
+        "public_source_embedded_exactly": true,
+        "preset": {
+          "failure": "正常结果",
+          "appearance": "跟随系统"
+        }
+      },
+      {
+        "file": "preview/light.html",
+        "public_source_embedded_exactly": true,
+        "preset": {
+          "failure": "正常结果",
+          "appearance": "浅色"
+        }
+      },
+      {
+        "file": "preview/mixed.html",
+        "public_source_embedded_exactly": true,
+        "preset": {
+          "failure": "混合发送结果",
+          "appearance": "跟随系统"
+        }
+      },
+      {
+        "file": "preview/save-failure.html",
+        "public_source_embedded_exactly": true,
+        "preset": {
+          "failure": "保存失败",
+          "appearance": "跟随系统"
+        }
+      },
+      {
+        "file": "preview/save-unknown.html",
+        "public_source_embedded_exactly": true,
+        "preset": {
+          "failure": "保存结果未知",
+          "appearance": "跟随系统"
+        }
+      }
+    ],
+    "package_relative_links_resolve": true,
+    "sensitive_text_scan": {
+      "status": "PASS",
+      "categories": [
+        "local_paths",
+        "private_alias_and_identifiers",
+        "credentials",
+        "internal_links",
+        "personal_email"
+      ],
+      "matches": {
+        "local_paths": [],
+        "private_alias_and_identifiers": [],
+        "credentials": [],
+        "internal_links": [],
+        "personal_email": []
+      }
+    },
+    "screenshots_privacy_review": "All 3 fresh screenshots visually inspected; only synthetic fixtures and generic user alias visible.",
+    "publication_scope": "Only WB-UI-20261014-01/R1 added; preexisting tracked files remain byte-identical."
+  }
+}
