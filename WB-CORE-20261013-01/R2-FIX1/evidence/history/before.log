@@ -1,0 +1,124 @@
+FAIL B01-domain closed + new evidence enters review on actual workday at 09:00; no business count 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+false !== true
+
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:38:70
+    at test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:43)
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:35:7
+FAIL B01-runtime tick/notify sends both simulated channels once per workday, survives recovery and keeps closure 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+0 !== 2
+
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:44:113
+    at async runtime (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:32:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:43:1
+FAIL B01-pause manual pause, explicit postponement, missing calendar and quiet hours retain review until allowed 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+0 !== 2
+
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:55:130
+    at async runtime (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:32:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:53:1
+FAIL B01-closed-controls closed review cannot revive old explicit checks, P0 urgency, deferred business slots or recovery reminders 
+AssertionError [ERR_ASSERTION]: explicit
++ actual - expected
+
++ undefined
+- 'review'
+
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:70:88
+    at test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:43)
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:61:7
+FAIL B01-invalid no pending decision, withdrawn proof, completed decision and later manual close stay quiet 
+AssertionError [ERR_ASSERTION]: withdrawn must retire the proposal
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:81:12
+    at test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:43)
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:74:7
+本地工作台 v2 已就绪：http://127.0.0.1:58645；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-DmUYqq/workbench.sqlite
+FAIL B02-budget AI_BUDGET via event bridge reports waiting, then reuses original input and saves once 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'saved'
+- 'budget_wait'
+
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:111:37
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:108:1
+本地工作台 v2 已就绪：http://127.0.0.1:58678；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-K0MhM4/workbench.sqlite
+FAIL B02-cancel real cancellation before commit reports cancelled and preserves input without saved state 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'saved'
+- 'cancelled'
+
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:118:39
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:116:1
+本地工作台 v2 已就绪：http://127.0.0.1:58692；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-NFHqFD/workbench.sqlite
+FAIL B02-clarify completed understanding with an ambiguity is not a saved business update 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+'saved' !== 'clarify'
+
+    at inbox.modelMode (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:121:132)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:120:1
+本地工作台 v2 已就绪：http://127.0.0.1:58694；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-6uQdH1/workbench.sqlite
+FAIL B02-discuss completed discussion with no business write stays discussion 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+'saved' !== 'discuss'
+
+    at inbox.modelMode (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:124:97)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:123:1
+本地工作台 v2 已就绪：http://127.0.0.1:58696；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-RAOlvq/workbench.sqlite
+FAIL B02-stage-fail persisted first stage survives later fail with separate unfinished preparation 
+Error: Expected product state not reached
+    at until (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:14:105)
+    at async inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:129:49)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:3
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:126:46
+本地工作台 v2 已就绪：http://127.0.0.1:58730；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-Q1amFg/workbench.sqlite
+FAIL B02-stage-budget persisted first stage survives later budget with separate unfinished preparation 
+Error: Expected product state not reached
+    at until (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:14:105)
+    at async inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:129:49)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:3
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:126:46
+本地工作台 v2 已就绪：http://127.0.0.1:58759；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-gxjP1a/workbench.sqlite
+FAIL B02-stage-cancel persisted first stage survives later cancel with separate unfinished preparation 
+Error: Expected product state not reached
+    at until (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:14:105)
+    at async inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:129:49)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:3
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:126:46
+本地工作台 v2 已就绪：http://127.0.0.1:58762；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-JocEvL/workbench.sqlite
+FAIL B02-persistence unpersisted saved outcome cannot assert success; durable receipt survives job cache loss and undo is distinguished 
+TypeError: Cannot read properties of undefined (reading 'receipt')
+    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:141:186
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:138:1

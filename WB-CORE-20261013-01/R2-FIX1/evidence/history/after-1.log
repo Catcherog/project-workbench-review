@@ -1,0 +1,33 @@
+PASS B01-domain closed + new evidence enters review on actual workday at 09:00; no business count
+PASS B01-runtime tick/notify sends both simulated channels once per workday, survives recovery and keeps closure
+PASS B01-pause manual pause, explicit postponement, missing calendar and quiet hours retain review until allowed
+PASS B01-closed-controls closed review cannot revive old explicit checks, P0 urgency, deferred business slots or recovery reminders
+PASS B01-invalid no pending decision, withdrawn proof, completed decision and later manual close stay quiet
+本地工作台 v2 已就绪：http://127.0.0.1:58889；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-TeDSXe/workbench.sqlite
+PASS B02-budget AI_BUDGET via event bridge reports waiting, then reuses original input and saves once
+本地工作台 v2 已就绪：http://127.0.0.1:58902；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-6Bzvu0/workbench.sqlite
+PASS B02-cancel real cancellation before commit reports cancelled and preserves input without saved state
+本地工作台 v2 已就绪：http://127.0.0.1:58905；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-adMoce/workbench.sqlite
+PASS B02-clarify completed understanding with an ambiguity is not a saved business update
+本地工作台 v2 已就绪：http://127.0.0.1:58907；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-YGIq8g/workbench.sqlite
+PASS B02-discuss completed discussion with no business write stays discussion
+本地工作台 v2 已就绪：http://127.0.0.1:58909；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-sD6mVG/workbench.sqlite
+PASS B02-stage-fail persisted first stage survives later fail with separate unfinished preparation
+本地工作台 v2 已就绪：http://127.0.0.1:58914；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-MhMyzp/workbench.sqlite
+FAIL B02-stage-budget persisted first stage survives later budget with separate unfinished preparation 
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'incomplete'
+- 'prepared'
+
+    at inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:136:141)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:108:7)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:130:3
+    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)
+    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:46
+本地工作台 v2 已就绪：http://127.0.0.1:58916；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-CBcBox/workbench.sqlite
+PASS B02-stage-cancel persisted first stage survives later cancel with separate unfinished preparation
+本地工作台 v2 已就绪：http://127.0.0.1:58919；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-6CTel5/workbench.sqlite
+PASS B02-persistence unpersisted saved outcome cannot assert success; durable receipt survives job cache loss and undo is distinguished

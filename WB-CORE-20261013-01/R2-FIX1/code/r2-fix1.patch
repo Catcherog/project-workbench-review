@@ -1,0 +1,433 @@
+diff --git a/lib/work-item-core.ts b/lib/work-item-core.ts
+index b204e41c..4ff46d91 100644
+--- a/lib/work-item-core.ts
++++ b/lib/work-item-core.ts
+@@ -43,6 +43,22 @@ export function validCoreProofs(s:V2State,proof:CoreProof[]) {
+     return !!row&&!row.inputEnvelope?.effectWithdrawn&&!row.personalMessage?.deleted&&!row.caseChat?.raw?.deleted&&coreProofFingerprint(row)===p.fingerprint&&!!p.quote?.trim()&&(p.kind==='image'?!!p.attachmentId&&[...(row.attachments||[]),...(row.intakeDocument?.images||[])].some((a:Item)=>a.id===p.attachmentId):String(row.excerpt||'').includes(p.quote));
+   });
+ }
++/** A closed item's proposal is a review of this evidence, never permission to resume work. */
++export function coreReopenProposal(s:V2State,row:Item){
++  const c=coreState(row),proposal=c.reopenProposal;
++  if(!proposal?.id||!Number.isFinite(Date.parse(proposal.at))||!closed(row)||!validCoreProofs(s,proposal.proof))return null;
++  const decidedAt=Math.max(Date.parse(row.workItem.p1?.lifecycle?.at||'')||0,Date.parse(c.instructionAt?.lifecycle||'')||0);
++  return decidedAt>Date.parse(proposal.at)?null:proposal;
++}
++export function reconcileCoreReopenProposal(s:V2State,row:Item,at:string,{decided=false}:{decided?:boolean}={}){
++  if(!row.workItem.core?.reopenProposal)return;
++  const c=ensureCore(row);
++  if(c.reopenProposal&&(decided||!coreReopenProposal(s,row))){
++    c.history.push({at,kind:'reopen-proposal-retired',proposal:structuredClone(c.reopenProposal),reason:decided?'本次决定已处理':'当前状态或来源不再支持待审'});
++    c.reopenProposal=null;
++    if(c.deferredNotification?.kind==='review')c.deferredNotification=null;
++  }
++}
+ function treatmentEvidenceKey(s:V2State,proof:CoreProof[]){
+   return coreDigest(proof.map(p=>{
+     let source=s.sources.find(r=>r.id===p.sourceId);const seen=new Set<string>();
+@@ -99,6 +115,7 @@ export function applyNeedAssessment(s:V2State,row:Item,a:NeedAssessment,at:strin
+     if(c.admission==='withdrawn')c.admission='candidate';
+     if(row.workItem.p1.check?.effectiveAt&&Date.parse(row.workItem.p1.check.effectiveAt)<=Date.parse(at))row.workItem.p1.check.needsReview=true;
+   }else if(!autoEnd&&closed(row)&&fresh){c.reopenProposal={id:coreDigest([row.id,evidenceKey,'reopen']),reason:a.description,proof:a.proof,at};}
++  reconcileCoreReopenProposal(s,row,at,{decided:autoEnd});
+   return true;
+ }
+ 
+@@ -146,20 +163,21 @@ export function coreNotice(s:V2State,row:Item,calendar:WorkCalendar|undefined,at
+   const c=coreState(row),day=chinaDay(at),time=chinaTime(at),priority=effectivePriority(row),working=workingDay(calendar,day),timing=itemTiming(s,row,at);
+   const quiet=(reason:string,extra:Record<string,unknown>={})=>({eligible:false,reason,...extra});
+   if(s.workspaceType==='restored'||row.archived||row.workItem.mergedIntoId||row.workItem.disposition?.state==='ignored')return quiet('当前工作区或事项不参与自动执行');
+-  const check=timing.check,explicit=check.state==='scheduled'&&!check.completedAt&&!check.needsReview&&!!check.effectiveAt&&Date.parse(check.effectiveAt)<=Date.parse(at)&&!c.checkedArrangements?.includes(coreDigest(check));
+-  const urgent=(!!c.assessment?.urgent||c.dependencyUrgent===true)&&!closed(row),suggestP0=!!c.assessment?.suggestP0&&!c.fullFocus;
++  const check=timing.check,explicit=!closed(row)&&check.state==='scheduled'&&!check.completedAt&&!check.needsReview&&!!check.effectiveAt&&Date.parse(check.effectiveAt)<=Date.parse(at)&&!c.checkedArrangements?.includes(coreDigest(check));
++  const urgent=(!!c.assessment?.urgent||c.dependencyUrgent===true)&&!closed(row),suggestP0=!closed(row)&&!!c.assessment?.suggestP0&&!c.fullFocus;
+   const firstP0=suggestP0&&!c.p0NotifiedEvidence?.includes(c.assessment.evidenceKey);
+-  const focusChange=priority==='P0'&&c.fullFocus&&c.p0Event&&!c.p0ChangeNotified?.includes(c.p0Event.key);
++  const focusChange=!closed(row)&&priority==='P0'&&c.fullFocus&&c.p0Event&&!c.p0ChangeNotified?.includes(c.p0Event.key);
+   const result=closed(row)&&c.resultNotice&&!c.resultNotice.deliveredAt;
+-  const reviewQueue=c.admission==='candidate'||row.workItem.pendingChange||c.reopenProposal;
++  const reopenReview=coreReopenProposal(s,row),reviewQueue=c.admission==='candidate'||row.workItem.pendingChange||reopenReview;
+   if(!['action','risk','decision'].includes(row.workItem.nature)&&!row.workItem.manualAttention&&!explicit&&!reviewQueue&&!result)return quiet('背景资料保留，不生成常规催办');
+-  if(closed(row)&&!result)return quiet('本地事项已结束');
++  if(closed(row)&&!result&&!reopenReview)return quiet('本地事项已结束');
+   if(c.pause&&!urgent&&!result)return quiet(c.pause.needsCalendar?'暂停中；恢复时间所需工作日历尚未核实':'已暂停常规提醒');
+   if(!result&&!explicit&&!urgent&&!suggestP0&&!reviewQueue&&(c.need.arranged||c.need.actor!=='self'))return quiet('当前无需本人介入；继续记录对应责任步骤');
+-  if(!result&&!explicit&&!urgent&&!suggestP0&&!focusChange&&priority==='P0'&&c.fullFocus)return quiet('已明确全力处理，有实质变化或明确检查再通知');
++  if(!result&&!explicit&&!urgent&&!suggestP0&&!focusChange&&!reopenReview&&priority==='P0'&&c.fullFocus)return quiet('已明确全力处理，有实质变化或明确检查再通知');
+   const deferred=c.deferredNotification,usableDeferred=deferred&&deferred.cycleId===c.cycle.id&&deferred.cycleEpoch===c.cycle.epoch&&deferred.priorityEpoch===c.priority.epoch;
+   let slot='',kind='regular';
+   if(result){slot='result:'+c.resultNotice.id;kind='result';}
++  else if(reopenReview){slot=day+':09:00';kind='review';}
+   else if(explicit){slot='check:'+coreDigest(check);kind='explicit';}
+   else if((urgent||firstP0)&&!c.urgentNotifiedEvidence?.includes(c.assessment?.evidenceKey||c.cycle.id)){slot='urgent:'+(c.assessment?.evidenceKey||c.cycle.id);kind='urgent';}
+   else if(focusChange){slot='change:'+c.p0Event.key;kind='material';}
+@@ -173,7 +191,7 @@ export function coreNotice(s:V2State,row:Item,calendar:WorkCalendar|undefined,at
+     slot=day+':'+(c.weekly?.time||'14:00');
+   }else if(time>='09:00')slot=day+':'+((priority==='P1'||suggestP0||priority==='P0')&&time>='14:00'?'14:00':'09:00');
+   if(!slot)return quiet('尚未到合法提醒时间');
+-  const id=coreDigest([row.id,c.cycle.id,c.cycle.epoch,slot]);
++  const id=coreDigest([row.id,c.cycle.id,c.cycle.epoch,slot,...(kind==='review'&&reopenReview?[reopenReview.id]:[])]);
+   if((c.deliveredSlots||[]).includes(c.cycle.id+':'+slot)||(c.deliveredSlots||[]).includes(slot)||(c.cycle.notices||[]).includes(id))return quiet('本轮已取得通知回执');
+   const counts=!result&&c.admission==='managed'&&c.need.actor==='self'&&!c.need.arranged&&!closed(row)&&!['review','material'].includes(kind);
+   if(!explicit&&!urgent&&!firstP0){
+@@ -183,7 +201,7 @@ export function coreNotice(s:V2State,row:Item,calendar:WorkCalendar|undefined,at
+       return quiet('普通通知延至下一实际工作日 9:00',{deferredUntil:until,deferredNotification:{slot,kind,until,cycleId:c.cycle.id,cycleEpoch:c.cycle.epoch,priorityEpoch:c.priority.epoch,createdAt:deferred?.createdAt||at}});
+     }
+   }
+-  return {eligible:true,id,slot,kind,counts,cycleId:c.cycle.id,cycleEpoch:c.cycle.epoch,priorityEpoch:c.priority.epoch,priority,assessmentKey:c.assessment?.evidenceKey||c.cycle.id,checkKey:explicit?coreDigest(check):'',reason:result?c.resultNotice.text:c.need.description,title:row.title,at};
++  return {eligible:true,id,slot,kind,counts,cycleId:c.cycle.id,cycleEpoch:c.cycle.epoch,priorityEpoch:c.priority.epoch,priority,assessmentKey:c.assessment?.evidenceKey||c.cycle.id,checkKey:explicit?coreDigest(check):'',reopenProposalId:kind==='review'?reopenReview?.id||'':'',reason:result?c.resultNotice.text:reopenReview?'重新打开待审核：'+reopenReview.reason:c.need.description,title:row.title,at};
+ }
+ 
+ /** Called only after a verifiable successful channel receipt. Queueing is not success. */
+@@ -220,4 +238,5 @@ export function invalidateCoreDerivations(s:V2State,row:Item,at:string,reason:st
+     for(const item of source.reminderRun.items.filter((i:Item)=>i.workItemId===row.id))item.needsRecheck=true;
+   }
+   c.history.push({at,kind:'correction-recheck',reason});
++  reconcileCoreReopenProposal(s,row,at);
+ }
+diff --git a/lib/work-items.ts b/lib/work-items.ts
+index e555b6bd..ea0bdecf 100644
+--- a/lib/work-items.ts
++++ b/lib/work-items.ts
+@@ -9,7 +9,7 @@ import {riskSignalState} from './risk-signals';
+ import {buildFollowup} from './followup-lifecycle';
+ import {getProjectGates} from './project-gates';
+ import {workItemBrief} from './work-item-brief';
+-import {ensureCore,applyCoreDecision,invalidateCoreDerivations} from './work-item-core';
++import {ensureCore,applyCoreDecision,invalidateCoreDerivations,reconcileCoreReopenProposal} from './work-item-core';
+ 
+ export const workItemNatures = ['progress','action','risk','decision','result','reference','noise'] as const;
+ export type WorkItemNature = typeof workItemNatures[number];
+@@ -392,6 +392,7 @@ export function applyWorkItemOperation(input:V2State,op:Partial<Item>,at:string)
+   if(item.p1?.lifecycle?.state==='closed'&&item.p1.lifecycle.at===at)item.p1.lifecycle.owner='manual';
+   if(['done','reopen','restore','ignore','change-decision'].includes(op.action)){const core=ensureCore(source);core.instructionAt={...(core.instructionAt||{}),lifecycle:at};}
+   if(op.action==='review'){const core=ensureCore(source);core.instructionAt={...(core.instructionAt||{}),riskDecision:at,...(workItemState(s,source).closed?{lifecycle:at}:{})};}
++  reconcileCoreReopenProposal(s,source,at,{decided:['done','reopen','restore','ignore','change-decision'].includes(op.action)});
+   item.history.push({at,operation:op.action,reason:op.reason||'',title:previousTitle,summary:before.summary,nature:before.nature,disposition:before.disposition,handling:before.handling,pendingChange:before.pendingChange});
+   item.lastChangedAt=at;source.version++;source.updatedAt=at;s.revision++;s.receipts[receiptKey]={fingerprint:hash,result:{sourceId:source.id,...(p1Result||{}),...(op.splitSourceId?{splitSourceId:op.splitSourceId}:{})}};
+   s.audit.push({id:'work-item-'+digest([receiptKey,hash]),time:at,operation:'work-item.'+op.action,kind:'sources',objectId:source.id,actor:'本人',before,after:structuredClone(item),revision:s.revision});return s;
+diff --git a/package-lock.json b/package-lock.json
+index 94d2c2ce..f2c52230 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.17.0-core.1",
++  "version": "2.17.0-core.2",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "pm-workbench",
+-      "version": "2.17.0-core.1",
++      "version": "2.17.0-core.2",
+       "dependencies": {
+         "@base-ui/react": "^1.7.0",
+         "@hookform/resolvers": "^5.7.1",
+diff --git a/package.json b/package.json
+index 01548490..4d3d4f24 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.17.0-core.1",
++  "version": "2.17.0-core.2",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+diff --git a/release.json b/release.json
+index 70d1a2af..613bfdfd 100644
+--- a/release.json
++++ b/release.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "2.17.0-core.1",
+-  "build": "20261013.core-r1.1",
++  "version": "2.17.0-core.2",
++  "build": "20261014.core-r2-fix1.1",
+   "channel": "preview",
+-  "releasedOn": "2026-10-13"
++  "releasedOn": "2026-10-14"
+ }
+diff --git a/scripts/core-feishu-input.mjs b/scripts/core-feishu-input.mjs
+index f3f1a51b..7a10e212 100644
+--- a/scripts/core-feishu-input.mjs
++++ b/scripts/core-feishu-input.mjs
+@@ -71,8 +71,24 @@ export class CoreFeishuInput {
+   async receipt({workspaceId,sourceId}){
+     const s=this.store.load(workspaceId),source=s.sources.find(r=>r.id===sourceId),e=source?.inputEnvelope;
+     if(!e?.jobId||e.restored)return {status:e?.status||'not_received'};
+-    const job=this.assistant.get(e.jobId,workspaceId);if(job.status==='running')return {status:'processing'};
+-    if(e.actor!=='self')return {status:'saved',outcome:job.coreOutcome||job.p1Outcome,receipt:'原事项可读；第三方新消息仍需预览'};
++    const job=this.assistant.get(e.jobId,workspaceId);
++    if(e.actor!=='self'){
++      // A retry may only prepare dependencies. Its original input receipt is
++      // still authoritative; job memory alone never proves a committed write.
++      const attempts=[job.id,...(e.retryHistory||[]).map(h=>h.jobId).reverse()];
++      const core=attempts.map(id=>s.receipts['core-input:'+id]?.result).find(r=>r?.inputSourceId===source.id);
++      const candidate=core?.receipt||job.p1Outcome?.receipt;
++      const stored=candidate?.operationId?s.receipts['work-item:'+candidate.operationId]?.result:null;
++      const belongs=stored?.sourceId===candidate?.sourceId&&(stored?.inputSourceId===source.id||core?.duplicate&&e.duplicateOf===stored?.inputSourceId);
++      const saved=!!(belongs&&stored.p1&&stored.changes?.length&&!stored.undoneAt&&!e.effectWithdrawn);
++      const outcome=saved?{...(core||{}),status:'saved',receipt:stored}:core||(['clarify','discuss','unread'].includes(job.coreOutcome?.status)?job.coreOutcome:job.p1Outcome?.status==='clarify'?job.p1Outcome:null);
++      const failureCode=job.failureCode||e.failureCode||'';
++      const status=saved?'saved':e.effectWithdrawn||belongs&&stored.undoneAt?'withdrawn':job.status==='running'?'processing':job.status==='failed'?(failureCode==='AI_BUDGET'?'budget_wait':'failed'):['cancelled','interrupted'].includes(job.status)?job.status:outcome?.status==='clarify'||outcome?.ambiguities?.length||outcome?.pending?.length?'clarify':['discuss','unread'].includes(outcome?.status)?outcome.status:'not_saved';
++      let preparation=job.coreWorkOutcome||null;
++      if(saved&&(!preparation||preparation.status==='running')&&!['running','completed'].includes(job.status))preparation={...preparation,status:'incomplete',reason:job.error||(job.status==='cancelled'?'后续处理已取消，已保存事实保留':'后续处理未完成，已保存事实保留')};
++      return {status,inputStatus:e.status,jobStatus:job.status,save:saved?{status:'saved',receipt:stored}:{status:status==='withdrawn'?'withdrawn':'not_saved'},outcome:!saved&&outcome?.status==='saved'?{...outcome,status,receipt:undefined}:outcome,preparation,failureCode,error:job.error||e.error||'',receipt:saved?'事实已保存到原事项；后续准备单列，第三方新消息仍需预览':'原输入已保留，尚未确认业务保存；第三方新消息仍需预览'};
++    }
++    if(job.status==='running')return {status:'processing'};
+     if(e.receipt?.stage==='readback_verified')return e.receipt;
+     const identity=await this.client.identity();if(identity.scope!==source.personalMessage.scope||identity.userId!==source.personalMessage.accountId)throw fail('回执身份变化');
+     const text=job.status==='completed'?job.p1Outcome?.status==='saved'?'已记录到原事项：'+(job.p1Outcome.receipt.progress||'本次安排')+'。':job.p1Outcome?.status==='clarify'?'输入已保留，有具体差异需要你在工作台核对。':'本次资料已保留，理解结果可在原事项查看。':'本次尚未完成保存：'+(job.error||'处理失败')+'。原输入保留。';
+diff --git a/scripts/test-core-feishu.mjs b/scripts/test-core-feishu.mjs
+index 71222b14..9f6074ac 100644
+--- a/scripts/test-core-feishu.mjs
++++ b/scripts/test-core-feishu.mjs
+@@ -22,7 +22,7 @@ try{
+  setup();
+  await test('P2-reference','verified old message maps to latest item, saves through original assistant, returns private receipt',async()=>{const s=app.state(),row=s.sources.find(r=>r.id===app.ids.action);row.workItem.summary='较新当前事实';row.version++;s.revision++;app.store.save(s,s.revision-1);await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_reply_1'));const {input,job}=await waitInput('om_reply_1');assert.equal(job.status,'completed',job.error);assert.equal(input.inputEnvelope.targetId,app.ids.action);assert.equal(job.coreContext.items.find(i=>i.id===app.ids.action).version,row.version);assert.equal(d.coreState(app.state().sources.find(r=>r.id===app.ids.action)).priority.base,'P1');assert.equal(input.inputEnvelope.receipt.stage,'readback_verified');assert.equal(writes.length,1);await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_reply_1'));assert.equal(writes.length,1);});
+  await test('P2-missing-reference','missing reference preserves received input without guessing an item',async()=>{await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_unknown','om_missing'));const input=app.state().sources.find(r=>r.personalMessage?.messageId==='om_unknown');assert.equal(input.inputEnvelope.status,'needs_association');assert.equal(input.inputEnvelope.jobId,undefined);assert.equal(writes.length,1);});
+- await test('P2-background-budget','colleague inputs use the background budget and retained queue resumes with same raw source',async()=>{const current=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:current.revision,enabled:true,dailyTokens:10000});const before=writes.length;await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_colleague_budget','om_prior','ou_colleague','已收到合成数据，设为P1'));const held=await waitInput('om_colleague_budget');assert.equal(held.job.status,'failed');assert.equal(held.job.failureCode,'AI_BUDGET');assert.equal(held.job.analysisChannel,'background');await app.coreInbox.resumeBudgetQueue(app.workspaceId);assert.equal(app.state().sources.find(r=>r.id===held.input.id).inputEnvelope.status,'budget_wait');const budget=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:budget.revision,enabled:true,dailyTokens:500000});app.coreInbox.reader={verifyMessage:async()=>incoming.get('om_colleague_budget').raw};await app.coreInbox.resumeBudgetQueue(app.workspaceId);const resumed=await waitInput('om_colleague_budget');assert.equal(resumed.job.status,'completed',resumed.job.error);assert.equal(resumed.input.id,held.input.id);assert.equal(resumed.job.analysisChannel,'background');assert.equal(writes.length,before);});
++ await test('P2-background-budget','colleague inputs use the background budget and retained queue resumes with same raw source',async()=>{const current=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:current.revision,enabled:true,dailyTokens:10000});const before=writes.length;await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_colleague_budget','om_prior','ou_colleague','已收到合成数据，设为P1'));const held=await waitInput('om_colleague_budget');assert.equal(held.job.status,'failed');assert.equal(held.job.failureCode,'AI_BUDGET');assert.equal(held.job.analysisChannel,'background');const failedReceipt=await app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'input-receipt',sourceId:held.input.id});assert.equal(failedReceipt.status,'budget_wait');assert.equal(failedReceipt.save.status,'not_saved');await app.coreInbox.resumeBudgetQueue(app.workspaceId);assert.equal(app.state().sources.find(r=>r.id===held.input.id).inputEnvelope.status,'budget_wait');const budget=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:budget.revision,enabled:true,dailyTokens:500000});app.coreInbox.reader={verifyMessage:async()=>incoming.get('om_colleague_budget').raw};await app.coreInbox.resumeBudgetQueue(app.workspaceId);const resumed=await waitInput('om_colleague_budget');assert.equal(resumed.job.status,'completed',resumed.job.error);assert.equal(resumed.input.id,held.input.id);const savedReceipt=await app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'input-receipt',sourceId:resumed.input.id});assert.equal(savedReceipt.status,'saved');assert.equal(savedReceipt.save.status,'saved');assert.equal(resumed.job.analysisChannel,'background');assert.equal(writes.length,before);});
+  await test('AT-14-field-scoped','late reply cannot undo a newer priority, but its unrelated check and ordinary facts still save',async()=>{let state=app.state(),row=state.sources.find(r=>r.id===app.ids.action),c=d.workItemState(state,row);await app.api('/api/v2/work-items',{workspaceId:app.workspaceId,sourceId:row.id,expectedVersion:row.version,expectedBasis:c.basis,requestId:crypto.randomUUID(),action:'core-priority',priority:'P3'});await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_late_check','om_prior','ou_self','已联系负责人，周三检查，设为P1'));let result=await waitInput('om_late_check');assert.equal(result.job.status,'completed',result.job.error);row=app.state().sources.find(r=>r.id===app.ids.action);assert.equal(row.workItem.core.priority.base,'P3');assert.equal(row.workItem.p1.check.date,'2026-10-14');assert.ok(result.job.coreOutcome.pending.some(p=>p.kind==='late-instruction'));state=app.state();row=state.sources.find(r=>r.id===app.ids.action);c=d.workItemState(state,row);await app.api('/api/v2/work-items',{workspaceId:app.workspaceId,sourceId:row.id,expectedVersion:row.version,expectedBasis:c.basis,requestId:crypto.randomUUID(),action:'p1-submit',entry:{intent:'record',progress:'',progressQuote:'',waitingFor:'',waitingResult:'',waitingQuote:'',checkCompleted:false,checkQuote:'',riskDecision:'none',riskQuote:'',followup:'unchanged',followupQuote:'',check:{state:'unchanged'},completion:{state:'unchanged'},clarification:''},input:{text:'',occurredAt:new Date().toISOString(),manual:{check:{state:'scheduled',date:'2026-10-20'}}}});await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_late_time','om_prior','ou_self','已收到新的反馈，周三检查'));result=await waitInput('om_late_time');assert.equal(result.job.status,'completed',result.job.error);row=app.state().sources.find(r=>r.id===app.ids.action);assert.equal(row.workItem.p1.check.date,'2026-10-20');assert.match(row.workItem.p1.progress.at(-1).text,/已收到/);assert.ok(result.job.p1Outcome.receipt.pendingChanges.some(p=>p.id==='check'));});
+  await test('P2-self-receipt-failure','saved state and unknown reply delivery stay distinct without blind retry',async()=>{lostReceipt=true;await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',event('om_reply_2','om_prior','ou_self','已收到新的合成反馈'));const {input,job}=await waitInput('om_reply_2');assert.equal(job.status,'completed',job.error);assert.equal(job.p1Outcome.status,'saved');assert.equal(input.inputEnvelope.receipt.stage,'unknown');const before=writes.length;await app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'input-receipt',sourceId:input.id});assert.equal(writes.length,before);});
+ }finally{writeFileSync(output+'/feishu-adapter-results.json',JSON.stringify({scope:'simulated Feishu transport through real event bridge + assistant + SQLite; not live Feishu delivery',results,writes:writes.length},null,2));await app.close();}
+diff --git a/scripts/test-core-p1-p5.mjs b/scripts/test-core-p1-p5.mjs
+index 67dd403e..bd1b7be2 100644
+--- a/scripts/test-core-p1-p5.mjs
++++ b/scripts/test-core-p1-p5.mjs
+@@ -43,7 +43,7 @@ try{
+   await check('P3-time','10am explicit and midnight date semantics survive 9am regular and quiet hours',()=>{const s=fixture(),r=managed(s);r.workItem.p1={check:{state:'scheduled',date:'2026-10-13',precision:'date',defaultTime:'10:00',effectiveAt:'2026-10-13T02:00:00Z'},completion:{state:'scheduled',date:'2026-10-13',precision:'date'}};assert.equal(d.itemTiming(s,r,now).completionDue[0].label,'今日到期');assert.equal(d.coreNotice(s,r,calendar(),now).kind,'regular');assert.equal(d.coreNotice(s,r,calendar(),'2026-10-13T02:00:00Z').kind,'explicit');assert.equal(d.coreNotice(s,r,undefined,'2026-10-13T02:00:00Z').kind,'explicit');r.workItem.p1.check.effectiveAt='2026-10-16T13:00:00Z';assert.equal(d.coreNotice(s,r,calendar(),'2026-10-16T13:00:00Z').kind,'explicit');assert.equal(d.itemTiming(s,r,'2026-10-13T16:00:00Z').completionDue[0].label,'要求时间已过，完成情况待核实');assert.equal(r.workItem.p1.completion.effectiveAt,undefined);});
+   await check('P3-DND','ordinary late notices defer and a temporary P1 does not bypass quiet hours',()=>{const s=fixture(),r=managed(s),c=d.ensureCore(r);c.cycle.temp={level:'P1',priorityEpoch:c.priority.epoch};assert.equal(d.coreNotice(s,r,calendar(),'2026-10-13T10:00:00Z').eligible,false);assert.equal(d.coreNotice(s,r,undefined,now).calendarGap,true);});
+   await check('P3-late-receipt','late delivery preserves later human priority and count reset',()=>{const s=fixture(),r=managed(s),n=d.coreNotice(s,r,calendar(),now);d.applyCoreDecision(s,r,{action:'core-priority',priority:'P3'},now);d.countCoreNotice(r,n,now);assert.equal(d.ensureCore(r).cycle.count,0);assert.equal(d.effectivePriority(r),'P3');});
+-  await check('P3-end','candidate solved before admission withdraws; manual closure reopens only as proposal',()=>{const s=fixture(),r=item(s);d.applyNeedAssessment(s,r,assessment(s,{goalSatisfied:true,noIntervention:true,remainingActions:[]}),now);assert.equal(d.coreState(r).admission,'withdrawn');assert.equal(r.workItem.p1.lifecycle.owner,'auto');r.workItem.p1.lifecycle.owner='manual';freshProof(s,'新证据表明仍有未完成工作');d.applyNeedAssessment(s,r,assessment(s),now);assert.equal(r.workItem.p1.lifecycle.state,'closed');assert.ok(d.coreState(r).reopenProposal);});
++  await check('P3-end','candidate solved before admission withdraws; manual closure reopens only as proposal',()=>{const s=fixture(),r=item(s);d.applyNeedAssessment(s,r,assessment(s,{goalSatisfied:true,noIntervention:true,remainingActions:[]}),now);assert.equal(d.coreState(r).admission,'withdrawn');assert.equal(r.workItem.p1.lifecycle.owner,'auto');r.workItem.p1.lifecycle.owner='manual';freshProof(s,'新证据表明仍有未完成工作');d.applyNeedAssessment(s,r,assessment(s),now);assert.equal(r.workItem.p1.lifecycle.state,'closed');assert.ok(d.coreState(r).reopenProposal);d.ensureCore(r).resultNotice.deliveredAt=now;const notice=d.coreNotice(s,r,calendar(),'2026-10-14T01:00:00Z');assert.equal(notice.eligible,true);assert.equal(notice.kind,'review');assert.equal(notice.counts,false);d.countCoreNotice(r,notice,notice.at);assert.equal(r.workItem.p1.lifecycle.state,'closed');assert.equal(d.coreState(r).cycle.count,0);});
+   const window=s=>({dependency:{id:'edge',upstreamId:'item',downstreamId:'downstream',input:'测试包',affectedWork:'合成关键测试',impact:'评审中的验证结论',proof:proof(s),resolved:false},readStatus:'verified',planConfirmed:true,planProof:proof(s),duration:{min:2,max:6,unit:'hours',remaining:true,includesPreparation:true,includesRetest:false,conditions:'合成连续测试，含准备，不含额外缺陷复测',proof:proof(s)},sharedProof:proof(s),availableHours:4,windowProof:proof(s),calendarSource:'合成有效工时窗口',coordination:'not-tried',coordinationProof:[],knownByAffected:false,awarenessProof:[],arrangementDecided:false,closingWindow:false,closingProof:[],options:[]});
+   await check('C45-02/13','range exists and range shared are independently checked at plan confirmation',()=>{const s=fixture(),w=window(s);assert.equal(d.evaluateDependency(s,w).status,'observe');w.sharedProof=[];const missing=d.evaluateDependency(s,w);assert.equal(missing.status,'needs-range');assert.equal(missing.rangeExists,true);assert.equal(missing.shared,false);w.readStatus='failed';assert.equal(d.evaluateDependency(s,w).status,'unverified');});
+   await check('C45-03/05/06/08','evidence supports observe, resource coordination, impact sharing and leader decision',()=>{const s=fixture(),w=window(s);assert.equal(d.evaluateDependency(s,w).intervene,false);w.availableHours=1;assert.equal(d.evaluateDependency(s,w).gapHours,1);assert.equal(d.evaluateDependency(s,w).status,'coordinate');w.coordination='impossible';w.coordinationProof=proof(s);assert.equal(d.evaluateDependency(s,w).status,'share-impact');w.knownByAffected=true;w.awarenessProof=proof(s);assert.equal(d.evaluateDependency(s,w).status,'share-impact');s.sources.push(row('aware',{excerpt:'所有评审参与者已明确了解测试对兼容性评审的时间缺口与影响，并回复确认收到。'}));w.awarenessProof=[{sourceId:'aware',fingerprint:d.coreProofFingerprint(s.sources.find(r=>r.id==='aware')),quote:s.sources.find(r=>r.id==='aware').excerpt}];assert.equal(d.evaluateDependency(s,w).status,'leader-decision');});
+diff --git a/scripts/test-core-r2-fix1.mjs b/scripts/test-core-r2-fix1.mjs
+new file mode 100644
+index 00000000..c6f9f5f0
+--- /dev/null
++++ b/scripts/test-core-r2-fix1.mjs
+@@ -0,0 +1,159 @@
++import assert from 'node:assert/strict';
++import {mkdirSync,mkdtempSync,readFileSync,writeFileSync} from 'node:fs';
++import path from 'node:path';
++import {setTimeout as delay} from 'node:timers/promises';
++import * as d from '../dist-local/domain.mjs';
++import {LocalStore} from './local-store.mjs';
++import {WorkItemCoreService} from './work-item-core-service.mjs';
++import {fixtureState} from './s1p1-fixtures.mjs';
++import {startCoreFixture} from './core-fixtures.mjs';
++
++const output=path.resolve(process.env.PM_R2_OUTPUT||'output/r2-fix1');mkdirSync(output,{recursive:true});
++const results=[];
++async function test(id,name,fn){try{await fn();results.push({id,name,passed:true});console.log('PASS',id,name);}catch(error){results.push({id,name,passed:false,error:error.stack});console.log('FAIL',id,name,'\n'+error.stack);}}
++async function until(fn){for(let i=0;i<250;i++){const v=await fn();if(v)return v;await delay(30);}throw Error('Expected product state not reached');}
++const calendar={id:'r2-synthetic',revision:1,source:'合成明确日历：周三休息、周六工作；不代表公司排班',verifiedAt:'2026-10-13T00:00:00Z',from:'2026-10-13',through:'2026-10-18',synthetic:true,days:{'2026-10-13':true,'2026-10-14':false,'2026-10-15':true,'2026-10-16':true,'2026-10-17':true,'2026-10-18':false}};
++function closedFixture(id){
++  let {s,ids}=fixtureState(id);s.sources=s.sources.filter(r=>!r.workItem||r.id===ids.action);
++  let row=s.sources.find(r=>r.id===ids.action),current=d.workItemState(s,row);
++  s=d.applyWorkItemOperation(s,{workspaceId:id,sourceId:row.id,expectedVersion:row.version,expectedBasis:current.basis,requestId:id+'-close',action:'done',reason:'合成本人确认关闭'},'2026-10-12T03:00:00Z');
++  row=s.sources.find(r=>r.id===ids.action);const proof=s.sources.find(r=>r.id==='src-action');proof.excerpt+=' 新的测试证据表明仍需核实后续。';proof.version++;
++  d.applyNeedAssessment(s,row,{id:id+'-new-evidence',occurredAt:'2026-10-13T00:00:00Z',proof:[{sourceId:proof.id,fingerprint:d.coreProofFingerprint(proof),quote:proof.excerpt}],needKey:'r2-need',description:'核实新的合成测试证据',actor:'self',actualAction:false,substantiveProgress:false,executableArrangement:false,currentHandled:false,noIntervention:false,goalSatisfied:false,remainingActions:['核实测试证据'],priority:'P2',priorityReason:'合成后续',urgent:false,suggestP0:false,steps:[]},'2026-10-13T00:00:00Z');
++  return {s,row,proof};
++}
++async function runtime(id,fn){
++  const store=new LocalStore(mkdtempSync(path.join(output,'runtime-')),{testMode:true});await store.initialize(null);
++  const {s,row}=closedFixture(id);store.insert(s);let time='2026-10-13T00:59:00Z';const sends=[];
++  const adapter=name=>({identity:async()=>({channel:name,selfId:'ou_self'}),send:async value=>{sends.push({channel:name,at:time,...value});return {id:value.key,selfId:value.selfId,basis:value.basis};},readback:async value=>({...value,delivery:name==='desktop'?'submitted':'message_readback_verified'})});
++  const service=new WorkItemCoreService({store,domain:d,clock:()=>Date.parse(time),testMode:true,client:{identity:async()=>({scope:'synthetic',userId:'ou_self'})},notifications:{desktop:adapter('desktop'),feishu_self:adapter('feishu_self')},refresh:async()=>{}});
++  service.configure({workspaceId:id,revision:0,calendar});store.setSetting('coreAutomation:'+id,{revision:1,enabled:true,lastTick:'2026-10-12T01:00:00Z'});
++  const read=()=>store.load(id).sources.find(r=>r.id===row.id);
++  const modify=fn=>{const state=store.load(id);fn(state,state.sources.find(r=>r.id===row.id));state.revision++;store.save(state,state.revision-1);};
++  try{await fn({store,service,read,modify,sends,setTime:v=>time=v,id,sourceId:row.id});}finally{await service.close();store.close();}
++}
++
++await test('B01-domain','closed + new evidence enters review on actual workday at 09:00; no business count',()=>{
++  const {s,row}=closedFixture('b01-domain'),c=d.ensureCore(row);assert.ok(c.reopenProposal);
++  assert.equal(d.coreNotice(s,row,calendar,'2026-10-13T00:59:00Z').eligible,false);
++  const n=d.coreNotice(s,row,calendar,'2026-10-13T01:00:00Z');assert.equal(n.eligible,true);assert.equal(n.kind,'review');assert.equal(n.counts,false);
++  d.countCoreNotice(row,n,n.at);assert.equal(d.coreNotice(s,row,calendar,n.at).eligible,false);
++  assert.equal(d.coreNotice(s,row,calendar,'2026-10-14T01:00:00Z').eligible,false);
++  assert.equal(d.coreNotice(s,row,calendar,'2026-10-15T01:00:00Z').kind,'review');assert.equal(row.workItem.p1.lifecycle.state,'closed');assert.equal(c.cycle.count,0);assert.equal(c.cycle.escalated,false);
++});
++await test('B01-runtime','tick/notify sends both simulated channels once per workday, survives recovery and keeps closure',()=>runtime('b01-runtime',async({service,read,sends,setTime,id,sourceId})=>{
++  await service.tick();assert.equal(sends.length,0);setTime('2026-10-13T01:00:00Z');await service.tick();assert.equal(sends.length,2);
++  await service.notify(id,sourceId);await service.tick();assert.equal(sends.length,2);
++  setTime('2026-10-14T01:00:00Z');await service.tick();assert.equal(sends.length,2);
++  setTime('2026-10-15T01:00:00Z');await service.tick();assert.equal(sends.length,4);
++  setTime('2026-10-17T01:00:00Z');await service.tick();assert.equal(sends.length,6);
++  const row=read();assert.equal(row.workItem.p1.lifecycle.state,'closed');assert.ok(row.workItem.core.reopenProposal);assert.equal(row.workItem.core.cycle.count,0);assert.equal(row.workItem.core.cycle.escalated,false);
++  assert.equal(row.workItem.core.deliveryHistory.length,3);assert.ok(row.workItem.core.deliveryHistory.every(n=>!n.counted));
++  const view=service.view(id,sourceId);assert.ok(view.items[0].core.reopenProposal);assert.ok(view.notices.every(n=>n.notice.kind==='review'&&Object.values(n.channels).every(c=>c.stage==='readback_verified')));
++}));
++await test('B01-pause','manual pause, explicit postponement, missing calendar and quiet hours retain review until allowed',()=>runtime('b01-pause',async({service,modify,read,sends,setTime,id,sourceId})=>{
++  modify((s,row)=>d.applyCoreDecision(s,row,{action:'core-pause',manualResume:true},'2026-10-13T00:30:00Z',calendar));setTime('2026-10-13T01:00:00Z');await service.tick();assert.equal(sends.length,0);
++  modify((s,row)=>d.applyCoreDecision(s,row,{action:'core-resume'},'2026-10-13T01:00:00Z',calendar));await service.tick();assert.equal(sends.length,2);
++  modify((s,row)=>d.applyCoreDecision(s,row,{action:'core-pause',until:'2026-10-15T01:00:00Z'},'2026-10-13T02:00:00Z',calendar));setTime('2026-10-14T01:00:00Z');await service.tick();assert.equal(sends.length,2);
++  setTime('2026-10-15T01:00:00Z');await service.tick();assert.equal(sends.length,4);assert.equal(read().workItem.core.pause,null);
++  setTime('2026-10-16T10:01:00Z');await service.notify(id,sourceId);assert.equal(sends.length,4);setTime('2026-10-17T01:00:00Z');await service.tick();assert.equal(sends.length,6);
++  const state=service.store.load(id);assert.equal(d.coreNotice(state,read(),undefined,'2026-10-16T01:00:00Z').calendarGap,true);
++}));
++await test('B01-closed-controls','closed review cannot revive old explicit checks, P0 urgency, deferred business slots or recovery reminders',()=>{
++  for(const variant of ['explicit','urgent','focused','deferred','recovery']){
++    const {s,row}=closedFixture('b01-'+variant),c=d.ensureCore(row);
++    if(variant==='explicit')row.workItem.p1.check={state:'scheduled',effectiveAt:'2026-10-13T00:00:00Z',date:'2026-10-13',time:'08:00'};
++    if(variant==='urgent'){c.assessment.urgent=true;c.assessment.suggestP0=true;}
++    if(variant==='focused'){c.priority.base='P0';c.fullFocus=true;c.p0Event={key:'old',at:'2026-10-12T02:00:00Z'};}
++    if(variant==='deferred')c.deferredNotification={slot:'old-regular',kind:'regular',cycleId:c.cycle.id,cycleEpoch:c.cycle.epoch,priorityEpoch:c.priority.epoch,until:'2026-10-13T01:00:00Z'};
++    if(variant==='recovery')c.priority.base='P1';
++    assert.equal(d.coreNotice(s,row,calendar,'2026-10-13T00:30:00Z',{recovery:true}).eligible,false,variant);
++    const n=d.coreNotice(s,row,calendar,'2026-10-13T01:00:00Z',{recovery:true});assert.equal(n.kind,'review',variant);assert.equal(n.counts,false);assert.equal(n.checkKey,'');
++    d.countCoreNotice(row,n,n.at);assert.equal(d.coreNotice(s,row,calendar,'2026-10-13T06:00:00Z',{recovery:true}).eligible,false,variant);
++  }
++});
++await test('B01-invalid','no pending decision, withdrawn proof, completed decision and later manual close stay quiet',()=>{
++  for(const mode of ['none','withdrawn','reopen','reclose','resolved']){
++    let {s,row,proof}=closedFixture('b01-invalid-'+mode);
++    if(mode==='none')row.workItem.core.reopenProposal=null;
++    if(mode==='withdrawn'){proof.inputEnvelope={effectWithdrawn:true};d.invalidateCoreDerivations(s,row,'2026-10-13T00:30:00Z','合成证据撤回');}
++    if(mode==='reopen'||mode==='reclose'){const c=d.workItemState(s,row);s=d.applyWorkItemOperation(s,{workspaceId:s.workspaceId,sourceId:row.id,expectedVersion:row.version,expectedBasis:c.basis,requestId:'decision',action:mode==='reopen'?'reopen':'done',addOwnEvidence:true,reason:'本人核对后的明确决定'},'2026-10-13T00:30:00Z');row=s.sources.find(r=>r.id===row.id);}
++    if(mode==='resolved'){proof.excerpt+=' 新核验确认目标满足且无剩余动作。';proof.version++;d.applyNeedAssessment(s,row,{...row.workItem.core.assessment,id:'resolved',occurredAt:'2026-10-13T00:30:00Z',proof:[{sourceId:proof.id,fingerprint:d.coreProofFingerprint(proof),quote:proof.excerpt}],goalSatisfied:true,remainingActions:[],steps:[],noIntervention:true},'2026-10-13T00:30:00Z');}
++    assert.ok(!row.workItem.core.reopenProposal,mode+' must retire the proposal');
++    if(mode==='reopen')assert.notEqual(d.coreNotice(s,row,calendar,'2026-10-13T01:00:00Z').kind,'review');else assert.equal(d.coreNotice(s,row,calendar,'2026-10-13T01:00:00Z').eligible,false,mode);
++  }
++});
++await test('B01-channel-race','evidence withdrawal between channel receipts stops the unsent channel and removes current review projection',()=>runtime('b01-channel-race',async({service,modify,sends,setTime,id,sourceId})=>{
++  const send=service.notifications.desktop.send;service.notifications.desktop.send=async input=>{const receipt=await send(input);modify(s=>{s.sources.find(r=>r.id==='src-action').inputEnvelope={effectWithdrawn:true};});return receipt;};
++  setTime('2026-10-13T01:00:00Z');await service.tick();assert.equal(sends.length,1);const view=service.view(id,sourceId);assert.equal(view.items[0].core.reopenProposal,null);assert.equal(view.notices[0].channels.feishu_self.stage,'stopped');assert.equal(view.items[0].notice.eligible,false);
++}));
++await test('B01-proposal-race','a replacement proposal during channel identity verification cannot send the previous decision text',()=>runtime('b01-proposal-race',async({service,modify,sends,setTime,id,sourceId})=>{
++  const identity=service.notifications.desktop.identity;let changed=false;
++  service.notifications.desktop.identity=async()=>{if(!changed){changed=true;modify((_s,row)=>{row.workItem.core.reopenProposal={...row.workItem.core.reopenProposal,id:'replacement-proposal',reason:'需要审核另一条新证据',at:'2026-10-13T01:00:00Z'};});}return identity();};
++  setTime('2026-10-13T01:00:00Z');await service.notify(id,sourceId);assert.equal(sends.length,0);
++  await service.notify(id,sourceId);assert.equal(sends.length,2);assert.ok(sends.every(s=>s.body.includes('另一条新证据')));
++}));
++
++async function inbox(fn,{workAnalyse,modelMode}={}){
++  const identity={scope:'tenant/app',userId:'ou_self',appId:'app',tenantKey:'tenant'},incoming=new Map(),writes=[];
++  const client={simulation:true,identity:async()=>identity,run:async args=>{
++    if(args[0]==='api'&&args[1]==='GET'){const p=JSON.parse(args[args.indexOf('--params')+1]);return {items:p.message_ids.map(id=>incoming.get(id)?.raw).filter(Boolean)};}
++    if(args[1]==='+messages-mget')return {messages:[incoming.get(args[args.indexOf('--message-ids')+1])?.readable].filter(Boolean)};
++    writes.push(args);throw Error('R2 colleague test forbids external sends');
++  }};
++  const app=await startCoreFixture({client,workAnalyse});
++  if(modelMode){const f=app.assistant.codexBin;writeFileSync(f,readFileSync(f,'utf8').replace('JSON.stringify(syntheticModel(text,context))',`JSON.stringify((()=>{const r=syntheticModel(text,context);r.coreInput.records=[];r.coreInput.ambiguities=${JSON.stringify(modelMode==='clarify'?['合成信息缺口：需要确认哪项测试结果']:[])};return r;})())`));}
++  let s=app.state();
++  if(workAnalyse){const row=s.sources.find(r=>r.id===app.ids.action),source=s.sources.find(r=>r.id==='src-action'),proof=[{sourceId:source.id,fingerprint:d.coreProofFingerprint(source),quote:source.excerpt}];d.saveDependencyWindow(s,row,{dependency:{id:'synthetic-existing-edge',upstreamId:app.ids.risk,downstreamId:row.id,input:'合成测试输入',affectedWork:'测试准备',impact:'合成评审',proof,resolved:false},readStatus:'partial',planConfirmed:false,planProof:[],duration:null,sharedProof:[],availableHours:null,windowProof:[],calendarSource:'合成未知窗口',coordination:'not-tried',coordinationProof:[],knownByAffected:false,awarenessProof:[],arrangementDecided:false,closingWindow:false,closingProof:[],options:[]},'2026-10-13T01:00:00Z');}
++  s.sources.push({id:'old-reminder',title:'合成历史本人提醒',projectIds:['p'],sourceIds:[],version:1,followupNotification:{core:true,workItemId:app.ids.action,channels:{feishu_self:{receipt:{id:'om_prior'}}}}});s.revision++;app.store.save(s,s.revision-1);
++  const control=app.agentMonitor.control(app.workspaceId);Object.assign(control,{enabled:true,startedAt:'2026-10-13T00:00:00Z',identity,eventPush:{enabled:true,revision:1}});app.agentMonitor.save(app.workspaceId,control);
++  async function receive(id,text='已收到合成测试反馈，设为P1'){
++    const raw={message_id:id,chat_id:'oc_test',parent_id:'om_prior',create_time:String(Date.parse('2026-10-13T02:00:00Z')),msg_type:'text',sender:{id:'ou_colleague'},body:{content:JSON.stringify({text})}};
++    incoming.set(id,{raw,readable:{...raw,content:text}});await app.eventBridge.ingest(app.workspaceId,'im.message.receive_v1',{message_id:id,chat_id:'oc_test',chat_type:'group',sender_id:'ou_colleague',parent_id:'om_prior'});
++    return until(()=>app.state().sources.find(r=>r.personalMessage?.messageId===id&&r.inputEnvelope?.jobId));
++  }
++  const job=input=>app.assistant.get(app.state().sources.find(r=>r.id===input.id).inputEnvelope.jobId,app.workspaceId);
++  const done=input=>until(()=>{const j=job(input);return j.status!=='running'&&j;});
++  const receipt=input=>app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'input-receipt',sourceId:input.id});
++  const progress=()=>app.state().sources.find(r=>r.id===app.ids.action).workItem.p1?.progress||[];
++  try{await fn({app,receive,job,done,receipt,progress,incoming,writes});assert.equal(writes.length,0,'No third-party or self outbound message');}finally{await app.close();}
++}
++await test('B02-budget','AI_BUDGET via event bridge reports waiting, then reuses original input and saves once',()=>inbox(async({app,receive,done,receipt,progress,incoming})=>{
++  let b=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:b.revision,enabled:true,dailyTokens:10000});
++  const input=await receive('om_budget'),j=await done(input);assert.equal(j.status,'failed');assert.equal(j.failureCode,'AI_BUDGET');
++  let r=await receipt(input);assert.equal(r.status,'budget_wait');assert.equal(r.save.status,'not_saved');assert.equal(progress().length,0);assert.ok(app.state().sources.find(v=>v.id===input.id).excerpt);
++  await app.coreInbox.resumeBudgetQueue(app.workspaceId);assert.equal((await receipt(input)).status,'budget_wait');
++  b=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:b.revision,enabled:true,dailyTokens:500000});app.coreInbox.reader={verifyMessage:async()=>incoming.get('om_budget').raw};await app.coreInbox.resumeBudgetQueue(app.workspaceId);await done(input);
++  r=await receipt(input);assert.equal(r.status,'saved');assert.equal(r.save.status,'saved');assert.equal(progress().length,1);await app.coreInbox.resumeBudgetQueue(app.workspaceId);assert.equal(progress().length,1);assert.equal(app.state().sources.filter(v=>v.personalMessage?.messageId==='om_budget').length,1);
++}));
++await test('B02-cancel','real cancellation before commit reports cancelled and preserves input without saved state',()=>inbox(async({app,receive,receipt,progress})=>{
++  const input=await receive('om_cancel');assert.equal((await receipt(input)).status,'processing');await app.api('/api/v2/codex/jobs/'+input.inputEnvelope.jobId+'/cancel',{workspaceId:app.workspaceId});
++  const r=await receipt(input);assert.equal(r.status,'cancelled');assert.equal(r.save.status,'not_saved');assert.equal(progress().length,0);assert.ok(app.state().sources.find(v=>v.id===input.id));
++}));
++await test('B02-clarify','completed understanding with an ambiguity is not a saved business update',()=>inbox(async({receive,done,receipt,progress})=>{
++  const input=await receive('om_clarify');assert.equal((await done(input)).status,'completed');const r=await receipt(input);assert.equal(r.status,'clarify');assert.equal(r.save.status,'not_saved');assert.equal(progress().length,0);assert.ok(r.outcome.ambiguities.length);
++},{modelMode:'clarify'}));
++await test('B02-discuss','completed discussion with no business write stays discussion',()=>inbox(async({receive,done,receipt,progress})=>{
++  const input=await receive('om_discuss');await done(input);const r=await receipt(input);assert.equal(r.status,'discuss');assert.equal(r.save.status,'not_saved');assert.equal(progress().length,0);
++},{modelMode:'discuss'}));
++for(const mode of ['fail','budget','cancel'])await test('B02-stage-'+mode,'persisted first stage survives later '+mode+' with separate unfinished preparation',async()=>{
++  let release;
++  await inbox(async({app,receive,done,receipt,progress})=>{
++    const input=await receive('om_stage_'+mode);await until(()=>release);let r=await receipt(input);assert.equal(r.status,'saved');assert.equal(r.jobStatus,'running');assert.equal(r.preparation.status,'running');assert.equal(progress().length,1);
++    if(mode==='cancel')await app.api('/api/v2/codex/jobs/'+input.inputEnvelope.jobId+'/cancel',{workspaceId:app.workspaceId});release();await done(input);
++    r=await until(async()=>{const v=await receipt(input);return v.preparation?.status==='incomplete'&&v;});assert.equal(r.status,'saved');assert.equal(r.save.status,'saved');assert.equal(r.preparation.status,'incomplete');assert.ok(r.preparation.reason);assert.equal(progress().length,1);
++    if(mode==='budget'){
++      let b=app.assistant.aiUsage.budgetStatus();app.assistant.aiUsage.configureBudget({revision:b.revision,enabled:true,dailyTokens:500000});app.coreInbox.reader={verifyMessage:async()=>({})};app.assistant.coreWorkAnalyse=async context=>{const p=context.evidence.find(e=>e.text);return {dependencies:[],deliveries:[],messages:[],citations:[{citationId:p.citationId,quote:p.text,interpretation:'已核对合成来源，无新增准备动作'}]};};
++      await app.coreInbox.resumeBudgetQueue(app.workspaceId);await done(input);r=await receipt(input);assert.equal(r.status,'saved');assert.equal(r.preparation.status,'prepared');assert.equal(progress().length,1);assert.equal(app.state().sources.filter(v=>v.personalMessage?.messageId==='om_stage_budget').length,1);
++    }
++  },{workAnalyse:async(_context,{signal})=>{await new Promise(resolve=>{release=resolve;signal.addEventListener('abort',resolve,{once:true});});throw Object.assign(Error(mode==='budget'?'合成后续准备预算不足':'合成后续分析超时'),{status:429,code:mode==='budget'?'AI_BUDGET':'TEST_TIMEOUT'});}});
++});
++await test('B02-persistence','unpersisted saved outcome cannot assert success; durable receipt survives job cache loss and undo is distinguished',()=>inbox(async({app,receive,done,receipt})=>{
++  const input=await receive('om_durable'),j=await done(input),original=app.assistant.get.bind(app.assistant);
++  app.assistant.get=(id,w)=>({...original(id,w),coreOutcome:undefined,p1Outcome:undefined});assert.equal((await receipt(input)).status,'saved');app.assistant.get=original;
++  const r=await receipt(input);await app.api('/api/v2/work-items',{workspaceId:app.workspaceId,sourceId:app.ids.action,requestId:crypto.randomUUID(),action:'p1-undo',operationId:r.save.receipt.operationId});assert.notEqual((await receipt(input)).status,'saved');
++  const state=app.state();delete state.receipts['core-input:'+j.id];delete state.receipts['work-item:'+j.p1Outcome.receipt.operationId];state.sources.find(v=>v.id===input.id).inputEnvelope.effectWithdrawn=false;state.revision++;app.store.save(state,state.revision-1);
++  const missing=await receipt(input);assert.equal(missing.save.status,'not_saved');assert.notEqual(missing.status,'saved');
++}));
++
++writeFileSync(path.join(output,'targeted-results.json'),JSON.stringify({scope:'Original compiled product domain, real WorkItemCoreService tick/notify, real HTTP input-receipt, event bridge, assistant and SQLite; synthetic calendar/model/transport only',results},null,2));
++if(results.some(r=>!r.passed))process.exitCode=1;
+diff --git a/scripts/verify-core-r2-fix1.mjs b/scripts/verify-core-r2-fix1.mjs
+new file mode 100644
+index 00000000..819c8ec1
+--- /dev/null
++++ b/scripts/verify-core-r2-fix1.mjs
+@@ -0,0 +1,21 @@
++import {spawn} from 'node:child_process';
++import {createHash} from 'node:crypto';
++import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
++import path from 'node:path';
++
++const output=path.resolve('output/r2-fix1/verification-'+new Date().toISOString().replaceAll(':','-'));mkdirSync(output,{recursive:true});
++const paths=['lib/work-item-core.ts','lib/work-items.ts','scripts/work-item-core-service.mjs','scripts/core-feishu-input.mjs','scripts/test-core-r2-fix1.mjs','scripts/test-core-p1-p5.mjs','scripts/test-core-feishu.mjs','scripts/verify-core-r2-fix1.mjs','package.json','package-lock.json','release.json'];
++const summary={startedAt:new Date().toISOString(),baseline:'012b89173cebfcdfafd1cb011d42ab97237c554b',release:JSON.parse(readFileSync('release.json')),scope:'isolated product regression; synthetic model, calendar and transport; no production or live business writes',source:paths.map(p=>({path:p,sha256:createHash('sha256').update(readFileSync(p)).digest('hex')})),checks:[]};
++function save(){writeFileSync(output+'/summary.json',JSON.stringify(summary,null,2));writeFileSync('output/r2-fix1/latest-verification.json',JSON.stringify({directory:output,...summary},null,2));}
++async function run(name,cmd,args){
++  const start=Date.now();let log='';const exitCode=await new Promise(resolve=>{const child=spawn(cmd,args,{shell:false,stdio:['ignore','pipe','pipe'],env:{...process.env,PM_R2_OUTPUT:output+'/targeted'}});child.stdout.on('data',d=>log+=d);child.stderr.on('data',d=>log+=d);child.on('error',e=>{log+=e.stack;resolve(-1);});child.on('close',resolve);});
++  writeFileSync(output+'/'+name+'.log',log);summary.checks.push({name,command:[cmd,...args],exitCode,passed:exitCode===0,durationMs:Date.now()-start,assertionGroups:log.split('\n').filter(l=>l.startsWith('PASS ')).length,log:name+'.log'});save();console.log(exitCode===0?'PASS':'FAIL',name);if(exitCode!==0)throw Error(name+' failed; inspect '+output+'/'+name+'.log');
++}
++try{
++  await run('build','npm',['run','build']);await run('typecheck','npm',['run','typecheck']);
++  await run('lint','node_modules/.bin/eslint',['lib/work-item-core.ts','lib/work-items.ts']);
++  for(const p of paths.filter(p=>p.endsWith('.mjs')))await run('syntax-'+path.basename(p,'.mjs'),'node',['--check',p]);
++  await run('targeted','node',['scripts/test-core-r2-fix1.mjs']);
++  for(const name of ['core-p1-p5','core-runtime','core-feishu','core-input','core-work-agent','core-chain','s1p1-domain','s1p1-fix1-domain','s1p1-http','work-items','core-browser'])await run(name,'node',['scripts/test-'+name+'.mjs']);
++  summary.status='passed';
++}catch(error){summary.status='failed';summary.error=error.message;process.exitCode=1;}finally{summary.finishedAt=new Date().toISOString();save();console.log('Verification evidence:',output);}
+diff --git a/scripts/work-item-core-service.mjs b/scripts/work-item-core-service.mjs
+index a5baa954..0f4cd36d 100644
+--- a/scripts/work-item-core-service.mjs
++++ b/scripts/work-item-core-service.mjs
+@@ -19,7 +19,7 @@ export class WorkItemCoreService {
+   settings(id){return this.store.getSetting('coreAutomation:'+id)||{revision:0,enabled:false,lastTick:'',error:''};}
+   view(workspaceId,sourceId){
+     const s=this.store.load(workspaceId),rows=s.sources.filter(r=>r.workItem&&!r.archived&&(!sourceId||r.id===sourceId));
+-    return {people:s.people.filter(p=>!p.archived).map(p=>({id:p.id,title:p.title,identityVerified:p.identityVerified===true})),groups:s.sources.filter(r=>r.chatScope?.state==='active').map(r=>({id:r.chatScope.chatId,title:r.title})),settings:this.settings(workspaceId),calendar:this.calendar(s)||null,items:rows.map(row=>({id:row.id,title:row.title,projectIds:row.projectIds,projectNames:row.projectIds.map(id=>s.projects.find(p=>p.id===id)?.title||'归属待核实'),version:row.version,core:this.domain.coreState(row),priority:this.domain.effectivePriority(row),timing:this.domain.itemTiming(s,row,this.stamp()),notice:this.domain.coreNotice(s,row,this.calendar(s),this.stamp())})),runs:s.sources.filter(r=>r.reminderRun?.core&&!r.archived&&(!sourceId||r.reminderRun.items.some(m=>m.workItemId===sourceId))).map(r=>({id:r.id,version:r.version,projectNames:r.projectIds.map(id=>s.projects.find(p=>p.id===id)?.title||'归属待核实'),...r.reminderRun,items:r.reminderRun.items.map(m=>({...m,nodeName:s.flowNodes.find(n=>n.id===m.nodeId)?.title||''}))})),notices:s.sources.filter(r=>r.followupNotification?.core&&(!sourceId||r.followupNotification.workItemId===sourceId)).slice(-20).map(r=>({id:r.id,title:r.title,...r.followupNotification})),inputs:s.sources.filter(r=>r.inputEnvelope&&(!sourceId||r.inputEnvelope.targetId===sourceId)).map(r=>({id:r.id,title:r.title,excerpt:r.excerpt,version:r.version,...r.inputEnvelope})).slice(-30)};
++    return {people:s.people.filter(p=>!p.archived).map(p=>({id:p.id,title:p.title,identityVerified:p.identityVerified===true})),groups:s.sources.filter(r=>r.chatScope?.state==='active').map(r=>({id:r.chatScope.chatId,title:r.title})),settings:this.settings(workspaceId),calendar:this.calendar(s)||null,items:rows.map(row=>({id:row.id,title:row.title,projectIds:row.projectIds,projectNames:row.projectIds.map(id=>s.projects.find(p=>p.id===id)?.title||'归属待核实'),version:row.version,core:{...this.domain.coreState(row),reopenProposal:this.domain.coreReopenProposal(s,row)},priority:this.domain.effectivePriority(row),timing:this.domain.itemTiming(s,row,this.stamp()),notice:this.domain.coreNotice(s,row,this.calendar(s),this.stamp())})),runs:s.sources.filter(r=>r.reminderRun?.core&&!r.archived&&(!sourceId||r.reminderRun.items.some(m=>m.workItemId===sourceId))).map(r=>({id:r.id,version:r.version,projectNames:r.projectIds.map(id=>s.projects.find(p=>p.id===id)?.title||'归属待核实'),...r.reminderRun,items:r.reminderRun.items.map(m=>({...m,nodeName:s.flowNodes.find(n=>n.id===m.nodeId)?.title||''}))})),notices:s.sources.filter(r=>r.followupNotification?.core&&(!sourceId||r.followupNotification.workItemId===sourceId)).slice(-20).map(r=>({id:r.id,title:r.title,...r.followupNotification})),inputs:s.sources.filter(r=>r.inputEnvelope&&(!sourceId||r.inputEnvelope.targetId===sourceId)).map(r=>({id:r.id,title:r.title,excerpt:r.excerpt,version:r.version,...r.inputEnvelope})).slice(-30)};
+   }
+   mutate(workspaceId,sourceId,fn){return this.store.transaction(()=>{
+     const s=this.store.load(workspaceId),before=s.revision,row=s.sources.find(r=>r.id===sourceId&&r.workItem&&!r.archived);if(!row)throw fail('事项不存在',404);if(s.workspaceType==='restored')throw fail('恢复工作区仅保留历史');
+@@ -66,6 +66,7 @@ export class WorkItemCoreService {
+         if(current.version!==expectedVersion||this.checkBasis(state,current)!==basis)throw fail('分析期间事项或来源已变化，旧结果未覆盖新决定');
+         const c=this.domain.ensureCore(current);
+         if(assessment)this.domain.applyNeedAssessment(state,current,assessment,this.stamp());
++        this.domain.reconcileCoreReopenProposal(state,current,this.stamp());
+         if(c.delivery?.context){const context=c.delivery.context;c.delivery={...this.domain.prepareDeliveryCollaboration(state,current,context),context,at:this.stamp()};}
+         c.checkedBasis=basis;c.checks={...c.checks,lastAttempt:startedAt,lastSuccess:this.stamp(),needsRecheck:false,error:'',failureCount:0,coverage:this.refresh?'授权来源已重新核对':'本机已保存来源；没有宣称新增远端读取'};
+         this.domain.resumeDuePause(current,this.calendar(state),this.stamp());
+@@ -116,7 +117,8 @@ export class WorkItemCoreService {
+       let claimed=false;this.noticeUpdate(workspaceId,id,(r,state)=>{
+         if(!['pending','failed_not_sent'].includes(r.channels[name].stage))return;
+         const target=state.sources.find(x=>x.id===sourceId),latest=evaluate(state,target),c=this.domain.coreState(target);
+-        const sameRound=c.deliveryHistory?.some(x=>x.id===notice.id)&&notice.cycleId===c.cycle.id&&notice.cycleEpoch===c.cycle.epoch&&notice.priorityEpoch===c.priority.epoch&&!c.pause&&(!['closed'].includes(target.workItem.p1?.lifecycle?.state)||notice.kind==='result');
++        const sameReopenReview=notice.kind==='review'&&notice.reopenProposalId&&this.domain.coreReopenProposal(state,target)?.id===notice.reopenProposalId;
++        const sameRound=c.deliveryHistory?.some(x=>x.id===notice.id)&&notice.cycleId===c.cycle.id&&notice.cycleEpoch===c.cycle.epoch&&notice.priorityEpoch===c.priority.epoch&&!c.pause&&(!['closed'].includes(target.workItem.p1?.lifecycle?.state)||notice.kind==='result'||sameReopenReview);
+         if((!latest.eligible||latest.id!==notice.id)&&!sameRound){r.channels[name].stage='stopped';r.channels[name].error='发送前当前需要或人工决定已变化';return;}
+         r.channels[name]={stage:'sending',key:id+':'+name};claimed=true;
+       });if(!claimed)continue;

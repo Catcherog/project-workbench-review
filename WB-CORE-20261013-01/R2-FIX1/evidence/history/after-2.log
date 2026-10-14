@@ -1,0 +1,22 @@
+PASS B01-domain closed + new evidence enters review on actual workday at 09:00; no business count
+PASS B01-runtime tick/notify sends both simulated channels once per workday, survives recovery and keeps closure
+PASS B01-pause manual pause, explicit postponement, missing calendar and quiet hours retain review until allowed
+PASS B01-closed-controls closed review cannot revive old explicit checks, P0 urgency, deferred business slots or recovery reminders
+PASS B01-invalid no pending decision, withdrawn proof, completed decision and later manual close stay quiet
+PASS B01-channel-race evidence withdrawal between channel receipts stops the unsent channel and removes current review projection
+本地工作台 v2 已就绪：http://127.0.0.1:59006；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-7eFaYV/workbench.sqlite
+PASS B02-budget AI_BUDGET via event bridge reports waiting, then reuses original input and saves once
+本地工作台 v2 已就绪：http://127.0.0.1:59021；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-iJxSdc/workbench.sqlite
+PASS B02-cancel real cancellation before commit reports cancelled and preserves input without saved state
+本地工作台 v2 已就绪：http://127.0.0.1:59024；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-Zpwf2P/workbench.sqlite
+PASS B02-clarify completed understanding with an ambiguity is not a saved business update
+本地工作台 v2 已就绪：http://127.0.0.1:59026；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-3crd53/workbench.sqlite
+PASS B02-discuss completed discussion with no business write stays discussion
+本地工作台 v2 已就绪：http://127.0.0.1:59028；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-3sC2Fw/workbench.sqlite
+PASS B02-stage-fail persisted first stage survives later fail with separate unfinished preparation
+本地工作台 v2 已就绪：http://127.0.0.1:59030；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-x5JPYh/workbench.sqlite
+PASS B02-stage-budget persisted first stage survives later budget with separate unfinished preparation
+本地工作台 v2 已就绪：http://127.0.0.1:59032；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-9GP2I1/workbench.sqlite
+PASS B02-stage-cancel persisted first stage survives later cancel with separate unfinished preparation
+本地工作台 v2 已就绪：http://127.0.0.1:59035；SQLite：/REVIEW_SOURCE/output/core-p1-p5-r1/input-qBFofr/workbench.sqlite
+PASS B02-persistence unpersisted saved outcome cannot assert success; durable receipt survives job cache loss and undo is distinguished

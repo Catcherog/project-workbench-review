@@ -1,0 +1,81 @@
+{
+  "scope": "Original compiled product domain, real WorkItemCoreService tick/notify, real HTTP input-receipt, event bridge, assistant and SQLite; synthetic calendar/model/transport only",
+  "results": [
+    {
+      "id": "B01-domain",
+      "name": "closed + new evidence enters review on actual workday at 09:00; no business count",
+      "passed": true
+    },
+    {
+      "id": "B01-runtime",
+      "name": "tick/notify sends both simulated channels once per workday, survives recovery and keeps closure",
+      "passed": true
+    },
+    {
+      "id": "B01-pause",
+      "name": "manual pause, explicit postponement, missing calendar and quiet hours retain review until allowed",
+      "passed": true
+    },
+    {
+      "id": "B01-closed-controls",
+      "name": "closed review cannot revive old explicit checks, P0 urgency, deferred business slots or recovery reminders",
+      "passed": true
+    },
+    {
+      "id": "B01-invalid",
+      "name": "no pending decision, withdrawn proof, completed decision and later manual close stay quiet",
+      "passed": true
+    },
+    {
+      "id": "B01-channel-race",
+      "name": "evidence withdrawal between channel receipts stops the unsent channel and removes current review projection",
+      "passed": true
+    },
+    {
+      "id": "B01-proposal-race",
+      "name": "a replacement proposal during channel identity verification cannot send the previous decision text",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n1 !== 0\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:92:76\n    at async runtime (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:32:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:89:1"
+    },
+    {
+      "id": "B02-budget",
+      "name": "AI_BUDGET via event bridge reports waiting, then reuses original input and saves once",
+      "passed": true
+    },
+    {
+      "id": "B02-cancel",
+      "name": "real cancellation before commit reports cancelled and preserves input without saved state",
+      "passed": true
+    },
+    {
+      "id": "B02-clarify",
+      "name": "completed understanding with an ambiguity is not a saved business update",
+      "passed": true
+    },
+    {
+      "id": "B02-discuss",
+      "name": "completed discussion with no business write stays discussion",
+      "passed": true
+    },
+    {
+      "id": "B02-stage-fail",
+      "name": "persisted first stage survives later fail with separate unfinished preparation",
+      "passed": true
+    },
+    {
+      "id": "B02-stage-budget",
+      "name": "persisted first stage survives later budget with separate unfinished preparation",
+      "passed": true
+    },
+    {
+      "id": "B02-stage-cancel",
+      "name": "persisted first stage survives later cancel with separate unfinished preparation",
+      "passed": true
+    },
+    {
+      "id": "B02-persistence",
+      "name": "unpersisted saved outcome cannot assert success; durable receipt survives job cache loss and undo is distinguished",
+      "passed": true
+    }
+  ]
+}

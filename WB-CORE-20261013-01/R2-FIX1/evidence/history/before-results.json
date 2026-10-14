@@ -1,0 +1,83 @@
+{
+  "scope": "Original compiled product domain, real WorkItemCoreService tick/notify, real HTTP input-receipt, event bridge, assistant and SQLite; synthetic calendar/model/transport only",
+  "results": [
+    {
+      "id": "B01-domain",
+      "name": "closed + new evidence enters review on actual workday at 09:00; no business count",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\nfalse !== true\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:38:70\n    at test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:43)\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:35:7"
+    },
+    {
+      "id": "B01-runtime",
+      "name": "tick/notify sends both simulated channels once per workday, survives recovery and keeps closure",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 2\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:44:113\n    at async runtime (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:32:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:43:1"
+    },
+    {
+      "id": "B01-pause",
+      "name": "manual pause, explicit postponement, missing calendar and quiet hours retain review until allowed",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 2\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:55:130\n    at async runtime (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:32:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:53:1"
+    },
+    {
+      "id": "B01-closed-controls",
+      "name": "closed review cannot revive old explicit checks, P0 urgency, deferred business slots or recovery reminders",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: explicit\n+ actual - expected\n\n+ undefined\n- 'review'\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:70:88\n    at test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:43)\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:61:7"
+    },
+    {
+      "id": "B01-invalid",
+      "name": "no pending decision, withdrawn proof, completed decision and later manual close stay quiet",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: withdrawn must retire the proposal\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:81:12\n    at test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:43)\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:74:7"
+    },
+    {
+      "id": "B02-budget",
+      "name": "AI_BUDGET via event bridge reports waiting, then reuses original input and saves once",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'saved'\n- 'budget_wait'\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:111:37\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:108:1"
+    },
+    {
+      "id": "B02-cancel",
+      "name": "real cancellation before commit reports cancelled and preserves input without saved state",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'saved'\n- 'cancelled'\n\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:118:39\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:116:1"
+    },
+    {
+      "id": "B02-clarify",
+      "name": "completed understanding with an ambiguity is not a saved business update",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n'saved' !== 'clarify'\n\n    at inbox.modelMode (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:121:132)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:120:1"
+    },
+    {
+      "id": "B02-discuss",
+      "name": "completed discussion with no business write stays discussion",
+      "passed": false,
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n'saved' !== 'discuss'\n\n    at inbox.modelMode (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:124:97)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:123:1"
+    },
+    {
+      "id": "B02-stage-fail",
+      "name": "persisted first stage survives later fail with separate unfinished preparation",
+      "passed": false,
+      "error": "Error: Expected product state not reached\n    at until (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:14:105)\n    at async inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:129:49)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:3\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:126:46"
+    },
+    {
+      "id": "B02-stage-budget",
+      "name": "persisted first stage survives later budget with separate unfinished preparation",
+      "passed": false,
+      "error": "Error: Expected product state not reached\n    at until (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:14:105)\n    at async inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:129:49)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:3\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:126:46"
+    },
+    {
+      "id": "B02-stage-cancel",
+      "name": "persisted first stage survives later cancel with separate unfinished preparation",
+      "passed": false,
+      "error": "Error: Expected product state not reached\n    at until (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:14:105)\n    at async inbox.workAnalyse.async.signal.signal (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:129:49)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:128:3\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:126:46"
+    },
+    {
+      "id": "B02-persistence",
+      "name": "unpersisted saved outcome cannot assert success; durable receipt survives job cache loss and undo is distinguished",
+      "passed": false,
+      "error": "TypeError: Cannot read properties of undefined (reading 'receipt')\n    at file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:141:186\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async inbox (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:106:7)\n    at async test (file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:13:37)\n    at async file:///REVIEW_SOURCE/scripts/test-core-r2-fix1.mjs:138:1"
+    }
+  ]
+}
