@@ -1,0 +1,147 @@
+diff --git a/app/work-item-entry.tsx b/app/work-item-entry.tsx
+index ecd383ae..c175c6c3 100644
+--- a/app/work-item-entry.tsx
++++ b/app/work-item-entry.tsx
+@@ -15,6 +15,7 @@ import {CoreCollaborationPanel} from './work-item-core-controls';
+ import {InputImages,type InputImage} from './input-images';
+ import {WorkItemAssistant} from './work-item-assistant';
+ import {readInputDraft,writeInputDraft} from './local-draft';
++import {workItemInputLabel} from './work-item-input-label';
+ import './work-item-entry.css';
+ 
+ type Value=Omit<Item,'id'|'title'|'projectIds'|'sourceIds'>;
+@@ -82,7 +83,7 @@ export function WorkItemEntry({s,source,request,onReview}:Props){
+  }
+  function cancel(){writeInputDraft(key,{text:'',sessionId,dirtyCheck:false,dirtyCompletion:false,check:JSON.stringify(timeDraft(timing.check)),completion:JSON.stringify(timeDraft(timing.completion)),expectedVersion:source.version,expectedBasis:current.basis,expectedEvidenceBasis:current.liveEvidenceBasis,editProgressId:''});generation.current++;setText('');setImages([]);setTimes({check:timeDraft(timing.check),completion:timeDraft(timing.completion)});setDirty({check:false,completion:false});setResolution({});setConflicts([]);setEditProgressId('');navigation?.cancelEntry?.();}
+  return <section className="ca-conversation p1-entry" aria-label="当前事项记录与讨论"><div className="ca-toolbar"><strong>{source.title}</strong><div className="ca-toolbar-actions"><button type="button" className="ca-text-button" disabled={busy||!!running||!!pending} onClick={()=>{setSessionId(crypto.randomUUID());setJobs([]);setError('');}}><Plus size={15}/>新对话</button><button type="button" className="ca-text-button" aria-expanded={showOptions} onClick={()=>setShowOptions(v=>!v)}><Settings2 size={15}/>选项</button></div></div>
+-  <div className="ca-turns" aria-live="polite">{jobs.map(job=><article className="ca-turn" key={job.id}><div className="ca-user-message"><p>{job.text||'手动时间安排'}</p></div><div className="ca-assistant-message">{job.status==='running'?<p role="status"><Loader2 size={14} className="spin"/>{job.p1Outcome?.status==='saved'?'本地记录已保存，正在核对相关依赖与协作准备…':'正在理解本次输入…'}</p>:<>{job.coreWorkOutcome&&<CorePreparationResult value={job.coreWorkOutcome}/>}{job.answer&&<div className="ca-answer"><strong>{job.p1Outcome?.status==='clarify'?'理解与建议（本次尚未保存）':'理解与建议'}</strong><p>{job.answer}</p></div>}{job.p1Outcome?.status==='saved'&&job.p1Outcome.receipt?.operationId!==receipt?.operationId&&<p>已保存：{job.p1Outcome.receipt?.progress||'本次明确安排'}{job.p1Outcome.receipt?.closed?' · 已移入已结束':''}</p>}{job.evidenceStatus==='stale'&&<p role="status">依据已变化；以下保留历史，请重新核对。</p>}{!!job.gaps?.length&&<details><summary>依据与缺口</summary>{job.gaps.map((g:string,i:number)=><p key={i}>{g}</p>)}{job.citations?.map((c:Value,i:number)=><div key={i}><strong>{c.title}</strong><blockquote>{c.quote}</blockquote><p>{c.interpretation}</p></div>)}</details>}{job.groupId&&<button className="v2-button" onClick={()=>void onReview(job.groupId)}>查看待审核修改</button>}{job.error&&<p role="alert">{job.error}</p>}{job.actionRequests?.length>0&&<AssistantActions workspaceId={s.workspaceId} jobId={job.id} request={request}/>} {job.workItemRequests?.length>0&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}</>}</div></article>)}</div>
++  <div className="ca-turns" aria-live="polite">{jobs.map(job=><article className="ca-turn" key={job.id}><div className="ca-user-message"><p>{workItemInputLabel(job,s.sources)}</p></div><div className="ca-assistant-message">{job.status==='running'?<p role="status"><Loader2 size={14} className="spin"/>{job.p1Outcome?.status==='saved'?'本地记录已保存，正在核对相关依赖与协作准备…':'正在理解本次输入…'}</p>:<>{job.coreWorkOutcome&&<CorePreparationResult value={job.coreWorkOutcome}/>}{job.answer&&<div className="ca-answer"><strong>{job.p1Outcome?.status==='clarify'?'理解与建议（本次尚未保存）':'理解与建议'}</strong><p>{job.answer}</p></div>}{job.p1Outcome?.status==='saved'&&job.p1Outcome.receipt?.operationId!==receipt?.operationId&&<p>已保存：{job.p1Outcome.receipt?.progress||'本次明确安排'}{job.p1Outcome.receipt?.closed?' · 已移入已结束':''}</p>}{job.evidenceStatus==='stale'&&<p role="status">依据已变化；以下保留历史，请重新核对。</p>}{!!job.gaps?.length&&<details><summary>依据与缺口</summary>{job.gaps.map((g:string,i:number)=><p key={i}>{g}</p>)}{job.citations?.map((c:Value,i:number)=><div key={i}><strong>{c.title}</strong><blockquote>{c.quote}</blockquote><p>{c.interpretation}</p></div>)}</details>}{job.groupId&&<button className="v2-button" onClick={()=>void onReview(job.groupId)}>查看待审核修改</button>}{job.error&&<p role="alert">{job.error}</p>}{job.actionRequests?.length>0&&<AssistantActions workspaceId={s.workspaceId} jobId={job.id} request={request}/>} {job.workItemRequests?.length>0&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}</>}</div></article>)}</div>
+   {running&&<button type="button" className="v2-text-button" onClick={()=>void request<{job:Value}>('/api/v2/codex/jobs/'+running.id+'/cancel',{workspaceId:s.workspaceId}).then(async result=>{adopt(result.job);await finish(result.job);}).catch(e=>setError(explain(e)))}>取消本轮</button>}
+   {notice&&<p role="status">{notice}</p>}{error&&<p role="alert" className="ca-task-error">{error}{receipt&&<button className="v2-text-button" onClick={()=>void navigation?.saved?.(receipt,!!receipt.stay).then(()=>setError('')).catch(()=>setError('记录已保存，仍无法刷新；请稍后重新读取。'))}>重新读取保存结果</button>}</p>}
+   {receipt&&<P1Receipt receipt={receipt} s={s} request={request} onRefresh={async next=>{await navigation?.saved?.(next||receipt,true);setReceipt(null);}} onOpen={()=>navigation?.openItem(source.id)} onEdit={()=>{invalidateChoices();setText(receipt.progress||'');setEditProgressId(receiptProgressId(receipt));inputRef.current?.focus();}} onTime={()=>(timeRef.current?.querySelector('select') as unknown as HTMLSelectElement|null)?.focus()}/>}
+diff --git a/app/work-item-input-label.ts b/app/work-item-input-label.ts
+new file mode 100644
+index 00000000..47d19574
+--- /dev/null
++++ b/app/work-item-input-label.ts
+@@ -0,0 +1,18 @@
++import type {Item} from '../lib/domain';
++
++type HistoryInput={
++  text?:string;
++  coreInputSourceId?:string;
++  p1Input?:{manual?:Partial<Record<'check'|'completion',{state?:string}>>};
++};
++
++/** Display only: related evidence is not the attachment list of this input. */
++export function workItemInputLabel(job:HistoryInput,sources:Item[]):string{
++  if(typeof job.text==='string'&&job.text.trim())return job.text;
++  const input=sources.find(source=>source.id===job.coreInputSourceId);
++  const attachments=Array.isArray(input?.attachments)?input.attachments:[];
++  const attachmentLabel=attachments.length?(attachments.some((file:Item)=>typeof file.mime==='string'&&file.mime.startsWith('image/'))?'图片输入':'附件输入'):'';
++  const manualTime=(['check','completion'] as const).some(key=>['scheduled','pending','clear'].includes(job.p1Input?.manual?.[key]?.state||''));
++  if(attachmentLabel)return manualTime?attachmentLabel+'与手动时间安排':attachmentLabel;
++  return manualTime?'手动时间安排':'本次输入';
++}
+diff --git a/package-lock.json b/package-lock.json
+index f2c52230..ba28dc67 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.17.0-core.2",
++  "version": "2.17.0-core.3",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "pm-workbench",
+-      "version": "2.17.0-core.2",
++      "version": "2.17.0-core.3",
+       "dependencies": {
+         "@base-ui/react": "^1.7.0",
+         "@hookform/resolvers": "^5.7.1",
+diff --git a/package.json b/package.json
+index 4d3d4f24..7ae1cdd3 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.17.0-core.2",
++  "version": "2.17.0-core.3",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+diff --git a/release.json b/release.json
+index 613bfdfd..4d1e3008 100644
+--- a/release.json
++++ b/release.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "2.17.0-core.2",
+-  "build": "20261014.core-r2-fix1.1",
++  "version": "2.17.0-core.3",
++  "build": "20261014.uat-ui01.1",
+   "channel": "preview",
+   "releasedOn": "2026-10-14"
+ }
+diff --git a/scripts/test-input-history-label.mjs b/scripts/test-input-history-label.mjs
+new file mode 100644
+index 00000000..0b2cdde2
+--- /dev/null
++++ b/scripts/test-input-history-label.mjs
+@@ -0,0 +1,52 @@
++import assert from 'node:assert/strict';
++import {createRequire} from 'node:module';
++import {mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
++import {DatabaseSync} from 'node:sqlite';
++import {setTimeout as delay} from 'node:timers/promises';
++import path from 'node:path';
++import * as d from '../dist-local/domain.mjs';
++import {workItemInputLabel} from '../app/work-item-input-label.ts';
++import {startCoreFixture} from './core-fixtures.mjs';
++
++const output=path.resolve('output/uat-ui01/evidence');mkdirSync(output,{recursive:true});
++const {chromium}=createRequire('/REVIEW_HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json')('playwright');
++const cache='/REVIEW_HOME/.agent-browser/browsers',chrome=readdirSync(cache).filter(x=>x.startsWith('chrome-')).sort().at(-1);
++const app=await startCoreFixture(),browser=await chromium.launch({executablePath:path.join(cache,chrome,'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'),headless:true});
++const context=await browser.newContext({viewport:{width:1440,height:1100},timezoneId:'Asia/Shanghai'}),page=await context.newPage(),results=[],errors=[],externalRequests=[];
++page.setDefaultTimeout(18000);page.on('pageerror',e=>errors.push(e.message));
++await context.route('**/*',route=>{const u=new URL(route.request().url());if(u.hostname!=='127.0.0.1'){externalRequests.push(u.origin);return route.abort();}return route.continue();});
++const sessionId=crypto.randomUUID(),jobs=[];
++function snapshot(){const db=new DatabaseSync(path.join(app.dataDir,'workbench.sqlite'),{readOnly:true});try{return {state:app.state(),jobs:db.prepare('select id,payload from assistant_jobs order by id').all()};}finally{db.close();}}
++async function test(id,name,fn){try{await fn();results.push({id,name,passed:true});console.log('PASS',id,name);}catch(e){results.push({id,name,passed:false,error:e.stack});await page.screenshot({path:path.join(output,'history-failure.png'),fullPage:true});throw e;}}
++async function submit(text,extra={}){const state=app.state(),row=state.sources.find(r=>r.id===app.ids.action),c=d.workItemState(state,row);let j=(await app.api('/api/v2/codex/jobs',{workspaceId:app.workspaceId,requestId:crypto.randomUUID(),sessionId,parentJobId:jobs.at(-1)?.id||'',mode:'answer',contextRef:{kind:'sources',id:row.id},sourceIds:[],text,attachmentIds:extra.attachmentIds||[],p1Input:{occurredAt:'2026-10-14T03:00:00Z',expectedVersion:row.version,expectedBasis:c.basis,expectedEvidenceBasis:c.liveEvidenceBasis,manual:extra.manual||{}}})).job;
++ while(j.status==='running'){await delay(40);j=(await app.api('/api/v2/codex/jobs/'+j.id+'?workspaceId='+app.workspaceId)).job;}assert.equal(j.status,'completed',j.error);assert.equal(j.p1Outcome.status,'saved');jobs.push(j);return j;}
++const entry=()=>page.locator('.iw-dialog .p1-entry');
++async function openHistory(){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view:'attention',record:app.ids.action}));const panel=page.locator('.iw-dialog');await panel.locator('.work-item-panel').waitFor();await panel.getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await entry().getByRole('button',{name:'选项',exact:true}).click();const chooser=entry().getByLabel('已有对话',{exact:true});if(await chooser.inputValue()!==sessionId)await chooser.selectOption(sessionId);await entry().locator('.ca-user-message p').last().waitFor();}
++try{
++ await page.setContent('<main style="font:28px sans-serif;padding:40px"><h1>合成样件反馈</h1><p>样件已收到，等待验证。</p><p>UI-01 隔离测试图片，不代表实际业务。</p></main>');await page.screenshot({path:path.join(output,'synthetic-input.png')});
++ const attachment=(await app.api('/api/v2/attachments',{workspaceId:app.workspaceId,name:'synthetic-input.png',mime:'image/png',base64:readFileSync(path.join(output,'synthetic-input.png')).toString('base64')})).attachment;
++ await test('H01','original HTTP saves text, image, mixed, manual-only and image-plus-manual histories',async()=>{
++  await submit('已联系合成负责人，文字记录。');
++  await submit('',{attachmentIds:[attachment.id]});
++  await submit('已收到合成样件，附图说明。',{attachmentIds:[attachment.id]});
++  await submit('',{manual:{check:{state:'scheduled',date:'2026-10-20'}}});
++  await submit('',{attachmentIds:[attachment.id],manual:{check:{state:'scheduled',date:'2026-10-21'}}});
++  const history=await app.api('/api/v2/codex/sessions/'+sessionId+'?workspaceId='+app.workspaceId);assert.equal(history.jobs.length,5);
++  const readback=history.jobs.map(j=>{assert.equal(j.attachmentIds,undefined);assert.equal(j.clientDraft,undefined);const original=app.state().sources.find(s=>s.id===j.coreInputSourceId);return {id:j.id,text:j.text,coreInputSourceId:j.coreInputSourceId,manual:j.p1Input?.manual,attachments:original?.attachments?.map(a=>({id:a.id,mime:a.mime})),receiptStatus:j.p1Outcome?.status,label:workItemInputLabel(j,app.state().sources)};});
++  assert.deepEqual(readback.map(r=>r.label),['已联系合成负责人，文字记录。','图片输入','已收到合成样件，附图说明。','手动时间安排','图片输入与手动时间安排']);
++  assert.equal(app.state().sources.find(s=>s.id===app.ids.action).workItem.p1.check.date,'2026-10-21');writeFileSync(path.join(output,'history-api-readback.json'),JSON.stringify(readback,null,2));
++ });
++ const before=snapshot(),expected=['已联系合成负责人，文字记录。','图片输入','已收到合成样件，附图说明。','手动时间安排','图片输入与手动时间安排'];
++ await test('H02','actual product browser shows the five persisted input labels',async()=>{await openHistory();assert.deepEqual(await entry().locator('.ca-user-message p').allTextContents(),expected);await entry().getByRole('button',{name:'选项',exact:true}).click();await page.screenshot({path:path.join(output,'history-labels-before-refresh.png'),fullPage:true});});
++ await test('H03','refresh and re-entry recover the same original history labels',async()=>{await page.reload();await openHistory();assert.deepEqual(await entry().locator('.ca-user-message p').allTextContents(),expected);await entry().getByRole('button',{name:'选项',exact:true}).click();await page.screenshot({path:path.join(output,'history-labels-after-refresh.png'),fullPage:true});await entry().locator('.ca-user-message p').last().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'history-manual-labels-after-refresh.png'),fullPage:true});});
++ await test('H04','reading and refreshing do not change persisted input, time, receipts, reminder or approval data',async()=>{assert.deepEqual(snapshot(),before);assert.deepEqual(errors,[]);assert.deepEqual(externalRequests,[]);});
++ await test('H05','related evidence and missing historical fields do not become manual-time or image claims',async()=>{
++  const sources=[{id:'related-image',attachments:[{mime:'image/png'}]},{id:'document',attachments:[{mime:'application/pdf'}]}];
++  assert.equal(workItemInputLabel({text:'',sourceIds:['related-image']},sources),'本次输入');
++  assert.equal(workItemInputLabel({text:'',coreInputSourceId:'missing'},sources),'本次输入');
++  assert.equal(workItemInputLabel({text:'',coreInputSourceId:'document'},sources),'附件输入');
++  assert.equal(workItemInputLabel({text:'',p1Input:{manual:{check:{state:'unset'}}}},sources),'本次输入');
++  for(const state of ['scheduled','pending','clear'])assert.equal(workItemInputLabel({text:'',p1Input:{manual:{completion:{state}}}},sources),'手动时间安排');
++  assert.equal(workItemInputLabel({text:'保留原文',p1Input:{manual:{check:{state:'scheduled'}}}},sources),'保留原文');
++ });
++}finally{writeFileSync(path.join(output,'history-label-results.json'),JSON.stringify({scope:'Original product HTTP + isolated SQLite + Chromium history rendering; fixed synthetic model; display helper negative cases',version:JSON.parse(readFileSync('release.json')),results,errors,externalBrowserRequests:externalRequests},null,2));await browser.close();await app.close();}

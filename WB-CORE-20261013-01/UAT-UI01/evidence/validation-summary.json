@@ -1,0 +1,112 @@
+{
+  "task": "WB-CORE-20261013-01 / UAT-UI01",
+  "reviewBaseline": "ab9f03f0dcd8620a29abd8c6ad6a8a95cf650ff1",
+  "productBaseline": "9a10f212166fe6f6a2f495705aa682bd52b0b747",
+  "productCommit": "319869a4ae35be801ec3120884cefa2951d8ce19",
+  "release": {
+    "version": "2.17.0-core.3",
+    "build": "20261014.uat-ui01.1",
+    "channel": "preview",
+    "releasedOn": "2026-10-14"
+  },
+  "commands": [
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "evidence": "build.log"
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "evidence": "typecheck.log"
+    },
+    {
+      "command": "npx --no-install eslint app/work-item-entry.tsx app/work-item-input-label.ts scripts/test-input-history-label.mjs",
+      "exitCode": 0,
+      "evidence": "lint.log"
+    },
+    {
+      "command": "node scripts/test-input-history-label.mjs",
+      "exitCode": 0,
+      "groups": 5,
+      "evidence": "history-label-results.json"
+    },
+    {
+      "command": "node scripts/test-core-input.mjs",
+      "exitCode": 0,
+      "groups": 9,
+      "evidence": "core-input-results.json"
+    }
+  ],
+  "testGroups": 14,
+  "sourceFiles": [
+    {
+      "path": "app/work-item-entry.tsx",
+      "sha256": "3ed11cb0ba99ec561da5e8ae24f8b5899a79b7ee93b9779361c012a62cefe497"
+    },
+    {
+      "path": "app/work-item-input-label.ts",
+      "sha256": "7a63f29e12f34e165ad719b5efeefad4a08d005a8f591ebcc30d611da315697d"
+    },
+    {
+      "path": "scripts/test-input-history-label.mjs",
+      "sha256": "2736f06c4ef9a5f01647a55a3e53e071a88462e293ad1a44968ddc71857fd77d"
+    },
+    {
+      "path": "package.json",
+      "sha256": "afda4b2a318a177bcb610c6c2df41619b0c8bef9a4034067218af60f89e6677c"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "1842c4b21d48d61525ddfddc5e47cfbaf9eb00f2791b1552397a59d6115218fb"
+    },
+    {
+      "path": "release.json",
+      "sha256": "aa0c1e57ac6acb8de09869a2434cf7087d82356343aa147199a5e3dbd00b7029"
+    }
+  ],
+  "buildArtifacts": [
+    {
+      "path": "dist-local/client/app-icon.svg",
+      "sha256": "4404b9e5823a8bae46c42646c3967a7d3bc7cf9b1b8783bd9b459eaa6d85bb1e"
+    },
+    {
+      "path": "dist-local/client/app.css",
+      "sha256": "5c2e0deb8f7567843d16c3f692f6aa96e1ed48c29099ea98058e3ec58bfd4c37"
+    },
+    {
+      "path": "dist-local/client/app.css.map",
+      "sha256": "5c47ca12fa12d9cabe479ebfd6cc0710fe3e532d8abb66d55e0af562218f422d"
+    },
+    {
+      "path": "dist-local/client/app.js",
+      "sha256": "0db87ac22eb1d8907b9a8e93c638ab8cc2c700004624bbecd618f3b5131971a3"
+    },
+    {
+      "path": "dist-local/client/app.js.map",
+      "sha256": "ee8be56af15fec49d0e2c9c6b1622e71f4e9212356734fe358e7efcc7e9e42db"
+    },
+    {
+      "path": "dist-local/client/favicon.svg",
+      "sha256": "0c327b3ffa1c2e61fe32b843b017fe9d3b76a19eab8a3c43fc4d5128a17b042f"
+    },
+    {
+      "path": "dist-local/client/index.html",
+      "sha256": "5b12219834c7355442242b616cf80fb03770601afd40c2bd0bcc486fc00a89a1"
+    },
+    {
+      "path": "dist-local/domain.mjs",
+      "sha256": "1ccd167032a794b6a772c55a3680b2f29a7be6ba2ba9c202b2ee2ade3d98d440"
+    },
+    {
+      "path": "dist-local/domain.mjs.map",
+      "sha256": "d347a7393fc3b5666be261531f3fdc4a69660216c766e503a01df4bc2675a1e0"
+    }
+  ],
+  "limits": [
+    "Synthetic model and isolated SQLite; no real model or Feishu operations",
+    "No full P1-P5 audit rerun",
+    "Original GPT screenshot visual review remains unverified",
+    "First browser attempt selected the already-current option via Playwright, firing synthetic change and clearing the list; harness now selects only if different. No product change for that harness error."
+  ]
+}
