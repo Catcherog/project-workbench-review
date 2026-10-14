@@ -1,0 +1,64 @@
+[
+  {
+    "id": "U01",
+    "phase": "first-list",
+    "observation": "Daily workspace already has one user progress record. Preserve it; append only clearly marked experience inputs."
+  },
+  {
+    "id": "U02",
+    "actions": "list item → record/discuss → draft → Escape → reopen item → record/discuss",
+    "observed": "Escape returns to list and restores focus; reopening retains the unsent draft. Existing receipt is still labelled 本次保存回执 before the new input is sent."
+  },
+  {
+    "id": "U03",
+    "viewport": "1024x768",
+    "observed": "Composer textarea begins at y725.875 and submit button at y1176.375 in a 1024x768 viewport. One AX scroll attempt did not change the rectangle; the subsequent locator click auto-scrolled to the button. This is not evidence of a one-scroll human path. Meta+Enter did not submit.",
+    "assessment": "The upper history and previous receipt dominate; current input and primary action are displaced below the fold."
+  },
+  {
+    "id": "U04",
+    "observed": "Native date fill returned but DOM value stayed empty. Calendar-button and Alt+Down attempts did not expose a picker in this tool. Do not classify date-entry failure as a product defect. Empty-date validation text was rendered at top -384.92 / bottom -294.78 while the submit area stayed visible.",
+    "assessment": "Visible error placement is a confirmed usability issue; normal native-calendar usability remains unassessed."
+  },
+  {
+    "id": "U05",
+    "observed": "Image upload shows an uploading status, then filename+remove, but no thumbnail. Native file input says no file selected after successful upload while the stored filename is listed. Empty date cleared, image saved; explicit undo changed receipt to 本次操作已撤销.",
+    "assessment": "Save/return/undo feedback is clear. Image-content verification is weak; filename alone requires memory."
+  },
+  {
+    "id": "U06",
+    "observed": "After undoing only my image operation in workspace 01, switching to workspace 02 and Assistant still shows that old receipt, now labelled 本地记录已保存. Awaiting independent state readback; no approval/send interaction in workspace 02 yet.",
+    "verification": "Persistent state: workspace 01 has undoneAt on the image operation; workspace 02 revision 1 has zero progress and no image receipt. Full reload removes the wrong receipt. Confirmed cross-workspace display residue; no cross-workspace data write observed."
+  },
+  {
+    "id": "U07",
+    "viewport": "1440x900",
+    "observed": "With two short messages, expanded page height 2464px; 保存本批所选决定 at y1979 before scrolling. Two page-scroll requests were made; immediate metrics preceded smooth-scroll settlement and the locator click also auto-scrolled. Reliable evidence is the large action distance, not a human scroll-count claim.",
+    "assessment": "Primary decision action is too far from the choice; full text is useful but repeated metadata, cautions and fixed editor height reduce useful information per screen."
+  },
+  {
+    "id": "U08",
+    "observed": "After save-at-bottom, success feedback was at y -1250.52 (above viewport). Two approvals remain explicitly unsent until opening 本批执行范围 and clicking execute. Visible language includes 执行接口/指纹/批次身份/回读.",
+    "assessment": "Separate approval and execution is understandable after learning, but feedback placement and engineering terms create unnecessary interpretation load."
+  },
+  {
+    "id": "U09",
+    "observed": "After explicit simulated execution, both messages show verified send facts. Reload and History/Results reentry still show both. Result cards expose long message IDs, while no direct send timestamp appears in the normal card; approval-history time is separate.",
+    "assessment": "Results are recoverable and approval/send separation works; result wording and prioritization are more technical than typical office use."
+  },
+  {
+    "id": "U10",
+    "observed": "After external body change and reread: message 1 unchecked, unchanged message 2 still checked. Re-selecting message 1 saves correctly. However 本次业务前提变化 expanded to just the heading, with no changed text shown.",
+    "assessment": "FIX1 recovery works, but the page does not make the changed content and reason for lost selection sufficiently apparent. Empty change disclosure adds confusion."
+  },
+  {
+    "id": "U11",
+    "observed": "Read-only cancelled message retains a clearly labelled local-draft disclosure and local-only discard button. Batch says there is unsaved/stale draft but does not name the blocking message or link to its draft. Discard enables the other message; reload does not resurrect the discarded draft.",
+    "assessment": "Recovery is functional and wording on discard is clear; locating the blocking draft remains a search burden."
+  },
+  {
+    "id": "U12",
+    "observed": "Tab from reread reaches 全部记录 with a visible solid focus outline. Restore default browser viewport after comparing 1024x768 and 1440x900.",
+    "assessment": "Keyboard focus is available; Escape/back recovery worked. No novice completion time or human click-time metric measured."
+  }
+]
