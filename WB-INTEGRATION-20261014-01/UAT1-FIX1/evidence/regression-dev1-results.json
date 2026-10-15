@@ -1,0 +1,985 @@
+{
+  "scope": "Original compiled product, real Chromium, HTTP and isolated SQLite; synthetic model/images/transport; no A1 replay",
+  "results": [
+    {
+      "id": "INPUT-contexts",
+      "name": "four original contexts save one text record and return with the same item and view",
+      "passed": true,
+      "evidence": [
+        {
+          "view": "project",
+          "sourceId": "p1-action",
+          "operationId": "p1-fb0f200a-4cd9-4b17-b68e-ed703ea564a2",
+          "progress": "已收到 project 合成反馈"
+        },
+        {
+          "view": "attention",
+          "sourceId": "p1-action",
+          "operationId": "p1-8330a3a7-a1d1-46a7-8fcb-53746081c529",
+          "progress": "已收到 attention 合成反馈"
+        },
+        {
+          "view": "inbox",
+          "sourceId": "p1-action",
+          "operationId": "p1-878501d3-63ba-4c14-b5b5-4bc1d8054aae",
+          "progress": "已收到 inbox 合成反馈"
+        },
+        {
+          "view": "weekly",
+          "sourceId": "p1-action",
+          "operationId": "p1-f8ddfa3d-2e76-462c-b7fc-ddf8560b9462",
+          "progress": "已收到 weekly 合成反馈"
+        }
+      ]
+    },
+    {
+      "id": "INPUT-images",
+      "name": "pure and multiple original images keep identity/order through upload, save and reload",
+      "passed": true,
+      "evidence": {
+        "sourceId": "input-156ab394e3d6387cc8b21b71fde29275",
+        "attachments": [
+          {
+            "id": "file-2a88c7b9-c7d5-400a-875e-cd731c34f923",
+            "name": "synthetic-2.png",
+            "sha256": "5e708f8ebce62e9752b6af76174da0401ef743b20829b6c008e24dd702f5dd83"
+          },
+          {
+            "id": "file-0f014ea5-4005-42e5-a2c8-ac8cb88771ce",
+            "name": "synthetic-1.png",
+            "sha256": "96200af061db15a92a9ebbf61cda28d3bc82da9d119d3388f0a05e9345012ac1"
+          }
+        ],
+        "count": 6
+      }
+    },
+    {
+      "id": "INPUT-before-failure",
+      "name": "save failure keeps the text draft without a false success receipt",
+      "passed": true
+    },
+    {
+      "id": "INPUT-refresh-failure",
+      "name": "saved record survives display read failure and reload without duplicate input",
+      "passed": true,
+      "evidence": {
+        "operationId": "p1-617da8bf-deae-4365-87a8-f112a93b8d64",
+        "blockedReadRequests": 1
+      }
+    },
+    {
+      "id": "INPUT-preparation",
+      "name": "first-stage durable receipt remains saved while synthetic later preparation runs and fails",
+      "passed": true,
+      "evidence": {
+        "operationId": "p1-9e5b9d6d-d6d5-410b-ba19-1a7a9d241872",
+        "firstStage": "saved",
+        "laterStage": "synthetic failure"
+      }
+    },
+    {
+      "id": "INPUT-race",
+      "name": "changing manual time while analysis runs retires stale choices without changing saved business timing",
+      "passed": true,
+      "evidence": {
+        "savedDate": "2026-10-16",
+        "staleChoices": 0,
+        "rawInputMayPersist": true
+      }
+    },
+    {
+      "id": "RECOVERY-conflict",
+      "name": "409 is a known rejection; a newer server preview cannot be overwritten by a stale draft",
+      "passed": true,
+      "evidence": {
+        "httpStatus": 409,
+        "serverText": "另一窗口已保存的新正文"
+      }
+    },
+    {
+      "id": "RECOVERY-readback",
+      "name": "decision acknowledgement and projection read failure stay distinct; reread does not replay approval",
+      "passed": true,
+      "evidence": {
+        "blockedReads": 1,
+        "approvalWrites": 1
+      }
+    },
+    {
+      "id": "RECOVERY-unknown",
+      "name": "unknown sends are queried first; verified non-send, takeover and release never silently retry",
+      "passed": true,
+      "evidence": {
+        "attempts": 2,
+        "sends": 1
+      }
+    },
+    {
+      "id": "RECOVERY-response-lost",
+      "name": "lost execute response reads durable result and never sends the batch twice",
+      "passed": true,
+      "evidence": {
+        "durableStage": "readback_verified",
+        "simulatedSends": 1
+      }
+    },
+    {
+      "id": "RECOVERY-sent",
+      "name": "sent without readback remains distinct until original simulated receipt is verified",
+      "passed": true
+    },
+    {
+      "id": "UI-scope",
+      "name": "late response from previous workspace cannot replace current records",
+      "passed": true,
+      "evidence": {
+        "lateResponseIgnored": true
+      }
+    },
+    {
+      "id": "BOUNDARY",
+      "name": "browser and service use isolated persistence with no real external traffic or scheduler enablement",
+      "passed": true,
+      "evidence": {
+        "consoleErrors": [],
+        "externalRequests": [],
+        "realExternalWrites": 0,
+        "simulatedSends": 3,
+        "dataDir": "output/core-p1-p5-r1/input-JLo7tg",
+        "schedulerEnabled": false
+      }
+    }
+  ],
+  "screenshots": [
+    "receipt-project.png",
+    "receipt-attention.png",
+    "receipt-inbox.png",
+    "receipt-weekly.png",
+    "images-reloaded.png",
+    "input-failure-preserved.png",
+    "saved-display-read-failure.png",
+    "saved-preparation-running.png",
+    "saved-preparation-failed.png",
+    "manual-time-current-choice.png",
+    "preview-version-conflict.png",
+    "unknown-reconciled.png",
+    "sent-awaits-readback.png"
+  ],
+  "errors": [],
+  "external": [],
+  "simulatedSends": 3,
+  "simulatedAttempts": 4,
+  "mutations": [
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "f23a3f65-fec2-443f-a3b5-16d60949411a",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 project 合成反馈",
+        "clientDraft": {
+          "text": "已收到 project 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:55.107Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "5d960219-1b6a-42ec-a0fd-bb0e6ca9e626",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 attention 合成反馈",
+        "clientDraft": {
+          "text": "已收到 attention 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "fb0f200a-4cd9-4b17-b68e-ed703ea564a2",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:55.640Z",
+          "expectedVersion": 3,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "6750e5189222306cae8b6317",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "e371a8bf-b8b9-4a2d-b990-616afb4f0532",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 inbox 合成反馈",
+        "clientDraft": {
+          "text": "已收到 inbox 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "8330a3a7-a1d1-46a7-8fcb-53746081c529",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:56.140Z",
+          "expectedVersion": 5,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "4c18851f47f5ff4b17487f1a",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "4ee712cb-1224-41b5-b635-eef1ba092dcf",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到 weekly 合成反馈",
+        "clientDraft": {
+          "text": "已收到 weekly 合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "878501d3-63ba-4c14-b5b5-4bc1d8054aae",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:56.674Z",
+          "expectedVersion": 7,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "c1ae14417463bb9d7ed74e40",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/attachments",
+      "body": {
+        "workspaceId": "core-input",
+        "name": "synthetic-1.png",
+        "mime": "image/png",
+        "attachmentPayload": {
+          "bytes": 25411
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "808781bf-6c86-4556-bded-1c884db2d223",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [
+          "file-04c529ba-98d4-4690-afde-3a2cca837ede"
+        ],
+        "text": "",
+        "clientDraft": {
+          "text": "",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": [
+            {
+              "id": "file-04c529ba-98d4-4690-afde-3a2cca837ede",
+              "name": "synthetic-1.png",
+              "mime": "image/png",
+              "size": 25411,
+              "sha256": "96200af061db15a92a9ebbf61cda28d3bc82da9d119d3388f0a05e9345012ac1",
+              "url": "/api/v2/attachments/file-04c529ba-98d4-4690-afde-3a2cca837ede?workspaceId=core-input"
+            }
+          ]
+        },
+        "parentJobId": "f8ddfa3d-2e76-462c-b7fc-ddf8560b9462",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:57.325Z",
+          "expectedVersion": 9,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "7edddd00948d9d0c12083c3f",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/attachments",
+      "body": {
+        "workspaceId": "core-input",
+        "name": "synthetic-2.png",
+        "mime": "image/png",
+        "attachmentPayload": {
+          "bytes": 26207
+        }
+      }
+    },
+    {
+      "path": "/api/v2/attachments",
+      "body": {
+        "workspaceId": "core-input",
+        "name": "synthetic-1.png",
+        "mime": "image/png",
+        "attachmentPayload": {
+          "bytes": 25411
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "e5f87612-ac4b-46fc-9dbf-08e8ee5c3f1b",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [
+          "file-2a88c7b9-c7d5-400a-875e-cd731c34f923",
+          "file-0f014ea5-4005-42e5-a2c8-ac8cb88771ce"
+        ],
+        "text": "",
+        "clientDraft": {
+          "text": "",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": [
+            {
+              "id": "file-2a88c7b9-c7d5-400a-875e-cd731c34f923",
+              "name": "synthetic-2.png",
+              "mime": "image/png",
+              "size": 26207,
+              "sha256": "5e708f8ebce62e9752b6af76174da0401ef743b20829b6c008e24dd702f5dd83",
+              "url": "/api/v2/attachments/file-2a88c7b9-c7d5-400a-875e-cd731c34f923?workspaceId=core-input"
+            },
+            {
+              "id": "file-0f014ea5-4005-42e5-a2c8-ac8cb88771ce",
+              "name": "synthetic-1.png",
+              "mime": "image/png",
+              "size": 25411,
+              "sha256": "96200af061db15a92a9ebbf61cda28d3bc82da9d119d3388f0a05e9345012ac1",
+              "url": "/api/v2/attachments/file-0f014ea5-4005-42e5-a2c8-ac8cb88771ce?workspaceId=core-input"
+            }
+          ]
+        },
+        "parentJobId": "594686e1-e426-48a2-9cad-1abf79106686",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:57.839Z",
+          "expectedVersion": 10,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "64424c6985569f95cd3a9aa8",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "0809b60c-c178-49c3-bdee-e0f254acd25c",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到合成失败恢复反馈",
+        "clientDraft": {
+          "text": "已收到合成失败恢复反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "7abd49df-c7e3-4d90-aabb-7c60b78bb572",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:59.522Z",
+          "expectedVersion": 11,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "1f0cafceeca0dcc28553a071",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "f00fd2f9-5074-453f-acdd-c3da9ebada88",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到合成失败恢复反馈",
+        "clientDraft": {
+          "text": "已收到合成失败恢复反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "7abd49df-c7e3-4d90-aabb-7c60b78bb572",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:56:59.640Z",
+          "expectedVersion": 11,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "1f0cafceeca0dcc28553a071",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "3e51ac6d-ae87-4801-9875-2c95cefb929b",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到保存后刷新失败的合成反馈",
+        "clientDraft": {
+          "text": "已收到保存后刷新失败的合成反馈",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "c2b4163b-3fdc-4b67-b51c-46f1028876f2",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:57:01.106Z",
+          "expectedVersion": 13,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "ff3f2bef5c9eaac316979c4a",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "25217649-c807-4675-b686-f6145bd6e913",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到合成反馈，需要核对评审资料",
+        "clientDraft": {
+          "text": "已收到合成反馈，需要核对评审资料",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "617da8bf-deae-4365-87a8-f112a93b8d64",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:57:02.738Z",
+          "expectedVersion": 15,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "287f52417908673575f52840",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "899be20e-3c1a-4ff6-a190-38ab789b580b",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "延迟长：周三检查",
+        "clientDraft": {
+          "text": "延迟长：周三检查",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-15",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "9e5b9d6d-d6d5-410b-ba19-1a7a9d241872",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:57:04.908Z",
+          "expectedVersion": 17,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "6fbd41e2fd7172e139967cd",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-15",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "2cafcab7-6fa9-4c71-bfb6-d822a16bcf32",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "延迟：周三检查",
+        "clientDraft": {
+          "text": "延迟：周三检查",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "c1c0dc82-3487-446f-a6d5-8f849e48ce5e",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:57:07.255Z",
+          "expectedVersion": 17,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "6fbd41e2fd7172e139967cd",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "core-input",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "509cbc9e-f227-4151-aaf4-89ab2a432e2d",
+        "requestId": "4d015725-69a0-42f4-9c00-c76e0db416a2",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "延迟：周三检查",
+        "clientDraft": {
+          "text": "延迟：周三检查",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "ab0f96fb-d499-4a1d-bfdf-74f12b05ee3f",
+        "p1Input": {
+          "occurredAt": "2026-10-15T00:57:09.606Z",
+          "expectedVersion": 17,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "6fbd41e2fd7172e139967cd",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-16",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {
+            "check": {
+              "choice": "manual",
+              "fingerprint": "[\"check\",\"延迟：周三检查\",[\"scheduled\",\"2026-10-14\",\"\",\"Asia/Shanghai\"],[\"scheduled\",\"2026-10-16\",\"\",\"Asia/Shanghai\"]]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-2e62a87268a2cc7c19692e7d9ec2cf18",
+        "requestId": "1080ba68-1a26-4c9f-abd4-f1d5b32e8e01",
+        "decisions": [
+          {
+            "id": "reminder-core-2e62a87268a2cc7c19692e7d9ec2cf18:0",
+            "fingerprint": "865bbb9cb5ebe5ea4a94929b7006a87444297f5046d63bd75daaaf9dea1b4bfe",
+            "action": "edit",
+            "text": "本地尚未保存的合成草稿",
+            "recipientId": "engineer"
+          }
+        ],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-c0006044d177a1440755caafe0d926b1",
+        "requestId": "0b01ab03-0843-4c67-9b69-a415e2153b21",
+        "decisions": [
+          {
+            "id": "reminder-core-c0006044d177a1440755caafe0d926b1:0",
+            "fingerprint": "d026c6cebc60ec22637b57b22acfc4c3397ca02aa32da358048b9a24aa733dcf",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "reconcile-messages",
+        "sourceId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "message-authority",
+        "sourceId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991",
+        "messageId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991:0",
+        "expectedFingerprint": "635ad707f28e81e92a7b6542975709bdcf9eaba456bdf06653d7d812b5faa20c",
+        "authorityAction": "takeover",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "reconcile-messages",
+        "sourceId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "message-authority",
+        "sourceId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991",
+        "messageId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991:0",
+        "expectedFingerprint": "635ad707f28e81e92a7b6542975709bdcf9eaba456bdf06653d7d812b5faa20c",
+        "authorityAction": "release",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-0a7386ef1e233d0a3677431ef86b5991",
+        "workspaceId": "core-input"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "execute-messages",
+        "sourceId": "reminder-core-bb55d6e333b377dce1c356782ab658cb",
+        "workspaceId": "core-input"
+      }
+    }
+  ]
+}

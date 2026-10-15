@@ -1,0 +1,239 @@
+{
+  "mode": "fixed",
+  "scope": "Original product React/HTTP/SQLite with synthetic business data and external transport; baseline verified means defect reproduced, not acceptance",
+  "productFileSha256": "c8df0db1be03e63653489dc6d4c31abaa1814a9b1556d074c547f8741776194b",
+  "results": [
+    {
+      "id": "B01-A",
+      "name": "external message fingerprint changes retire the old choice; new approval is explicit",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "old": "4aff83e4e717417396a5e2eb282df1134c35c050151d8361a9422b4cba9a00f4",
+        "current": "64463df22b54bcaff63917242689f3bb7eb07b2d060e09ab4f5fa5f5d68055de",
+        "postCount": 1
+      }
+    },
+    {
+      "id": "B01-B",
+      "name": "external candidate version change permits explicit current-version admission without approval or send",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "oldVersion": 1,
+        "currentVersion": 2,
+        "postCount": 1
+      }
+    },
+    {
+      "id": "B01-C",
+      "name": "externally approved selected message exits selection without replaying its approval",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "firstApprovalCount": 1,
+        "postCount": 1
+      }
+    },
+    {
+      "id": "B01-D",
+      "name": "valid simultaneous selection survives when another selected message becomes stale",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "validSelectionPreserved": true,
+        "replacementAutomaticallyApproved": false
+      }
+    },
+    {
+      "id": "B02-A",
+      "name": "read-only cancelled message retains draft and local-only discard",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "stage": "cancelled",
+        "serverText": "原始完整正文 0",
+        "draft": "尚未提交的本地草稿 cancelled",
+        "postDelta": 0,
+        "sendDelta": 0,
+        "executionBlocked": false
+      }
+    },
+    {
+      "id": "B02-B",
+      "name": "read-only readback_verified message retains draft and local-only discard",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "stage": "readback_verified",
+        "serverText": "原始完整正文 0",
+        "draft": "尚未提交的本地草稿 readback_verified",
+        "postDelta": 0,
+        "sendDelta": 0,
+        "executionBlocked": false
+      }
+    },
+    {
+      "id": "B02-C",
+      "name": "same-tab refresh and entry reopening retain draft; discarded cache never revives",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": [
+        {
+          "terminal": "cancelled",
+          "refreshRetained": true,
+          "reentryRetained": true,
+          "discardPersisted": true,
+          "postDelta": 0,
+          "sendDelta": 0
+        },
+        {
+          "terminal": "readback_verified",
+          "refreshRetained": true,
+          "reentryRetained": true,
+          "discardPersisted": true,
+          "postDelta": 0,
+          "sendDelta": 0
+        }
+      ]
+    },
+    {
+      "id": "B01-E",
+      "name": "removed preparation draft choices retire while existing selected drafts remain",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "projectionChange": "synthetic model output persisted in fixture",
+        "retainedDraft": "draft-1"
+      }
+    },
+    {
+      "id": "GUARD-inflight",
+      "name": "sending and sent without readback keep batch execution blocked",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "states": [
+          "sending",
+          "sent"
+        ],
+        "uiPostDelta": 0
+      }
+    },
+    {
+      "id": "BOUNDARY",
+      "name": "all business objects are isolated; no real external calls or scheduler activation",
+      "verified": true,
+      "meaning": "Fixed product scenario passed",
+      "evidence": {
+        "consoleErrors": [],
+        "externalRequests": [],
+        "realExternalWrites": 0,
+        "simulatedSends": 3,
+        "schedulerEnabled": false
+      }
+    }
+  ],
+  "posts": [
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-5da8ac2d7cf9af367c6e78c599cf7773",
+        "requestId": "260bf031-0d77-4cfd-9c21-c5ba0f3edbd0",
+        "decisions": [
+          {
+            "id": "reminder-core-5da8ac2d7cf9af367c6e78c599cf7773:0",
+            "fingerprint": "64463df22b54bcaff63917242689f3bb7eb07b2d060e09ab4f5fa5f5d68055de",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "fix1-b01a"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-803f5ee1f3d19f65ba30cbd6082ff11b",
+        "requestId": "5c4884a8-012b-4f45-9543-6a0135bae6aa",
+        "decisions": [],
+        "admissions": [
+          {
+            "id": "p1-action",
+            "expectedVersion": 2
+          }
+        ],
+        "workspaceId": "fix1-b01b"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-63fb80d0e3c4d6ec729817904b610b4a",
+        "requestId": "c14fcf0f-c86b-443f-9162-a6777ec9d770",
+        "decisions": [
+          {
+            "id": "reminder-core-63fb80d0e3c4d6ec729817904b610b4a:1",
+            "fingerprint": "1055f0a7417bbdcc22e51724574af630b042d3229d8e051c7be5feb254209596",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "fix1-b01c"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-9ea3afe2264804bb6d01b567143f4abd",
+        "requestId": "486bd078-20c2-4fe5-97cc-4456c17bb039",
+        "decisions": [
+          {
+            "id": "reminder-core-9ea3afe2264804bb6d01b567143f4abd:1",
+            "fingerprint": "1055f0a7417bbdcc22e51724574af630b042d3229d8e051c7be5feb254209596",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "fix1-b01d"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "prepare-messages",
+        "requestId": "9c57b3ea-04ca-421e-bf84-e5ba8015f3f1",
+        "messages": [
+          {
+            "id": "draft-1",
+            "workItemId": "p1-risk",
+            "title": "合成消息 1",
+            "text": "原始完整正文 1",
+            "recipientId": "engineer",
+            "channel": "private",
+            "proof": [
+              {
+                "sourceId": "fix-proof",
+                "fingerprint": "101713bcf54d05cf",
+                "quote": "请核对两项合成工作，等待责任人反馈。"
+              }
+            ]
+          }
+        ],
+        "workspaceId": "fix1-b01e"
+      }
+    }
+  ],
+  "screenshots": [
+    "fixed-b01a-current-selection.png",
+    "fixed-b02-cancelled-draft.png",
+    "fixed-b02-readback_verified-draft.png"
+  ],
+  "errors": [],
+  "external": [],
+  "simulatedSends": 3
+}

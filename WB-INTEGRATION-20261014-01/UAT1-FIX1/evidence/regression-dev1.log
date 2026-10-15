@@ -1,0 +1,14 @@
+本地工作台 v2 已就绪：http://127.0.0.1:57389；SQLite：/REVIEW_HOME/output/core-p1-p5-r1/input-JLo7tg/workbench.sqlite
+PASS INPUT-contexts four original contexts save one text record and return with the same item and view
+PASS INPUT-images pure and multiple original images keep identity/order through upload, save and reload
+PASS INPUT-before-failure save failure keeps the text draft without a false success receipt
+PASS INPUT-refresh-failure saved record survives display read failure and reload without duplicate input
+PASS INPUT-preparation first-stage durable receipt remains saved while synthetic later preparation runs and fails
+PASS INPUT-race changing manual time while analysis runs retires stale choices without changing saved business timing
+PASS RECOVERY-conflict 409 is a known rejection; a newer server preview cannot be overwritten by a stale draft
+PASS RECOVERY-readback decision acknowledgement and projection read failure stay distinct; reread does not replay approval
+PASS RECOVERY-unknown unknown sends are queried first; verified non-send, takeover and release never silently retry
+PASS RECOVERY-response-lost lost execute response reads durable result and never sends the batch twice
+PASS RECOVERY-sent sent without readback remains distinct until original simulated receipt is verified
+PASS UI-scope late response from previous workspace cannot replace current records
+PASS BOUNDARY browser and service use isolated persistence with no real external traffic or scheduler enablement

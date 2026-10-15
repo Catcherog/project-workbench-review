@@ -1,0 +1,21 @@
+本地工作台 v2 已就绪：http://127.0.0.1:57388；SQLite：/REVIEW_HOME/output/core-p1-p5-r1/input-f4r4j6/workbench.sqlite
+PASS U01-navigation saved receipt and all five actions stay in their original workspace across dropdown/back/forward
+PASS U01-undo undo survives workspace switching and persistent reentry without becoming saved again
+PASS U01-pending-valid the original workspace still accepts the explicit pending-time action exactly once
+PASS U01-late-job a job finishing after leaving its workspace cannot populate or close the new workspace entry
+PASS U01-inflight-undo scope changes while original-request lookup is pending cannot continue a receipt write
+PASS U01-inflight-pending scope changes while original-request lookup is pending cannot continue a receipt write
+PASS U01-late-refresh A-to-B-to-A during save readback cannot close or replace the new entry
+PASS U01-missing missing current durable receipt disables every action instead of trusting cached saved content
+PASS U02-field-1024x768 empty scheduled date points to its field, stays visible and makes no request
+PASS U02-save-1024x768 decision save feedback is local and visible; rapid repeat click has one write and no send
+PASS U02-rejected-1024x768 known rejection stays beside the edit action and preserves the local draft
+PASS U02-readback-1024x768 acknowledged save plus failed readback remain distinct and visible; reread does not resubmit
+PASS U02-unknown-1024x768 lost acknowledgement stays unknown; explicit retry reads first and reuses the same request identity
+PASS U02-field-1440x900 empty scheduled date points to its field, stays visible and makes no request
+PASS U02-save-1440x900 decision save feedback is local and visible; rapid repeat click has one write and no send
+PASS U02-rejected-1440x900 known rejection stays beside the edit action and preserves the local draft
+PASS U02-readback-1440x900 acknowledged save plus failed readback remain distinct and visible; reread does not resubmit
+PASS U02-unknown-1440x900 lost acknowledgement stays unknown; explicit retry reads first and reuses the same request identity
+PASS U02-filter a completed message leaving the current filter keeps its feedback visible in its batch
+PASS BOUNDARY all writes remain synthetic and no scheduler or outbound transport is used
