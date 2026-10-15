@@ -1,0 +1,650 @@
+diff --git a/package.json b/package.json
+index f40312d..db4ea2a 100644
+--- a/package.json
++++ b/package.json
+@@ -1,11 +1,9 @@
+ {
+-  "name": "feishu-studio-probe-r1",
++  "name": "feishu-studio-probe-r1-fix2",
+   "private": true,
+   "type": "module",
+   "scripts": {
+-    "test": "node --test tests/*.test.mjs",
+-    "isolation": "node tests/isolation.mjs",
+-    "probe": "node src/local-probe.mjs"
++    "test": "node --test tests/*.test.mjs"
+   },
+   "engines": {
+     "node": ">=22"
+diff --git a/src/broker.mjs b/src/broker.mjs
+index 7684ab6..1b4bf76 100644
+--- a/src/broker.mjs
++++ b/src/broker.mjs
+@@ -4,6 +4,8 @@ import {randomUUID} from 'node:crypto';
+ import {hash} from './codex.mjs';
+ import {bounded} from './lifecycle.mjs';
+ import {acquireOwner} from './owner.mjs';
++import {ExecutionState,executionStateClear,reconcileExecution} from './execution-state.mjs';
++import {withinExecution} from './execution-context.mjs';
+ 
+ // Transport remains offline. Identity must come from the trusted adapter, never model text.
+ export class ProbeBroker{
+@@ -12,8 +14,9 @@ export class ProbeBroker{
+   if(!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>20||taskTimeoutMs<1||taskTimeoutMs>180000||maxReplies<1||maxReplies>40||maxStopMs<50||maxStopMs>4500)throw Error('INVALID_LIMITS');
+   for(const x of [verifyTimeoutMs,sendTimeoutMs,readbackTimeoutMs])if(!Number.isFinite(x)||x<1||x>30000)throw Error('INVALID_IO_LIMIT');
+   Object.assign(this,{appId,tenantId,participants:new Map(participants.map(x=>[x.id,x.alias])),deadline,verify,execute,reply,readReply,clock,maxCalls,taskTimeoutMs,maxReplies,verifyTimeoutMs,sendTimeoutMs,readbackTimeoutMs,maxStopMs});
+-  this.ownership=acquireOwner(file);this.jobsRoot=resolve(dirname(file),'jobs');
++  this.file=file;this.ownership=acquireOwner(file,{requiresClearance:true});this.jobsRoot=resolve(dirname(file),'jobs');
+   try{
++   this.terminations=new ExecutionState(file);
+    this.db=new DatabaseSync(file);
+    this.db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY,v INTEGER); CREATE TABLE IF NOT EXISTS sessions(k TEXT PRIMARY KEY,marker TEXT,history TEXT); CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY,session TEXT,status TEXT,data TEXT,output TEXT,reply_id TEXT); CREATE TABLE IF NOT EXISTS intakes(id TEXT PRIMARY KEY,status TEXT,at TEXT); CREATE TABLE IF NOT EXISTS journal(n INTEGER PRIMARY KEY,id TEXT,phase TEXT,detail TEXT,at TEXT);');
+    for(const [k,v] of [['calls',0],['replies',0],['startedAt',clock()],['deadline',deadline],['scope',hash([appId,tenantId,participants])]])this.db.prepare('INSERT OR IGNORE INTO meta VALUES(?,?)').run(k,v);
+@@ -23,8 +26,8 @@ export class ProbeBroker{
+    const recovery=this.db.prepare("SELECT id,status FROM messages WHERE status IN ('queued','running','sending')").all();
+    for(const row of recovery){const next={queued:'interrupted_unstarted',running:'interrupted',sending:'reply_unknown'}[row.status];this.update(row.id,next);this.note(row.id,'recovered',{from:row.status,to:next,automaticReplay:false});}
+    this.db.exec("UPDATE intakes SET status='verification_interrupted' WHERE status='verifying';");
+-  }catch(e){this.db?.close();this.ownership.release();throw e;}
+-  this.queue=Promise.resolve();this.pending=new Set();this.workers=new Set();this.lifetime=new AbortController();this.stopped=false;this.closed=false;
++  }catch(e){this.db?.close();if(executionStateClear(file))this.ownership.release();throw e;}
++  this.queue=Promise.resolve();this.pending=new Set();this.workers=new Set();this.reconciliations=new Map();this.lifetime=new AbortController();this.stopped=false;this.closed=false;
+   this.expiry=setTimeout(()=>void this.stop('expired'),Math.max(1,deadline-clock()));this.expiry.unref();
+  }
+  count(k){return this.db.prepare('SELECT v FROM meta WHERE k=?').get(k).v;}
+@@ -35,6 +38,17 @@ export class ProbeBroker{
+   if(output!==undefined){sql+=',output=?';args.push(output);}if(replyId!==undefined){sql+=',reply_id=?';args.push(replyId);}sql+=' WHERE id=?';args.push(id);this.db.prepare(sql).run(...args);
+  }
+  track(p,set=this.pending){set.add(p);p.then(()=>set.delete(p),()=>set.delete(p));return p;}
++ async executeTracked(messageId,input){
++  const mode=this.execute.processLifecycle==='logical-only'?'logical-only':this.execute.processLifecycle==='required'?'managed':'opaque';
++  const id=this.terminations.begin(messageId,mode);
++  return withinExecution(event=>this.terminations.record(id,event),async()=>{
++   let result;
++   try{result=await this.execute(input);}catch(e){this.terminations.settle(id,e);throw e;}
++   this.terminations.settle(id);
++   if(!this.terminations.safe(id))throw Error('PROCESS_EXIT_UNCONFIRMED');
++   return result;
++  });
++ }
+  identity(e){return e&&e.appId===this.appId&&e.tenantId===this.tenantId&&e.chatType==='p2p'&&e.senderType==='user'&&this.participants.has(e.senderId)&&typeof e.chatId==='string'&&e.chatId.length>0&&e.chatId.length<160&&typeof e.messageId==='string'&&e.messageId.length>0&&e.messageId.length<160&&typeof e.text==='string'&&e.text.length<=2000&&Number.isFinite(e.createdAt)&&e.createdAt<=this.clock()+30000&&e.createdAt>=this.startedAt;}
+  accept(event){
+   if(this.closed||this.stopped||this.clock()>=this.deadline)return Promise.resolve({status:'closed'});
+@@ -69,7 +83,7 @@ export class ProbeBroker{
+   this.db.prepare("UPDATE meta SET v=v+1 WHERE k='calls'").run();this.update(id,'running');
+   let result;
+   try{
+-   result=await bounded('execute',signal=>this.execute({marker:session.marker,alias:data.alias,history:JSON.parse(session.history),jobDir:resolve(this.jobsRoot,row.session,hash(id)),signal}),{timeoutMs:this.taskTimeoutMs,signal:this.lifetime.signal,onUnderlying:p=>this.track(p,this.workers)});
++   result=await bounded('execute',signal=>this.executeTracked(id,{marker:session.marker,alias:data.alias,history:JSON.parse(session.history),jobDir:resolve(this.jobsRoot,row.session,hash(id)),signal}),{timeoutMs:this.taskTimeoutMs,signal:this.lifetime.signal,onUnderlying:p=>this.track(p,this.workers)});
+    if(this.stopped||this.clock()>=this.deadline){this.update(id,'model_failed');this.note(id,'execute_cancelled');return;}
+    if(!result||Object.keys(result).sort().join(',')!=='marker,summary'||result.marker!==session.marker||typeof result.summary!=='string'||result.summary.length>1800)throw Error('INVALID_MODEL_RESULT');
+   }catch(e){this.update(id,'model_failed');this.note(id,'execute_failed',{reason:e.reason||e.message});return;}
+@@ -104,9 +118,21 @@ export class ProbeBroker{
+    const waiting=Promise.allSettled([...this.pending,this.queue,...this.workers]).then(()=>{settled=true;});
+    await Promise.race([waiting,new Promise(r=>{timer=setTimeout(r,this.maxStopMs);})]);clearTimeout(timer);
+    this.db.prepare("UPDATE messages SET status='cancelled_unstarted' WHERE status='queued'").run();
+-   this.stopReceipt={reason,elapsedMs:Date.now()-started,logicalOperations:this.pending.size,unsettledWorkers:this.workers.size,settled,confirmed:settled&&this.workers.size===0};
+-   this.note('broker','stop',this.stopReceipt);return this.stopReceipt;
++   const safety=this.terminations.seal();
++   this.stopReceipt={reason,elapsedMs:Date.now()-started,logicalOperations:this.pending.size,unsettledWorkers:this.workers.size,settled,...safety,confirmed:settled&&this.workers.size===0&&safety.processTerminationConfirmed};
++   try{this.note('broker','stop',this.stopReceipt);}catch{this.terminations.fault('stop_receipt_persistence_failed');Object.assign(this.stopReceipt,this.terminations.summary(),{confirmed:false});}
++   return this.stopReceipt;
+   })();return this.stopping;
+  }
+- async close(){if(this.closed)return this.stopReceipt;const r=await this.stop();this.closed=true;this.db.close();if(r.confirmed)this.ownership.release();return r;}
++ close(){
++  if(this.closing)return this.closing;
++  this.closing=(async()=>{const r=await this.stop();this.closed=true;this.terminations.close();this.db.close();if(r.confirmed)this.ownership.release();return r;})();return this.closing;
++ }
++ reconcileTermination(executionId,inspect){
++  if(this.reconciliations.has(executionId))return this.reconciliations.get(executionId);
++  if(!this.closed||this.workers.size)throw Error('RECONCILIATION_REQUIRES_CLOSED_SETTLED_BROKER');
++  const result=reconcileExecution(this.file,executionId,inspect);
++  if(result.safetyCleared)this.ownership.release();
++  const receipt={...result,ownerReleased:result.safetyCleared};this.reconciliations.set(executionId,receipt);return receipt;
++ }
+ }
+diff --git a/src/budget.mjs b/src/budget.mjs
+index 2f6a839..2d979c8 100644
+--- a/src/budget.mjs
++++ b/src/budget.mjs
+@@ -2,7 +2,7 @@ import fs from 'node:fs';
+ import {dirname} from 'node:path';
+ import {DatabaseSync} from 'node:sqlite';
+ import {randomUUID,createHash} from 'node:crypto';
+-import {processIdentity,liveGroupMembers} from './process.mjs';
++import {processIdentity,liveGroupMembers,executionHostFingerprint} from './process.mjs';
+ const digest=x=>createHash('sha256').update(x).digest('hex');
+ export class ExecutionBudget{
+  constructor(file,snapshot,{phase='R1-FIX1',maxNew=4,total=20}={}){
+@@ -22,15 +22,15 @@ export class ExecutionBudget{
+   }catch(e){this.db.exec('ROLLBACK');this.db.close();throw e;}
+  }
+  status(){const rows=this.db.prepare('SELECT * FROM calls').all();return {total:rows.length,newCalls:rows.filter(x=>x.phase===this.phase).length,active:rows.filter(x=>['running','termination_unknown'].includes(x.state)).length};}
+- reserve(){this.db.exec('BEGIN IMMEDIATE');try{const s=this.status();if(s.total>=this.total)throw Error('TOTAL_MODEL_LIMIT');if(s.newCalls>=this.maxNew)throw Error('FIX1_MODEL_LIMIT');if(s.active)throw Error('MODEL_OWNER_BUSY');const id=randomUUID();this.db.prepare('INSERT INTO calls VALUES(?,?,?,?,NULL,?)').run(id,this.phase,new Date().toISOString(),'running',JSON.stringify({pid:process.pid,identity:processIdentity(process.pid)}));this.db.exec('COMMIT');return id;}catch(e){this.db.exec('ROLLBACK');throw e;}}
++ reserve(){this.db.exec('BEGIN IMMEDIATE');try{const s=this.status();if(s.total>=this.total)throw Error('TOTAL_MODEL_LIMIT');if(s.newCalls>=this.maxNew)throw Error('FIX1_MODEL_LIMIT');if(s.active)throw Error('MODEL_OWNER_BUSY');const id=randomUUID();this.db.prepare('INSERT INTO calls VALUES(?,?,?,?,NULL,?)').run(id,this.phase,new Date().toISOString(),'running',JSON.stringify({pid:process.pid,identity:processIdentity(process.pid),hostFingerprint:executionHostFingerprint()}));this.db.exec('COMMIT');return id;}catch(e){this.db.exec('ROLLBACK');throw e;}}
+  spawned(id,receipt){this.db.prepare('UPDATE calls SET process=? WHERE id=?').run(JSON.stringify(receipt),id);}
+  finish(id,confirmed){this.db.prepare('UPDATE calls SET state=? WHERE id=?').run(confirmed?'finished':'termination_unknown',id);}
+  inspect(id){
+   const row=this.db.prepare('SELECT * FROM calls WHERE id=?').get(id);if(!row)throw Error('UNKNOWN_RUN');
+   const owner=row.owner?JSON.parse(row.owner):null,p=row.process?JSON.parse(row.process):null;
+   const currentOwner=owner?processIdentity(owner.pid):null,current=p?processIdentity(p.pid):null,members=p?liveGroupMembers(p.pgid):[];
+-  const ownerGone=!owner||currentOwner!==owner.identity,processGone=!p||current!==p.identity;
+-  return {id,state:row.state,ownerGone,processGone,liveMembers:members,reconcilable:ownerGone&&processGone&&Array.isArray(members)&&members.length===0};
++  const ownerGone=!!owner?.identity&&currentOwner===null,processGone=!!p?.identity&&current===null;
++  return {id,state:row.state,ownerGone,processGone,liveMembers:members,reconcilable:owner?.hostFingerprint===executionHostFingerprint()&&ownerGone&&processGone&&Number.isSafeInteger(p?.pid)&&p.pid===p.pgid&&Array.isArray(members)&&members.length===0};
+  }
+  reconcile(id){const r=this.inspect(id);if(!r.reconcilable)throw Error('PROCESS_STILL_ACTIVE_OR_UNKNOWN');this.db.prepare("UPDATE calls SET state='interrupted_confirmed' WHERE id=?").run(id);return r;}
+  close(){this.db.close();}
+diff --git a/src/codex.mjs b/src/codex.mjs
+index fba688b..c121ff2 100644
+--- a/src/codex.mjs
++++ b/src/codex.mjs
+@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
+ import {processRun,cleanEnv} from './process.mjs';
+ import {buildLaunch,permissionArgs,hash} from './launch.mjs';
+ import {ExecutionBudget} from './budget.mjs';
++import {recordExecution} from './execution-context.mjs';
+ export {processRun,cleanEnv,permissionArgs,hash,buildLaunch};
+ const budgetFile=fileURLToPath(new URL('../runtime/model-budget.sqlite',import.meta.url));
+ export const resultSchema={type:'object',additionalProperties:false,required:['marker','summary','missing','question'],properties:{marker:{type:'string'},summary:{type:'string',maxLength:1800},missing:{type:'array',maxItems:10,items:{type:'string',maxLength:200}},question:{type:'string',maxLength:500}}};
+@@ -16,11 +17,13 @@ export function validateCompletion(envelope,marker){
+  return envelope;
+ }
+ export async function implementationFingerprint(){
+- const files=['codex.mjs','process.mjs','launch.mjs','budget.mjs','worker-adapter.mjs','isolation-evidence.mjs'];const hashes={};
++ const files=['codex.mjs','process.mjs','launch.mjs','budget.mjs','worker-adapter.mjs','isolation-evidence.mjs','execution-context.mjs','execution-state.mjs','owner.mjs'];const hashes={};
+  for(const name of files)try{hashes[name]=hash(await fs.readFile(new URL(name,import.meta.url)));}catch{hashes[name]='absent';}
+  return {files:hashes,fingerprint:hash(hashes)};
+ }
+ export async function runCodex({binary,prefixArgs=[],jobDir,prompt,marker,model='gpt-6-astra',effort='max',timeoutMs=180000,signal,executionKind='real-model'}){
++ const runId=randomUUID();let processAttempted=false;
++ try{
+  if(signal?.aborted)throw Error('CANCELLED_BEFORE_START');
+  if(timeoutMs<1||timeoutMs>180000)throw Error('INVALID_TIMEOUT');
+  if(!['real-model','offline-fixture'].includes(executionKind))throw Error('INVALID_EXECUTION_KIND');
+@@ -29,7 +32,7 @@ export async function runCodex({binary,prefixArgs=[],jobDir,prompt,marker,model=
+   const snapshot=JSON.parse(await fs.readFile(new URL('../evidence/round-budget.json',import.meta.url),'utf8'));
+   budget=new ExecutionBudget(budgetFile,snapshot);try{callId=budget.reserve();}catch(e){budget.close();throw e;}
+  }
+- const runId=randomUUID();let processReceipt;
++ let processReceipt;
+  try{
+   if(signal?.aborted)throw Error('CANCELLED_BEFORE_START');
+   await fs.mkdir(jobDir,{recursive:true,mode:0o700});
+@@ -45,15 +48,17 @@ export async function runCodex({binary,prefixArgs=[],jobDir,prompt,marker,model=
+    if(['thread.started','turn.started','turn.completed','turn.failed','error'].includes(e.type))events.push(e);
+    if(['item.started','item.completed','item.failed'].includes(e.type)&&['command_execution','agent_message'].includes(e.item?.type))events.push(e);
+   };
++  recordExecution({type:'runner',runId});processAttempted=true;
+   processReceipt=await processRun(binary,launch.args,{cwd:launch.cwd,env:launch.env,input:prompt,timeoutMs,signal,onRecord,onSpawn:r=>budget?.spawned(callId,r)});
+-  confirmed=processReceipt.terminationConfirmed;
++  confirmed=processReceipt.terminationConfirmed&&processReceipt.lifecyclePersisted!==false;
+   let result;try{result=JSON.parse(await fs.readFile(outputFile,'utf8'));}catch{}
+   const completed=events.filter(e=>e.type==='turn.completed').length===1,failed=events.some(e=>['turn.failed','error'].includes(e.type));
+   const last=events.filter(e=>e.type==='item.completed'&&e.item?.type==='agent_message').at(-1);let finalMatches=false;try{finalMatches=hash(JSON.parse(last.item.text))===hash(result);}catch{}
+-  const evidence={runId,marker,executionKind,implementation,executorFingerprint,launch:launch.descriptor,launchFingerprint:launch.fingerprint,permissionFingerprint:launch.descriptor.permissionFingerprint,pid:processReceipt.pid,pgid:processReceipt.pgid,startedAt:processReceipt.startedAt,endedAt:processReceipt.endedAt,exit:processReceipt.exit,stopReason:processReceipt.stopReason,terminationConfirmed:confirmed,signals:processReceipt.signals,residualPids:processReceipt.residualPids,completed,failed,valid:validResult(result,marker)&&finalMatches,inputSha256:hash(prompt),outputSha256:result?hash(result):null,eventKinds,events,diagnosticSummary:{stderrBytes:Buffer.byteLength(processReceipt.stderr),stderrSha256:hash(processReceipt.stderr),spawnError:processReceipt.spawnError||null}};
++  const evidence={runId,marker,executionKind,implementation,executorFingerprint,launch:launch.descriptor,launchFingerprint:launch.fingerprint,permissionFingerprint:launch.descriptor.permissionFingerprint,pid:processReceipt.pid,pgid:processReceipt.pgid,startedAt:processReceipt.startedAt,endedAt:processReceipt.endedAt,exit:processReceipt.exit,stopReason:processReceipt.stopReason,terminationConfirmed:confirmed,physicalTerminationConfirmed:processReceipt.terminationConfirmed,lifecyclePersisted:processReceipt.lifecyclePersisted,signals:processReceipt.signals,residualPids:processReceipt.residualPids,completed,failed,valid:validResult(result,marker)&&finalMatches,inputSha256:hash(prompt),outputSha256:result?hash(result):null,eventKinds,events,diagnosticSummary:{stderrBytes:Buffer.byteLength(processReceipt.stderr),stderrSha256:hash(processReceipt.stderr),spawnError:processReceipt.spawnError||null}};
+   await fs.writeFile(join(recordDir,'execution.json'),JSON.stringify(evidence,null,2),{mode:0o600,flag:'wx'});
+   const envelope={result,evidence};
+   try{validateCompletion(envelope,marker);}catch(e){throw Object.assign(e,{evidence,recordDir});}
+   return envelope;
+  }finally{if(budget){budget.finish(callId,confirmed);budget.close();}}
++ }finally{if(!processAttempted)recordExecution({type:'not_started',processKey:runId+'-preflight',runId,reason:'runner_did_not_call_process_manager'});}
+ }
+diff --git a/src/execution-context.mjs b/src/execution-context.mjs
+new file mode 100644
+index 0000000..adf2cbd
+--- /dev/null
++++ b/src/execution-context.mjs
+@@ -0,0 +1,5 @@
++import {AsyncLocalStorage} from 'node:async_hooks';
++const executions=new AsyncLocalStorage();
++// This channel carries controller callbacks, never JSONL/model/message content.
++export const withinExecution=(record,fn)=>executions.run(record,fn);
++export function recordExecution(event){return executions.getStore()?.(event)??true;}
+diff --git a/src/execution-state.mjs b/src/execution-state.mjs
+new file mode 100644
+index 0000000..e32fddc
+--- /dev/null
++++ b/src/execution-state.mjs
+@@ -0,0 +1,94 @@
++import fs from 'node:fs';
++import {dirname} from 'node:path';
++import {randomUUID} from 'node:crypto';
++import {processIdentity,liveGroupMembers,executionHostFingerprint} from './process.mjs';
++const safe=new Set(['no_process','confirmed','confirmed_legacy','reconciled_exited']);
++export const executionStatePath=file=>file+'.executions.json';
++export function readExecutionState(file){
++ const state=JSON.parse(fs.readFileSync(executionStatePath(file),'utf8'));
++ if(state.version!==1||!state.runs||Array.isArray(state.runs))throw Error('INVALID_EXECUTION_LEDGER');
++ return state;
++}
++export function executionStateClear(file){
++ try{const s=readExecutionState(file);return s.hostFingerprint===executionHostFingerprint()&&!s.persistenceFault&&!fs.existsSync(executionStatePath(file)+'.fault')&&Object.values(s.runs).every(r=>safe.has(r.status));}catch{return false;}
++}
++function atomicSave(path,state){
++ fs.mkdirSync(dirname(path),{recursive:true,mode:0o700});const tmp=path+'.'+randomUUID()+'.tmp';let fd;
++ try{fd=fs.openSync(tmp,'wx',0o600);fs.writeFileSync(fd,JSON.stringify(state,null,2));fs.fsyncSync(fd);fs.closeSync(fd);fd=undefined;fs.renameSync(tmp,path);}finally{if(fd!==undefined)fs.closeSync(fd);if(fs.existsSync(tmp))fs.unlinkSync(tmp);}
++}
++
++export class ExecutionState{
++ constructor(file){
++  this.file=file;this.path=executionStatePath(file);this.closed=false;
++  this.state=fs.existsSync(this.path)?readExecutionState(file):{version:1,hostFingerprint:executionHostFingerprint(),persistenceFault:false,runs:{}};
++  if(fs.existsSync(this.path)&&!executionStateClear(file))throw Error('TERMINATION_RECONCILIATION_REQUIRED');
++  this.persist=atomicSave;atomicSave(this.path,this.state);
++ }
++ save(){try{this.persist(this.path,this.state);return true;}catch(e){this.state.persistenceFault=true;this.state.faultReason=e.code||e.message;try{fs.writeFileSync(this.path+'.fault','termination persistence requires reconciliation',{mode:0o600});}catch{}return false;}}
++ fault(reason){this.state.persistenceFault=true;this.state.faultReason=reason;this.save();}
++ safe(id){return !!this.state.runs[id]&&safe.has(this.state.runs[id].status)&&!this.state.persistenceFault;}
++ begin(messageId,mode){
++  const id=randomUUID();this.state.runs[id]={id,messageId,mode,status:'pending',sealed:false,runnerIds:[],processes:{},createdAt:new Date().toISOString()};
++  if(!this.save())throw Error('TERMINATION_LEDGER_UNWRITABLE');return id;
++ }
++ record(id,event){
++  const r=this.state.runs[id];if(!r)return false;
++  // A late intent may not spawn. Late terminal callbacks never rewrite a sealed decision.
++  if(this.closed||r.sealed)return !['intent','started'].includes(event.type);
++  if(event.runId&&!r.runnerIds.includes(event.runId))r.runnerIds.push(event.runId);
++  if(event.type==='runner')return this.save();
++  const key=event.processKey;if(!key)return false;
++  const p=r.processes[key]||{processKey:key};
++  if(event.type==='intent')Object.assign(p,{status:'pending',commandFingerprint:event.commandFingerprint});
++  else if(event.type==='not_started')Object.assign(p,{status:'no_process',spawned:false,reason:event.reason});
++  else if(event.type==='started')Object.assign(p,{status:'running',spawned:true,pid:event.pid,pgid:event.pgid,identity:event.identity});
++  else if(event.type==='finished'){
++   const binding=!event.spawned||(Number.isSafeInteger(p.pid)&&p.pid===event.pid&&p.pgid===event.pgid&&typeof p.identity==='string'&&p.identity.length>0&&p.identity===event.identity);
++   const confirmed=event.terminationConfirmed===true&&binding&&Array.isArray(event.residualPids)&&event.residualPids.length===0;
++   Object.assign(p,{status:confirmed?(event.spawned?'confirmed':'no_process'):'unknown',spawned:event.spawned,exit:event.exit,stopReason:event.stopReason,residualPids:event.residualPids});
++   if(binding)Object.assign(p,{pid:event.pid,pgid:event.pgid,identity:event.identity});
++   else p.bindingMismatch=true; // never replace the started process identity with a mismatched receipt
++   if(!confirmed)r.unknownSticky=true;
++  }else return false;
++  r.processes[key]=p;
++  if(r.unknownSticky)r.status='unknown';
++  return this.save();
++ }
++ settle(id,error){
++  const r=this.state.runs[id];if(!r||this.closed||r.sealed)return;
++  const ps=Object.values(r.processes),hint=error?.evidence;
++  if(hint?.terminationConfirmed===false){r.unknownSticky=true;r.failureHint='executor_reported_unknown';}
++  if(r.unknownSticky||this.state.persistenceFault)r.status='unknown';
++  else if(ps.length)r.status=ps.every(p=>safe.has(p.status))?(ps.some(p=>p.spawned)?'confirmed':'no_process'):'unknown';
++  else if(r.mode==='logical-only')r.status='no_process';
++  // Backward compatibility for the reviewer's explicitly safe, controller-owned fake executor.
++  // A bare result field cannot enter here, and this cannot override any process-manager record.
++  else if(r.mode==='opaque'&&hint?.terminationConfirmed===true&&Array.isArray(hint.residualPids)&&!hint.residualPids.length)r.status='confirmed_legacy';
++  else r.status='unknown';
++  r.settledAt=new Date().toISOString();if(r.status==='unknown')r.unknownSticky=true;this.save();
++ }
++ seal(){for(const r of Object.values(this.state.runs)){if(!safe.has(r.status)){r.status='unknown';r.unknownSticky=true;}r.sealed=true;}this.save();return this.summary();}
++ summary(){const unknown=Object.values(this.state.runs).filter(r=>!safe.has(r.status)).map(r=>({executionId:r.id,messageId:r.messageId,status:r.status,runnerIds:r.runnerIds,processes:Object.values(r.processes)}));return {processTerminationConfirmed:!unknown.length&&!this.state.persistenceFault,unknownExecutions:unknown,persistenceFault:!!this.state.persistenceFault};}
++ close(){this.closed=true;}
++}
++
++/** Explicit post-close reconciliation only. No PID killing or automatic lease recovery. */
++export function reconcileExecution(file,id,{identity=processIdentity,members=liveGroupMembers}={}){
++ const state=readExecutionState(file),r=state.runs[id];if(state.hostFingerprint!==executionHostFingerprint())throw Error('EXECUTION_HOST_MISMATCH');if(!r?.sealed)throw Error('RECONCILIATION_REQUIRES_SEALED_EXECUTION');
++ const ps=Object.values(r.processes);if(!ps.length)throw Error('PROCESS_BINDING_MISSING');
++ const checks=[];
++ for(const p of ps){
++  if(p.status==='no_process'){checks.push({processKey:p.processKey,noProcess:true});continue;}
++  if(p.bindingMismatch)throw Error('PROCESS_BINDING_MISMATCH');
++  if(!Number.isSafeInteger(p.pid)||p.pid<=0||p.pgid!==p.pid||!p.identity||!p.commandFingerprint)throw Error('PROCESS_BINDING_MISSING');
++  const current=identity(p.pid);if(current!==null)throw Error(current===p.identity?'PROCESS_STILL_ACTIVE':'PID_REUSED_OR_MISMATCH');
++  const live=members(p.pgid);if(!Array.isArray(live)||live.length)throw Error('PROCESS_GROUP_UNCONFIRMED');
++  checks.push({processKey:p.processKey,pid:p.pid,pgid:p.pgid,identity:p.identity,absent:true});
++ }
++ r.status='reconciled_exited';r.reconciliation={at:new Date().toISOString(),checks};
++ // A failed durable write is not repaired by assuming an empty or incomplete ledger is safe.
++ if(Object.values(state.runs).every(x=>safe.has(x.status))){state.persistenceFault=false;delete state.faultReason;}
++ atomicSave(executionStatePath(file),state);
++ if(!state.persistenceFault&&fs.existsSync(executionStatePath(file)+'.fault'))fs.unlinkSync(executionStatePath(file)+'.fault');
++ return {executionId:id,reconciled:true,safetyCleared:executionStateClear(file),checks};
++}
+diff --git a/src/owner.mjs b/src/owner.mjs
+index 9a40323..ad3c9a6 100644
+--- a/src/owner.mjs
++++ b/src/owner.mjs
+@@ -2,17 +2,19 @@ import fs from 'node:fs';
+ import {dirname} from 'node:path';
+ import {randomUUID} from 'node:crypto';
+ import {processIdentity} from './process.mjs';
+-export function acquireOwner(file){
++import {executionStateClear} from './execution-state.mjs';
++export function acquireOwner(file,{requiresClearance=false}={}){
+   const path=file+'.owner';fs.mkdirSync(dirname(file),{recursive:true,mode:0o700});
+   try{fs.mkdirSync(path,{mode:0o700});}catch(e){if(e.code==='EEXIST')throw Error('BROKER_ALREADY_OWNED: inspect owner before recovery');throw e;}
+-  const owner={id:randomUUID(),pid:process.pid,identity:processIdentity(process.pid),createdAt:new Date().toISOString()};
++  const owner={id:randomUUID(),pid:process.pid,identity:processIdentity(process.pid),createdAt:new Date().toISOString(),requiresClearance};
+   fs.writeFileSync(path+'/owner.json',JSON.stringify(owner),{mode:0o600});
+-  return {owner,path,release(){const now=JSON.parse(fs.readFileSync(path+'/owner.json'));if(now.id!==owner.id)throw Error('OWNER_CHANGED');fs.unlinkSync(path+'/owner.json');fs.rmdirSync(path);}};
++  return {owner,path,release(){const now=JSON.parse(fs.readFileSync(path+'/owner.json'));if(now.id!==owner.id)throw Error('OWNER_CHANGED');if(now.requiresClearance&&!executionStateClear(file))throw Error('TERMINATION_NOT_CONFIRMED');fs.unlinkSync(path+'/owner.json');fs.rmdirSync(path);}};
+ }
+ export function inspectOwner(file){
+   const path=file+'.owner';let owner;try{owner=JSON.parse(fs.readFileSync(path+'/owner.json'));}catch{return {state:'unknown',recoverable:false};}
+   let current;try{current=processIdentity(owner.pid);}catch{return {state:'inspection_unavailable',owner,recoverable:false};}
+-  return {state:current===owner.identity?'active':current===null?'exited':'pid_reused',owner,currentIdentity:current,recoverable:current!==owner.identity};
++  const terminationClear=!owner.requiresClearance||executionStateClear(file);
++  return {state:current===owner.identity?'active':current===null?'exited':'pid_reused',owner,currentIdentity:current,terminationClear,recoverable:!!owner.identity&&current===null&&terminationClear};
+ }
+ export function recoverOwner(file,expectedOwnerId){
+   const s=inspectOwner(file);if(!s.recoverable||s.owner.id!==expectedOwnerId)throw Error('OWNER_RECOVERY_DENIED');
+diff --git a/src/process.mjs b/src/process.mjs
+index 2aa6bd4..97fec04 100644
+--- a/src/process.mjs
++++ b/src/process.mjs
+@@ -1,4 +1,19 @@
+ import {spawn,spawnSync} from 'node:child_process';
++import {randomUUID,createHash} from 'node:crypto';
++import {recordExecution} from './execution-context.mjs';
++import fs from 'node:fs';
++import os from 'node:os';
++
++let hostFingerprint;
++export function executionHostFingerprint(){
++  if(hostFingerprint)return hostFingerprint;
++  let boot;
++  if(process.platform==='linux')boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();
++  else if(process.platform==='darwin'){const r=spawnSync('/usr/sbin/sysctl',['-n','kern.boottime'],{encoding:'utf8',timeout:1000});if(r.status===0)boot=r.stdout.trim();}
++  if(!boot)throw Error('EXECUTION_HOST_IDENTITY_UNAVAILABLE');
++  // Only this digest is persisted; no host name, serial, address or credential is exported.
++  return hostFingerprint=createHash('sha256').update(JSON.stringify([process.platform,os.hostname(),boot])).digest('hex');
++}
+ 
+ export const cleanEnv=()=>Object.fromEntries(['HOME','USER','LOGNAME','LANG','TMPDIR'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]).concat([['PATH','/usr/bin:/bin:/usr/sbin:/sbin']]));
+ 
+@@ -17,25 +32,31 @@ export function liveGroupMembers(pgid){
+ }
+ 
+ /** Own process group only. Completion waits for exit/cleanup evidence, not just kill(). */
+-export function processRun(binary,args,{cwd,input='',timeoutMs=180000,maxBytes=5242880,env=cleanEnv(),signal,onRecord,onSpawn,terminateGraceMs=250,terminateBoundMs=1800}={}){
+-  if(!Number.isFinite(timeoutMs)||timeoutMs<=0||terminateGraceMs<0||terminateBoundMs<terminateGraceMs||terminateBoundMs>4000)throw Error('INVALID_PROCESS_LIMIT');
++export function processRun(binary,args,{cwd,input='',timeoutMs=180000,maxBytes=5242880,env=cleanEnv(),signal,onRecord,onSpawn,terminateGraceMs=250,terminateBoundMs=1800,inspectGroup=liveGroupMembers}={}){
++  const processKey=randomUUID();
++  if(!Number.isFinite(timeoutMs)||timeoutMs<=0||terminateGraceMs<0||terminateBoundMs<terminateGraceMs||terminateBoundMs>4000){recordExecution({type:'not_started',processKey,reason:'invalid_process_limits'});throw Error('INVALID_PROCESS_LIMIT');}
+   const startedAt=new Date().toISOString();
+-  if(signal?.aborted)return Promise.resolve({pid:null,pgid:null,spawned:false,startedAt,endedAt:startedAt,exit:null,signal:null,stopReason:'cancelled',terminationConfirmed:true,stdout:'',stderr:'',signals:[],residualPids:[]});
++  const noStart=reason=>({processKey,pid:null,pgid:null,spawned:false,startedAt,endedAt:startedAt,exit:null,signal:null,stopReason:reason,terminationConfirmed:true,lifecyclePersisted:recordExecution({type:'not_started',processKey,reason}),stdout:'',stderr:'',signals:[],residualPids:[]});
++  if(signal?.aborted)return Promise.resolve(noStart('cancelled'));
++  const commandFingerprint=createHash('sha256').update(JSON.stringify({binary,args,cwd})).digest('hex');
++  if(!recordExecution({type:'intent',processKey,commandFingerprint}))return Promise.resolve(noStart('lifecycle_persistence_failed'));
+   return new Promise(resolve=>{
+     let child,stdout='',stderr='',line='',bytes=0,closed=false,exit=null,exitSignal=null,stopReason='',requestedAt=0,done=false,pollTimer,timeoutTimer;
+-    const signals=[];let forced=false,spawnError=null,identity=null;
++    const signals=[];let forced=false,spawnError=null,identity=null,lifecyclePersisted=true;
+     const emitLine=s=>{if(!s.trim())return;let value;try{value=JSON.parse(s);}catch{return;}try{onRecord?.(value);}catch{stop('record_error');}};
+     const clear=()=>{clearTimeout(pollTimer);clearTimeout(timeoutTimer);signal?.removeEventListener('abort',abort);};
+     const finish=(confirmed,residual=[])=>{
+       if(done)return;done=true;clear();
+       if(line){emitLine(line);line='';}
+       if(!confirmed){child?.unref();child?.stdout?.destroy();child?.stderr?.destroy();}
+-      resolve({pid:child?.pid??null,pgid:child?.pid??null,identity,spawned:!!child?.pid,startedAt,endedAt:new Date().toISOString(),exit,signal:exitSignal,stopReason,spawnError,terminationConfirmed:confirmed,signals,residualPids:residual,stdout,stderr});
++      const receipt={processKey,pid:child?.pid??null,pgid:child?.pid??null,identity,spawned:!!child?.pid,startedAt,endedAt:new Date().toISOString(),exit,signal:exitSignal,stopReason,spawnError,terminationConfirmed:confirmed,signals,residualPids:residual};
++      lifecyclePersisted=recordExecution({type:'finished',...receipt})&&lifecyclePersisted;
++      resolve({...receipt,lifecyclePersisted,stdout,stderr});
+     };
+     const send=s=>{if(!child?.pid)return;try{process.kill(-child.pid,s);signals.push({signal:s,at:new Date().toISOString()});}catch(e){if(e.code!=='ESRCH')signals.push({signal:s,error:e.code});}};
+     const poll=()=>{
+       if(done)return;
+-      const members=child?.pid?liveGroupMembers(child.pid):[];
++      let members;try{members=child?.pid?inspectGroup(child.pid):[];}catch{members=null;}
+       if(closed&&members?.length===0)return finish(true);
+       const elapsed=Date.now()-requestedAt;
+       if(!forced&&elapsed>=terminateGraceMs){forced=true;send('SIGKILL');}
+@@ -45,11 +66,11 @@ export function processRun(binary,args,{cwd,input='',timeoutMs=180000,maxBytes=5
+     const stop=reason=>{if(done||stopReason)return;stopReason=reason;requestedAt=Date.now();send('SIGTERM');poll();};
+     const abort=()=>stop('cancelled');
+     try{child=spawn(binary,args,{cwd,env,stdio:['pipe','pipe','pipe'],shell:false,detached:true});}catch(e){spawnError=e.code;stopReason='spawn_error';closed=true;return finish(true);}
+-    child.once('spawn',()=>{try{identity=processIdentity(child.pid);onSpawn?.({pid:child.pid,pgid:child.pid,identity,startedAt});}catch{stop('spawn_receipt_error');}});
++    child.once('spawn',()=>{try{identity=processIdentity(child.pid)||'exited-before-snapshot:'+processKey;lifecyclePersisted=recordExecution({type:'started',processKey,pid:child.pid,pgid:child.pid,identity});if(!lifecyclePersisted)stop('lifecycle_persistence_failed');onSpawn?.({pid:child.pid,pgid:child.pid,identity,startedAt});}catch{stop('spawn_receipt_error');}});
+     child.stdout.on('data',b=>{if(done)return;bytes+=b.length;if(bytes>maxBytes){stop('output_limit');return;}stdout+=b;line+=b;let n;while((n=line.indexOf('\n'))>=0){const s=line.slice(0,n);line=line.slice(n+1);emitLine(s);}});
+     child.stderr.on('data',b=>{if(done)return;bytes+=b.length;if(bytes>maxBytes){stop('output_limit');return;}stderr+=b;});
+     child.once('error',e=>{spawnError=e.code;stopReason='spawn_error';closed=true;finish(true);});
+-    child.once('close',(code,sig)=>{closed=true;exit=code;exitSignal=sig;if(done)return;if(stopReason){poll();return;}const members=child.pid?liveGroupMembers(child.pid):[];if(members?.length===0)finish(true);else stop('orphaned_children');});
++    child.once('close',(code,sig)=>{closed=true;exit=code;exitSignal=sig;if(done)return;if(stopReason){poll();return;}let members;try{members=child.pid?inspectGroup(child.pid):[];}catch{members=null;}if(members?.length===0)finish(true);else stop('orphaned_children');});
+     timeoutTimer=setTimeout(()=>stop('timeout'),timeoutMs);
+     signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
+     child.stdin.on('error',()=>{});child.stdin.end(input);
+diff --git a/src/start.mjs b/src/start.mjs
+index 68b9f95..1fe931c 100644
+--- a/src/start.mjs
++++ b/src/start.mjs
+@@ -1,2 +1,2 @@
+-console.error('BLOCKED: R1-FIX1 真人入口关闭。应用范围、正式入库前分流、执行身份与模型路径证据仍待批准或补证。未连接飞书事件总线，未发送消息。');
++console.error('BLOCKED: R1-FIX2 仅允许离线修复验证；真实模型、真人发送、正式安装与 Studio 接线均未开放。');
+ process.exitCode=2;
+diff --git a/src/worker-adapter.mjs b/src/worker-adapter.mjs
+index c014928..74661a5 100644
+--- a/src/worker-adapter.mjs
++++ b/src/worker-adapter.mjs
+@@ -1,11 +1,14 @@
+ import fs from 'node:fs/promises';
+ import {join,resolve,relative,isAbsolute} from 'node:path';
+ import {runCodex,validateCompletion} from './codex.mjs';
++import {recordExecution} from './execution-context.mjs';
+ 
+ /** Executor configuration is supplied by the controller, never by message/model fields. */
+ export function createWorkerAdapter({binary,prefixArgs=[],executionKind='offline-fixture',jobsRoot,model='gpt-6-astra',effort='max',timeoutMs=180000,onEvidence}={}){
+  const root=resolve(jobsRoot);
+- return async input=>{
++ const execute=async input=>{
++  let runnerEntered=false;
++  try{
+   if(input.signal?.aborted)throw Error('CANCELLED_BEFORE_START');
+   const job=resolve(input.jobDir),rel=relative(root,job);if(!rel||rel.startsWith('..')||isAbsolute(rel))throw Error('JOB_OUTSIDE_CONTROLLER_ROOT');
+   await fs.mkdir(job,{recursive:true,mode:0o700});
+@@ -15,6 +18,7 @@ export function createWorkerAdapter({binary,prefixArgs=[],executionKind='offline
+   await fs.writeFile(join(job,'synthetic.json'),JSON.stringify(fixture),{mode:0o600,flag:'wx'});
+   const prompt='只读取 synthetic.json，计算样本计划和完成总数。返回 marker/summary/missing/question 四字段；summary 标注合成测试，missing 必须为空数组，question 必须为空。不得选定消息收件人、身份、权限或其他路径。';
+   let response;
++  runnerEntered=true;
+   try{response=await runCodex({binary,prefixArgs,jobDir:job,prompt,marker:input.marker,model,effort,timeoutMs,signal:input.signal,executionKind});}
+   catch(e){if(e.evidence)onEvidence?.(e.evidence);throw e;}
+   validateCompletion(response,input.marker);
+@@ -22,5 +26,7 @@ export function createWorkerAdapter({binary,prefixArgs=[],executionKind='offline
+   onEvidence?.(response.evidence);
+   if(response.result.missing.length||response.result.question)throw Error('UNEXPECTED_CLARIFICATION_FOR_SINGLE_PROBE');
+   return {marker:response.result.marker,summary:response.result.summary};
++  }finally{if(!runnerEntered)recordExecution({type:'not_started',processKey:'adapter-preflight',reason:'adapter_did_not_enter_runner'});}
+  };
++ execute.processLifecycle='required';return execute;
+ }
+diff --git a/tests/broker.test.mjs b/tests/broker.test.mjs
+index 5ca0554..ad7f034 100644
+--- a/tests/broker.test.mjs
++++ b/tests/broker.test.mjs
+@@ -8,6 +8,7 @@ async function fixture(overrides={}){
+  const root=await fs.mkdtemp(join(os.tmpdir(),'probe-test-')),events=new Map(),sent=[],executed=[];let now=Date.now();
+  const config={file:join(root,'broker.sqlite'),appId:'app-test',tenantId:'tenant-test',participants:[{id:'user-a',alias:'A'},{id:'user-b',alias:'B'}],deadline:now+60000,clock:()=>now,
+   verify:async id=>structuredClone(events.get(id)),execute:async input=>{executed.push(input);return {marker:input.marker,summary:'合成样本7/14'};},reply:async(target,text)=>{const r={messageId:'reply-'+sent.length,chatId:target.chatId,text,target};sent.push(r);return r;},readReply:async id=>sent.find(x=>x.messageId===id),...overrides};
++ if(!config.execute.processLifecycle)config.execute.processLifecycle='logical-only'; // deterministic in-process fixture; real process-manager receipts still take precedence
+  let broker=new ProbeBroker(config);
+  async function accept(text,user='a',id='msg-'+events.size,changes={}){const e={appId:'app-test',tenantId:'tenant-test',senderId:'user-'+user,senderType:'user',chatId:'chat-'+user,chatType:'p2p',messageId:id,text,createdAt:now,...changes};events.set(id,e);const r=await broker.accept(e);await broker.queue;return r;}
+  return {root,config,events,sent,executed,accept,get broker(){return broker;},advance(ms){now+=ms;},async restart(){await broker.close();broker=new ProbeBroker(config);},async close(){await broker.close();await fs.rm(root,{recursive:true,force:true});}};
+diff --git a/tests/fix2-termination-state.test.mjs b/tests/fix2-termination-state.test.mjs
+new file mode 100644
+index 0000000..cab818d
+--- /dev/null
++++ b/tests/fix2-termination-state.test.mjs
+@@ -0,0 +1,94 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs/promises';
++import {existsSync} from 'node:fs';
++import os from 'node:os';
++import {join} from 'node:path';
++import {ProbeBroker} from '../src/broker.mjs';
++import {processRun,liveGroupMembers} from '../src/process.mjs';
++import {recordExecution} from '../src/execution-context.mjs';
++import {readExecutionState,reconcileExecution,executionStatePath} from '../src/execution-state.mjs';
++import {recoverOwner,acquireOwner,inspectOwner} from '../src/owner.mjs';
++const delay=ms=>new Promise(r=>setTimeout(r,ms));
++async function fixture(execute,extra={}){
++ const root=await fs.mkdtemp(join(os.tmpdir(),'fix2-state-')),file=join(root,'broker.sqlite'),events=new Map(),sent=[];
++ const config={file,appId:'synthetic-app',tenantId:'synthetic-tenant',participants:[{id:'synthetic-user',alias:'A'}],deadline:Date.now()+60000,maxStopMs:150,execute,
++ verify:async id=>events.get(id),reply:async(t,text)=>{const r={messageId:'reply-'+sent.length,chatId:t.chatId,text};sent.push(r);return r;},readReply:async id=>sent.find(x=>x.messageId===id),...extra};
++ const broker=new ProbeBroker(config);
++ const accept=async(id,text)=>{const e={appId:config.appId,tenantId:config.tenantId,senderId:'synthetic-user',senderType:'user',chatId:'synthetic-chat',chatType:'p2p',messageId:id,text,createdAt:Date.now()};events.set(id,e);return broker.accept(e);};
++ await accept('begin','联调开始');await broker.queue;
++ return {root,file,config,broker,accept,sent,async work(){await accept('run','计算合成样本');await broker.queue;},async cleanup(){await broker.close();await fs.rm(root,{recursive:true,force:true});}};
++}
++function fakeStarted(){recordExecution({type:'intent',processKey:'fake-process',commandFingerprint:'synthetic-command-fingerprint'});recordExecution({type:'started',processKey:'fake-process',pid:424242,pgid:424242,identity:'synthetic-start-identity'});}
++const fakeFinished=confirmed=>recordExecution({type:'finished',processKey:'fake-process',pid:424242,pgid:424242,identity:'synthetic-start-identity',spawned:true,terminationConfirmed:confirmed,residualPids:confirmed?[]:[424242],exit:confirmed?0:null,stopReason:'cancelled'});
++
++test('missing termination receipt cannot be replaced by a successful returned business result',async()=>{
++ const f=await fixture(async x=>{fakeStarted();return {marker:x.marker,summary:'synthetic'};});
++ try{await f.work();const r=await f.broker.close();assert.equal(r.confirmed,false);assert.equal(f.sent.length,1);assert.equal(existsSync(f.file+'.owner'),true);assert.equal(Object.values(readExecutionState(f.file).runs)[0].status,'unknown');}finally{await f.cleanup();}
++});
++test('opaque executor without a process/no-spawn contract is not assumed safe',async()=>{
++ const f=await fixture(async x=>({marker:x.marker,summary:'synthetic'}));
++ try{await f.work();assert.equal((await f.broker.close()).confirmed,false);assert.equal(f.sent.length,1);}finally{await f.cleanup();}
++});
++for(const lateConfirmed of [false,true])test('timeout then late '+(lateConfirmed?'success':'unknown')+' cannot rewrite sealed state',async()=>{
++ const f=await fixture(async x=>{fakeStarted();await delay(120);fakeFinished(lateConfirmed);return {marker:x.marker,summary:'late'};},{taskTimeoutMs:10,maxStopMs:50});
++ try{await f.work();const r=await f.broker.close(),before=await fs.readFile(executionStatePath(f.file),'utf8');assert.equal(r.confirmed,false);await delay(160);assert.equal(await fs.readFile(executionStatePath(f.file),'utf8'),before);assert.equal(f.sent.length,1);assert.equal(existsSync(f.file+'.owner'),true);}finally{await f.cleanup();}
++});
++test('actual exit-unknown survives stripped errors, then only fresh OS reconciliation releases owner',async t=>{
++ let receipt;
++ const f=await fixture(async x=>{receipt=await processRun(process.execPath,['-e','setTimeout(()=>{},10)'],{signal:x.signal,timeoutMs:1000,terminateGraceMs:10,terminateBoundMs:70,inspectGroup:()=>null});throw Error('WRAPPER_REMOVED_ALL_EVIDENCE');});
++ try{
++  await f.work();assert.equal(receipt.terminationConfirmed,false);assert.deepEqual(liveGroupMembers(receipt.pgid),[]);
++  const r=await f.broker.close();assert.equal(r.confirmed,false);assert.equal(existsSync(f.file+'.owner'),true);
++  assert.throws(()=>new ProbeBroker(f.config),/BROKER_ALREADY_OWNED/);
++  const state=readExecutionState(f.file),id=Object.keys(state.runs)[0];assert.equal(state.runs[id].status,'unknown');
++  const owner=JSON.parse(await fs.readFile(f.file+'.owner/owner.json','utf8'));assert.throws(()=>recoverOwner(f.file,owner.id),/OWNER_RECOVERY_DENIED/);
++  assert.throws(()=>reconcileExecution(f.file,id,{identity:()=> 'reused-process',members:()=>[]}),/PID_REUSED/);
++  assert.throws(()=>reconcileExecution(f.file,id,{identity:()=>{throw Error('inspection unavailable');},members:()=>[]}),/inspection unavailable/);
++  assert.throws(()=>reconcileExecution(f.file,id,{identity:()=>null,members:()=>null}),/GROUP_UNCONFIRMED/);
++  const checked=f.broker.reconcileTermination(id);assert.equal(checked.reconciled,true);assert.equal(checked.ownerReleased,true);assert.equal(existsSync(f.file+'.owner'),false);assert.strictEqual(f.broker.reconcileTermination(id),checked);
++  const next=new ProbeBroker(f.config);assert.equal((await next.close()).confirmed,true);
++  assert.equal((await f.broker.close()).confirmed,false); // original stop receipt remains historical
++  t.diagnostic(JSON.stringify({kind:'actual_short_child_with_injected_inspection_failure',injectedUnknown:true,realGroupAbsentBeforeReconcile:true,stopConfirmed:r.confirmed,ownerRetainedUntilCheck:true,reconcileUsedRealOsChecks:true,ownerReleasedAfterCheck:true}));
++ }finally{await f.cleanup();}
++});
++test('canonical termination persistence failure keeps durable blocking state even after real exit',async()=>{
++ let receipt;const f=await fixture(async x=>{receipt=await processRun('/bin/sleep',['0.02'],{signal:x.signal});throw Error('ordinary wrapper error');});
++ const original=f.broker.terminations.persist;
++ f.broker.terminations.persist=(path,state)=>{if(Object.values(state.runs).some(r=>Object.values(r.processes).some(p=>p.status==='confirmed')))throw Error('injected terminal fsync failure');return original(path,state);};
++ try{await f.work();assert.equal(receipt.terminationConfirmed,true);assert.equal(receipt.lifecyclePersisted,false);const r=await f.broker.close();assert.equal(r.confirmed,false);assert.equal(r.persistenceFault,true);assert.equal(existsSync(executionStatePath(f.file)+'.fault'),true);assert.equal(existsSync(f.file+'.owner'),true);assert.throws(()=>new ProbeBroker(f.config),/BROKER_ALREADY_OWNED/);}finally{await f.cleanup();}
++});
++test('closed concurrent/repeated calls are idempotent and do not double-release',async()=>{
++ const execute=async x=>({marker:x.marker,summary:'logical-only'});execute.processLifecycle='logical-only';const f=await fixture(execute);
++ try{await f.work();const [a,b,c]=await Promise.all([f.broker.close(),f.broker.close(),f.broker.stop()]);assert.strictEqual(a,b);assert.strictEqual(b,c);assert.equal(a.confirmed,true);assert.equal(existsSync(f.file+'.owner'),false);assert.strictEqual(await f.broker.close(),a);}finally{await f.cleanup();}
++});
++test('explicit pre-spawn cancellation and confirmed nonzero exit are safe failure paths',async()=>{
++ for(const cancelBefore of [true,false]){
++  let receipt;const f=await fixture(async()=>{const c=new AbortController();if(cancelBefore)c.abort();receipt=await processRun('/bin/sh',['-c','exit 7'],{signal:c.signal});throw Error('normal failure');});
++  try{await f.work();assert.equal(receipt.terminationConfirmed,true);if(cancelBefore)assert.equal(receipt.spawned,false);else assert.equal(receipt.exit,7);assert.equal((await f.broker.close()).confirmed,true);assert.equal(existsSync(f.file+'.owner'),false);assert.equal(f.sent.length,1);}finally{await f.cleanup();}
++ }
++});
++test('unknown state copied without owner still blocks restart and cannot be reconciled on another host',async()=>{
++ const f=await fixture(async()=>{fakeStarted();fakeFinished(false);throw Error('unknown');});
++ const destination=await fs.mkdtemp(join(os.tmpdir(),'fix2-copy-'));
++ try{await f.work();await f.broker.close();const copied=join(destination,'broker.sqlite');await fs.copyFile(f.file,copied);await fs.copyFile(executionStatePath(f.file),executionStatePath(copied));assert.throws(()=>new ProbeBroker({...f.config,file:copied}),/TERMINATION_RECONCILIATION_REQUIRED/);
++  const state=readExecutionState(copied),id=Object.keys(state.runs)[0];state.hostFingerprint='different-test-host';await fs.writeFile(executionStatePath(copied),JSON.stringify(state));assert.throws(()=>reconcileExecution(copied,id,{identity:()=>null,members:()=>[]}),/HOST_MISMATCH/);
++ }finally{await f.cleanup();await fs.rm(destination,{recursive:true,force:true});}
++});
++test('an asynchronous process intent after confirmed close cannot spawn a new child',async()=>{
++ let late;const execute=async x=>{late=new Promise(resolve=>setTimeout(async()=>resolve(await processRun('/bin/sleep',['1'])),60));return {marker:x.marker,summary:'logical'};};execute.processLifecycle='logical-only';
++ const f=await fixture(execute);
++ try{await f.work();assert.equal((await f.broker.close()).confirmed,true);const r=await late;assert.equal(r.spawned,false);assert.equal(r.stopReason,'lifecycle_persistence_failed');assert.equal(f.sent.length,2);}finally{await f.cleanup();}
++});
++test('managed adapter cannot claim safe exit with only an exception hint',async()=>{
++ const execute=async()=>{throw Object.assign(Error('no manager receipt'),{evidence:{terminationConfirmed:true,residualPids:[]}});};execute.processLifecycle='required';
++ const f=await fixture(execute);try{await f.work();assert.equal((await f.broker.close()).confirmed,false);assert.equal(existsSync(f.file+'.owner'),true);}finally{await f.cleanup();}
++});
++test('mismatched terminal identity never replaces the started binding or permits recovery',async()=>{
++ const f=await fixture(async()=>{fakeStarted();recordExecution({type:'finished',processKey:'fake-process',spawned:true,pid:434343,pgid:434343,identity:'wrong-process',terminationConfirmed:true,residualPids:[]});throw Error('mismatch');});
++ try{await f.work();assert.equal((await f.broker.close()).confirmed,false);const state=readExecutionState(f.file),id=Object.keys(state.runs)[0],p=state.runs[id].processes['fake-process'];assert.equal(p.pid,424242);assert.equal(p.bindingMismatch,true);assert.throws(()=>reconcileExecution(f.file,id,{identity:()=>null,members:()=>[]}),/BINDING_MISMATCH/);}finally{await f.cleanup();}
++});
++test('owner PID reuse/mismatched startup identity is not auto-recoverable',async()=>{
++ const root=await fs.mkdtemp(join(os.tmpdir(),'fix2-owner-')),file=join(root,'owner-test'),lease=acquireOwner(file),path=lease.path+'/owner.json';
++ try{await fs.writeFile(path,JSON.stringify({...lease.owner,identity:'different-start-identity'}));assert.equal(inspectOwner(file).state,'pid_reused');assert.equal(inspectOwner(file).recoverable,false);assert.throws(()=>recoverOwner(file,lease.owner.id),/OWNER_RECOVERY_DENIED/);}finally{await fs.writeFile(path,JSON.stringify(lease.owner));lease.release();await fs.rm(root,{recursive:true,force:true});}
++});
+diff --git a/tests/lifecycle.test.mjs b/tests/lifecycle.test.mjs
+index 4bf283b..c35f2a5 100644
+--- a/tests/lifecycle.test.mjs
++++ b/tests/lifecycle.test.mjs
+@@ -6,6 +6,7 @@ async function fixture(extra={}){
+  const root=await fs.mkdtemp(join(os.tmpdir(),'fix1-life-')),events=new Map(),sent=[];const now=Date.now();let calls=0;
+  const config={file:join(root,'broker.sqlite'),appId:'a',tenantId:'t',participants:[{id:'u',alias:'A'}],deadline:now+60000,verifyTimeoutMs:30,sendTimeoutMs:30,readbackTimeoutMs:30,maxStopMs:2500,
+   verify:async id=>events.get(id),execute:async x=>{calls++;return {marker:x.marker,summary:'synthetic'}},reply:async(t,text)=>{const r={messageId:'r'+sent.length,chatId:t.chatId,text};sent.push(r);return r;},readReply:async id=>sent.find(x=>x.messageId===id),...extra};
++ if(!config.execute.processLifecycle)config.execute.processLifecycle='logical-only'; // deterministic in-process fixture; real process-manager receipts still take precedence
+  let broker=new ProbeBroker(config);
+  const accept=(text,id)=>{const e={appId:'a',tenantId:'t',senderId:'u',senderType:'user',chatId:'c',chatType:'p2p',messageId:id,text,createdAt:Date.now()};events.set(id,e);return broker.accept(e);};
+  return {root,config,events,sent,accept,get broker(){return broker;},get calls(){return calls;},async restart(){await broker.close();broker=new ProbeBroker(config);},async close(){await broker.close();await fs.rm(root,{recursive:true,force:true});}};
+diff --git a/tests/reviewer-stop-contract.test.mjs b/tests/reviewer-stop-contract.test.mjs
+new file mode 100644
+index 0000000..39b7660
+--- /dev/null
++++ b/tests/reviewer-stop-contract.test.mjs
+@@ -0,0 +1,68 @@
++// Independent offline contract tests. No model, Feishu, production service, or network calls.
++// The two safety assertions are expected to FAIL against the audited R1-FIX1 commit.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs/promises';
++import {existsSync} from 'node:fs';
++import os from 'node:os';
++import {join} from 'node:path';
++import {ProbeBroker} from '../src/broker.mjs';
++import {ExecutionBudget} from '../src/budget.mjs';
++const delay=ms=>new Promise(r=>setTimeout(r,ms));
++async function fixture(execute){
++ const root=await fs.mkdtemp(join(os.tmpdir(),'gpt-fix1-review-'));
++ const events=new Map(),replies=[];const file=join(root,'broker.sqlite');
++ const broker=new ProbeBroker({file,appId:'synthetic-app',tenantId:'synthetic-tenant',participants:[{id:'synthetic-user',alias:'A'}],deadline:Date.now()+60000,maxStopMs:100,
++  verify:async id=>events.get(id),execute,
++  reply:async(t,text)=>{const r={messageId:'synthetic-reply-'+replies.length,chatId:t.chatId,text};replies.push(r);return r;},
++  readReply:async id=>replies.find(r=>r.messageId===id)});
++ async function accept(id,text){const e={appId:'synthetic-app',tenantId:'synthetic-tenant',senderId:'synthetic-user',senderType:'user',chatId:'synthetic-chat',chatType:'p2p',messageId:id,text,createdAt:Date.now()};events.set(id,e);return broker.accept(e);}
++ await accept('begin','联调开始');await broker.queue;
++ return {root,file,broker,accept,replies,async cleanup(){await broker.close();await fs.rm(root,{recursive:true,force:true});}};
++}
++function unknownExitError(){return Object.assign(new Error('MODEL_NOT_COMPLETED'),{evidence:{terminationConfirmed:false,residualPids:[424242],stopReason:'cancelled'}});}
++
++test('C01 positive control: idle broker confirms clean stop',async()=>{
++ const f=await fixture(async x=>({marker:x.marker,summary:'合成测试'}));
++ try{const r=await f.broker.close();assert.equal(r.confirmed,true);assert.equal(existsSync(f.file+'.owner'),false);}finally{await f.cleanup();}
++});
++
++test('C02 positive control: unresolved worker keeps stop unconfirmed and owner retained',async()=>{
++ let ready;const started=new Promise(r=>ready=r);
++ const f=await fixture(()=>{ready();return new Promise(()=>{});});
++ try{await f.accept('run','计算合成样本');await started;const r=await f.broker.close();assert.equal(r.confirmed,false);assert.equal(existsSync(f.file+'.owner'),true);}finally{await f.cleanup();}
++});
++
++test('B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop',async t=>{
++ const f=await fixture(async()=>{throw unknownExitError();});
++ try{
++  await f.accept('run','计算合成样本');await f.broker.queue;
++  const message=f.broker.db.prepare("SELECT status FROM messages WHERE id='run'").get();
++  const r=await f.broker.close();const ownerExists=existsSync(f.file+'.owner');
++  t.diagnostic(JSON.stringify({scenario:'unknown-before-stop',workerEvidence:{terminationConfirmed:false,residualPids:[424242]},messageStatus:message.status,stopReceipt:r,ownerExistsAfterClose:ownerExists,realChildSpawned:false}));
++  assert.deepEqual({confirmed:r.confirmed,ownerRetained:ownerExists},{confirmed:false,ownerRetained:true});
++ }finally{await f.cleanup();}
++});
++
++test('B01b safety: worker reporting unknown termination DURING stop must retain ownership',async t=>{
++ let ready;const started=new Promise(r=>ready=r);
++ const f=await fixture(x=>new Promise((resolve,reject)=>{ready();x.signal.addEventListener('abort',()=>setTimeout(()=>reject(unknownExitError()),10),{once:true});}));
++ try{
++  await f.accept('run','计算合成样本');await started;
++  const r=await f.broker.close();const ownerExists=existsSync(f.file+'.owner');
++  t.diagnostic(JSON.stringify({scenario:'unknown-during-stop',workerEvidence:{terminationConfirmed:false,residualPids:[424242]},stopReceipt:r,ownerExistsAfterClose:ownerExists,realChildSpawned:false}));
++  assert.deepEqual({confirmed:r.confirmed,ownerRetained:ownerExists},{confirmed:false,ownerRetained:true});
++ }finally{await f.cleanup();}
++});
++
++test('C03 positive control: cooperative cancelled worker finishes before confirmed stop',async()=>{
++ let ready;const started=new Promise(r=>ready=r);
++ const f=await fixture(x=>new Promise((resolve,reject)=>{ready();x.signal.addEventListener('abort',()=>reject(Object.assign(new Error('CANCELLED'),{evidence:{terminationConfirmed:true,residualPids:[]}})),{once:true});}));
++ try{await f.accept('run','计算合成样本');await started;const r=await f.broker.close();assert.equal(r.confirmed,true);assert.equal(existsSync(f.file+'.owner'),false);}finally{await f.cleanup();}
++});
++
++test('C04 positive control: the separate model budget DOES retain unknown-termination occupancy',async()=>{
++ const root=await fs.mkdtemp(join(os.tmpdir(),'gpt-fix1-budget-'));
++ const budget=new ExecutionBudget(join(root,'synthetic-budget.sqlite'),{usedCalls:0,startedAt:[]});
++ try{const id=budget.reserve();budget.finish(id,false);assert.equal(budget.status().active,1);assert.throws(()=>budget.reserve(),/MODEL_OWNER_BUSY/);}finally{budget.close();await fs.rm(root,{recursive:true,force:true});}
++});

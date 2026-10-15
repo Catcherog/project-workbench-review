@@ -1,0 +1,48 @@
+TAP version 13
+# Subtest: C01 positive control: idle broker confirms clean stop
+ok 1 - C01 positive control: idle broker confirms clean stop
+  ---
+  duration_ms: 29.752625
+  type: 'test'
+  ...
+# Subtest: C02 positive control: unresolved worker keeps stop unconfirmed and owner retained
+ok 2 - C02 positive control: unresolved worker keeps stop unconfirmed and owner retained
+  ---
+  duration_ms: 127.322334
+  type: 'test'
+  ...
+# Subtest: B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop
+ok 3 - B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop
+  ---
+  duration_ms: 29.615083
+  type: 'test'
+  ...
+# {"scenario":"unknown-before-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"messageStatus":"model_failed","stopReceipt":{"reason":"operator_stop","elapsedMs":4,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":false,"unknownExecutions":[{"executionId":"9e9123e2-2fe6-495e-b2e1-b0cfcd588d91","messageId":"run","status":"unknown","runnerIds":[],"processes":[]}],"persistenceFault":false,"confirmed":false},"ownerExistsAfterClose":true,"realChildSpawned":false}
+# Subtest: B01b safety: worker reporting unknown termination DURING stop must retain ownership
+ok 4 - B01b safety: worker reporting unknown termination DURING stop must retain ownership
+  ---
+  duration_ms: 40.259458
+  type: 'test'
+  ...
+# {"scenario":"unknown-during-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"stopReceipt":{"reason":"operator_stop","elapsedMs":18,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":false,"unknownExecutions":[{"executionId":"687e263b-01b4-4ba0-a118-5a34717c2cc2","messageId":"run","status":"unknown","runnerIds":[],"processes":[]}],"persistenceFault":false,"confirmed":false},"ownerExistsAfterClose":true,"realChildSpawned":false}
+# Subtest: C03 positive control: cooperative cancelled worker finishes before confirmed stop
+ok 5 - C03 positive control: cooperative cancelled worker finishes before confirmed stop
+  ---
+  duration_ms: 28.895209
+  type: 'test'
+  ...
+# Subtest: C04 positive control: the separate model budget DOES retain unknown-termination occupancy
+ok 6 - C04 positive control: the separate model budget DOES retain unknown-termination occupancy
+  ---
+  duration_ms: 6.842167
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 345.044042

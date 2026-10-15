@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: C01 positive control: idle broker confirms clean stop
+ok 1 - C01 positive control: idle broker confirms clean stop
+  ---
+  duration_ms: 9.539167
+  type: 'test'
+  ...
+# Subtest: C02 positive control: unresolved worker keeps stop unconfirmed and owner retained
+ok 2 - C02 positive control: unresolved worker keeps stop unconfirmed and owner retained
+  ---
+  duration_ms: 108.423792
+  type: 'test'
+  ...
+# Subtest: B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop
+not ok 3 - B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop
+  ---
+  duration_ms: 8.489375
+  type: 'test'
+  location: '/PROBE_ROOT/tests/reviewer-stop-contract.test.mjs:36:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   confirmed: true,
+    +   ownerRetained: false
+    -   confirmed: false,
+    -   ownerRetained: true
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    confirmed: false
+    ownerRetained: true
+  actual:
+    confirmed: true
+    ownerRetained: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///PROBE_ROOT/tests/reviewer-stop-contract.test.mjs:43:10)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# {"scenario":"unknown-before-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"messageStatus":"model_failed","stopReceipt":{"reason":"operator_stop","elapsedMs":0,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"confirmed":true},"ownerExistsAfterClose":false,"realChildSpawned":false}
+# Subtest: B01b safety: worker reporting unknown termination DURING stop must retain ownership
+not ok 4 - B01b safety: worker reporting unknown termination DURING stop must retain ownership
+  ---
+  duration_ms: 18.787583
+  type: 'test'
+  location: '/PROBE_ROOT/tests/reviewer-stop-contract.test.mjs:47:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   confirmed: true,
+    +   ownerRetained: false
+    -   confirmed: false,
+    -   ownerRetained: true
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    confirmed: false
+    ownerRetained: true
+  actual:
+    confirmed: true
+    ownerRetained: false
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///PROBE_ROOT/tests/reviewer-stop-contract.test.mjs:54:10)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# {"scenario":"unknown-during-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"stopReceipt":{"reason":"operator_stop","elapsedMs":11,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"confirmed":true},"ownerExistsAfterClose":false,"realChildSpawned":false}
+# Subtest: C03 positive control: cooperative cancelled worker finishes before confirmed stop
+ok 5 - C03 positive control: cooperative cancelled worker finishes before confirmed stop
+  ---
+  duration_ms: 7.476667
+  type: 'test'
+  ...
+# Subtest: C04 positive control: the separate model budget DOES retain unknown-termination occupancy
+ok 6 - C04 positive control: the separate model budget DOES retain unknown-termination occupancy
+  ---
+  duration_ms: 5.608125
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 4
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 197.618333
