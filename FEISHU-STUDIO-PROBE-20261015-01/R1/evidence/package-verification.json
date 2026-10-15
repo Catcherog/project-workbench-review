@@ -1,0 +1,34 @@
+{
+  "kind": "fresh_copy_portability_no_model_no_feishu",
+  "passed": true,
+  "checks": [
+    {
+      "command": "node --test tests/broker.test.mjs",
+      "exit": 0,
+      "expected": 0,
+      "stdout": "✔ whitelist, tenant, app and group gates prevent model and reply (4.2225ms)\n✔ authoritative readback rejects forged sender or altered content (3.21975ms)\n✔ activation, explicit capability and reply binding (3.384458ms)\n✔ duplicate delivery and process restart do not rerun or resend (4.265833ms)\n✔ two synthetic people retain separate markers, directories and histories (3.640084ms)\n✔ message cannot raise privilege or request other session (3.669542ms)\n✔ model cannot supply another receiver (2.136042ms)\n✔ uncertain send survives restart without blind retry (2.063583ms)\n✔ deadline and persistent model budget stop work (3.107625ms)\n✔ timeout aborts worker and late completion sends nothing (15.029583ms)\n✔ recovered running/sending states are held, not retried (2.816833ms)\nℹ tests 11\nℹ suites 0\nℹ pass 11\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 88.749458\n",
+      "stderr": ""
+    },
+    {
+      "command": "node src/import-budget.mjs",
+      "exit": 0,
+      "expected": 0,
+      "stdout": "{ recordedCalls: 3, roundLimit: 20 }\n",
+      "stderr": ""
+    },
+    {
+      "command": "node src/import-budget.mjs",
+      "exit": 0,
+      "expected": 0,
+      "stdout": "{ recordedCalls: 3, roundLimit: 20 }\n",
+      "stderr": ""
+    },
+    {
+      "command": "node src/start.mjs",
+      "exit": 2,
+      "expected": 2,
+      "stdout": "",
+      "stderr": "BLOCKED: R1 仅交付本地合成探针。真人接入需先完成应用可用范围、正式路由分流与启动上下文隔离审核。未连接飞书，未发送消息。\n"
+    }
+  ]
+}

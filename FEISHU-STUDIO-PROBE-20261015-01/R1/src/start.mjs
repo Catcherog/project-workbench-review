@@ -1,0 +1,3 @@
+// R1 is intentionally not a deployed receiver. Removing this block is a scope change.
+console.error('BLOCKED: R1 仅交付本地合成探针。真人接入需先完成应用可用范围、正式路由分流与启动上下文隔离审核。未连接飞书，未发送消息。');
+process.exitCode=2;
