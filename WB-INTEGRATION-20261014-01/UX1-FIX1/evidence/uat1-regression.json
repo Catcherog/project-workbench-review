@@ -1,0 +1,1315 @@
+{
+  "scope": "Actual isolated product React/HTTP/SQLite; synthetic fixtures and injected transport failures; not user acceptance",
+  "code": [
+    {
+      "file": "app/workbench-v2.tsx",
+      "sha256": "c139ec228fc32dbac25239423ea55bbcfa353e84c1638a5a6bc86db24e89edb3"
+    },
+    {
+      "file": "app/work-item-entry.tsx",
+      "sha256": "bce6d8727cee85503638c43a3b3a431cdc1a19b04b2624bdc8c86a5a2bba402a"
+    },
+    {
+      "file": "app/work-item-time.tsx",
+      "sha256": "8478f287d21379165b7d45e23934f684636d58fecfa754732791d10e9985ffae"
+    },
+    {
+      "file": "app/integration/core-collaboration-panel.tsx",
+      "sha256": "edbbe005361ed54b79f506e1944aca0b51b661f8cf91cd7516359e9869dd1669"
+    },
+    {
+      "file": "app/integration/receipt-scope.ts",
+      "sha256": "9ba8409e442ab8de2dcf514905792c61b0c730607b60f9df46d7acf06deb638d"
+    },
+    {
+      "file": "app/integration/action-feedback.tsx",
+      "sha256": "ccdf45f14132bf6e2b90ffacc1443a786a2c1a2f53d4edfda6a7d6a81efcb92c"
+    },
+    {
+      "file": "app/integration/action-feedback.css",
+      "sha256": "f3d52865b835d2dfbe78901dff6c29b25955a50e7d1b92f29e0c8d9a765fa124"
+    },
+    {
+      "file": "lib/work-item-progress.ts",
+      "sha256": "80702f889e74892aae2fe4ba2793bd47d947de5bd1b27a344facae28250972f5"
+    }
+  ],
+  "results": [
+    {
+      "id": "U01-navigation",
+      "name": "saved receipt and all five actions stay in their original workspace across dropdown/back/forward",
+      "passed": true,
+      "evidence": {
+        "sameItemIds": true,
+        "differentItemIds": true,
+        "historyNavigation": true,
+        "forbiddenActionPostDelta": 0,
+        "otherWorkspacesUnchanged": true,
+        "operationId": "p1-8491e660-1be3-4ff9-bef4-1ad9faa0f4e8"
+      }
+    },
+    {
+      "id": "U01-undo",
+      "name": "undo survives workspace switching and persistent reentry without becoming saved again",
+      "passed": true,
+      "evidence": {
+        "operationId": "p1-d7cd1b7d-732b-4842-b020-57b13278b616",
+        "undoneAt": "2026-10-15T03:52:20.242Z",
+        "newPosts": 0
+      }
+    },
+    {
+      "id": "U01-pending-valid",
+      "name": "the original workspace still accepts the explicit pending-time action exactly once",
+      "passed": true,
+      "evidence": {
+        "check": "pending",
+        "completion": "pending",
+        "writes": 1,
+        "simulatedSends": 0
+      }
+    },
+    {
+      "id": "U01-late-job",
+      "name": "a job finishing after leaving its workspace cannot populate or close the new workspace entry",
+      "passed": true,
+      "evidence": {
+        "originalWorkspaceSavedOnce": true,
+        "newWorkspaceUnchanged": true,
+        "newDraftPreserved": true
+      }
+    },
+    {
+      "id": "U01-inflight-undo",
+      "name": "scope changes while original-request lookup is pending cannot continue a receipt write",
+      "passed": true,
+      "evidence": {
+        "action": "undo",
+        "originalLookupOnly": true,
+        "writeDelta": 0,
+        "bothWorkspacesUnchanged": true
+      }
+    },
+    {
+      "id": "U01-inflight-pending",
+      "name": "scope changes while original-request lookup is pending cannot continue a receipt write",
+      "passed": true,
+      "evidence": {
+        "action": "pending",
+        "originalLookupOnly": true,
+        "writeDelta": 0,
+        "bothWorkspacesUnchanged": true
+      }
+    },
+    {
+      "id": "U01-late-refresh",
+      "name": "A-to-B-to-A during save readback cannot close or replace the new entry",
+      "passed": true,
+      "evidence": {
+        "originSavedOnce": true,
+        "otherWorkspaceUnchanged": true,
+        "newDraftPreserved": true
+      }
+    },
+    {
+      "id": "U01-missing",
+      "name": "missing current durable receipt disables every action instead of trusting cached saved content",
+      "passed": true,
+      "evidence": {
+        "injected": "removed only the synthetic durable receipt",
+        "cachedSuccess": false,
+        "actionCount": 0,
+        "writeDelta": 0
+      }
+    },
+    {
+      "id": "U02-field-1024x768",
+      "name": "empty scheduled date points to its field, stays visible and makes no request",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 450,
+          "y": 561.828125,
+          "width": 248.5,
+          "height": 45
+        },
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "draftRetained": true,
+        "invalidSubmissionPosts": 0,
+        "correctedSaveCount": 1
+      }
+    },
+    {
+      "id": "U02-save-1024x768",
+      "name": "decision save feedback is local and visible; rapid repeat click has one write and no send",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 262,
+          "y": 263.46875,
+          "width": 704,
+          "height": 80.78125
+        },
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "approvalWrites": 1,
+        "simulatedSends": 0
+      }
+    },
+    {
+      "id": "U02-rejected-1024x768",
+      "name": "known rejection stays beside the edit action and preserves the local draft",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 249,
+          "y": 663.53125,
+          "width": 730,
+          "height": 80.78125
+        },
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "postAttempts": 1,
+        "durableWrites": 0,
+        "draftRetained": true
+      }
+    },
+    {
+      "id": "U02-readback-1024x768",
+      "name": "acknowledged save plus failed readback remain distinct and visible; reread does not resubmit",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 262,
+          "y": 263.859375,
+          "width": 704,
+          "height": 113.171875
+        },
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "approvalWrites": 1,
+        "readbackRecoveryPostDelta": 0
+      }
+    },
+    {
+      "id": "U02-unknown-1024x768",
+      "name": "lost acknowledgement stays unknown; explicit retry reads first and reuses the same request identity",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 262,
+          "y": 263.46875,
+          "width": 704,
+          "height": 265.5625
+        },
+        "viewport": {
+          "width": 1024,
+          "height": 768
+        },
+        "originalRequestId": "7c61308f-32c0-4a5b-95a9-9addfde39203",
+        "automaticRetryCount": 0,
+        "explicitSameIdentityRetries": 1,
+        "durableApprovals": 1
+      }
+    },
+    {
+      "id": "U02-field-1440x900",
+      "name": "empty scheduled date points to its field, stays visible and makes no request",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 866,
+          "y": 627.828125,
+          "width": 248.5,
+          "height": 45
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "draftRetained": true,
+        "invalidSubmissionPosts": 0,
+        "correctedSaveCount": 1
+      }
+    },
+    {
+      "id": "U02-save-1440x900",
+      "name": "decision save feedback is local and visible; rapid repeat click has one write and no send",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 384,
+          "y": 329.46875,
+          "width": 892,
+          "height": 80.78125
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "approvalWrites": 1,
+        "simulatedSends": 0
+      }
+    },
+    {
+      "id": "U02-rejected-1440x900",
+      "name": "known rejection stays beside the edit action and preserves the local draft",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 371,
+          "y": 795.53125,
+          "width": 918,
+          "height": 80.78125
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "postAttempts": 1,
+        "durableWrites": 0,
+        "draftRetained": true
+      }
+    },
+    {
+      "id": "U02-readback-1440x900",
+      "name": "acknowledged save plus failed readback remain distinct and visible; reread does not resubmit",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 384,
+          "y": 377.859375,
+          "width": 892,
+          "height": 113.171875
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "approvalWrites": 1,
+        "readbackRecoveryPostDelta": 0
+      }
+    },
+    {
+      "id": "U02-unknown-1440x900",
+      "name": "lost acknowledgement stays unknown; explicit retry reads first and reuses the same request identity",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 384,
+          "y": 329.46875,
+          "width": 892,
+          "height": 265.5625
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "originalRequestId": "89518135-784f-4e17-94af-66b696a75ad7",
+        "automaticRetryCount": 0,
+        "explicitSameIdentityRetries": 1,
+        "durableApprovals": 1
+      }
+    },
+    {
+      "id": "U02-filter",
+      "name": "a completed message leaving the current filter keeps its feedback visible in its batch",
+      "passed": true,
+      "evidence": {
+        "box": {
+          "x": 384,
+          "y": 658.46875,
+          "width": 892,
+          "height": 80.78125
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "completedCardExited": true,
+        "feedbackRetained": true
+      }
+    },
+    {
+      "id": "BOUNDARY",
+      "name": "all writes remain synthetic and no scheduler or outbound transport is used",
+      "passed": true,
+      "evidence": {
+        "consoleErrors": [],
+        "externalRequests": [],
+        "realWrites": 0,
+        "simulatedSends": 0,
+        "schedulerEnabled": false
+      }
+    }
+  ],
+  "posts": [
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-scope-a-1",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "46ba66e5-becd-4fc9-bc68-21d10db7dd12",
+        "requestId": "048c9a2f-0ebf-40ee-af81-b495b2e6e73f",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到本轮合成样件",
+        "clientDraft": {
+          "text": "已收到本轮合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:18.926Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-undo-4",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "86ac0759-5570-4e35-b78f-088e873fe089",
+        "requestId": "1888458c-e537-419f-bafd-a020b417485a",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到待撤销的合成样件",
+        "clientDraft": {
+          "text": "已收到待撤销的合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:19.909Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/work-items",
+      "body": {
+        "workspaceId": "uat1-fix1-undo-4",
+        "sourceId": "p1-action",
+        "requestId": "undo-p1-d7cd1b7d-732b-4842-b020-57b13278b616",
+        "action": "p1-undo",
+        "operationId": "p1-d7cd1b7d-732b-4842-b020-57b13278b616"
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-pending-valid-6",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "06d8de89-7131-40bf-baf3-5eb50226a181",
+        "requestId": "cf47ea4c-825d-4f4c-acb2-5880ee91cb14",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到本轮合成样件",
+        "clientDraft": {
+          "text": "已收到本轮合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:20.693Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/work-items",
+      "body": {
+        "workspaceId": "uat1-fix1-pending-valid-6",
+        "sourceId": "p1-action",
+        "requestId": "pending-p1-650a3025-a799-497a-9445-4ad752713e87",
+        "action": "p1-submit",
+        "expectedVersion": 3,
+        "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+        "expectedEvidenceBasis": "23c63728a156d0545eac2f87",
+        "entry": {
+          "intent": "record",
+          "progress": "",
+          "progressQuote": "",
+          "waitingFor": "",
+          "waitingResult": "",
+          "waitingQuote": "",
+          "checkCompleted": false,
+          "checkQuote": "",
+          "riskDecision": "none",
+          "riskQuote": "",
+          "followup": "unchanged",
+          "followupQuote": "",
+          "check": {
+            "state": "unchanged"
+          },
+          "completion": {
+            "state": "unchanged"
+          },
+          "clarification": ""
+        },
+        "input": {
+          "text": "",
+          "occurredAt": "2026-10-15T03:52:21.041Z",
+          "manual": {
+            "check": {
+              "state": "pending"
+            },
+            "completion": {
+              "state": "pending"
+            }
+          }
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-late-job-7",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "66e72ba7-30fd-451b-83a4-c43ce1f7dd0d",
+        "requestId": "783e5e55-b037-428a-b54f-2f4262ac3d35",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到延迟的合成样件",
+        "clientDraft": {
+          "text": "已收到延迟的合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:21.259Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-inflight-undo-9",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "e2ef2938-a8fa-4f27-9966-ecc5c6add433",
+        "requestId": "960307e4-7add-4abe-8146-6869999d6611",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到本轮合成样件",
+        "clientDraft": {
+          "text": "已收到本轮合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:22.859Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-inflight-pending-11",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "d85f6270-2a8b-4a47-9cda-fa63cf5abcd5",
+        "requestId": "cfc92c88-0058-4547-8ac2-bfbc3da484c8",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到本轮合成样件",
+        "clientDraft": {
+          "text": "已收到本轮合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:23.559Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-late-13",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "de8d1b09-7865-456a-a228-8934dbef7cd4",
+        "requestId": "66155839-88a3-4148-957b-f607570f9b27",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到异步保存的合成样件",
+        "clientDraft": {
+          "text": "已收到异步保存的合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:24.209Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-missing-15",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "06b390cd-8b9a-4a3f-af33-966c156a1bdd",
+        "requestId": "df751b69-cc57-42ba-bbd3-49f016ee2272",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到本轮合成样件",
+        "clientDraft": {
+          "text": "已收到本轮合成样件",
+          "times": {
+            "check": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": false,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:25.176Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {},
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-field-1024x768-16",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "bdc656c7-2157-40ce-832c-2989c44dbc7b",
+        "requestId": "cea654b6-b88d-4983-9110-5b1fa69929a5",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到需补日期的合成样件",
+        "clientDraft": {
+          "text": "已收到需补日期的合成样件",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-20",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:29.059Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-20",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-5efd1729e924c54e15219e1e0c93f7bd",
+        "requestId": "f8a8cbdc-7175-41fc-a897-a28b059f57f2",
+        "decisions": [
+          {
+            "id": "reminder-core-5efd1729e924c54e15219e1e0c93f7bd:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-save-1024x768-17"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-a4307ce95c84f79138319fb9f847e0bd",
+        "requestId": "a868ba56-8f07-4d44-a002-b3aa5e3cbd22",
+        "decisions": [
+          {
+            "id": "reminder-core-a4307ce95c84f79138319fb9f847e0bd:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "edit",
+            "text": "本地尚未保存的合成草稿",
+            "recipientId": "engineer"
+          }
+        ],
+        "workspaceId": "uat1-fix1-rejected-1024x768-18"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-b4ac4ec6af1d9335f954a6ce73567e69",
+        "requestId": "33142df9-9ba5-4b75-a31d-a82d64ec50e4",
+        "decisions": [
+          {
+            "id": "reminder-core-b4ac4ec6af1d9335f954a6ce73567e69:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-readback-1024x768-19"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-072e4540b40a7d2ec06c5c1f000adaab",
+        "requestId": "7c61308f-32c0-4a5b-95a9-9addfde39203",
+        "decisions": [
+          {
+            "id": "reminder-core-072e4540b40a7d2ec06c5c1f000adaab:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-unknown-1024x768-20"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-072e4540b40a7d2ec06c5c1f000adaab",
+        "requestId": "7c61308f-32c0-4a5b-95a9-9addfde39203",
+        "decisions": [
+          {
+            "id": "reminder-core-072e4540b40a7d2ec06c5c1f000adaab:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-unknown-1024x768-20"
+      }
+    },
+    {
+      "path": "/api/v2/codex/jobs",
+      "body": {
+        "workspaceId": "uat1-fix1-field-1440x900-21",
+        "contextRef": {
+          "kind": "sources",
+          "id": "p1-action"
+        },
+        "sessionId": "21cfe70d-028b-4392-82e1-a4b444e03437",
+        "requestId": "87893f67-a930-4dd5-a97a-1efa061e8db9",
+        "mode": "answer",
+        "sourceIds": [],
+        "attachmentIds": [],
+        "text": "已收到需补日期的合成样件",
+        "clientDraft": {
+          "text": "已收到需补日期的合成样件",
+          "times": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-20",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            },
+            "completion": {
+              "state": "clear",
+              "date": "",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "dirty": {
+            "check": true,
+            "completion": false
+          },
+          "editProgressId": "",
+          "images": []
+        },
+        "parentJobId": "",
+        "p1Input": {
+          "occurredAt": "2026-10-15T03:52:31.526Z",
+          "expectedVersion": 1,
+          "expectedBasis": "8d8b9dcd1a6dc28955d17d94",
+          "expectedEvidenceBasis": "2d1d3f776893e2d363f6e4d2",
+          "manual": {
+            "check": {
+              "state": "scheduled",
+              "date": "2026-10-20",
+              "time": "",
+              "zone": "Asia/Shanghai"
+            }
+          },
+          "resolution": {}
+        }
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-ff814629a40359fddff484ad30c86823",
+        "requestId": "5012e279-bb66-48f3-95f0-031d8a6c2024",
+        "decisions": [
+          {
+            "id": "reminder-core-ff814629a40359fddff484ad30c86823:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-save-1440x900-22"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-7c3bcf146cf365cd953b0122a6faf399",
+        "requestId": "f0d62f36-72d1-4fa1-8239-5d5d4822eabb",
+        "decisions": [
+          {
+            "id": "reminder-core-7c3bcf146cf365cd953b0122a6faf399:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "edit",
+            "text": "本地尚未保存的合成草稿",
+            "recipientId": "engineer"
+          }
+        ],
+        "workspaceId": "uat1-fix1-rejected-1440x900-23"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-4be2d8119a33492f446a7451f66dd5a0",
+        "requestId": "84c8ca1d-327b-4e13-9429-4ad8b8545e71",
+        "decisions": [
+          {
+            "id": "reminder-core-4be2d8119a33492f446a7451f66dd5a0:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-readback-1440x900-24"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-8ca9a5ecfedb970966d5c381c5ffc9e3",
+        "requestId": "89518135-784f-4e17-94af-66b696a75ad7",
+        "decisions": [
+          {
+            "id": "reminder-core-8ca9a5ecfedb970966d5c381c5ffc9e3:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-unknown-1440x900-25"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-8ca9a5ecfedb970966d5c381c5ffc9e3",
+        "requestId": "89518135-784f-4e17-94af-66b696a75ad7",
+        "decisions": [
+          {
+            "id": "reminder-core-8ca9a5ecfedb970966d5c381c5ffc9e3:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "approve"
+          }
+        ],
+        "admissions": [],
+        "workspaceId": "uat1-fix1-unknown-1440x900-25"
+      }
+    },
+    {
+      "path": "/api/v2/core",
+      "body": {
+        "action": "decide-messages",
+        "sourceId": "reminder-core-3ce6686288c3114330f5a9c0356d4e73",
+        "requestId": "7f099927-a2f4-4504-9dc9-f4d4ad848953",
+        "decisions": [
+          {
+            "id": "reminder-core-3ce6686288c3114330f5a9c0356d4e73:0",
+            "fingerprint": "33801e9f2aca94a44a8b1b58b8e92d756b5c8948992bc11a8fdee2e734391c63",
+            "action": "cancel"
+          }
+        ],
+        "workspaceId": "uat1-fix1-filter-26"
+      }
+    }
+  ],
+  "reads": [
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/core?workspaceId=uat1-fix1-scope-a-1&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/8491e660-1be3-4ff9-bef4-1ad9faa0f4e8?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/core?workspaceId=uat1-fix1-scope-a-1&sourceId=p1-action",
+    "/api/v2/core?workspaceId=uat1-fix1-scope-a-1&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/sessions/46ba66e5-becd-4fc9-bc68-21d10db7dd12?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/status",
+    "/api/v2/core?workspaceId=uat1-fix1-scope-a-1&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/sessions/46ba66e5-becd-4fc9-bc68-21d10db7dd12?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/status",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-same-ids-2",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-same-ids-2",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-different-ids-3",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/core?workspaceId=uat1-fix1-scope-a-1&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/sessions/46ba66e5-becd-4fc9-bc68-21d10db7dd12?workspaceId=uat1-fix1-scope-a-1",
+    "/api/v2/codex/status",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/core?workspaceId=uat1-fix1-undo-4&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/d7cd1b7d-732b-4842-b020-57b13278b616?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/work-items?workspaceId=uat1-fix1-undo-4&requestId=undo-p1-d7cd1b7d-732b-4842-b020-57b13278b616",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-undo-other-5",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/core?workspaceId=uat1-fix1-undo-4&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/codex/sessions/86ac0759-5570-4e35-b78f-088e873fe089?workspaceId=uat1-fix1-undo-4",
+    "/api/v2/codex/status",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-pending-valid-6",
+    "/api/v2/core?workspaceId=uat1-fix1-pending-valid-6&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-pending-valid-6",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/650a3025-a799-497a-9445-4ad752713e87?workspaceId=uat1-fix1-pending-valid-6",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-pending-valid-6",
+    "/api/v2/work-items?workspaceId=uat1-fix1-pending-valid-6&requestId=pending-p1-650a3025-a799-497a-9445-4ad752713e87",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-pending-valid-6",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-late-job-7",
+    "/api/v2/core?workspaceId=uat1-fix1-late-job-7&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-late-job-7",
+    "/api/v2/codex/status",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-late-job-other-8",
+    "/api/v2/core?workspaceId=uat1-fix1-late-job-other-8&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-late-job-other-8",
+    "/api/v2/codex/status",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-inflight-undo-9",
+    "/api/v2/core?workspaceId=uat1-fix1-inflight-undo-9&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-inflight-undo-9",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/97943efc-bf93-4941-ba36-0df871da91c6?workspaceId=uat1-fix1-inflight-undo-9",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-inflight-undo-9",
+    "/api/v2/work-items?workspaceId=uat1-fix1-inflight-undo-9&requestId=undo-p1-97943efc-bf93-4941-ba36-0df871da91c6",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-inflight-other-10",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-inflight-pending-11",
+    "/api/v2/core?workspaceId=uat1-fix1-inflight-pending-11&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-inflight-pending-11",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/e2e09a41-b896-4574-8b7f-7ae839c0dbf2?workspaceId=uat1-fix1-inflight-pending-11",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-inflight-pending-11",
+    "/api/v2/work-items?workspaceId=uat1-fix1-inflight-pending-11&requestId=pending-p1-e2e09a41-b896-4574-8b7f-7ae839c0dbf2",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-inflight-other-12",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-late-13",
+    "/api/v2/core?workspaceId=uat1-fix1-late-13&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-late-13",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/b8fd79de-64bd-4a41-a9a7-da5f3c02a4a7?workspaceId=uat1-fix1-late-13",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-late-13",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-late-other-14",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-late-13",
+    "/api/v2/core?workspaceId=uat1-fix1-late-13&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-late-13",
+    "/api/v2/codex/sessions/de8d1b09-7865-456a-a228-8934dbef7cd4?workspaceId=uat1-fix1-late-13",
+    "/api/v2/codex/status",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-missing-15",
+    "/api/v2/core?workspaceId=uat1-fix1-missing-15&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-missing-15",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/e4674f74-fdcb-4c0e-a044-ea08ecc17e00?workspaceId=uat1-fix1-missing-15",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-missing-15",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-missing-15",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-field-1024x768-16",
+    "/api/v2/core?workspaceId=uat1-fix1-field-1024x768-16&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-field-1024x768-16",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/7108831d-850d-4a28-b51a-efe6dc21f782?workspaceId=uat1-fix1-field-1024x768-16",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-field-1024x768-16",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-save-1024x768-17",
+    "/api/v2/core?workspaceId=uat1-fix1-save-1024x768-17",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-save-1024x768-17",
+    "/api/v2/core?workspaceId=uat1-fix1-save-1024x768-17",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-rejected-1024x768-18",
+    "/api/v2/core?workspaceId=uat1-fix1-rejected-1024x768-18",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-rejected-1024x768-18",
+    "/api/v2/core?workspaceId=uat1-fix1-rejected-1024x768-18",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-readback-1024x768-19",
+    "/api/v2/core?workspaceId=uat1-fix1-readback-1024x768-19",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-readback-1024x768-19",
+    "/api/v2/core?workspaceId=uat1-fix1-readback-1024x768-19",
+    "/api/v2/core?workspaceId=uat1-fix1-readback-1024x768-19",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1024x768-20",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-field-1440x900-21",
+    "/api/v2/core?workspaceId=uat1-fix1-field-1440x900-21&sourceId=p1-action",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-field-1440x900-21",
+    "/api/v2/codex/status",
+    "/api/v2/codex/jobs/564a03a1-aa05-40d0-8ffa-fef10058cc5a?workspaceId=uat1-fix1-field-1440x900-21",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-field-1440x900-21",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-save-1440x900-22",
+    "/api/v2/core?workspaceId=uat1-fix1-save-1440x900-22",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-save-1440x900-22",
+    "/api/v2/core?workspaceId=uat1-fix1-save-1440x900-22",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-rejected-1440x900-23",
+    "/api/v2/core?workspaceId=uat1-fix1-rejected-1440x900-23",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-rejected-1440x900-23",
+    "/api/v2/core?workspaceId=uat1-fix1-rejected-1440x900-23",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-readback-1440x900-24",
+    "/api/v2/core?workspaceId=uat1-fix1-readback-1440x900-24",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-readback-1440x900-24",
+    "/api/v2/core?workspaceId=uat1-fix1-readback-1440x900-24",
+    "/api/v2/core?workspaceId=uat1-fix1-readback-1440x900-24",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/core?workspaceId=uat1-fix1-unknown-1440x900-25",
+    "/api/v2/status",
+    "/api/v2/snapshot?workspaceId=uat1-fix1-filter-26",
+    "/api/v2/core?workspaceId=uat1-fix1-filter-26",
+    "/api/v2/codex/status",
+    "/api/v2/codex/sessions?workspaceId=uat1-fix1-filter-26",
+    "/api/v2/core?workspaceId=uat1-fix1-filter-26"
+  ],
+  "screenshots": [
+    "u01-same-id-workspace-clean.png",
+    "u01-durable-undone-reentry.png",
+    "u01-missing-durable-receipt.png",
+    "u02-field-1024x768.png",
+    "u02-save-1024x768.png",
+    "u02-rejected-1024x768.png",
+    "u02-readback-1024x768.png",
+    "u02-unknown-1024x768.png",
+    "u02-field-1440x900.png",
+    "u02-save-1440x900.png",
+    "u02-rejected-1440x900.png",
+    "u02-readback-1440x900.png",
+    "u02-unknown-1440x900.png"
+  ],
+  "errors": [],
+  "external": [],
+  "simulatedSends": 0
+}

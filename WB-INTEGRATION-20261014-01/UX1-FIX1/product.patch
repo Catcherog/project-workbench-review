@@ -1,0 +1,386 @@
+diff --git a/app/codex-assistant.tsx b/app/codex-assistant.tsx
+index 624188a7c..80f318edf 100644
+--- a/app/codex-assistant.tsx
++++ b/app/codex-assistant.tsx
+@@ -152,7 +152,7 @@ function Conversation({ s, request, onReview,onOpen, scope, scopeControl, previe
+         {job.status==='completed'&&!!job.workItemRequests?.length&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}
+         {!!job.nextSteps?.length && <div className="ca-next"><strong>下一步</strong><ul>{job.nextSteps.map((step, i) => <li key={i}>{step}</li>)}</ul></div>}
+         {!!job.conflicts?.length && <div className="ca-task-error"><strong>资料存在分歧，待核实</strong>{job.conflicts.map((v, i) => <p key={i}>{v.reason}</p>)}</div>}
+-        {job.coreWorkOutcome&&<CorePreparationResult s={s} value={job.coreWorkOutcome}/>}
++        {job.coreWorkOutcome&&<CorePreparationResult s={s} value={job.coreWorkOutcome} jobId={job.id} request={request}/>}
+         {job.error && <p className="ca-task-error" role="alert">{job.error}</p>}
+         {job.coreOutcome?.status==='saved'&&<div className="p1-receipt" aria-label="统一输入保存回执"><strong>{job.coreOutcome.duplicate?'同一原图已记录，本次未重复保存':'已保存到 '+job.coreOutcome.applied.length+' 个对应事项'}</strong>{job.coreOutcome.pending.map((p,i)=><p key={i}>{p.text}</p>)}{job.coreOutcome.applied.map(p=>onOpen?<button key={p.sourceId} className="v2-text-button" onClick={()=>onOpen(p.sourceId)}>查看对应事项</button>:<a key={p.sourceId} className="v2-text-button" href={'/?'+new URLSearchParams({workspaceId:s.workspaceId,view:'inbox',record:p.sourceId})}>查看对应事项</a>)}{job.coreOutcome.receipt&&!job.coreOutcome.duplicate&&<button className="v2-text-button" disabled={acting===job.id} onClick={()=>{setActing(job.id);void request('/api/v2/work-items',{workspaceId:s.workspaceId,sourceId:job.coreOutcome!.receipt!.sourceId,operationId:job.coreOutcome!.receipt!.operationId,action:'p1-undo',requestId:'undo-'+job.coreOutcome!.receipt!.operationId}).then(()=>{setJobs(v=>v.map(x=>x.id===job.id?{...x,coreOutcome:{...x.coreOutcome!,status:'undone'}}:x));}).catch(e=>setError(errorText(e))).finally(()=>setActing(''));}}>撤销本次操作</button>}</div>}
+         {!!job.gaps?.length && <details className="ca-evidence"><summary>判断缺口 · {job.gaps.length} 项</summary><ul>{job.gaps.map((gap, i) => <li key={i}>{gap}</li>)}</ul></details>}
+diff --git a/app/core-materials.tsx b/app/core-materials.tsx
+index 4bf883e55..af3438816 100644
+--- a/app/core-materials.tsx
++++ b/app/core-materials.tsx
+@@ -1,33 +1,63 @@
+ "use client";
+ import {useEffect,useRef,useState} from 'react';
+ import type {V2State} from '../lib/v2-types';
++import type {AssistantRequest} from './codex-assistant';
+ import {caseEvidenceAvailable} from '../lib/case-evidence';
+ import {EvidenceReader} from './evidence-reader';
+ import './core-materials.css';
+ 
+-type Material={id:string;title:string;reason?:string};
+-/** Read the existing retained source in place; opening a document never navigates or writes. */
+-export function CoreMaterials({s,materials}:{s:V2State;materials:Material[]}){
+-  const [selection,setSelection]=useState<{workspaceId:string;id:string;title:string}|null>(null);
+-  const dialog=useRef<HTMLDialogElement>(null);
+-  const active=selection?.workspaceId===s.workspaceId?selection:null;
+-  const source=active?s.sources.find(row=>row.id===active.id):undefined;
++type Material={id:string;title:string;reason?:string;library?:unknown;locator?:unknown};
++type Props={s:V2State;materials:Material[];sourceId:string;jobId?:string;request:AssistantRequest};
++type Reading={workspaceId:string;sourceId:string;jobId:string;materialId:string;original:{title:string;version:string;text:string;excerpt:string};limitations:string[]};
++
++/** Only the reader remounts on scope/reference changes; surrounding drafts stay mounted. */
++export function CoreMaterials(props:Props){
++  const scope=JSON.stringify([props.s.workspaceId,props.sourceId,props.jobId||'',props.materials.map(m=>[m.id,m.library,m.locator])]);
++  return <ScopedCoreMaterials key={scope} {...props}/>;
++}
++
++function ScopedCoreMaterials({s,materials,sourceId,jobId='',request}:Props){
++  const [active,setActive]=useState<Material|null>(null);
++  const [reading,setReading]=useState<Reading|null>(null);
++  const [error,setError]=useState('');
++  const generation=useRef(0),dialog=useRef<HTMLDialogElement>(null);
++  const library=!!active&&(active.id.startsWith('library:')||!!active.library);
++  const source=active&&!library?s.sources.find(row=>row.id===active.id):undefined;
+   const available=!!source&&!source.archived&&!source.stale&&!s.sources.some(row=>!row.archived&&row.supersedesId===source.id)&&caseEvidenceAvailable(s,source);
++  useEffect(()=>()=>{generation.current++;},[]);
+   useEffect(()=>{
+     const element=dialog.current;if(!element)return;
+     if(active&&!element.open)element.showModal();
+     if(!active&&element.open)element.close();
+   },[active]);
+-  const close=()=>{dialog.current?.close();setSelection(null);};
++  const close=()=>{generation.current++;dialog.current?.close();setActive(null);setReading(null);setError('');};
++  async function open(material:Material){
++    const current=++generation.current;
++    setActive(material);setReading(null);setError('');
++    if(!material.id.startsWith('library:')&&!material.library)return;
++    try{
++      const query=new URLSearchParams({workspaceId:s.workspaceId,sourceId,jobId,materialId:material.id});
++      const result=await request<Reading>('/api/v2/core/material?'+query);
++      if(generation.current!==current)return;
++      if(result.workspaceId!==s.workspaceId||result.sourceId!==sourceId||result.jobId!==jobId||result.materialId!==material.id)throw Error('读取结果与原资料身份不一致，请重新打开');
++      setReading(result);
++    }catch(cause){if(generation.current===current)setError(cause instanceof Error?cause.message:'资源库读取失败，尚未取得正文');}
++  }
+   return <div className="core-materials">
+-    <ul>{materials.map(material=><li key={material.id}><button type="button" className="v2-text-button" onClick={()=>setSelection({workspaceId:s.workspaceId,id:material.id,title:material.title})}>阅读资料：{material.title}</button>{material.reason&&<p>{material.reason}</p>}</li>)}</ul>
+-    <dialog ref={dialog} className="core-material-dialog" aria-label="资料阅读" onKeyDown={event=>{if(['Escape','Tab'].includes(event.key))event.stopPropagation();}} onCancel={event=>{event.preventDefault();event.stopPropagation();close();}} onClose={event=>{event.stopPropagation();setSelection(null);}}>
++    <ul>{materials.map(material=><li key={material.id}><button type="button" className="v2-text-button" onClick={()=>void open(material)}>阅读资料：{material.title}</button>{material.reason&&<p>{material.reason}</p>}</li>)}</ul>
++    <dialog ref={dialog} className="core-material-dialog" aria-label="资料阅读" onKeyDown={event=>{if(['Escape','Tab'].includes(event.key))event.stopPropagation();}} onCancel={event=>{event.preventDefault();event.stopPropagation();close();}} onClose={event=>event.stopPropagation()}>
+       <header><strong>{active?.title||'资料阅读'}</strong><button type="button" className="v2-button" onClick={close}>返回原处</button></header>
+-      {!source?<p role="alert">这份资料在当前工作区中未找到。请核对资料来源；原事项与未提交草稿仍保留。</p>:<>
++      {active&&(library?<>
++        {error?<p role="alert">{error}。原事项与未提交草稿仍保留。</p>:!reading?<p role="status">正在核对资源库原引用并读取资料…</p>:<>
++          <p className="iw-meta">资源库 · 版本 {reading.original.version} · {reading.limitations.join('；')}</p>
++          <EvidenceReader s={s} evidence={{id:active.id,title:reading.original.title,available:true,author:'',occurredAt:'',text:reading.original.text}}/>
++          <details><summary>本次准备引用的位置</summary><pre>{reading.original.excerpt}</pre></details>
++        </>}
++      </>:!source?<p role="alert">这份资料在当前工作区中未找到。请核对资料来源；原事项与未提交草稿仍保留。</p>:<>
+         {!available&&<p role="status">这份来源当前已失效或不可用，下面仅为已有留存。没有重新获取访问权限或读取新内容。</p>}
+         {source.intakeDocument?.error&&<p role="alert">资料读取未完成：{source.intakeDocument.error}</p>}
+         <EvidenceReader s={s} evidence={{id:source.id,title:source.title,version:source.version,available,author:typeof source.author==='string'?source.author:'',occurredAt:source.occurredAt||source.collectedAt||'',text:source.excerpt||''}}/>
+-      </>}
++      </>)}
+     </dialog>
+   </div>;
+ }
+diff --git a/app/core-preparation-result.tsx b/app/core-preparation-result.tsx
+index 36be55213..0057902b0 100644
+--- a/app/core-preparation-result.tsx
++++ b/app/core-preparation-result.tsx
+@@ -1,8 +1,9 @@
+ "use client";
+ import type {V2State} from '../lib/v2-types';
++import type {AssistantRequest} from './codex-assistant';
+ import {CoreMaterials} from './core-materials';
+ type Result={status:string;reason?:string;summaries?:{sourceId:string;title:string;dependencies:{reason:string;gaps:string[];brief?:Record<string,string>;options?:{title:string;impact:string;preconditions:string}[]}[];delivery?:{decision:string;gaps:string[];delivered:boolean;materials:{id:string;title:string;reason?:string}[];messages:{id:string;text:string}[]};messages:{id:string;text:string}[]}[]};
+-export function CorePreparationResult({s,value}:{s:V2State;value:Result}){
++export function CorePreparationResult({s,value,jobId,request}:{s:V2State;value:Result;jobId:string;request:AssistantRequest}){
+   if(value.status==='running')return <p role="status">正在用相关原件核对依赖与协作准备…</p>;
+-  return <section aria-label="依赖与资料准备结果">{value.reason&&<p role="status">{value.reason}</p>}{value.summaries?.map(item=><div key={item.sourceId}><strong>{item.title}</strong>{item.dependencies.map((d,index)=><div key={index}><p>{d.reason}</p>{d.gaps.map(g=><p key={g}>{g}</p>)}{d.brief&&<details><summary>影响与前因后果</summary>{Object.values(d.brief).map((text,i)=><p key={i}>{text}</p>)}</details>}{!!d.options?.length&&<details><summary>候选方案，待你选择</summary>{d.options.map(o=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>}</div>)}{item.delivery&&<><p>{item.delivery.delivered?'工程师交付已记录':item.delivery.decision||'相关资料与协作已准备'}</p><CoreMaterials s={s} materials={item.delivery.materials}/>{item.delivery.gaps.map(g=><p key={g}>{g}</p>)}</>}{[...(item.delivery?.messages||[]),...item.messages].map(m=><details key={m.id}><summary>待预览的消息草稿</summary><p>{m.text}</p></details>)}</div>)}</section>;
++  return <section aria-label="依赖与资料准备结果">{value.reason&&<p role="status">{value.reason}</p>}{value.summaries?.map(item=><div key={item.sourceId}><strong>{item.title}</strong>{item.dependencies.map((d,index)=><div key={index}><p>{d.reason}</p>{d.gaps.map(g=><p key={g}>{g}</p>)}{d.brief&&<details><summary>影响与前因后果</summary>{Object.values(d.brief).map((text,i)=><p key={i}>{text}</p>)}</details>}{!!d.options?.length&&<details><summary>候选方案，待你选择</summary>{d.options.map(o=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>}</div>)}{item.delivery&&<><p>{item.delivery.delivered?'工程师交付已记录':item.delivery.decision||'相关资料与协作已准备'}</p><CoreMaterials s={s} materials={item.delivery.materials} sourceId={item.sourceId} jobId={jobId} request={request}/>{item.delivery.gaps.map(g=><p key={g}>{g}</p>)}</>}{[...(item.delivery?.messages||[]),...item.messages].map(m=><details key={m.id}><summary>待预览的消息草稿</summary><p>{m.text}</p></details>)}</div>)}</section>;
+ }
+diff --git a/app/work-item-core-controls.tsx b/app/work-item-core-controls.tsx
+index 5ce8ec20d..2e915da56 100644
+--- a/app/work-item-core-controls.tsx
++++ b/app/work-item-core-controls.tsx
+@@ -22,7 +22,7 @@ export function WorkItemCoreControls({s,source,request,refresh}:{s:V2State;sourc
+     </details>
+     {!!c.steps?.length&&<details><summary>责任步骤</summary>{c.steps.map((step:Value)=><p key={step.id}>{step.title} · {s.people.find(p=>p.id===step.ownerId)?.title||'责任待核实'} · {{needed:'待处理',waiting:'等待结果',done:'已完成'}[step.state as string]||step.state}</p>)}</details>}
+     {c.dependencies?.map((d:Value)=><details key={d.id}><summary>{d.result.reason}</summary><p>{d.window.dependency.affectedWork} · {d.window.dependency.impact}</p>{d.result.gaps?.map((g:string)=><p key={g}>{g}</p>)}{d.result.brief&&<p>{Object.values(d.result.brief).join('；')}</p>}{d.result.options?.map((o:Value)=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>)}
+-    {c.delivery&&<details><summary>{c.delivery.delivered?'工程师交付已记录':'资料与协作准备'}</summary>{c.delivery.decision&&<p>{c.delivery.decision}</p>}<CoreMaterials s={s} materials={c.delivery.materials}/>{c.delivery.gaps.map((g:string)=><p key={g}>{g}</p>)}</details>}
++    {c.delivery&&<details><summary>{c.delivery.delivered?'工程师交付已记录':'资料与协作准备'}</summary>{c.delivery.decision&&<p>{c.delivery.decision}</p>}<CoreMaterials s={s} materials={c.delivery.materials} sourceId={source.id} request={request}/>{c.delivery.gaps.map((g:string)=><p key={g}>{g}</p>)}</details>}
+     {c.preparation&&<p role="status">资料与协作准备：{c.preparation.reason||'等待核对'}</p>}<details><summary>检查与历史</summary><p>最后成功核对：{c.checks.lastSuccess||'尚无本轮记录'}</p><p>{c.checks.coverage||''}{c.checks.error||''}</p>{c.checks.gap&&<p>未覆盖时段：{c.checks.gap.from} 至 {c.checks.gap.to}</p>}{c.history.slice(-20).reverse().map((h:Value,i:number)=><p key={i}>{h.at} · {h.reason||({'assessment':'当前需要已核对','need-cycle':'待处理需要已更新','core-priority':'本人调整优先级','core-admit':'本人纳入跟进','core-pause':'本人暂停提醒','core-resume':'本人恢复提醒','core-weekly':'本人调整周度安排','pause-resumed':'到达恢复时间'} as Record<string,string>)[h.kind]||'跟进状态已更新'}</p>)}</details>{error&&<p role="alert">{error}</p>}
+     <CoreCollaborationPanel workspaceId={s.workspaceId} sourceId={source.id} revision={source.version} request={request} onChanged={refresh}/>
+   </section>;
+diff --git a/app/work-item-entry.tsx b/app/work-item-entry.tsx
+index 73c152810..e04bfee3e 100644
+--- a/app/work-item-entry.tsx
++++ b/app/work-item-entry.tsx
+@@ -95,7 +95,7 @@ export function WorkItemEntry({s,source,request,onReview}:Props){
+   }catch(e){if(alive.current)setError(explain(e)+'；输入与手选值已保留。结果未明时重试会先查询原操作。');}finally{submitting.current=false;if(alive.current)setBusy(false);}
+  }
+  function cancel(){writeInputDraft(key,{text:'',sessionId,dirtyCheck:false,dirtyCompletion:false,check:JSON.stringify(timeDraft(timing.check)),completion:JSON.stringify(timeDraft(timing.completion)),expectedVersion:source.version,expectedBasis:current.basis,expectedEvidenceBasis:current.liveEvidenceBasis,editProgressId:''});generation.current++;setText('');setImages([]);setTimes({check:timeDraft(timing.check),completion:timeDraft(timing.completion)});setDirty({check:false,completion:false});setResolution({});setConflicts([]);setEditProgressId('');navigation?.cancelEntry?.();}
+- const renderJob=(job:Value)=><article className="ca-turn" key={job.id}><div className="ca-user-message"><p>{workItemInputLabel(job,s.sources)}</p></div><div className="ca-assistant-message">{job.status==='running'?<p role="status"><Loader2 size={14} className="spin"/>{job.p1Outcome?.status==='saved'?'本地记录已保存，正在核对相关依赖与协作准备…':'正在理解本次输入…'}</p>:<>{job.coreWorkOutcome&&<CorePreparationResult s={s} value={job.coreWorkOutcome}/>}{job.answer&&<div className="ca-answer"><strong>{job.p1Outcome?.status==='clarify'?'理解与建议（本次尚未保存）':'理解与建议'}</strong><p>{job.answer}</p></div>}{job.p1Outcome?.status==='saved'&&job.p1Outcome.receipt?.operationId!==receipt?.operationId&&<p>已保存：{job.p1Outcome.receipt?.progress||'本次明确安排'}{job.p1Outcome.receipt?.closed?' · 已移入已结束':''}</p>}{job.evidenceStatus==='stale'&&<p role="status">依据已变化；以下保留历史，请重新核对。</p>}{!!job.gaps?.length&&<details><summary>依据与缺口</summary>{job.gaps.map((g:string,i:number)=><p key={i}>{g}</p>)}{job.citations?.map((c:Value,i:number)=><div key={i}><strong>{c.title}</strong><blockquote>{c.quote}</blockquote><p>{c.interpretation}</p></div>)}</details>}{job.groupId&&<button className="v2-button" onClick={()=>void onReview(job.groupId)}>查看待审核修改</button>}{job.error&&<p role="alert">{job.error}</p>}{job.actionRequests?.length>0&&<AssistantActions workspaceId={s.workspaceId} jobId={job.id} request={request}/>} {job.workItemRequests?.length>0&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}</>}</div></article>;
++ const renderJob=(job:Value)=><article className="ca-turn" key={job.id}><div className="ca-user-message"><p>{workItemInputLabel(job,s.sources)}</p></div><div className="ca-assistant-message">{job.status==='running'?<p role="status"><Loader2 size={14} className="spin"/>{job.p1Outcome?.status==='saved'?'本地记录已保存，正在核对相关依赖与协作准备…':'正在理解本次输入…'}</p>:<>{job.coreWorkOutcome&&<CorePreparationResult s={s} value={job.coreWorkOutcome} jobId={job.id} request={request}/>}{job.answer&&<div className="ca-answer"><strong>{job.p1Outcome?.status==='clarify'?'理解与建议（本次尚未保存）':'理解与建议'}</strong><p>{job.answer}</p></div>}{job.p1Outcome?.status==='saved'&&job.p1Outcome.receipt?.operationId!==receipt?.operationId&&<p>已保存：{job.p1Outcome.receipt?.progress||'本次明确安排'}{job.p1Outcome.receipt?.closed?' · 已移入已结束':''}</p>}{job.evidenceStatus==='stale'&&<p role="status">依据已变化；以下保留历史，请重新核对。</p>}{!!job.gaps?.length&&<details><summary>依据与缺口</summary>{job.gaps.map((g:string,i:number)=><p key={i}>{g}</p>)}{job.citations?.map((c:Value,i:number)=><div key={i}><strong>{c.title}</strong><blockquote>{c.quote}</blockquote><p>{c.interpretation}</p></div>)}</details>}{job.groupId&&<button className="v2-button" onClick={()=>void onReview(job.groupId)}>查看待审核修改</button>}{job.error&&<p role="alert">{job.error}</p>}{job.actionRequests?.length>0&&<AssistantActions workspaceId={s.workspaceId} jobId={job.id} request={request}/>} {job.workItemRequests?.length>0&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}</>}</div></article>;
+  return <section className="ca-conversation p1-entry" aria-label="当前事项记录与讨论"><div className="ca-toolbar"><strong>{source.title}</strong><div className="ca-toolbar-actions"><button type="button" className="ca-text-button" disabled={busy||!!running||!!pending} onClick={()=>{setSessionId(crypto.randomUUID());setJobs([]);setError('');}}><Plus size={15}/>新对话</button><button type="button" className="ca-text-button" aria-expanded={showOptions} onClick={()=>setShowOptions(v=>!v)}><Settings2 size={15}/>选项</button></div></div>
+ 
+   {running&&<button type="button" className="v2-text-button" onClick={()=>void request<{job:Value}>('/api/v2/codex/jobs/'+running.id+'/cancel',{workspaceId:s.workspaceId}).then(async result=>{adopt(result.job);await finish(result.job);}).catch(e=>setError(explain(e)))}>取消本轮</button>}
+diff --git a/package-lock.json b/package-lock.json
+index afe065d5a..0bef1db2c 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.18.0",
++  "version": "2.18.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "pm-workbench",
+-      "version": "2.18.0",
++      "version": "2.18.1",
+       "dependencies": {
+         "@base-ui/react": "^1.7.0",
+         "@hookform/resolvers": "^5.7.1",
+diff --git a/package.json b/package.json
+index e2002b8c7..0ca644e9e 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.18.0",
++  "version": "2.18.1",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+diff --git a/release.json b/release.json
+index 70d8750d6..5807e463e 100644
+--- a/release.json
++++ b/release.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "2.18.0",
+-  "build": "20261015.ux1.1",
++  "version": "2.18.1",
++  "build": "20261015.ux1-fix1.1",
+   "channel": "stable",
+   "releasedOn": "2026-10-15"
+ }
+diff --git a/scripts/core-material-reader.mjs b/scripts/core-material-reader.mjs
+new file mode 100644
+index 000000000..090dc3be5
+--- /dev/null
++++ b/scripts/core-material-reader.mjs
+@@ -0,0 +1,32 @@
++import {isDeepStrictEqual} from 'node:util';
++
++const fail=(message,status)=>Object.assign(new Error(message),{status});
++
++/** Read only a persisted preparation reference, never a caller-supplied path or title. */
++export function readCoreMaterial({assistant,workspaceId,sourceId,jobId,materialId}){
++  const state=assistant.store.load(workspaceId);
++  let materials;
++  if(jobId){
++    const job=assistant.get(jobId,workspaceId);
++    if(job.restored||state.workspaceType==='restored')throw fail('恢复记录中的资源库引用仅供历史核对，请重新准备资料',409);
++    materials=job.coreWorkOutcome?.summaries?.find(row=>row.sourceId===sourceId)?.delivery?.materials;
++  }else{
++    const owner=state.sources.find(row=>row.id===sourceId&&!row.archived);
++    if(!owner||state.workspaceType==='restored')throw fail('原事项已不存在或仅为恢复的历史记录',409);
++    materials=owner.workItem?.core?.delivery?.materials;
++  }
++  const matches=(materials||[]).filter(row=>row.id===materialId);
++  if(matches.length!==1)throw fail('原资料引用不存在或身份不唯一，请重新核对准备结果',404);
++  const material=matches[0],reference=material.library,locator=material.locator;
++  if(!material.id.startsWith('library:')||!reference||!locator)throw fail('资源库引用缺少原身份或定位信息，请重新准备资料',409);
++  const library=assistant.retrieval.library;
++  if(!library)throw fail('资源库读取能力当前不可用，尚未读取资料',503);
++  const snapshot=library.snapshot();
++  if(!snapshot.available)throw fail('资源库目录当前不可读，尚未取得正文；请核对目录与读取权限',503);
++  const doc=snapshot.documents.find(row=>row.id===material.id);
++  if(!doc||!isDeepStrictEqual(reference,doc.library))throw fail('资源库引用已失效、版本已变化或当前不可读；请核对原资料与读取权限',409);
++  const original=library.citation({sourceId:doc.id,fingerprint:doc.fingerprint,locator});
++  if(!original)throw fail('资源库原定位已失效，尚未读取资料',409);
++  return {workspaceId,sourceId,jobId:jobId||'',materialId,library:doc.library,locator,
++    original:{title:doc.title,version:doc.version,text:doc.text,excerpt:original.text},limitations:doc.limitations};
++}
+diff --git a/scripts/local-http.mjs b/scripts/local-http.mjs
+index c31319a55..761085f60 100644
+--- a/scripts/local-http.mjs
++++ b/scripts/local-http.mjs
+@@ -44,6 +44,7 @@ import {AgentMonitor} from './agent-monitor.mjs';
+ import {WorkItemCoreService} from './work-item-core-service.mjs';
+ import {CoreFeishuInput} from './core-feishu-input.mjs';
+ import {scheduleCorePreparation} from './core-work-agent.mjs';
++import {readCoreMaterial} from './core-material-reader.mjs';
+ 
+ const root=fileURLToPath(new URL('..',import.meta.url));
+ const release=JSON.parse(readFileSync(path.join(root,'release.json'),'utf8'));
+@@ -161,6 +162,11 @@ export async function startServer(options={}) {
+     if(host!=='127.0.0.1:'+port&&host!=='localhost:'+port)throw fail('仅接受回环地址请求',403);
+     const url=new URL(req.url,origin),p=url.pathname,w=url.searchParams.get('workspaceId');
+     if(req.method==='OPTIONS')throw fail('不允许跨源调用',403);
++    if(p==='/api/v2/core/material'){
++      authorize(req,true);
++      if(req.method!=='GET')throw fail('资料阅读仅支持只读请求',405);
++      return json(res,readCoreMaterial({assistant,workspaceId:w,sourceId:url.searchParams.get('sourceId'),jobId:url.searchParams.get('jobId'),materialId:url.searchParams.get('materialId')}));
++    }
+     if(p==='/api/v2/core'){
+       authorize(req,true);
+       if(req.method==='GET')return json(res,core.view(w,url.searchParams.get('sourceId')));
+diff --git a/scripts/test-integration-ux1-fix1-browser.mjs b/scripts/test-integration-ux1-fix1-browser.mjs
+new file mode 100644
+index 000000000..134229b01
+--- /dev/null
++++ b/scripts/test-integration-ux1-fix1-browser.mjs
+@@ -0,0 +1,60 @@
++import assert from 'node:assert/strict';
++import {createRequire} from 'node:module';
++import {createHash} from 'node:crypto';
++import {mkdirSync,mkdtempSync,readdirSync,writeFileSync} from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {setTimeout as delay} from 'node:timers/promises';
++import * as d from '../dist-local/domain.mjs';
++import {startCoreFixture} from './core-fixtures.mjs';
++import {fixtureState} from './s1p1-fixtures.mjs';
++import {LibraryRetrieval} from './library-retrieval.mjs';
++
++const output=path.resolve(process.env.PM_UX1_FIX1_OUTPUT||'output/ux1-fix1/browser');mkdirSync(output,{recursive:true});
++const root=mkdtempSync(path.join(output,'library-'));mkdirSync(path.join(root,'docs/library'),{recursive:true});
++const digest=x=>createHash('sha256').update(x).digest('hex');
++const texts={A:'合成报告模板 A\n这是从已登记资源库读取的完整正文。\n适用合成报告资料准备，人员编写并提交。\nONLY-A-BODY\n完整正文末尾 A-END',B:'合成报告模板 B\n仅用于合成资料阅读。\nONLY-B-BODY\n完整正文末尾 B-END'};
++const catalog={schemaVersion:2,entries:Object.entries(texts).map(([id,text])=>{writeFileSync(path.join(root,'docs/library/'+id+'.md'),text);return {id,title:'合成报告模板 '+id,path:'docs/library/'+id+'.md',sha256:digest(text),version:'synthetic.1',kind:'template-guidance',lifecycle:'current'};})};
++const catalogFile=path.join(root,'docs/library/catalog.json');writeFileSync(catalogFile,JSON.stringify(catalog));
++const library=new LibraryRetrieval({root}),sends=[],modelCalls=[];
++const client={simulation:true,identity:async()=>({scope:'tenant/app',userId:'ou_self',appId:'app',tenantKey:'tenant'}),run:async()=>{sends.push('blocked');throw Error('No sends allowed');}};
++const workAnalyse=async input=>{modelCalls.push(input);const p=input.evidence.find(x=>!x.sourceId.startsWith('library:')&&x.text.includes('已联系'));assert.ok(p,'front-stage original input');const templates=input.evidence.filter(x=>x.sourceId.startsWith('library:'));assert.equal(new Set(templates.map(x=>x.sourceId)).size,2);return {dependencies:[],messages:[],deliveries:[{workItemId:'p1-action',context:{targetId:'delivery-template',nodeId:'node-template',ownerId:'engineer',providerId:'',fileOwnerId:'',teamOwnerId:'',verified:true,proof:[p.citationId],requirement:'按合成模板准备报告',requirementConflict:false,exceptionProof:[],templates:templates.map(x=>({sourceId:x.sourceId,title:x.title,applicable:true,reason:'本次已读取合成模板'})),templateUncertain:false,materialSourceIds:['local-ref'],missing:[],accessDenied:false,linked:false,submitted:false,reviewValue:'',ownerCannotIdentifyProvider:false,providerLookupProof:[],responsibilityDisputed:false}}],citations:[p,...templates].map(x=>({citationId:x.citationId,quote:x.text,interpretation:'合成已登记原引用'}))};};
++const app=await startCoreFixture({client,workAnalyse});app.assistant.retrieval.library=library;
++const mutate=fn=>{const s=app.state(),r=s.revision;fn(s);s.revision++;app.store.save(s,r);};
++mutate(s=>{s.people.push({id:'engineer',title:'合成责任人',projectIds:['p'],sourceIds:[],version:1});s.flowNodes.push({id:'node-template',title:'合成评审',projectIds:['p'],sourceIds:[],version:1});s.deliverables.push({id:'delivery-template',title:'合成报告',projectIds:['p'],sourceIds:[],version:1,flowNodeIds:[]});s.sources.push({id:'local-ref',title:'工作区合成资料',excerpt:'LOCAL-REF-END',projectIds:['p'],sourceIds:[],version:1});});
++const other=fixtureState('ux1-fix1-other');app.store.insert(other.s);
++const {chromium}=createRequire(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'))('playwright');
++const cache=path.join(os.homedir(),'.agent-browser/browsers'),executablePath=path.join(cache,readdirSync(cache).filter(x=>x.startsWith('chrome-')).sort().at(-1),'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
++const browser=await chromium.launch({executablePath,headless:true}),context=await browser.newContext({viewport:{width:1440,height:900},timezoneId:'Asia/Shanghai'}),page=await context.newPage();
++page.setDefaultTimeout(12000);const results=[],errors=[],external=[],posts=[],reads=[],screenshots=[];
++page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{const u=new URL(r.url());if(r.method()==='POST')posts.push(u.pathname);if(u.pathname==='/api/v2/core/material')reads.push(u.pathname+u.search);});
++await context.route('**/*',route=>{const u=new URL(route.request().url());if(['http:','https:'].includes(u.protocol)&&u.origin!==app.origin){external.push(u.origin);return route.abort();}return route.continue();});
++const reader=()=>page.getByRole('dialog',{name:'资料阅读',exact:true}),panel=()=>page.locator('.iw-dialog');
++async function until(fn){for(let i=0;i<300;i++){const v=await fn();if(v)return v;await delay(30);}throw Error('Expected product state not reached');}
++async function check(id,name,fn){try{const evidence=await fn();results.push({id,name,passed:true,evidence});console.log('PASS',id,name);}catch(e){results.push({id,name,passed:false,error:e.stack});await page.screenshot({path:path.join(output,'failure-'+id+'.png')});writeFileSync(path.join(output,'failure-'+id+'.txt'),await page.locator('body').innerText());throw e;}}
++async function shot(name){screenshots.push(name+'.png');await page.screenshot({path:path.join(output,name+'.png')});}
++let completed,itemCompleted;
++async function navigate(entry){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view:entry==='item'?'attention':'assistant',...(entry==='item'?{record:app.ids.action}:{})}));await page.locator('.v2-app').waitFor();if(entry==='item'){const details=panel().locator('.wb-int-core details').filter({has:page.locator('summary',{hasText:'资料与协作准备'})});await details.locator(':scope > summary').click();}else {await until(async()=>await button('A').isVisible()||await page.getByLabel('已有对话',{exact:true}).isVisible());if(await page.getByLabel('已有对话',{exact:true}).isVisible())await page.getByLabel('已有对话',{exact:true}).selectOption(completed.sessionId);}await button('A').waitFor();}
++const button=id=>page.getByRole('button',{name:'阅读资料：'+(id==='local'?'工作区合成资料':'合成报告模板 '+id),exact:true}).first();
++async function open(id){await button(id).click();await reader().waitFor();}
++async function close(escape=false){if(escape)await page.keyboard.press('Escape');else await reader().getByRole('button',{name:'返回原处',exact:true}).click();await reader().waitFor({state:'hidden'});}
++const binding=()=>app.state().sources.find(x=>x.id===app.ids.action).workItem.core.delivery.materials;
++async function direct(params,extra={}){const r=await fetch(app.origin+'/api/v2/core/material?'+new URLSearchParams({workspaceId:app.workspaceId,sourceId:app.ids.action,materialId:'library:A',...params}),{headers:{'X-Workbench-Token':app.token,'X-Workbench-Client':'ui'},...extra});return {status:r.status,body:await r.json()};}
++try{
++ await check('O01-L08-chain','original stage1/prepare/finish persists library+locator to item and assistant outcome',async()=>{const row=app.state().sources.find(r=>r.id===app.ids.action),state=d.workItemState(app.state(),row);const job=(await app.api('/api/v2/codex/jobs',{workspaceId:app.workspaceId,requestId:crypto.randomUUID(),sessionId:crypto.randomUUID(),parentJobId:'',mode:'answer',contextRef:{kind:'sources',id:row.id},text:'已联系负责人，请按合成报告模板 A 和合成报告模板 B 准备报告资料。',sourceIds:[],p1Input:{occurredAt:'2026-10-15T09:00:00+08:00',expectedVersion:row.version,expectedBasis:state.basis,expectedEvidenceBasis:state.liveEvidenceBasis,manual:{}}})).job;completed=await until(async()=>{const j=(await app.api('/api/v2/codex/jobs/'+job.id+'?workspaceId='+app.workspaceId)).job;return j.status!=='running'&&j;});assert.equal(completed.p1Outcome.status,'saved');itemCompleted=completed;const globalJob=(await app.api('/api/v2/codex/jobs',{workspaceId:app.workspaceId,requestId:crypto.randomUUID(),sessionId:crypto.randomUUID(),parentJobId:'',mode:'answer',contextRef:{kind:'workspace',id:app.workspaceId},text:'已联系负责人，请按合成报告模板 A 和合成报告模板 B 再核对报告资料。',sourceIds:[]})).job;completed=await until(async()=>{const j=(await app.api('/api/v2/codex/jobs/'+globalJob.id+'?workspaceId='+app.workspaceId)).job;return j.status!=='running'&&j;});assert.equal(completed.coreWorkOutcome.status,'prepared',JSON.stringify(completed.coreWorkOutcome));assert.equal(binding().filter(m=>m.library).length,2);assert.deepEqual(binding(),completed.coreWorkOutcome.summaries[0].delivery.materials);assert.ok(!app.state().sources.some(x=>x.id.startsWith('library:')));return {syntheticSecondStageCalls:modelCalls.length,librarySourcesImported:0,bindingPreserved:true};});
++ for(const entry of ['item','assistant']){
++  await check('O01-L01-'+entry,'persisted library reference opens full body without workspace source',async()=>{await navigate(entry);const before=JSON.stringify(app.state()),n=posts.length;await open('A');await reader().getByRole('article').getByText(/A-END/).waitFor();assert.match(await reader().innerText(),/本地已登记快照/);assert.doesNotMatch(await reader().innerText(),/工作区中未找到/);await shot('library-'+entry);await close(true);assert.equal(await button('A').evaluate(x=>document.activeElement===x),true);assert.equal(JSON.stringify(app.state()),before);assert.equal(posts.length,n);return {read:true,fullBody:true,workspaceSourceAbsent:true,stateUnchanged:true,focusReturned:true};});
++  await check('O01-L02-'+entry,'existing workspace material keeps its original reader',async()=>{await open('local');await reader().getByText('LOCAL-REF-END',{exact:true}).waitFor();await close();});
++  await check('O01-L03-'+entry,'actual reader denial reports unreadable library and never substitutes local content',async()=>{const original=library.read.bind(library);library.read=relative=>{if(relative.endsWith('A.md'))throw Object.assign(Error('synthetic permission denied'),{code:'EACCES'});return original(relative);};try{await open('A');await reader().getByRole('alert').waitFor();assert.match(await reader().innerText(),/不可读|权限/);assert.doesNotMatch(await reader().innerText(),/A-END|工作区中未找到/);assert.equal(await reader().locator('a').count(),0);await close();}finally{library.read=original;}});
++  await check('O01-L04-'+entry,'changed content and invalid locator stop at original reference',async()=>{const file=path.join(root,'docs/library/A.md');writeFileSync(file,texts.A+'\nchanged');try{await open('A');await reader().getByRole('alert').waitFor();assert.doesNotMatch(await reader().innerText(),/A-END/);await close();}finally{writeFileSync(file,texts.A);}const bad=await direct(entry==='assistant'?{jobId:completed.id,materialId:'missing'}:{materialId:'missing'});assert.equal(bad.status,404);return {staleReadRejected:true,missingBindingStatus:bad.status};});
++  await check('O01-L07-'+entry,'late A success cannot replace B success or B failure after close/reopen',async()=>{
++   for(const failB of [false,true]){let release,entered=false,finished=false;const hold=async route=>{const u=new URL(route.request().url());if(u.searchParams.get('materialId')==='library:A'){const response=await route.fetch();entered=true;await new Promise(r=>release=r);await route.fulfill({response});finished=true;}else if(failB)await route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:'合成 B 读取权限不足'})});else await route.continue();};await page.route('**/api/v2/core/material?*',hold);try{await open('A');await until(()=>entered);await close();await open('B');await reader().getByText(failB?/权限不足/:/B-END/).first().waitFor();release();await until(()=>finished);await delay(80);assert.doesNotMatch(await reader().innerText(),/ONLY-A-BODY|A-END/);assert.match(await reader().innerText(),failB?/权限不足/:/B-END/);await close();}finally{release?.();await page.unroute('**/api/v2/core/material?*',hold);}}
++   return {lateSuccessIgnored:true,newFailurePreserved:true};
++  });
++  await check('O01-L06-'+entry,'workspace A-B-A invalidates pending library read and protects B and new draft',async()=>{if(entry==='item')await panel().getByRole('button',{name:'关闭事项，返回清单',exact:true}).click();await page.locator('#workspace-select').selectOption(other.s.workspaceId);await until(()=>new URL(page.url()).searchParams.get('workspaceId')===other.s.workspaceId);await page.locator('#workspace-select').selectOption(app.workspaceId);await until(()=>new URL(page.url()).searchParams.get('workspaceId')===app.workspaceId);if(entry==='item'){await page.locator('.att-row').filter({hasText:'模拟培训材料'}).click();await panel().locator('.wb-int-core details').filter({has:page.locator('summary',{hasText:'资料与协作准备'})}).locator(':scope > summary').click();}else {await until(async()=>await button('A').isVisible()||await page.getByLabel('已有对话',{exact:true}).isVisible());if(await page.getByLabel('已有对话',{exact:true}).isVisible())await page.getByLabel('已有对话',{exact:true}).selectOption(completed.sessionId);}let release,entered=false,finished=false;const bBefore=app.store.load(other.s.workspaceId);const hold=async route=>{const response=await route.fetch();entered=true;await new Promise(r=>release=r);await route.fulfill({response});finished=true;};await page.route('**/api/v2/core/material?*',hold);try{await open('A');await until(()=>entered);for(let back=0;back<4&&new URL(page.url()).searchParams.get('workspaceId')!==other.s.workspaceId;back++){await page.goBack();await delay(80);}assert.equal(new URL(page.url()).searchParams.get('workspaceId'),other.s.workspaceId);await page.locator('#workspace-select').selectOption(app.workspaceId);await until(()=>new URL(page.url()).searchParams.get('workspaceId')===app.workspaceId);await page.getByRole('button',{name:'助手',exact:true}).click();const draft=page.locator('.ca-chat-compose [data-assistant-input]').first();await draft.fill('新区后重新输入的草稿');release();await until(()=>finished);await delay(100);assert.equal(await page.getByRole('dialog',{name:'资料阅读',exact:true}).count(),0);assert.equal(await draft.inputValue(),'新区后重新输入的草稿');assert.deepEqual(app.store.load(other.s.workspaceId),bBefore);}finally{release?.();await page.unroute('**/api/v2/core/material?*',hold);}await navigate(entry);return {workspaceBUnchanged:true,staleAdopted:false,newDraftPreserved:true,pendingModalInvalidatedByHistory:true};});
++ }
++ await check('O01-L05-assistant','button/Escape/Tab preserve input and scroll while reading',async()=>{await navigate('assistant');const draft=page.locator('.ca-chat-compose [data-assistant-input]').first();await draft.fill('原助手草稿保留');await button('A').scrollIntoViewIfNeeded();for(const escape of [false,true]){const scroll=await page.evaluate(()=>({x:scrollX,y:scrollY}));const before=JSON.stringify(app.state()),n=posts.length;await open('A');await reader().getByRole('article').getByText(/A-END/).waitFor();await page.keyboard.press('Tab');assert.equal(await reader().evaluate(x=>x.contains(document.activeElement)),true);await close(escape);assert.equal(await draft.inputValue(),'原助手草稿保留');assert.equal(await button('A').evaluate(x=>document.activeElement===x),true);assert.deepEqual(await page.evaluate(()=>({x:scrollX,y:scrollY})),scroll);assert.equal(JSON.stringify(app.state()),before);assert.equal(posts.length,n);}return {draft:true,scroll:true,tabContained:true,focus:true};});
++ await check('O01-L05-item-input','item-result reader preserves unsent text, manual time and image order',async()=>{await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view:'attention',record:app.ids.action}));await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();const entry=panel().locator('.p1-entry'),draft=entry.locator('[data-assistant-input]');await entry.getByRole('button',{name:'选项',exact:true}).click();await entry.getByLabel('已有对话',{exact:true}).selectOption(itemCompleted.sessionId);await entry.getByRole('button',{name:'阅读资料：合成报告模板 A',exact:true}).first().waitFor();await entry.getByRole('button',{name:'选项',exact:true}).click();await draft.fill('未提交的原事项草稿');await entry.getByLabel('检查时间状态',{exact:true}).selectOption('scheduled');await entry.getByLabel('检查日期',{exact:true}).fill('2026-10-20');const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9l8AAAAASUVORK5CYII=','base64');await entry.getByLabel('添加原图',{exact:true}).setInputFiles([{name:'one.png',mimeType:'image/png',buffer:png},{name:'two.png',mimeType:'image/png',buffer:png}]);await entry.getByText('图2 · two.png',{exact:true}).waitFor();await entry.locator('.p1-image-grid li').first().getByRole('button',{name:'后移',exact:true}).click();const read=entry.getByRole('button',{name:'阅读资料：合成报告模板 A',exact:true}).first();await read.waitFor();for(const escape of [false,true]){const before=JSON.stringify(app.state()),n=posts.length,images=await entry.locator('.p1-image-grid').innerText();await read.click();await reader().getByRole('article').getByText(/A-END/).waitFor();await page.keyboard.press('Tab');assert.equal(await reader().evaluate(x=>x.contains(document.activeElement)),true);await close(escape);assert.equal(await draft.inputValue(),'未提交的原事项草稿');assert.equal(await entry.getByLabel('检查日期',{exact:true}).inputValue(),'2026-10-20');assert.equal(await entry.locator('.p1-image-grid').innerText(),images);assert.equal(await read.evaluate(x=>document.activeElement===x),true);assert.equal(JSON.stringify(app.state()),before);assert.equal(posts.length,n);}await shot('item-draft-retained');return {text:true,time:true,imageOrder:true,focus:true,originalItemOpen:true};});
++ await check('O01-api-guards','read-only endpoint rejects writes, missing token, cross-workspace job and incomplete locator',async()=>{const before=JSON.stringify(app.state());assert.equal((await direct({}, {method:'POST'})).status,405);assert.equal((await direct({}, {headers:{}})).status,403);const wrong=await direct({workspaceId:other.s.workspaceId,jobId:completed.id});assert.equal(wrong.status,404);const old=binding();mutate(s=>{s.sources.find(r=>r.id===app.ids.action).workItem.core.delivery.materials=old.map(m=>m.id==='library:A'?{...m,locator:{start:9,end:2}}:m);});assert.equal((await direct({})).status,409);mutate(s=>{s.sources.find(r=>r.id===app.ids.action).workItem.core.delivery.materials=old;});return {post:405,noToken:403,crossWorkspace:404,invalidLocator:409,explicitFixtureMutations:2,beforeHash:digest(before)};});
++ await check('BOUNDARY','all paths use isolated data, local reads and denied outbound transports',async()=>{assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.deepEqual(sends,[]);assert.equal(app.core.settings(app.workspaceId).enabled,false);assert.deepEqual(app.eventBridge.enabled(),[]);return {testMode:true,realModelCalls:0,realExternalWrites:0,sendAttempts:0,coreSchedulerEnabled:false,eventListenerEnabled:false};});
++}finally{writeFileSync(path.join(output,'results.json'),JSON.stringify({scope:'Original React/HTTP/SQLite with synthetic first/second stage and real local Library reader; not real remote template access or user acceptance',results,errors,external,sends,reads,posts,screenshots,bindings:binding(),syntheticSecondStageCalls:modelCalls.length},null,2));await browser.close();await app.close();}
+diff --git a/scripts/test-ux1-prep-control-sequences.mjs b/scripts/test-ux1-prep-control-sequences.mjs
+new file mode 100644
+index 000000000..458aebe87
+--- /dev/null
++++ b/scripts/test-ux1-prep-control-sequences.mjs
+@@ -0,0 +1,73 @@
++import assert from 'node:assert/strict';
++import {createRequire} from 'node:module';
++import {createHash} from 'node:crypto';
++import {mkdirSync,readdirSync,writeFileSync} from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {setTimeout as delay} from 'node:timers/promises';
++import * as d from '../dist-local/domain.mjs';
++import {startCoreFixture} from './core-fixtures.mjs';
++import {operation} from './s1p1-fixtures.mjs';
++
++const out=path.resolve(process.env.PM_UX1_CONTROL_OUTPUT||'output/ux1-fix1/control');mkdirSync(out,{recursive:true});
++const {chromium}=createRequire(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'))('playwright');
++const cache=path.join(os.homedir(),'.agent-browser/browsers'),chrome=path.join(cache,readdirSync(cache).filter(x=>x.startsWith('chrome-')).sort().at(-1),'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
++const browser=await chromium.launch({executablePath:chrome,headless:true}),results=[];
++const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
++async function until(fn){for(let i=0;i<300;i++){const v=await fn();if(v)return v;await delay(30);}throw Error('Expected control sequence state not reached');}
++function dependency(input){const p=input.evidence.find(x=>x.text.includes('已联系')),id=p.citationId;return {dependencies:[{dependency:{id:'sequence-edge',upstreamId:'p1-action',downstreamId:'p1-risk',input:'合成测试',affectedWork:'合成评审',impact:'评审结论',proof:[id],resolved:false},readStatus:'verified',planConfirmed:true,planProof:[id],duration:{min:4,max:8,unit:'hours',remaining:true,includesPreparation:true,includesRetest:true,conditions:'合成串行测试',proof:[id]},sharedProof:[id],availableHours:2,windowProof:[id],calendarSource:'合成已确认有效工时',coordination:'impossible',coordinationProof:[id],knownByAffected:false,awarenessProof:[],arrangementDecided:false,closingWindow:false,closingProof:[],options:[]}],deliveries:[],messages:[],citations:[{citationId:id,quote:p.text,interpretation:'合成依赖证据'}]};}
++async function run(id,fn){
++ const sends=[],calls=[],errors=[],external=[];let control=async()=>({dependencies:[],deliveries:[],messages:[],citations:[]});
++ const client={simulation:true,identity:async()=>({scope:'tenant/app',userId:'ou_self',appId:'app',tenantKey:'tenant'}),run:async()=>{sends.push('blocked');throw Error('Sequence suite denies all sends');}};
++ const app=await startCoreFixture({client,workAnalyse:async(input,options)=>{calls.push(input);return control(input,options);}});
++ let executions=0;const execute=app.assistant.execute.bind(app.assistant);app.assistant.execute=(...args)=>{executions++;return execute(...args);};
++ const context=await browser.newContext({viewport:{width:1440,height:900},timezoneId:'Asia/Shanghai'}),page=await context.newPage();page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));
++ await context.route('**/*',r=>{const u=new URL(r.request().url());if(['http:','https:'].includes(u.protocol)&&u.origin!==app.origin){external.push(u.origin);return r.abort();}return r.continue();});
++ const item=()=>app.state().sources.find(r=>r.id===app.ids.action),getJob=async id=>(await app.api('/api/v2/codex/jobs/'+id+'?workspaceId='+app.workspaceId)).job;
++ const mutate=fn=>{const s=app.state(),rev=s.revision;fn(s);s.revision++;app.store.save(s,rev);};
++ const body=(text,extra={})=>{const r=item(),s=d.workItemState(app.state(),r);return {workspaceId:app.workspaceId,requestId:crypto.randomUUID(),sessionId:crypto.randomUUID(),parentJobId:'',mode:'answer',contextRef:{kind:'sources',id:r.id},text,sourceIds:[],p1Input:{occurredAt:'2026-10-20T01:00:00.000Z',expectedVersion:r.version,expectedBasis:s.basis,expectedEvidenceBasis:s.liveEvidenceBasis,manual:{}},...extra};};
++ const start=async b=>(await app.api('/api/v2/codex/jobs',b)).job;
++ const finish=async j=>until(async()=>{const r=await getJob(j.id);return r.status!=='running'&&r;});
++ const durable=j=>{const receipt=j.p1Outcome?.receipt;return !!receipt&&app.state().receipts['work-item:'+receipt.operationId]?.result.sourceId===app.ids.action;};
++ async function manual(action,extra={}){const r=item(),c=d.workItemState(app.state(),r);return app.api('/api/v2/work-items',{workspaceId:app.workspaceId,sourceId:r.id,expectedVersion:r.version,expectedBasis:c.basis,requestId:crypto.randomUUID(),action,...extra});}
++ async function view(j,{draft}={}){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view:'attention',record:app.ids.action}));const panel=page.locator('.iw-dialog');await panel.waitFor();if(j){await panel.getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();const entry=panel.locator('.p1-entry');await entry.getByRole('button',{name:'选项',exact:true}).click();await entry.getByLabel('已有对话',{exact:true}).selectOption(j.sessionId);await entry.locator('.ca-turn').waitFor();await entry.getByRole('button',{name:'选项',exact:true}).click();if(draft)await entry.locator('[data-assistant-input]').fill(draft);}return panel;}
++ const initialState=app.state(),baseline={nodes:initialState.flowNodes,links:initialState.externalLinks,deliverables:initialState.deliverables},trace=[];
++ const persist=app.store.save.bind(app.store);app.store.save=(state,...args)=>{const value=persist(state,...args);trace.push({at:new Date().toISOString(),revision:state.revision,items:state.sources.filter(r=>r.workItem).map(r=>({id:r.id,version:r.version,p1:r.workItem.p1,core:r.workItem.core})),inputs:state.sources.filter(r=>r.inputEnvelope).map(r=>({id:r.id,inputEnvelope:r.inputEnvelope})),receipts:state.receipts});return value;};
++ writeFileSync(path.join(out,id+'-before.json'),JSON.stringify(initialState,null,2));
++ try{
++  const observation=await fn({app,page,item,mutate,body,start,finish,getJob,durable,manual,view,calls,executions:()=>executions,setControl:fn=>control=fn});
++  assert.deepEqual(app.state().flowNodes,baseline.nodes);assert.deepEqual(app.state().externalLinks,baseline.links);assert.deepEqual(app.state().deliverables,baseline.deliverables);assert.deepEqual(sends,[]);assert.deepEqual(external,[]);assert.deepEqual(errors,[]);assert.equal(app.core.settings(app.workspaceId).enabled,false);assert.deepEqual(app.eventBridge.enabled(),[]);
++  const approvals=app.state().sources.flatMap(r=>r.reminderRun?.items||[]).flatMap(m=>m.approvalHistory||[]);assert.equal(approvals.length,0);
++  await page.screenshot({path:path.join(out,id+'.png')});const boundaries={realExternalWrites:0,sendAttempts:sends.length,approvalDelta:approvals.length,nodeStateChanged:false,permissionChanged:false,schedulerEnabled:false,listenerEnabled:false};
++  results.push({id,passed:true,observation:{...observation,boundaries},syntheticFirstStageExecutions:executions,syntheticSecondStageCalls:calls.length,snapshotSha256:digest(app.state())});console.log('PASS',id);
++ }catch(error){results.push({id,passed:false,error:error.stack});await page.screenshot({path:path.join(out,id+'-failure.png')});writeFileSync(path.join(out,id+'-failure.txt'),await page.locator('body').innerText());console.log('FAIL',id,error.message);}
++ finally{writeFileSync(path.join(out,id+'-after.json'),JSON.stringify(app.state(),null,2));writeFileSync(path.join(out,id+'-trace.json'),JSON.stringify(trace,null,2));await context.close();await app.close();}
++}
++try{
++ await run('RM10',async({item,body,start,finish,getJob,durable,setControl,view,page,executions})=>{
++  let release,entered=false;setControl(async()=>{entered=true;await new Promise(r=>release=r);throw Error('UX1-PREP1 合成后段超时');});
++  const before=structuredClone(item().workItem.p1||{}),request=body('已收到本次合成反馈，请在原事项记录进展，并核对必要的依赖和资料准备；本轮不要发送消息。'),job=await start(request);await until(()=>entered);const saved=await getJob(job.id);assert.equal(saved.p1Outcome.status,'saved');assert.ok(durable(saved));assert.equal((item().workItem.p1.progress||[]).length-(before.progress||[]).length,1);release();const done=await finish(job);assert.equal(done.coreWorkOutcome.status,'incomplete');assert.ok(durable(done));assert.deepEqual(item().workItem.p1.check,before.check);assert.deepEqual(item().workItem.p1.completion,before.completion);await view(done);await page.getByText(/依赖与协作分析超时/).first().waitFor();assert.equal(executions(),1);return {save:{status:done.p1Outcome.status,durableReceiptVerified:true,progressDelta:1,originalTimingUnchanged:true},preparation:{pipelineStatus:done.coreWorkOutcome.status,completed:false},recovery:{autoResubmitCount:0,originalRequestIdPreserved:done.requestId===request.requestId}};
++ });
++ await run('RM11',async({app,item,body,start,finish,durable,view,executions,calls})=>{
++  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9l8AAAAASUVORK5CYII=';const attachments=[];for(const name of ['one.png','two.png'])attachments.push((await app.api('/api/v2/attachments',{workspaceId:app.workspaceId,name,mime:'image/png',base64:png})).attachment.id);
++  const request=body('已收到本次合成样件',{attachmentIds:attachments.reverse()}),serialized=JSON.stringify(request),first=await finish(await start(request));assert.ok(durable(first));const state=app.state(),jobs=app.assistant.list(app.workspaceId).length,models=executions()+calls.length,progress=item().workItem.p1.progress.length,receipts=Object.keys(state.receipts).length;const second=await finish(await start(JSON.parse(serialized)));assert.equal(second.id,first.id);assert.equal(second.p1Outcome.receipt.operationId,first.p1Outcome.receipt.operationId);assert.equal(executions()+calls.length,models);assert.deepEqual(app.state(),state);assert.equal(app.assistant.list(app.workspaceId).length,jobs);assert.equal(item().workItem.p1.progress.length,progress);assert.equal(Object.keys(app.state().receipts).length,receipts);assert.deepEqual(app.state().sources.find(r=>r.id===first.coreInputSourceId).attachments.map(r=>r.id),attachments);await view(second);return {save:{first:{status:first.p1Outcome.status,durableReceiptVerified:true}},recovery:{second:{jobDelta:0,modelCallDelta:0,progressDelta:0,businessReceiptDelta:0},sameOperationId:true},exactBodySha256:createHash('sha256').update(serialized).digest('hex')};
++ });
++ await run('RM12',async({app,item,body,start,finish,mutate,view})=>{
++  const originalJob=await finish(await start(body('已联系负责人，合成证据要求继续核对报告。'))),original=app.state().sources.find(r=>r.id===originalJob.coreInputSourceId);const assessment=structuredClone(item().workItem.core.assessment);assert.ok(assessment?.proof.length);
++  // Explicit fixture setup: two qualified synthetic receipt events, no transport call.
++  mutate(s=>{const r=s.sources.find(r=>r.id===app.ids.action),c=d.ensureCore(r);for(let i=1;i<=2;i++)d.countCoreNotice(r,{id:'synthetic-receipt-'+i,slot:'synthetic-slot-'+i,cycleId:c.cycle.id,cycleEpoch:c.cycle.epoch,priorityEpoch:c.priority.epoch,counts:true,kind:'regular'},'2026-10-20T0'+i+':00:00Z');s.sources.push({...structuredClone(original),id:'traceable-alias',inputEnvelope:undefined,intakeDocument:{originalSourceId:original.id}});});
++  const before=structuredClone(item()),s=app.state(),alias=s.sources.find(r=>r.id==='traceable-alias'),proof=assessment.proof.map(p=>p.sourceId===original.id?{...p,sourceId:alias.id,fingerprint:d.coreProofFingerprint(alias)}:p);assert.equal(before.workItem.core.cycle.count,2);const schedules=app.core.settings(app.workspaceId),count=s.sources.filter(r=>r.workItem).length;
++  app.core.assessSaved(app.workspaceId,app.ids.action,{...assessment,id:'alias-assessment',proof});const after=item();assert.deepEqual(after.workItem.core.cycle,before.workItem.core.cycle);assert.deepEqual(after.workItem.core.priority,before.workItem.core.priority);assert.deepEqual(after.workItem.p1,before.workItem.p1);assert.deepEqual(app.core.settings(app.workspaceId),schedules);assert.equal(app.state().sources.filter(r=>r.workItem).length,count);assert.equal(after.workItem.core.assessment.evidenceKey,before.workItem.core.assessment.evidenceKey);await view();return {recovery:{countBefore:2,countAfter:after.workItem.core.cycle.count,cycleUnchanged:true,newItemDelta:0,newScheduleDelta:0,priorityUnchanged:true,sameEvidenceIdentity:true},execution:'Original HTTP input then original core.assessSaved persistence boundary; two synthetic receipt events are setup, not sends'};
++ });
++ await run('RM13',async({app,page,item,body,start,finish,getJob,durable,setControl,manual,view})=>{
++  let release,entered=false;setControl(async input=>{entered=true;await new Promise(r=>release=r);return dependency(input);});
++  const job=await start(body('已联系负责人，确认评审依赖：剩余测试4至8小时、有效窗口2小时，已经共享并确认无法协调。'));await until(()=>entered);const saved=await getJob(job.id);assert.ok(durable(saved));await manual('core-priority',{priority:'P1',reason:'合成本人较新决定'});await app.api('/api/v2/work-items',operation(app.state(),app.ids.action,'',{completion:{state:'scheduled',date:'2026-10-23'}},{input:{text:'',occurredAt:'2026-10-20T02:00:00.000Z',manual:{completion:{state:'scheduled',date:'2026-10-23'}}}}));const priority=structuredClone(item().workItem.core.priority),completion=structuredClone(item().workItem.p1.completion);
++  await view(saved,{draft:'人工决定之后的新草稿'});release();const done=await finish(job);assert.equal(done.coreWorkOutcome.status,'partial',JSON.stringify(done.coreWorkOutcome));assert.ok(done.coreWorkOutcome.pending.some(p=>p.kind==='dependency'));assert.deepEqual(item().workItem.core.priority,priority);assert.deepEqual(item().workItem.p1.completion,completion);assert.equal(item().workItem.core.priority.owner,'manual');assert.equal(item().workItem.p1.completion.origin,'manual');assert.ok(!(app.state().sources.find(r=>r.id===app.ids.risk).workItem.core.dependencies||[]).some(x=>x.dependency?.id==='sequence-edge'||x.id==='sequence-edge'));assert.equal(await page.locator('.p1-entry [data-assistant-input]').inputValue(),'人工决定之后的新草稿');return {save:{status:done.p1Outcome.status,durableReceiptVerified:durable(done)},preparation:{pipelineStatus:done.coreWorkOutcome.status},protection:{finalPriority:priority.base,finalCompletionDate:completion.date,manualDecisionProvenancePreserved:true,staleDependencyApplied:false,newDraftPreserved:true}};
++ });
++ await run('RM14',async({app,item,manual,mutate,finish,view})=>{
++  await manual('done',{reason:'合成本人明确关闭'});const closed=structuredClone(item().workItem.p1.lifecycle);assert.equal(closed.owner,'manual');
++  const sourceId='synthetic-colleague-message',at='2026-10-20T03:00:00.000Z';mutate(s=>s.sources.push({id:sourceId,title:'关闭后的合成反馈',excerpt:'合成测试负责人报告：上次人工关闭后，同一测试目标发现新问题，后续仍需处理。',projectIds:['p'],sourceIds:[],version:1,occurredAt:at,collectedAt:at,personalMessage:{scope:'tenant/app',accountId:'ou_self',messageId:'synthetic-rm14',senderId:'ou_colleague',chatId:'synthetic-chat',messageType:'text'},inputEnvelope:{status:'needs_association',associationDecision:{targetId:app.ids.action}}}));
++  const received=await app.coreInbox.receive({workspaceId:app.workspaceId,sourceId,identity:await app.core.client.identity(),senderId:'ou_colleague'});assert.ok(received.jobId,JSON.stringify(received));const done=await finish({id:received.jobId});assert.equal(done.status,'completed',done.error);assert.ok(app.state().sources.find(r=>r.id===sourceId));assert.deepEqual(item().workItem.p1.lifecycle,closed);const proposal=d.coreReopenProposal(app.state(),item());assert.ok(proposal);assert.ok(d.validCoreProofs(app.state(),proposal.proof));await view();return {receive:{inputRetained:true},protection:{remainsClosed:true,manualCloseProvenancePreserved:true,reopenProposalHasValidProof:true,reopenApproved:false,reopened:false},execution:'Synthetic already-received colleague input through original CoreFeishuInput.receive; no live Feishu read or send',firstStageStatus:done.p1Outcome?.status||done.coreOutcome?.status};
++ });
++}finally{await browser.close();writeFileSync(path.join(out,'results.json'),JSON.stringify({scope:'RM10-RM14 original product isolated SQLite/HTTP/UI/service sequences with synthetic model and denied sender; no real models or external writes; not business acceptance',results},null,2));}
++if(results.some(r=>!r.passed))process.exitCode=1;

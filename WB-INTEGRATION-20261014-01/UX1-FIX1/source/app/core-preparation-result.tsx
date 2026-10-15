@@ -1,0 +1,9 @@
+"use client";
+import type {V2State} from '../lib/v2-types';
+import type {AssistantRequest} from './codex-assistant';
+import {CoreMaterials} from './core-materials';
+type Result={status:string;reason?:string;summaries?:{sourceId:string;title:string;dependencies:{reason:string;gaps:string[];brief?:Record<string,string>;options?:{title:string;impact:string;preconditions:string}[]}[];delivery?:{decision:string;gaps:string[];delivered:boolean;materials:{id:string;title:string;reason?:string}[];messages:{id:string;text:string}[]};messages:{id:string;text:string}[]}[]};
+export function CorePreparationResult({s,value,jobId,request}:{s:V2State;value:Result;jobId:string;request:AssistantRequest}){
+  if(value.status==='running')return <p role="status">正在用相关原件核对依赖与协作准备…</p>;
+  return <section aria-label="依赖与资料准备结果">{value.reason&&<p role="status">{value.reason}</p>}{value.summaries?.map(item=><div key={item.sourceId}><strong>{item.title}</strong>{item.dependencies.map((d,index)=><div key={index}><p>{d.reason}</p>{d.gaps.map(g=><p key={g}>{g}</p>)}{d.brief&&<details><summary>影响与前因后果</summary>{Object.values(d.brief).map((text,i)=><p key={i}>{text}</p>)}</details>}{!!d.options?.length&&<details><summary>候选方案，待你选择</summary>{d.options.map(o=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>}</div>)}{item.delivery&&<><p>{item.delivery.delivered?'工程师交付已记录':item.delivery.decision||'相关资料与协作已准备'}</p><CoreMaterials s={s} materials={item.delivery.materials} sourceId={item.sourceId} jobId={jobId} request={request}/>{item.delivery.gaps.map(g=><p key={g}>{g}</p>)}</>}{[...(item.delivery?.messages||[]),...item.messages].map(m=><details key={m.id}><summary>待预览的消息草稿</summary><p>{m.text}</p></details>)}</div>)}</section>;
+}

@@ -1,0 +1,250 @@
+{
+  "task": "WB-INTEGRATION-20261014-01 / UX1 / FOLLOWUP-PREP",
+  "scope": "Incremental no-real-write preparation; not new product completion claims",
+  "reviewedProductCommit": "b2337126a20a51ed6d0551fa0266a9354175a518",
+  "executionProductCommit": null,
+  "commitPolicy": "Codex uses its actual checked UX1 or UX1-FIX1 commit and build hash; reuses prior results only when relevant code remains unchanged. Never overwrite this null with a guessed future SHA.",
+  "acceptedPriorEvidence": {
+    "prepZipSha256": "3dac2237e8446058226a6040c35d82c462a1ea4efac51c2913aef348d11cbf8a",
+    "cases": 14,
+    "pureDomain": {
+      "caseIds": [
+        "RM01",
+        "RM02",
+        "RM03",
+        "RM04",
+        "RM05",
+        "RM06",
+        "RM07",
+        "RM08",
+        "RM09"
+      ],
+      "reportedPassedByCodex": 9,
+      "domainSha256": "3b06705508e46a5d6ec416ce1b86610501436d6735bea11b3649007c1a23d3b8",
+      "source": "https://github.com/Catcherog/project-workbench-review/blob/a2e5687d842fefb7606f02cd01df82e8dae952bf/WB-INTEGRATION-20261014-01/UX1/evidence/gpt-prep-domain-results.json",
+      "rerunByGPT": false
+    }
+  },
+  "sequenceBatch": {
+    "runner": "Codex original product isolated fixture/HTTP/SQLite/UI; synthetic model and send-denying transport",
+    "realModelCalls": 0,
+    "realBusinessWrites": 0,
+    "dailyPort5173AllowedAsTestTarget": false,
+    "legacyImport": null,
+    "testMode": true,
+    "cases": [
+      {
+        "caseId": "RM10",
+        "ruleRefs": [
+          "AT-12",
+          "AT-16",
+          "F-C07"
+        ],
+        "reuse": "UX1-PREP1/01_R-MODEL合成用例.json#RM10",
+        "originalCaseCanonicalSha256": "9e8bd0c48652e0e640a65caee299e7e53df84778005d34af8bdf719ce4d1f557",
+        "requiredOrder": [
+          "stage1_durable_saved",
+          "stage2_synthetic_timeout",
+          "state_and_ui_readback"
+        ],
+        "executionNote": "在 coreWorkAnalyse 边界一次性拒绝；前段也用合成模型/已有fixture，不发生真实请求。先实读持久回执再故障注入。",
+        "assertionPaths": [
+          "boundaries.realExternalWrites",
+          "boundaries.sendAttempts",
+          "boundaries.approvalDelta",
+          "boundaries.nodeStateChanged",
+          "boundaries.permissionChanged",
+          "boundaries.schedulerEnabled",
+          "boundaries.listenerEnabled",
+          "save.status",
+          "save.durableReceiptVerified",
+          "save.progressDelta",
+          "save.originalTimingUnchanged",
+          "preparation.pipelineStatus",
+          "preparation.completed",
+          "recovery.autoResubmitCount",
+          "recovery.originalRequestIdPreserved"
+        ],
+        "status": "prepared_not_run_in_this_review"
+      },
+      {
+        "caseId": "RM11",
+        "ruleRefs": [
+          "AT-08",
+          "AT-09",
+          "AT-12",
+          "F-C07"
+        ],
+        "reuse": "UX1-PREP1/01_R-MODEL合成用例.json#RM11",
+        "originalCaseCanonicalSha256": "6a7d69de04e5f518e3fbd118282244b8779aafb069b2c39b65cb5beb9a876fca",
+        "requiredOrder": [
+          "first_request_completed",
+          "same_request_body_replayed",
+          "state_and_ui_readback"
+        ],
+        "executionNote": "第二次按原字节、requestId/sessionId 与图片顺序提交，比较第二次相对首次完成后的业务及模型任务增量。",
+        "assertionPaths": [
+          "boundaries.realExternalWrites",
+          "boundaries.sendAttempts",
+          "boundaries.approvalDelta",
+          "boundaries.nodeStateChanged",
+          "boundaries.permissionChanged",
+          "boundaries.schedulerEnabled",
+          "boundaries.listenerEnabled",
+          "save.first.status",
+          "save.first.durableReceiptVerified",
+          "recovery.second.jobDelta",
+          "recovery.second.modelCallDelta",
+          "recovery.second.progressDelta",
+          "recovery.second.businessReceiptDelta",
+          "recovery.sameOperationId"
+        ],
+        "status": "prepared_not_run_in_this_review"
+      },
+      {
+        "caseId": "RM12",
+        "ruleRefs": [
+          "AT-08",
+          "AT-21",
+          "F-C07"
+        ],
+        "reuse": "UX1-PREP1/01_R-MODEL合成用例.json#RM12",
+        "originalCaseCanonicalSha256": "f0addb8cc469f5c54a268cc6cff3baaf962642d6b1f8c98ffd7c7355dbdafec3",
+        "requiredOrder": [
+          "original_evidence_processed",
+          "baseline_count_2_established",
+          "traceable_alias_ingested",
+          "state_and_ui_readback"
+        ],
+        "executionNote": "用可追溯 originalSourceId 或同一实际合成消息身份创建别名；设置计数的合成准备与受测阶段分开计量。不要求整个 workspace.revision 不变。",
+        "assertionPaths": [
+          "boundaries.realExternalWrites",
+          "boundaries.sendAttempts",
+          "boundaries.approvalDelta",
+          "boundaries.nodeStateChanged",
+          "boundaries.permissionChanged",
+          "boundaries.schedulerEnabled",
+          "boundaries.listenerEnabled",
+          "recovery.countBefore",
+          "recovery.countAfter",
+          "recovery.cycleUnchanged",
+          "recovery.newItemDelta",
+          "recovery.newScheduleDelta",
+          "recovery.priorityUnchanged",
+          "recovery.sameEvidenceIdentity"
+        ],
+        "status": "prepared_not_run_in_this_review"
+      },
+      {
+        "caseId": "RM13",
+        "ruleRefs": [
+          "AT-14",
+          "AT-33",
+          "F-C07"
+        ],
+        "reuse": "UX1-PREP1/01_R-MODEL合成用例.json#RM13",
+        "originalCaseCanonicalSha256": "045b9f3b49317f9b63fa6a63cf2894099fce7c19df143755aef80cba3b42ee0e",
+        "requiredOrder": [
+          "stage1_durable_saved",
+          "stage2_synthetic_response_held",
+          "manual_update_committed",
+          "old_response_released",
+          "state_and_ui_readback"
+        ],
+        "executionNote": "先在真实产品控制路径暂挂合成后段响应，再经人工入口改 P1 与完成日期，最后释放旧响应。不得直接灌最终JSON。",
+        "assertionPaths": [
+          "boundaries.realExternalWrites",
+          "boundaries.sendAttempts",
+          "boundaries.approvalDelta",
+          "boundaries.nodeStateChanged",
+          "boundaries.permissionChanged",
+          "boundaries.schedulerEnabled",
+          "boundaries.listenerEnabled",
+          "save.status",
+          "save.durableReceiptVerified",
+          "preparation.pipelineStatus",
+          "protection.finalPriority",
+          "protection.finalCompletionDate",
+          "protection.manualDecisionProvenancePreserved",
+          "protection.staleDependencyApplied",
+          "protection.newDraftPreserved"
+        ],
+        "status": "prepared_not_run_in_this_review"
+      },
+      {
+        "caseId": "RM14",
+        "ruleRefs": [
+          "AT-14",
+          "AT-33",
+          "AT-34",
+          "F-C05",
+          "F-C07"
+        ],
+        "reuse": "UX1-PREP1/01_R-MODEL合成用例.json#RM14",
+        "originalCaseCanonicalSha256": "64297a4c1da43ae2db3954ea60035e4105e54da8fcaee43d954c3d9b89318082",
+        "requiredOrder": [
+          "manual_close_committed",
+          "new_evidence_ingested",
+          "pending_reopen_readback"
+        ],
+        "executionNote": "通过原产品人工关闭入口形成决定来源，再接入合成新证据；只核对待审重开，不批准、不启动调度。",
+        "assertionPaths": [
+          "boundaries.realExternalWrites",
+          "boundaries.sendAttempts",
+          "boundaries.approvalDelta",
+          "boundaries.nodeStateChanged",
+          "boundaries.permissionChanged",
+          "boundaries.schedulerEnabled",
+          "boundaries.listenerEnabled",
+          "receive.inputRetained",
+          "protection.remainsClosed",
+          "protection.manualCloseProvenancePreserved",
+          "protection.reopenProposalHasValidProof",
+          "protection.reopenApproved",
+          "protection.reopened"
+        ],
+        "status": "prepared_not_run_in_this_review"
+      }
+    ]
+  },
+  "modelSemanticBatch": {
+    "caseIds": [
+      "RM01",
+      "RM02",
+      "RM03",
+      "RM04",
+      "RM05",
+      "RM06",
+      "RM07",
+      "RM08",
+      "RM09"
+    ],
+    "status": "prepared_not_executed",
+    "inputFile": "UX1-PREP1/06_后段纯输入.json",
+    "inputFileSha256": "4402d2da75eb6986488b3275728875c99811563de2a770c9985440a71e44454d",
+    "allowedPayloadField": "coreWorkAnalyseInput",
+    "excludedFromModel": [
+      "expectedModelProjection",
+      "stageExpectations",
+      "checks",
+      "forbiddenInferences",
+      "本轮审查结论",
+      "观察结果或成功标签"
+    ],
+    "existingModelAndBudget": "reuse existing Astra/max and permitted budget; record actual receipt, no model/provider switch inferred",
+    "S35": "Bind exact execution script in real model round; no separate general inventory request",
+    "productChainDistinction": "Direct model semantics and full original stage1→stage2→persistence are separately recorded; nine pure-domain successes do not close either."
+  },
+  "privateMapping": {
+    "reuse": "Codex already organized A1 private historical mapping; do not republish real IDs",
+    "currentRemoteReadback": false,
+    "beforeRealTest": "Read-only refresh same selected carrier and actual role/node/member/ACL/calendar relationships first; do not ask to select the entire project again",
+    "authorizations": "Daily UX1 installation already authorized; do not reinterpret as approval of colleague messages, remote object edits, or continuous collection"
+  },
+  "stopConditions": [
+    "Any required identity/reference absent: stop only affected real action; keep independent synthetic work moving",
+    "No real people messages, no real project writes, no listener/scheduler enabled in this preparation",
+    "No external send attempts even with synthetic recipients unless in explicitly separate previously authorized simulation regression",
+    "P1 existing close, UAT1-FIX1, Q01 preserved; no Tasks/meeting/archive redesign"
+  ]
+}

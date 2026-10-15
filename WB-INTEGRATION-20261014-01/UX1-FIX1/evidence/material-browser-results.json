@@ -1,0 +1,272 @@
+{
+  "scope": "Original React/HTTP/SQLite with synthetic first/second stage and real local Library reader; not real remote template access or user acceptance",
+  "results": [
+    {
+      "id": "O01-L08-chain",
+      "name": "original stage1/prepare/finish persists library+locator to item and assistant outcome",
+      "passed": true,
+      "evidence": {
+        "syntheticSecondStageCalls": 2,
+        "librarySourcesImported": 0,
+        "bindingPreserved": true
+      }
+    },
+    {
+      "id": "O01-L01-item",
+      "name": "persisted library reference opens full body without workspace source",
+      "passed": true,
+      "evidence": {
+        "read": true,
+        "fullBody": true,
+        "workspaceSourceAbsent": true,
+        "stateUnchanged": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "id": "O01-L02-item",
+      "name": "existing workspace material keeps its original reader",
+      "passed": true
+    },
+    {
+      "id": "O01-L03-item",
+      "name": "actual reader denial reports unreadable library and never substitutes local content",
+      "passed": true
+    },
+    {
+      "id": "O01-L04-item",
+      "name": "changed content and invalid locator stop at original reference",
+      "passed": true,
+      "evidence": {
+        "staleReadRejected": true,
+        "missingBindingStatus": 404
+      }
+    },
+    {
+      "id": "O01-L07-item",
+      "name": "late A success cannot replace B success or B failure after close/reopen",
+      "passed": true,
+      "evidence": {
+        "lateSuccessIgnored": true,
+        "newFailurePreserved": true
+      }
+    },
+    {
+      "id": "O01-L06-item",
+      "name": "workspace A-B-A invalidates pending library read and protects B and new draft",
+      "passed": true,
+      "evidence": {
+        "workspaceBUnchanged": true,
+        "staleAdopted": false,
+        "newDraftPreserved": true,
+        "pendingModalInvalidatedByHistory": true
+      }
+    },
+    {
+      "id": "O01-L01-assistant",
+      "name": "persisted library reference opens full body without workspace source",
+      "passed": true,
+      "evidence": {
+        "read": true,
+        "fullBody": true,
+        "workspaceSourceAbsent": true,
+        "stateUnchanged": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "id": "O01-L02-assistant",
+      "name": "existing workspace material keeps its original reader",
+      "passed": true
+    },
+    {
+      "id": "O01-L03-assistant",
+      "name": "actual reader denial reports unreadable library and never substitutes local content",
+      "passed": true
+    },
+    {
+      "id": "O01-L04-assistant",
+      "name": "changed content and invalid locator stop at original reference",
+      "passed": true,
+      "evidence": {
+        "staleReadRejected": true,
+        "missingBindingStatus": 404
+      }
+    },
+    {
+      "id": "O01-L07-assistant",
+      "name": "late A success cannot replace B success or B failure after close/reopen",
+      "passed": true,
+      "evidence": {
+        "lateSuccessIgnored": true,
+        "newFailurePreserved": true
+      }
+    },
+    {
+      "id": "O01-L06-assistant",
+      "name": "workspace A-B-A invalidates pending library read and protects B and new draft",
+      "passed": true,
+      "evidence": {
+        "workspaceBUnchanged": true,
+        "staleAdopted": false,
+        "newDraftPreserved": true,
+        "pendingModalInvalidatedByHistory": true
+      }
+    },
+    {
+      "id": "O01-L05-assistant",
+      "name": "button/Escape/Tab preserve input and scroll while reading",
+      "passed": true,
+      "evidence": {
+        "draft": true,
+        "scroll": true,
+        "tabContained": true,
+        "focus": true
+      }
+    },
+    {
+      "id": "O01-L05-item-input",
+      "name": "item-result reader preserves unsent text, manual time and image order",
+      "passed": true,
+      "evidence": {
+        "text": true,
+        "time": true,
+        "imageOrder": true,
+        "focus": true,
+        "originalItemOpen": true
+      }
+    },
+    {
+      "id": "O01-api-guards",
+      "name": "read-only endpoint rejects writes, missing token, cross-workspace job and incomplete locator",
+      "passed": true,
+      "evidence": {
+        "post": 405,
+        "noToken": 403,
+        "crossWorkspace": 404,
+        "invalidLocator": 409,
+        "explicitFixtureMutations": 2,
+        "beforeHash": "4187e5d6e8746cfa0ba9ebb7ccdba9706d3df133ccd8ba7b00733b43b72be957"
+      }
+    },
+    {
+      "id": "BOUNDARY",
+      "name": "all paths use isolated data, local reads and denied outbound transports",
+      "passed": true,
+      "evidence": {
+        "testMode": true,
+        "realModelCalls": 0,
+        "realExternalWrites": 0,
+        "sendAttempts": 0,
+        "coreSchedulerEnabled": false,
+        "eventListenerEnabled": false
+      }
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "sends": [],
+  "reads": [
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AB",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AB",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AB",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AB",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=58d2dea3-f2ae-47ce-ad83-32d43a83b22f&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=05316ceb-87f1-4bab-8a55-4fc5de70b2ba&materialId=library%3AA",
+    "/api/v2/core/material?workspaceId=core-input&sourceId=p1-action&jobId=05316ceb-87f1-4bab-8a55-4fc5de70b2ba&materialId=library%3AA"
+  ],
+  "posts": [
+    "/api/v2/attachments",
+    "/api/v2/attachments"
+  ],
+  "screenshots": [
+    "library-item.png",
+    "library-assistant.png",
+    "item-draft-retained.png"
+  ],
+  "bindings": [
+    {
+      "id": "local-ref",
+      "title": "工作区合成资料",
+      "projectIds": [
+        "p"
+      ],
+      "sourceIds": [
+        "local-ref"
+      ],
+      "role": "reference"
+    },
+    {
+      "id": "library:A",
+      "title": "合成报告模板 A",
+      "projectIds": [
+        "p"
+      ],
+      "sourceIds": [],
+      "role": "template",
+      "reason": "本次已读取合成模板",
+      "library": {
+        "id": "A",
+        "path": "docs/library/A.md",
+        "version": "synthetic.1",
+        "sha256": "1a31a5113a12454b9078aa9eeaba96d84c128d209a615cac20fb4c6048190444",
+        "kind": "template-guidance",
+        "snapshotDate": "",
+        "originalAvailability": "",
+        "catalogEntryId": "A"
+      },
+      "locator": {
+        "kind": "text",
+        "label": "已保存正文第1–5行",
+        "line": 1,
+        "endLine": 5,
+        "start": 0,
+        "end": 71,
+        "documentKey": "A"
+      }
+    },
+    {
+      "id": "library:B",
+      "title": "合成报告模板 B",
+      "projectIds": [
+        "p"
+      ],
+      "sourceIds": [],
+      "role": "template",
+      "reason": "本次已读取合成模板",
+      "library": {
+        "id": "B",
+        "path": "docs/library/B.md",
+        "version": "synthetic.1",
+        "sha256": "99c18db9442a3a81c74f303a57e9a1a60b2d8f64e409bf3e6d7eb9265dc5472d",
+        "kind": "template-guidance",
+        "snapshotDate": "",
+        "originalAvailability": "",
+        "catalogEntryId": "B"
+      },
+      "locator": {
+        "kind": "text",
+        "label": "已保存正文第1–4行",
+        "line": 1,
+        "endLine": 4,
+        "start": 0,
+        "end": 44,
+        "documentKey": "B"
+      }
+    }
+  ],
+  "syntheticSecondStageCalls": 2
+}

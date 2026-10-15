@@ -1,0 +1,156 @@
+{
+  "task": "WB-INTEGRATION-20261014-01 / UX1 / UX1-B01",
+  "reviewSha": "a2e5687d842fefb7606f02cd01df82e8dae952bf",
+  "reviewedProductCommit": "b2337126a20a51ed6d0551fa0266a9354175a518",
+  "plannedOnly": true,
+  "executedByGPTOnProduct": false,
+  "fixScope": "O-01 library-bound material reader routing only; do not reopen UAT1-FIX1/DEV1-FIX1 or rebuild library",
+  "commonExpected": {
+    "realExternalWrites": 0,
+    "messageSendAttempts": 0,
+    "approvalDelta": 0,
+    "permissionWrites": 0,
+    "realModelCalls": 0,
+    "newSchedulerEnabled": false,
+    "listenerEnabled": false
+  },
+  "commonEvidence": [
+    "exact product commit and client/build hashes",
+    "material binding snapshot (synthetic IDs)",
+    "read request result and originating scope/request identity",
+    "before/after local draft and business snapshots",
+    "browser action trace, focus and scroll readback",
+    "attempt logs for writes/model/send/listener/scheduler"
+  ],
+  "cases": [
+    {
+      "id": "O01-L01",
+      "title": "资源库模板有原绑定但不在工作区 sources",
+      "setup": "在隔离资料库建立可读合成模板，按实际原引用结构生成 library: 资料项，不能复制同 ID 到工作区绕过问题。",
+      "expected": "进入实际只读阅读路径并显示模板正文；不能仅因不在 sources 而报未找到。",
+      "observableChecks": {
+        "readerDispatched": true,
+        "bodyRead": true,
+        "workspaceMissingAlert": false
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L02",
+      "title": "本地已有来源对照",
+      "setup": "工作区存在带正文的 local-ref，沿两处原入口打开。",
+      "expected": "保留已通过的工作区资料阅读和真实来源身份。",
+      "observableChecks": {
+        "readerDispatched": true,
+        "bodyRead": true,
+        "sourceIdentityPreserved": true
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L03",
+      "title": "资源库无权限／不可读",
+      "setup": "使用原读取层拒绝或不可读结果；保持原 library 定位。",
+      "expected": "区分不可读与工作区缺失，不猜链接、不修改共享权限，不把未取得内容说成已读。",
+      "observableChecks": {
+        "accessFailureVisible": true,
+        "bodyRead": false,
+        "guessedUrlCreated": false
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L04",
+      "title": "缺少或失效的原绑定",
+      "setup": "library 资料项缺定位或引用已撤回；不能按名称匹配别的模板。",
+      "expected": "明确定位缺口并停止，不回退到同名资料；留存内容若显示则标历史。",
+      "observableChecks": {
+        "identityFailureVisible": true,
+        "substitutedByTitle": false,
+        "freshReadClaimed": false
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L05",
+      "title": "阅读返回不丢本地草稿",
+      "setup": "从当前输入／助手准备结果打开资料，分别按钮返回和 Esc 返回；另测 Tab。",
+      "expected": "原事项、输入、时间、图片顺序、焦点和滚动恢复；阅读不卸载原输入。",
+      "observableChecks": {
+        "draftPreserved": true,
+        "timeDraftPreserved": true,
+        "imageOrderPreserved": true,
+        "focusReturned": true,
+        "originalItemStillOpen": true
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L06",
+      "title": "切区后迟到的读取",
+      "setup": "A 工作区发起有延迟的资源库只读请求；切到 B 后再完成 A 请求。",
+      "expected": "旧结果不能填入 B；B 的同名／同 ID 来源不成为替代。A→B→A 旧读取代次也应无效。",
+      "observableChecks": {
+        "newWorkspaceUnchanged": true,
+        "staleResultAdopted": false,
+        "newDraftPreserved": true
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L07",
+      "title": "资料选择更换后迟到结果",
+      "setup": "先打开模板 A，返回再打开模板 B，A 的请求后到；包含新读取失败。",
+      "expected": "不能把 A 内容或旧成功结果贴到 B；失败反馈归属于原请求。",
+      "observableChecks": {
+        "wrongMaterialDisplayed": false,
+        "failureAttributedToCorrectRequest": true
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    },
+    {
+      "id": "O01-L08",
+      "title": "真实后段资料结构到两处入口",
+      "setup": "使用原 prepare/finish 链（合成模型）生成带 library/locator 的结果，分别经 CorePreparationResult 与 WorkItemCoreControls 展示。",
+      "expected": "两条真实 UI 接线都保留原引用，不仅孤立组件可读；其间不批准、不发送。",
+      "observableChecks": {
+        "assistantEntryReadable": true,
+        "itemEntryReadable": true,
+        "originalBindingPreserved": true
+      },
+      "expectedEntryPoints": [
+        "CorePreparationResult",
+        "WorkItemCoreControls"
+      ],
+      "status": "prepared_not_run"
+    }
+  ]
+}
