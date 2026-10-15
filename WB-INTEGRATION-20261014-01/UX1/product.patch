@@ -1,0 +1,511 @@
+diff --git a/app/codex-assistant.tsx b/app/codex-assistant.tsx
+index 4174a53a..624188a7 100644
+--- a/app/codex-assistant.tsx
++++ b/app/codex-assistant.tsx
+@@ -142,15 +142,7 @@ function Conversation({ s, request, onReview,onOpen, scope, scopeControl, previe
+     setInput(v=>!v.text.trim()||starters.includes(v.text)?{...v,text,parentJobId:undefined,retryOf:undefined,requestId:crypto.randomUUID()}:v);
+     textareaRef.current?.focus();
+   }
+-  return <section className="ca-conversation" aria-label="连续智能助手">
+-    <div className="ca-toolbar"><div className="ca-scope-control">{scopeControl}{(previewMode||s.workspaceType==='demo')&&<span className="ca-preview-tag">模拟执行</span>}</div><div className="ca-toolbar-actions">
+-      {scopeSessions.some(v=>v.id!==input.sessionId)&&<select aria-label="已有对话" value={input.sessionId} onChange={e=>changeSession(e.target.value)}><option value={input.sessionId}>历史对话</option>{scopeSessions.filter(v=>v.id!==input.sessionId).map(v=><option key={v.id} value={v.id}>{new Date(v.createdAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}</option>)}</select>}
+-      <button type="button" className="ca-text-button" disabled={sending} onClick={()=>changeSession()}><Plus size={15}/>新对话</button>
+-      <button type="button" className="ca-text-button" aria-expanded={showOptions} aria-controls={optionsId} onClick={()=>setShowOptions(v=>!v)}><Settings2 size={15}/>选项{input.mode==='draft'||input.sourceIds.length?' · 已设置':''}</button>
+-    </div></div>
+-    {error && <div className="ca-task-error" role="alert">{error}<button type="button" className="v2-button" onClick={() => setReload(v => v + 1)}><RefreshCw size={14} />刷新对话</button></div>}
+-    {loading&&<p className="ca-loading" role="status">正在读取会话…</p>}
+-    <div className="ca-turns" aria-live="polite">{jobs.map(job => <article className="ca-turn" key={job.id}>
++  const renderJob=(job:Job)=><article className="ca-turn" key={job.id}>
+       <div className="ca-user-message"><p>{job.text}</p></div>
+       <div className="ca-assistant-message"><div className="ca-result-top"><strong>助手分析</strong><span className={'ca-job-status ' + job.status}>{labels[job.status]}</span></div>
+         {job.status === 'running' && <p role="status"><Loader2 size={14} className="spin" /> {job.events.at(-1)?.message || '正在准备上下文'}</p>}
+@@ -160,7 +152,7 @@ function Conversation({ s, request, onReview,onOpen, scope, scopeControl, previe
+         {job.status==='completed'&&!!job.workItemRequests?.length&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}
+         {!!job.nextSteps?.length && <div className="ca-next"><strong>下一步</strong><ul>{job.nextSteps.map((step, i) => <li key={i}>{step}</li>)}</ul></div>}
+         {!!job.conflicts?.length && <div className="ca-task-error"><strong>资料存在分歧，待核实</strong>{job.conflicts.map((v, i) => <p key={i}>{v.reason}</p>)}</div>}
+-        {job.coreWorkOutcome&&<CorePreparationResult value={job.coreWorkOutcome}/>}
++        {job.coreWorkOutcome&&<CorePreparationResult s={s} value={job.coreWorkOutcome}/>}
+         {job.error && <p className="ca-task-error" role="alert">{job.error}</p>}
+         {job.coreOutcome?.status==='saved'&&<div className="p1-receipt" aria-label="统一输入保存回执"><strong>{job.coreOutcome.duplicate?'同一原图已记录，本次未重复保存':'已保存到 '+job.coreOutcome.applied.length+' 个对应事项'}</strong>{job.coreOutcome.pending.map((p,i)=><p key={i}>{p.text}</p>)}{job.coreOutcome.applied.map(p=>onOpen?<button key={p.sourceId} className="v2-text-button" onClick={()=>onOpen(p.sourceId)}>查看对应事项</button>:<a key={p.sourceId} className="v2-text-button" href={'/?'+new URLSearchParams({workspaceId:s.workspaceId,view:'inbox',record:p.sourceId})}>查看对应事项</a>)}{job.coreOutcome.receipt&&!job.coreOutcome.duplicate&&<button className="v2-text-button" disabled={acting===job.id} onClick={()=>{setActing(job.id);void request('/api/v2/work-items',{workspaceId:s.workspaceId,sourceId:job.coreOutcome!.receipt!.sourceId,operationId:job.coreOutcome!.receipt!.operationId,action:'p1-undo',requestId:'undo-'+job.coreOutcome!.receipt!.operationId}).then(()=>{setJobs(v=>v.map(x=>x.id===job.id?{...x,coreOutcome:{...x.coreOutcome!,status:'undone'}}:x));}).catch(e=>setError(errorText(e))).finally(()=>setActing(''));}}>撤销本次操作</button>}</div>}
+         {!!job.gaps?.length && <details className="ca-evidence"><summary>判断缺口 · {job.gaps.length} 项</summary><ul>{job.gaps.map((gap, i) => <li key={i}>{gap}</li>)}</ul></details>}
+@@ -169,14 +161,25 @@ function Conversation({ s, request, onReview,onOpen, scope, scopeControl, previe
+         {job.groupId && <div className="ca-review-ready"><ShieldCheck size={18} /><div><strong>{reviewLabel(s,job)}</strong><p>{job.preview?.objects.length || 0} 项拟变更 · 引用版本已保存 · 外部操作未执行</p><details><summary>查看对象与拟变更</summary>{job.preview?.objects.map(o => <div key={o.kind + o.id}><p>{s[o.kind as keyof V2State] instanceof Array ? (s[o.kind as 'actions'] as { id: string; title: string }[]).find(r => r.id === o.id)?.title || o.id : o.id}</p><p>{o.reason}</p><pre>{JSON.stringify({ before: o.before, after: o.after }, null, 2)}</pre></div>)}</details></div><button className="v2-button primary" disabled={acting === job.id || !resolvedReview(s,job)&&job.preview?.availability !== 'current'} onClick={() => void review(job)}><ArrowUpRight size={14} />{resolvedReview(s,job)?'查看审核结果':'进入现有审核'}</button></div>}
+         <div className="ca-result-actions">{job.status === 'running' && <button className="v2-button" disabled={acting === job.id} onClick={() => void cancel(job)}><Square size={12} />取消本轮</button>}{job.id === latest?.id && ['failed', 'cancelled', 'interrupted'].includes(job.status) && <button className="v2-button" disabled={sending || !available || !!running} onClick={() => void submit(job)}><RefreshCw size={14} />重试这一轮</button>}</div>
+       </div>
+-    </article>)}</div>
+-    {pollError && <p role="status">{pollError}</p>}
+-    <CoreCollaborationPanel workspaceId={s.workspaceId} revision={s.revision} request={request}/>
++    </article>;
++  return <section className="ca-conversation" aria-label="连续智能助手">
++    <div className="ca-toolbar"><div className="ca-scope-control">{scopeControl}{(previewMode||s.workspaceType==='demo')&&<span className="ca-preview-tag">模拟执行</span>}</div><div className="ca-toolbar-actions">
++      {scopeSessions.some(v=>v.id!==input.sessionId)&&<select aria-label="已有对话" value={input.sessionId} onChange={e=>changeSession(e.target.value)}><option value={input.sessionId}>历史对话</option>{scopeSessions.filter(v=>v.id!==input.sessionId).map(v=><option key={v.id} value={v.id}>{new Date(v.createdAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}</option>)}</select>}
++      <button type="button" className="ca-text-button" disabled={sending} onClick={()=>changeSession()}><Plus size={15}/>新对话</button>
++      <button type="button" className="ca-text-button" aria-expanded={showOptions} aria-controls={optionsId} onClick={()=>setShowOptions(v=>!v)}><Settings2 size={15}/>选项{input.mode==='draft'||input.sourceIds.length?' · 已设置':''}</button>
++    </div></div>
++    {error && <div className="ca-task-error" role="alert">{error}<button type="button" className="v2-button" onClick={() => setReload(v => v + 1)}><RefreshCw size={14} />刷新对话</button></div>}
++    {loading&&<p className="ca-loading" role="status">正在读取会话…</p>}
+     <form className="ca-chat-compose" onSubmit={e => { e.preventDefault(); void submit(); }}>
+       <label htmlFor={inputId} className="ca-sr-only">消息</label><textarea ref={textareaRef} id={inputId} data-assistant-input value={input.text} maxLength={20000} required={!input.images?.length} rows={4} placeholder={jobs.length?'继续说…':'输入你的要求…'} onChange={e => setInput(v => ({ ...v, text: e.target.value, parentJobId: undefined, retryOf: undefined, requestId: crypto.randomUUID() }))} />
+       <InputImages workspaceId={s.workspaceId} request={request} images={input.images||[]} onChange={images=>setInput(v=>({...v,images,requestId:crypto.randomUUID()}))} disabled={sending||!!running||input.mode==='draft'}/>
+       <div className="ca-compose-footer"><div className="ca-shortcuts">{scope.kind==='sources'?<><button type="button" disabled={sending||!!running} onClick={()=>startRequest('请整理当前事项的归属，给我可确认的调整方案。')}>调整归属</button><button type="button" disabled={sending||!!running} onClick={()=>startRequest('请查找当前事项的重复记录，给我可确认的合并方案。')}>合并重复</button><button type="button" disabled={sending||!!running} onClick={()=>startRequest('请把当前事项中混在一起的事情拆开，给我可确认的拆分方案。')}>拆分事项</button></>:<><button type="button" disabled={sending||!!running} onClick={()=>startRequest('请帮我派发一个飞书任务：')}><ClipboardList size={15}/>派发任务</button><button type="button" disabled={sending||!!running} onClick={()=>startRequest('请帮我创建一个会议日程：')}><CalendarDays size={15}/>创建会议</button></>}</div><button className="v2-button primary" type="submit" disabled={!ready || !available || sending || !!running || !input.text.trim()&&!input.images?.length}>{sending ? <Loader2 size={14} className="spin" /> : <Send size={14} />}{running ? '处理中' : '发送'}</button></div>
+     </form>
++    {latest&&<div className="ca-turns" aria-live="polite">{renderJob(latest)}</div>}
++    {jobs.length>1&&<details className="p1-conversation-history"><summary>此前对话 · {jobs.length-1} 轮</summary><div className="ca-turns">{jobs.slice(0,-1).map(renderJob)}</div></details>}
++    {pollError && <p role="status">{pollError}</p>}
++    <CoreCollaborationPanel workspaceId={s.workspaceId} revision={s.revision} request={request}/>
++
+     {showOptions&&<section id={optionsId} className="ca-options-panel" aria-label="对话选项">
+       <AssistantControls workspaceId={s.workspaceId} request={request} mode="chat"/>
+       <details className="ca-evidence"><summary>指定资料{input.sourceIds.length?' · '+input.sourceIds.length+' 份':''}</summary>{s.sources.filter(src=>!src.archived&&!src.intakeBatch).slice(0,150).map(src=><label className="ca-source-option" key={src.id}><input type="checkbox" checked={input.sourceIds.includes(src.id)} disabled={!input.sourceIds.includes(src.id)&&input.sourceIds.length>=20} onChange={e=>setInput(v=>({...v,sourceIds:e.target.checked?[...v.sourceIds,src.id]:v.sourceIds.filter(id=>id!==src.id),parentJobId:undefined,retryOf:undefined,requestId:crypto.randomUUID()}))}/>{src.title}</label>)}</details>
+diff --git a/app/core-materials.css b/app/core-materials.css
+new file mode 100644
+index 00000000..87a7a0a7
+--- /dev/null
++++ b/app/core-materials.css
+@@ -0,0 +1,3 @@
++.core-materials ul{list-style:none;padding:0;margin:8px 0}.core-materials li{margin:8px 0}.core-materials li p{margin:4px 0;color:var(--wb-i-muted,#5e6875)}
++.core-material-dialog{box-sizing:border-box;width:min(800px,calc(100vw - 32px));max-height:calc(100dvh - 48px);border:1px solid var(--wb-i-line,#dce1e8);border-radius:18px;padding:24px;background:var(--wb-i-surface,#fff);color:var(--wb-i-text,#202630);overflow:auto;font:inherit;line-height:1.6}
++.core-material-dialog::backdrop{background:rgb(20 29 43 / .35)}.core-material-dialog>header{display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:-24px;background:var(--wb-i-surface,#fff);padding:16px 0;z-index:1}.core-material-dialog pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}.core-material-dialog img{max-width:100%;height:auto}.core-material-dialog :is(button,a):focus-visible{outline:3px solid #1479e8;outline-offset:3px}
+diff --git a/app/core-materials.tsx b/app/core-materials.tsx
+new file mode 100644
+index 00000000..4bf883e5
+--- /dev/null
++++ b/app/core-materials.tsx
+@@ -0,0 +1,33 @@
++"use client";
++import {useEffect,useRef,useState} from 'react';
++import type {V2State} from '../lib/v2-types';
++import {caseEvidenceAvailable} from '../lib/case-evidence';
++import {EvidenceReader} from './evidence-reader';
++import './core-materials.css';
++
++type Material={id:string;title:string;reason?:string};
++/** Read the existing retained source in place; opening a document never navigates or writes. */
++export function CoreMaterials({s,materials}:{s:V2State;materials:Material[]}){
++  const [selection,setSelection]=useState<{workspaceId:string;id:string;title:string}|null>(null);
++  const dialog=useRef<HTMLDialogElement>(null);
++  const active=selection?.workspaceId===s.workspaceId?selection:null;
++  const source=active?s.sources.find(row=>row.id===active.id):undefined;
++  const available=!!source&&!source.archived&&!source.stale&&!s.sources.some(row=>!row.archived&&row.supersedesId===source.id)&&caseEvidenceAvailable(s,source);
++  useEffect(()=>{
++    const element=dialog.current;if(!element)return;
++    if(active&&!element.open)element.showModal();
++    if(!active&&element.open)element.close();
++  },[active]);
++  const close=()=>{dialog.current?.close();setSelection(null);};
++  return <div className="core-materials">
++    <ul>{materials.map(material=><li key={material.id}><button type="button" className="v2-text-button" onClick={()=>setSelection({workspaceId:s.workspaceId,id:material.id,title:material.title})}>阅读资料：{material.title}</button>{material.reason&&<p>{material.reason}</p>}</li>)}</ul>
++    <dialog ref={dialog} className="core-material-dialog" aria-label="资料阅读" onKeyDown={event=>{if(['Escape','Tab'].includes(event.key))event.stopPropagation();}} onCancel={event=>{event.preventDefault();event.stopPropagation();close();}} onClose={event=>{event.stopPropagation();setSelection(null);}}>
++      <header><strong>{active?.title||'资料阅读'}</strong><button type="button" className="v2-button" onClick={close}>返回原处</button></header>
++      {!source?<p role="alert">这份资料在当前工作区中未找到。请核对资料来源；原事项与未提交草稿仍保留。</p>:<>
++        {!available&&<p role="status">这份来源当前已失效或不可用，下面仅为已有留存。没有重新获取访问权限或读取新内容。</p>}
++        {source.intakeDocument?.error&&<p role="alert">资料读取未完成：{source.intakeDocument.error}</p>}
++        <EvidenceReader s={s} evidence={{id:source.id,title:source.title,version:source.version,available,author:typeof source.author==='string'?source.author:'',occurredAt:source.occurredAt||source.collectedAt||'',text:source.excerpt||''}}/>
++      </>}
++    </dialog>
++  </div>;
++}
+diff --git a/app/core-preparation-result.tsx b/app/core-preparation-result.tsx
+index 80e31538..36be5521 100644
+--- a/app/core-preparation-result.tsx
++++ b/app/core-preparation-result.tsx
+@@ -1,6 +1,8 @@
+ "use client";
++import type {V2State} from '../lib/v2-types';
++import {CoreMaterials} from './core-materials';
+ type Result={status:string;reason?:string;summaries?:{sourceId:string;title:string;dependencies:{reason:string;gaps:string[];brief?:Record<string,string>;options?:{title:string;impact:string;preconditions:string}[]}[];delivery?:{decision:string;gaps:string[];delivered:boolean;materials:{id:string;title:string;reason?:string}[];messages:{id:string;text:string}[]};messages:{id:string;text:string}[]}[]};
+-export function CorePreparationResult({value}:{value:Result}){
++export function CorePreparationResult({s,value}:{s:V2State;value:Result}){
+   if(value.status==='running')return <p role="status">正在用相关原件核对依赖与协作准备…</p>;
+-  return <section aria-label="依赖与资料准备结果">{value.reason&&<p role="status">{value.reason}</p>}{value.summaries?.map(item=><div key={item.sourceId}><strong>{item.title}</strong>{item.dependencies.map((d,index)=><div key={index}><p>{d.reason}</p>{d.gaps.map(g=><p key={g}>{g}</p>)}{d.brief&&<details><summary>影响与前因后果</summary>{Object.values(d.brief).map((text,i)=><p key={i}>{text}</p>)}</details>}{!!d.options?.length&&<details><summary>候选方案，待你选择</summary>{d.options.map(o=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>}</div>)}{item.delivery&&<><p>{item.delivery.delivered?'工程师交付已记录':item.delivery.decision||'相关资料与协作已准备'}</p>{item.delivery.materials.map(m=><p key={m.id}>{m.title}{m.reason?' · '+m.reason:''}</p>)}{item.delivery.gaps.map(g=><p key={g}>{g}</p>)}</>}{[...(item.delivery?.messages||[]),...item.messages].map(m=><details key={m.id}><summary>待预览的消息草稿</summary><p>{m.text}</p></details>)}</div>)}</section>;
++  return <section aria-label="依赖与资料准备结果">{value.reason&&<p role="status">{value.reason}</p>}{value.summaries?.map(item=><div key={item.sourceId}><strong>{item.title}</strong>{item.dependencies.map((d,index)=><div key={index}><p>{d.reason}</p>{d.gaps.map(g=><p key={g}>{g}</p>)}{d.brief&&<details><summary>影响与前因后果</summary>{Object.values(d.brief).map((text,i)=><p key={i}>{text}</p>)}</details>}{!!d.options?.length&&<details><summary>候选方案，待你选择</summary>{d.options.map(o=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>}</div>)}{item.delivery&&<><p>{item.delivery.delivered?'工程师交付已记录':item.delivery.decision||'相关资料与协作已准备'}</p><CoreMaterials s={s} materials={item.delivery.materials}/>{item.delivery.gaps.map(g=><p key={g}>{g}</p>)}</>}{[...(item.delivery?.messages||[]),...item.messages].map(m=><details key={m.id}><summary>待预览的消息草稿</summary><p>{m.text}</p></details>)}</div>)}</section>;
+ }
+diff --git a/app/input-images.tsx b/app/input-images.tsx
+index 3dbf5930..bdcc9ba8 100644
+--- a/app/input-images.tsx
++++ b/app/input-images.tsx
+@@ -1,9 +1,11 @@
+ "use client";
++/* eslint-disable @next/next/no-img-element -- Retained originals use the local attachment endpoint. */
+ import {useState} from 'react';
+ import type {AssistantRequest} from './codex-assistant';
+ export type InputImage={id:string;name:string;url:string};
+ export function InputImages({workspaceId,request,images,onChange,disabled=false}:{workspaceId:string;request:AssistantRequest;images:InputImage[];onChange:(value:InputImage[])=>void;disabled?:boolean}){
+-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
++  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[unreadable,setUnreadable]=useState<Set<string>>(new Set());
++  const original=(id:string)=>'/api/v2/attachments/'+encodeURIComponent(id)+'?workspaceId='+encodeURIComponent(workspaceId);
+   async function add(files:FileList|null){
+     if(!files?.length||busy)return;setBusy(true);setError('');const added:InputImage[]=[];
+     try{
+@@ -16,5 +18,10 @@ export function InputImages({workspaceId,request,images,onChange,disabled=false}
+       onChange([...images,...added]);
+     }catch(e){if(added.length)onChange([...images,...added]);setError(e instanceof Error?e.message:'图片尚未保存');}finally{setBusy(false);}
+   }
+-  return <div className="p1-input-images"><label>添加原图<input type="file" accept="image/*" multiple disabled={disabled||busy} onChange={e=>{void add(e.target.files);e.currentTarget.value='';}}/></label>{busy&&<p role="status">正在保存原图…</p>}{images.length>0&&<ol>{images.map((image,index)=><li key={image.id}><span>图{index+1} · {image.name}</span><button type="button" className="v2-text-button" disabled={disabled||busy} onClick={()=>onChange(images.filter(x=>x.id!==image.id))}>移除</button>{index>0&&<button type="button" className="v2-text-button" disabled={disabled||busy} onClick={()=>{const next=[...images];[next[index-1],next[index]]=[next[index],next[index-1]];onChange(next);}}>前移</button>}</li>)}</ol>}{error&&<p role="alert">{error}</p>}</div>;
++  function move(index:number,offset:number){const next=[...images];[next[index+offset],next[index]]=[next[index],next[index+offset]];onChange(next);}
++  return <div className="p1-input-images"><label>添加原图<input type="file" accept="image/*" multiple disabled={disabled||busy} onChange={e=>{void add(e.target.files);e.currentTarget.value='';}}/></label>{busy&&<p role="status">正在保存原图…</p>}{images.length>0&&<><p>按下列顺序提交；点击图片可核对原图。</p><ol className="p1-image-grid">{images.map((image,index)=><li key={image.id}>
++    <a href={original(image.id)} target="_blank" rel="noreferrer" aria-label={'查看图'+(index+1)+'原图：'+image.name}><img src={original(image.id)} alt={'图'+(index+1)+'：'+image.name} onError={()=>setUnreadable(old=>new Set(old).add(image.id))}/></a>
++    <span>图{index+1} · {image.name}</span>{unreadable.has(image.id)&&<p role="status">原图暂不可读取，请核对后再提交。</p>}
++    <div className="p1-image-actions"><button type="button" className="v2-text-button" aria-label={'移除图'+(index+1)} disabled={disabled||busy} onClick={()=>onChange(images.filter(x=>x.id!==image.id))}>移除</button>{index>0&&<button type="button" className="v2-text-button" disabled={disabled||busy} onClick={()=>move(index,-1)}>前移</button>}{index<images.length-1&&<button type="button" className="v2-text-button" disabled={disabled||busy} onClick={()=>move(index,1)}>后移</button>}</div>
++  </li>)}</ol></>}{error&&<p role="alert">{error}</p>}</div>;
+ }
+diff --git a/app/integration/apple-integration.css b/app/integration/apple-integration.css
+index ebdb2b54..e2575df4 100644
+--- a/app/integration/apple-integration.css
++++ b/app/integration/apple-integration.css
+@@ -178,3 +178,6 @@
+ .v2-app .iw-dialog .iw-content { background: var(--wb-i-bg); }
+ .v2-app .iw-dialog .iw-block { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: 16px; }
+ .v2-app .iw-dialog .iw-context { color: var(--wb-i-muted); }
++/* UX1 keeps current choices and their save action together while the full messages stay readable. */
++.v2-app .wb-int-decision-bar{position:sticky;top:0;z-index:3;background:var(--wb-i-surface);border:1px solid var(--wb-i-line);border-radius:12px;padding:12px;margin:14px 0;box-shadow:0 3px 14px rgb(30 45 65 / .06)}
++.v2-app .wb-int-decision-bar>p{margin:0 0 8px}.v2-app .wb-int-decision-bar .wb-action-feedback{margin-bottom:0}.v2-app .wb-int-message{scroll-margin-block:150px 24px}.v2-app .wb-int-editor textarea{min-height:128px;font-size:14px}.v2-app .wb-int-warning button{margin:6px 0 6px 10px}
+diff --git a/app/integration/core-collaboration-panel.tsx b/app/integration/core-collaboration-panel.tsx
+index 4882b502..0c5957d6 100644
+--- a/app/integration/core-collaboration-panel.tsx
++++ b/app/integration/core-collaboration-panel.tsx
+@@ -72,6 +72,8 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+   const [fields, setFields] = useState<Record<string,string>>({});
+   const [filter, setFilter] = useState<'all' | 'review' | 'results'>('all');
+   const [pending, setPending] = useState<CoreCommand | null>(null);
++  const [focusTarget,setFocusTarget]=useState<string|null>(null);
++  const messageNodes=useRef(new Map<string,HTMLElement>());
+   const epoch = useRef(new ScopeEpoch()), busyTicket = useRef<number | null>(null), refreshQueued = useRef(false);
+   const callback = useRef(onChanged); callback.current = onChanged;
+   const edits = editState.workspaceId === workspaceId ? editState.values : {};
+@@ -98,6 +100,15 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+     void load();
+   }, [scope, workspaceId, revision, load]);
+   useEffect(() => () => { epoch.current.advance(); }, [scope]);
++  useEffect(()=>{
++    if(!focusTarget)return;
++    const node=messageNodes.current.get(focusTarget);if(!node)return;
++    const draft=node.querySelector<HTMLDetailsElement>('.wb-int-local-draft');if(draft)draft.open=true;
++    node.scrollIntoView({block:'center'});
++    (node.querySelector<HTMLElement>('textarea:not(:disabled),.wb-int-local-draft button')||node).focus({preventScroll:true});
++    setFocusTarget(null);
++  },[focusTarget,filter,view]);
++  function locateMessage(batch:Batch,m:Message){setFilter('all');setFocusTarget(messageKey(batch.id,m.id));}
+   useEffect(() => {
+     if (!view) return;
+     // Keep only choices still bound to a current version/state. Never select a replacement automatically.
+@@ -166,7 +177,8 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+     if (feedbackRegion !== target) return null;
+     return <ActionFeedback context={context} busy={busy} message={feedback || (pending ? '请求结果尚未完全核实；请核对原请求。' : '')} error={error}>
+       {pending && <section className="wb-int-warning" aria-label="尚未核实的请求">
+-        <p>原操作：{pending.action}。{typeof pending.requestId === 'string' && <>原请求身份：<code>{pending.requestId}</code>。</>}没有自动生成新请求重试。</p>
++        <p>上次{pending.action==='decide-messages'?'保存决定':pending.action==='prepare-messages'?'准备预览':'操作'}的结果尚未核实。继续时先查询同一次操作，不会自动重新提交。</p>
++        <details><summary>原请求详情</summary><p>{pending.action} · {String(pending.requestId||'')}</p></details>
+         {typeof pending.requestId === 'string' && ['decide-messages','prepare-messages'].includes(pending.action) && <button type="button" disabled={!!disabled} onClick={() => void run(pending,true)}>先查询，再按原身份核实／续办</button>}
+         <button type="button" disabled={!!disabled} onClick={() => {setPending(null);setSelected(new Set());setFeedback('继续以已回读的当前状态操作；没有重放上一请求，也未把未知结果当作成功。');}}>已核对当前状态，继续（不重试）</button>
+       </section>}
+@@ -190,8 +202,12 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+     const currentDraft: EditDraft = edit || {fingerprint:m.fingerprint,text:m.text,recipientId:recipientId(m)};
+     const presentation = stagePresentation(m), editable = canEdit(m), stale = draftStale(m, edit);
+     const options = m.recipient.channel === 'group' ? view!.groups : view!.people;
+-    return <article className="wb-int-message" key={key} data-tone={presentation.tone} data-message-id={m.id}>
+-      <header className="wb-int-message-heading"><div><h4>{m.nodeName ? m.nodeName + ' · ' : ''}{m.title}</h4><p className="wb-int-muted">事项身份：<code>{m.workItemId}</code>{sourceId && m.workItemId !== sourceId ? ' · 同批其他事项' : ''}</p></div>
++    const changes=['交付物','负责人','计划日期','要求日期','交付要求'].flatMap(label=>{
++      const before=m.previewChanges?.previous?.target?.[label],after=m.previewChanges?.current?.target?.[label];
++      return JSON.stringify(before)===JSON.stringify(after)?[]:[{label,before,after}];
++    });
++    return <article className="wb-int-message" key={key} tabIndex={-1} ref={node=>{if(node)messageNodes.current.set(key,node);else messageNodes.current.delete(key);}} data-tone={presentation.tone} data-message-id={m.id}>
++      <header className="wb-int-message-heading"><div><h4>{m.nodeName ? m.nodeName + ' · ' : ''}{m.title}</h4>{sourceId && m.workItemId !== sourceId && <p className="wb-int-muted">同批其他事项</p>}</div>
+         <span className="wb-int-tag" data-tone={presentation.tone}>{presentation.label}</span>
+       </header>
+       <p>{m.recipient.name} · {m.recipient.channel === 'group' ? '群聊' : '私聊'} · {ownerLabel(m)}</p>
+@@ -201,7 +217,7 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+           {!options.some(p => p.id === currentDraft.recipientId) && <option value={currentDraft.recipientId}>{m.recipient.name}（当前范围未列出，需核实）</option>}
+           {options.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+         </select></label>
+-        <label>完整正文<textarea aria-label={'完整正文 ' + m.title} rows={6} maxLength={4000} disabled={!!disabled || !!pending} value={currentDraft.text} onChange={e => putEdit(key,{...currentDraft,text:e.target.value})}/></label>
++        <label>完整正文<textarea aria-label={'完整正文 ' + m.title} rows={4} maxLength={4000} disabled={!!disabled || !!pending} value={currentDraft.text} onChange={e => putEdit(key,{...currentDraft,text:e.target.value})}/></label>
+         {stale && <p role="status">这份本地草稿基于旧预览，尚未覆盖较新内容。先阅读下方当前正文，再选择如何继续。</p>}
+         {stale && <details><summary>当前服务器正文与收件人</summary><p>{m.recipient.name}</p><p className="wb-int-full-text">{m.text}</p><button type="button" disabled={!!disabled || !!pending} onClick={() => putEdit(key,{...currentDraft,fingerprint:m.fingerprint})}>保留草稿，以当前版本重新核对</button></details>}
+         <div className="wb-int-actions">
+@@ -210,32 +226,27 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+           <button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => cancelCommand(batch,m,crypto.randomUUID()),key)}>取消此消息</button>
+         </div>
+       </div> : <p className="wb-int-full-text">{m.text}</p>}
+-      {edit && !editable && <details className="wb-int-history">
++      {edit && !editable && <details className="wb-int-history wb-int-local-draft">
+         <summary>未提交的本地草稿（不是发送记录）</summary>
+         <p className="wb-int-muted">消息当前只读。草稿仍保留，不覆盖服务器正文或已发事实；放弃草稿只清理本地编辑缓存。</p>
+         <p>草稿收件范围：{options.find(p => p.id === edit.recipientId)?.title || edit.recipientId}</p>
+         <p className="wb-int-full-text">{edit.text}</p>
+         <button type="button" disabled={!!disabled || !!pending} onClick={() => putEdit(key)}>放弃这份本地草稿（不改变消息）</button>
+       </details>}
+-      <p className="wb-int-muted">当前通道发送文本；下列来源或原图身份是依据，不表示附件已随消息发送。</p>
+-      <details><summary>依据与当前预览指纹</summary><code>{m.fingerprint}</code><ProofList proof={m.proof}/></details>
+-      {m.previewChanges && <details><summary>本次业务前提变化</summary>{['交付物','负责人','计划日期','要求日期','交付要求'].map(k => {
+-        const before = m.previewChanges?.previous?.target?.[k], after = m.previewChanges?.current?.target?.[k];
+-        return before === after ? null : <p key={k}>{k}：{String(before ?? '未提供')} → {String(after ?? '未提供')}</p>;
+-      })}</details>}
++      <details><summary>依据与记录详情</summary><p>本消息只发送上述正文；依据中的图片不会作为附件发送。</p><p>事项身份：<code>{m.workItemId}</code></p><p>当前预览指纹：<code>{m.fingerprint}</code></p><ProofList proof={m.proof}/>{m.messageId&&<p>原消息身份：<code>{m.messageId}</code></p>}</details>
++      {changes.length>0 && <details><summary>本次业务前提变化</summary>{changes.map(({label,before,after})=><p key={label}>{label}：{String(before??'未提供')} → {String(after??'未提供')}</p>)}</details>}
+       <ApprovalHistory history={m.approvalHistory}/>
+       {canChangeAuthority(m) && <button type="button" disabled={!!disabled || !!pending} onClick={() => protect(() => authorityCommand(batch,m),key)}>{m.executionOwner === 'human' ? '明确交回系统（不立即发送）' : '这条由我执行'}</button>}
+       {m.stage === 'sending' && <p className="wb-int-muted">已发起的请求可能仍在执行；接手不能撤回已发出的请求，先查询实际结果。</p>}
+       {renderFeedback(key,'消息：' + m.title)}
+       {m.error && <p className="wb-int-error" role="status">{m.error}</p>}
+-      {m.messageId && <p className="wb-int-muted">原消息身份：<code>{m.messageId}</code></p>}
+       {m.stage === 'sent' || m.stage === 'readback_verified' ? <p className="wb-int-muted">发送事实不表示已读、知晓、认可或业务完成。</p> : null}
+     </article>;
+   }
+   return <details className="wb-int-collaboration" aria-label="协作消息预览">
+-    <summary>协作消息 · 待决定 {pendingCount} · 历史与结果 {messages.length} 条</summary>
++    <summary>协作消息 · 待决定 {pendingCount} · 共 {messages.length} 条记录</summary>
+     <div className="wb-int-body" aria-busy={busy || loading}>
+-      <header className="wb-int-toolbar"><p>当前需要 → 逐项决定 → 依据与历史</p><button type="button" disabled={busy || loading} onClick={() => {setFeedbackTarget('panel');setFeedback('');setError('');void load();}}>重新读取当前记录</button></header>
++      <header className="wb-int-toolbar"><p>先保存决定，再核对并执行发送。</p><button type="button" disabled={busy || loading} onClick={() => {setFeedbackTarget('panel');setFeedback('');setError('');void load();}}>重新读取当前记录</button></header>
+       {loading && <p role="status">正在读取持久协作记录…</p>}
+       {!fresh && view && <p role="status">当前显示的是上一份回读，操作已停用；请先重新读取。</p>}
+       {renderFeedback('panel','协作记录')}
+@@ -272,19 +283,20 @@ export function CoreCollaborationPanel({workspaceId, sourceId, revision, request
+         const plan = executionPlan(batch,edits);
+         const candidates = view.items.filter(i => i.core.admission === 'candidate' && batch.items.some(m => m.workItemId === i.id));
+         const hasDecision = batch.items.some(m => selected.has(approvalKey(batch.id,m))) || candidates.some(i => admissions.has(admissionKey(i)));
++        const blockedDrafts=batch.items.filter(m=>draftChanged(m,edits[messageKey(batch.id,m.id)])||draftStale(m,edits[messageKey(batch.id,m.id)]));
+         if (!shown.length && filter !== 'all' && feedbackRegion !== batch.id) return null;
+         return <section key={batch.id} className="wb-int-batch" aria-label={'协作批次 ' + batch.id}>
+-          <header><h3>{batch.projectNames.join('、') || '归属待核实'} · {batch.items.length} 条独立消息</h3><p className="wb-int-muted">同一批次身份：<code>{batch.id}</code></p></header>
++          <header><h3>{batch.projectNames.join('、') || '归属待核实'} · {batch.items.length} 条独立消息</h3><details><summary>批次记录详情</summary><code>{batch.id}</code><p>回读后失效的勾选会退出；新版需要重新核对和选择。</p></details></header>
+           {!!candidates.length && <fieldset className="wb-int-admissions" disabled={!!disabled || !!pending}><legend>独立决定：候选纳入</legend>
+             {candidates.map(i => <label className="wb-int-check" key={admissionKey(i)}><input type="checkbox" checked={admissions.has(admissionKey(i))} onChange={e => toggle(setAdmissions,admissionKey(i),e.target.checked)}/>将「{i.title}」纳入跟进（版本 {i.version}；不等于批准或发送消息）</label>)}
+           </fieldset>}
++          <div className="wb-int-decision-bar"><p>本次选择：批准 {batch.items.filter(m=>selected.has(approvalKey(batch.id,m))).length} 条消息；纳入 {candidates.filter(i=>admissions.has(admissionKey(i))).length} 个事项。</p><div className="wb-int-actions"><button type="button" disabled={!!disabled || !!pending || !hasDecision} onClick={() => protect(() => decisionCommand(batch,view,selected,admissions,edits,crypto.randomUUID()),batch.id)}>保存本批所选决定（不发送）</button>
++            <button type="button" disabled={!!disabled} onClick={() => protect(() => reconcileCommand(batch),batch.id)}>查询本批实际发送结果</button>
++            <button type="button" onClick={event=>{const section=event.currentTarget.closest('.wb-int-batch')?.querySelector<HTMLDetailsElement>('.wb-int-execution');if(section){section.open=true;section.scrollIntoView({block:'center'});section.querySelector<HTMLElement>('summary')?.focus({preventScroll:true});}}}>查看本批执行范围</button>
++          </div>{renderFeedback(batch.id,'本批决定：' + (batch.projectNames.join('、') || '归属待核实'))}</div>
++          {blockedDrafts.length>0&&<section className="wb-int-warning" aria-label="待处理的本地草稿"><p>以下消息有未保存或过期草稿，保存或明确放弃后才能继续本批操作：</p>{blockedDrafts.map(m=><p key={m.id}>{m.title}：{!canEdit(m)?'消息已只读，草稿仍保留':draftStale(m,edits[messageKey(batch.id,m.id)])?'预览已更新，需要重新核对草稿':'正文或收件人尚未保存'}。<button type="button" onClick={()=>locateMessage(batch,m)}>定位并处理：{m.title}</button></p>)}</section>}
+           {shown.map(m => messageCard(batch,m))}
+           {filter !== 'all' && <p className="wb-int-warning">当前有筛选，仅显示 {shown.length}/{batch.items.length} 条。发送必须切回全部记录核对完整批次。</p>}
+-          <p className="wb-int-muted">回读更新会取消失效勾选；新版本仍需你重新核对并选择，不自动批准或纳入。</p>
+-          <div className="wb-int-actions"><button type="button" disabled={!!disabled || !!pending || !hasDecision} onClick={() => protect(() => decisionCommand(batch,view,selected,admissions,edits,crypto.randomUUID()),batch.id)}>保存本批所选决定（不发送）</button>
+-            <button type="button" disabled={!!disabled} onClick={() => protect(() => reconcileCommand(batch),batch.id)}>查询本批实际发送结果</button>
+-          </div>
+-          {renderFeedback(batch.id,'本批决定：' + (batch.projectNames.join('、') || '归属待核实'))}
+           <details className="wb-int-execution"><summary>本批执行范围 · {plan.messages.length} 条{plan.retryCount ? '，其中明确未发重试 ' + plan.retryCount + ' 条' : ''}</summary>
+             <p>执行接口按整批处理：本批已批准、执行权为系统且符合最新前提的消息。上方勾选仅决定批准范围，不是发送过滤器。</p>
+             {plan.messages.map(m => <p key={m.id}>{m.title} → {m.recipient.name}{m.stage === 'failed_not_sent' ? '（已核实未发，将尝试原发送）' : ''}</p>)}
+diff --git a/app/work-item-core-controls.tsx b/app/work-item-core-controls.tsx
+index 1b0a1168..5ce8ec20 100644
+--- a/app/work-item-core-controls.tsx
++++ b/app/work-item-core-controls.tsx
+@@ -1,4 +1,5 @@
+ "use client";
++import {CoreMaterials} from './core-materials';
+ import {useState} from 'react';
+ import {CoreCollaborationPanel} from './integration/core-collaboration-panel';
+ import type {Item} from '../lib/domain';
+@@ -21,7 +22,7 @@ export function WorkItemCoreControls({s,source,request,refresh}:{s:V2State;sourc
+     </details>
+     {!!c.steps?.length&&<details><summary>责任步骤</summary>{c.steps.map((step:Value)=><p key={step.id}>{step.title} · {s.people.find(p=>p.id===step.ownerId)?.title||'责任待核实'} · {{needed:'待处理',waiting:'等待结果',done:'已完成'}[step.state as string]||step.state}</p>)}</details>}
+     {c.dependencies?.map((d:Value)=><details key={d.id}><summary>{d.result.reason}</summary><p>{d.window.dependency.affectedWork} · {d.window.dependency.impact}</p>{d.result.gaps?.map((g:string)=><p key={g}>{g}</p>)}{d.result.brief&&<p>{Object.values(d.result.brief).join('；')}</p>}{d.result.options?.map((o:Value)=><p key={o.title}>{o.title}：{o.impact}；成立前提：{o.preconditions}</p>)}</details>)}
+-    {c.delivery&&<details><summary>{c.delivery.delivered?'工程师交付已记录':'资料与协作准备'}</summary>{c.delivery.decision&&<p>{c.delivery.decision}</p>}{c.delivery.materials.map((m:Value)=><p key={m.id}>{m.title} · {m.reason||'已有资料'}</p>)}{c.delivery.gaps.map((g:string)=><p key={g}>{g}</p>)}</details>}
++    {c.delivery&&<details><summary>{c.delivery.delivered?'工程师交付已记录':'资料与协作准备'}</summary>{c.delivery.decision&&<p>{c.delivery.decision}</p>}<CoreMaterials s={s} materials={c.delivery.materials}/>{c.delivery.gaps.map((g:string)=><p key={g}>{g}</p>)}</details>}
+     {c.preparation&&<p role="status">资料与协作准备：{c.preparation.reason||'等待核对'}</p>}<details><summary>检查与历史</summary><p>最后成功核对：{c.checks.lastSuccess||'尚无本轮记录'}</p><p>{c.checks.coverage||''}{c.checks.error||''}</p>{c.checks.gap&&<p>未覆盖时段：{c.checks.gap.from} 至 {c.checks.gap.to}</p>}{c.history.slice(-20).reverse().map((h:Value,i:number)=><p key={i}>{h.at} · {h.reason||({'assessment':'当前需要已核对','need-cycle':'待处理需要已更新','core-priority':'本人调整优先级','core-admit':'本人纳入跟进','core-pause':'本人暂停提醒','core-resume':'本人恢复提醒','core-weekly':'本人调整周度安排','pause-resumed':'到达恢复时间'} as Record<string,string>)[h.kind]||'跟进状态已更新'}</p>)}</details>{error&&<p role="alert">{error}</p>}
+     <CoreCollaborationPanel workspaceId={s.workspaceId} sourceId={source.id} revision={source.version} request={request} onChanged={refresh}/>
+   </section>;
+diff --git a/app/work-item-entry.css b/app/work-item-entry.css
+index 932ce878..0354bc31 100644
+--- a/app/work-item-entry.css
++++ b/app/work-item-entry.css
+@@ -1 +1,4 @@
+ .p1-time{margin:12px 0 0;padding:12px;border:1px solid var(--v2-line,#d8e1dc);border-radius:10px;min-width:0}.p1-time legend{display:flex;gap:6px;align-items:center;font-weight:600}.p1-time-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.p1-time-node{display:flex;flex-direction:column;gap:7px;min-width:0}.p1-time input,.p1-time select{min-width:0;width:100%;padding:8px;border:1px solid #d8e1dc;border-radius:7px;background:#fff;font:inherit}.p1-time small{display:block;color:#66736c;margin-top:6px;line-height:1.5}.p1-receipt{padding:14px 18px;margin:10px 0;border:1px solid #cbded4;background:#f0f7f3;border-radius:10px}.p1-receipt p{margin:5px 0;line-height:1.5}.p1-receipt .p1-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}.p1-conflict{padding:12px;border:1px solid #d5b16b;border-radius:8px;background:#fffbf0}.p1-conflict label{display:block;margin:6px 0}.p1-current-times{margin:12px 0;padding:12px;background:#f4f7f5;border-radius:8px}.p1-current-times p{margin:4px 0}.p1-overdue{color:#9b422d;font-weight:600}.p1-progress{padding:10px 0;border-top:1px solid #e0e7e2}.p1-record-compose textarea{width:100%;font:inherit;line-height:1.6;min-height:120px;border:1px solid #d8e1dc;border-radius:10px;padding:12px;box-sizing:border-box}.p1-record-compose .ca-compose-footer{margin-top:12px}.p1-local-history{margin:10px 0}.p1-closed-date{font-size:13px;color:#68746e}@media(max-width:600px){.p1-time-grid{grid-template-columns:1fr}.p1-receipt{padding:12px}.p1-time input{box-sizing:border-box}}
++.p1-entry .p1-record-compose{margin-top:12px}.p1-compose-hint{color:var(--wb-i-muted,#5e6875);line-height:1.6;margin:10px 0}.p1-prior-result,.p1-conversation-history{border-top:1px solid var(--wb-i-line,#dce1e8);padding-top:12px;margin:16px 0}.p1-prior-result>summary,.p1-conversation-history>summary{padding:10px 0;cursor:pointer;font-weight:600}
++.p1-image-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;list-style:none;padding:0;max-width:100%}.p1-image-grid li{min-width:0;border:1px solid var(--wb-i-line,#dce1e8);border-radius:12px;padding:10px;overflow-wrap:anywhere}.p1-image-grid img{display:block;width:100%;height:110px;object-fit:contain;background:#f2f4f7;border-radius:8px;margin-bottom:8px}.p1-image-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}.p1-image-grid a:focus-visible{outline:3px solid #1479e8;outline-offset:3px}
++.p1-entry .p1-record-compose .ca-compose-footer{position:sticky;bottom:0;z-index:2;background:var(--wb-i-surface,#fff);padding:12px 0;border-top:1px solid var(--wb-i-line,#dce1e8)}
+diff --git a/app/work-item-entry.tsx b/app/work-item-entry.tsx
+index b093d38e..73c15281 100644
+--- a/app/work-item-entry.tsx
++++ b/app/work-item-entry.tsx
+@@ -95,21 +95,26 @@ export function WorkItemEntry({s,source,request,onReview}:Props){
+   }catch(e){if(alive.current)setError(explain(e)+'；输入与手选值已保留。结果未明时重试会先查询原操作。');}finally{submitting.current=false;if(alive.current)setBusy(false);}
+  }
+  function cancel(){writeInputDraft(key,{text:'',sessionId,dirtyCheck:false,dirtyCompletion:false,check:JSON.stringify(timeDraft(timing.check)),completion:JSON.stringify(timeDraft(timing.completion)),expectedVersion:source.version,expectedBasis:current.basis,expectedEvidenceBasis:current.liveEvidenceBasis,editProgressId:''});generation.current++;setText('');setImages([]);setTimes({check:timeDraft(timing.check),completion:timeDraft(timing.completion)});setDirty({check:false,completion:false});setResolution({});setConflicts([]);setEditProgressId('');navigation?.cancelEntry?.();}
++ const renderJob=(job:Value)=><article className="ca-turn" key={job.id}><div className="ca-user-message"><p>{workItemInputLabel(job,s.sources)}</p></div><div className="ca-assistant-message">{job.status==='running'?<p role="status"><Loader2 size={14} className="spin"/>{job.p1Outcome?.status==='saved'?'本地记录已保存，正在核对相关依赖与协作准备…':'正在理解本次输入…'}</p>:<>{job.coreWorkOutcome&&<CorePreparationResult s={s} value={job.coreWorkOutcome}/>}{job.answer&&<div className="ca-answer"><strong>{job.p1Outcome?.status==='clarify'?'理解与建议（本次尚未保存）':'理解与建议'}</strong><p>{job.answer}</p></div>}{job.p1Outcome?.status==='saved'&&job.p1Outcome.receipt?.operationId!==receipt?.operationId&&<p>已保存：{job.p1Outcome.receipt?.progress||'本次明确安排'}{job.p1Outcome.receipt?.closed?' · 已移入已结束':''}</p>}{job.evidenceStatus==='stale'&&<p role="status">依据已变化；以下保留历史，请重新核对。</p>}{!!job.gaps?.length&&<details><summary>依据与缺口</summary>{job.gaps.map((g:string,i:number)=><p key={i}>{g}</p>)}{job.citations?.map((c:Value,i:number)=><div key={i}><strong>{c.title}</strong><blockquote>{c.quote}</blockquote><p>{c.interpretation}</p></div>)}</details>}{job.groupId&&<button className="v2-button" onClick={()=>void onReview(job.groupId)}>查看待审核修改</button>}{job.error&&<p role="alert">{job.error}</p>}{job.actionRequests?.length>0&&<AssistantActions workspaceId={s.workspaceId} jobId={job.id} request={request}/>} {job.workItemRequests?.length>0&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}</>}</div></article>;
+  return <section className="ca-conversation p1-entry" aria-label="当前事项记录与讨论"><div className="ca-toolbar"><strong>{source.title}</strong><div className="ca-toolbar-actions"><button type="button" className="ca-text-button" disabled={busy||!!running||!!pending} onClick={()=>{setSessionId(crypto.randomUUID());setJobs([]);setError('');}}><Plus size={15}/>新对话</button><button type="button" className="ca-text-button" aria-expanded={showOptions} onClick={()=>setShowOptions(v=>!v)}><Settings2 size={15}/>选项</button></div></div>
+-  <div className="ca-turns" aria-live="polite">{jobs.map(job=><article className="ca-turn" key={job.id}><div className="ca-user-message"><p>{workItemInputLabel(job,s.sources)}</p></div><div className="ca-assistant-message">{job.status==='running'?<p role="status"><Loader2 size={14} className="spin"/>{job.p1Outcome?.status==='saved'?'本地记录已保存，正在核对相关依赖与协作准备…':'正在理解本次输入…'}</p>:<>{job.coreWorkOutcome&&<CorePreparationResult value={job.coreWorkOutcome}/>}{job.answer&&<div className="ca-answer"><strong>{job.p1Outcome?.status==='clarify'?'理解与建议（本次尚未保存）':'理解与建议'}</strong><p>{job.answer}</p></div>}{job.p1Outcome?.status==='saved'&&job.p1Outcome.receipt?.operationId!==receipt?.operationId&&<p>已保存：{job.p1Outcome.receipt?.progress||'本次明确安排'}{job.p1Outcome.receipt?.closed?' · 已移入已结束':''}</p>}{job.evidenceStatus==='stale'&&<p role="status">依据已变化；以下保留历史，请重新核对。</p>}{!!job.gaps?.length&&<details><summary>依据与缺口</summary>{job.gaps.map((g:string,i:number)=><p key={i}>{g}</p>)}{job.citations?.map((c:Value,i:number)=><div key={i}><strong>{c.title}</strong><blockquote>{c.quote}</blockquote><p>{c.interpretation}</p></div>)}</details>}{job.groupId&&<button className="v2-button" onClick={()=>void onReview(job.groupId)}>查看待审核修改</button>}{job.error&&<p role="alert">{job.error}</p>}{job.actionRequests?.length>0&&<AssistantActions workspaceId={s.workspaceId} jobId={job.id} request={request}/>} {job.workItemRequests?.length>0&&<WorkItemAssistant workspaceId={s.workspaceId} jobId={job.id} request={request}/>}</>}</div></article>)}</div>
++
+   {running&&<button type="button" className="v2-text-button" onClick={()=>void request<{job:Value}>('/api/v2/codex/jobs/'+running.id+'/cancel',{workspaceId:s.workspaceId}).then(async result=>{adopt(result.job);await finish(result.job);}).catch(e=>setError(explain(e)))}>取消本轮</button>}
+-  {receipt&&<><p className="p1-previous-receipt">此前保存的结果 · 下方新输入需另行提交</p><P1Receipt receipt={receipt} s={s} request={request} onRefresh={async next=>{await navigation?.saved?.(next||receipt,true);setReceipt(null);}} onOpen={()=>navigation?.openItem(source.id)} onEdit={live=>{invalidateChoices();setText(live.progress||'');setEditProgressId(receiptProgressId(live));inputRef.current?.focus();}} onTime={()=>{timeRef.current?.scrollIntoView({block:'center'});(timeRef.current?.querySelector('select') as HTMLSelectElement|null)?.focus();}}/></>}
+   {stale&&(text||dirtyAny)&&!running&&<p role="status">事项已更新，草稿和手选时间保留。<button type="button" className="v2-text-button" onClick={()=>{invalidateChoices();setExpected({version:source.version,basis:current.basis,evidence:current.liveEvidenceBasis});}}>已核对当前记录，继续</button></p>}
+   {!!conflicts.length&&<div className="p1-conflict" role="status">{conflicts.map((c,i)=><div key={i}><p>{c.message}</p>{c.text&&c.manual&&(['text','manual'] as const).map(kind=><label key={kind}><input type="radio" name={'choice-'+c.field} disabled={busy||!!running} checked={resolution[c.field]?.choice===kind&&resolution[c.field]?.fingerprint===c.fingerprint} onChange={()=>setResolution(v=>({...v,[c.field]:{choice:kind,fingerprint:c.fingerprint}}))}/>{kind==='text'?'文字安排':'手选安排'}：{timeLabel(c[kind])}</label>)}{c.field==='followup'&&(['continue','end'] as const).map(kind=><label key={kind}><input type="radio" name="followup-choice" disabled={busy||!!running} checked={resolution.followup?.choice===kind&&resolution.followup?.fingerprint===c.fingerprint} onChange={()=>setResolution(v=>({...v,followup:{choice:kind,fingerprint:c.fingerprint}}))}/>{kind==='continue'?'还有后续，保留新安排':'明确结束，不采用本次未来安排'}</label>)}</div>)}</div>}
+-  {latest?.coreWorkOutcome&&<CoreCollaborationPanel workspaceId={s.workspaceId} revision={s.revision} request={request}/>}
+   <form className="ca-chat-compose p1-record-compose" onSubmit={e=>{e.preventDefault();void submit();}}><label className="ca-sr-only" htmlFor={'p1-message-'+source.id}>消息</label><textarea ref={inputRef} id={'p1-message-'+source.id} data-assistant-input value={text} maxLength={20000} rows={4} placeholder="记录新进展、安排时间，或继续讨论…" onChange={e=>{if(!text&&!dirtyAny)setExpected({version:source.version,basis:current.basis,evidence:current.liveEvidenceBasis});invalidateChoices();setText(e.target.value);}}/>
+    <InputImages workspaceId={s.workspaceId} request={request} images={images} onChange={value=>{invalidateChoices();setImages(value);}} disabled={busy||!!running||!!pending||prepareDraft}/>
+    <div ref={timeRef}><WorkItemTime value={times} onChange={changeTime} sources={timing} disabled={prepareDraft} errors={fieldErrors}/></div>
+-   <div className="ca-compose-footer"><button type="button" className="v2-text-button" disabled={busy||!!running||!!pending} onClick={cancel}>取消编辑</button><button className="v2-button primary" type="submit" disabled={!loaded||busy||!!running||!text.trim()&&!dirtyAny&&!images.length&&!pending||stale&&!pending||!!text.trim()&&!available}>{busy||running?<Loader2 size={15} className="spin"/>:<Send size={15}/>}发送</button></div>
++   <p className="p1-compose-hint">{prepareDraft?'先生成待审核修改，确认后再保存。':'明确的进展和时间会保存；讨论留在这里。本次不会向他人发送消息。'}</p>
++   <div className="ca-compose-footer"><button type="button" className="v2-text-button" disabled={busy||!!running||!!pending} onClick={cancel}>取消编辑</button><button className="v2-button primary" type="submit" disabled={!loaded||busy||!!running||!text.trim()&&!dirtyAny&&!images.length&&!pending||stale&&!pending||!!text.trim()&&!available}>{busy||running?<Loader2 size={15} className="spin"/>:<Send size={15}/>} {pending?'核实并继续本次提交':prepareDraft?'生成待审核草稿':'提交记录与问题'}</button></div>
+    <ActionFeedback context="当前事项输入" busy={busy||!!running} message={notice} error={error} reveal={!Object.keys(fieldErrors).length}>
+     {receipt&&error.includes('刷新')&&<button type="button" className="v2-text-button" onClick={()=>void navigation?.saved?.(receipt,true).then(()=>setError('')).catch(()=>setError('记录已保存，仍无法刷新；请稍后重新读取。'))}>重新读取保存结果</button>}
+    </ActionFeedback>
+-  </form><div className="ca-shortcuts">{['请整理当前事项的归属，给我可确认的调整方案。','请查找当前事项的重复记录，给我可确认的合并方案。','请把当前事项中混在一起的事情拆开，给我可确认的拆分方案。'].map((x,i)=><button type="button" key={x} disabled={!!running} onClick={()=>{invalidateChoices();setText(x);inputRef.current?.focus();}}>{['调整归属','合并重复','拆分事项'][i]}</button>)}</div>
++  </form>
++  {latest&&<div className="ca-turns" aria-live="polite">{renderJob(latest)}</div>}
++  {jobs.length>1&&<details className="p1-conversation-history"><summary>此前对话 · {jobs.length-1} 轮</summary><div className="ca-turns">{jobs.slice(0,-1).map(renderJob)}</div></details>}
++  {receipt&&<details className="p1-prior-result"><summary>此前保存结果与修改／撤销</summary><p>这是此前的保存结果，不表示本次输入已提交。</p><P1Receipt receipt={receipt} s={s} request={request} onRefresh={async next=>{await navigation?.saved?.(next||receipt,true);setReceipt(null);}} onOpen={()=>navigation?.openItem(source.id)} onEdit={live=>{invalidateChoices();setText(live.progress||'');setEditProgressId(receiptProgressId(live));inputRef.current?.focus();}} onTime={()=>{timeRef.current?.scrollIntoView({block:'center'});(timeRef.current?.querySelector('select') as HTMLSelectElement|null)?.focus();}}/></details>}
++  {latest?.coreWorkOutcome&&<CoreCollaborationPanel workspaceId={s.workspaceId} revision={s.revision} request={request}/>}
++  <div className="ca-shortcuts">{['请整理当前事项的归属，给我可确认的调整方案。','请查找当前事项的重复记录，给我可确认的合并方案。','请把当前事项中混在一起的事情拆开，给我可确认的拆分方案。'].map((x,i)=><button type="button" key={x} disabled={!!running} onClick={()=>{invalidateChoices();setText(x);inputRef.current?.focus();}}>{['调整归属','合并重复','拆分事项'][i]}</button>)}</div>
+  {showOptions&&<section className="ca-options-panel" aria-label="对话选项"><AssistantControls workspaceId={s.workspaceId} request={request} mode="chat"/><label>已有对话<select aria-label="已有对话" value={sessionId} disabled={busy||!!running||!!pending} onChange={e=>{setSessionId(e.target.value);setJobs([]);setError('');}}><option value={sessionId}>当前对话</option>{sessions.filter(v=>v.id!==sessionId&&v.contextRef.kind==='sources'&&v.contextRef.id===source.id).map(v=><option key={v.id} value={v.id}>{new Date(v.createdAt).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}</option>)}</select></label><details><summary>指定资料</summary>{s.sources.filter(r=>!r.archived&&!r.workItem&&!r.intakeBatch).slice(0,150).map(r=><label className="ca-source-option" key={r.id}><input type="checkbox" checked={selectedSources.includes(r.id)} disabled={!selectedSources.includes(r.id)&&selectedSources.length>=20} onChange={e=>setSelectedSources(v=>e.target.checked?[...v,r.id]:v.filter(id=>id!==r.id))}/>{r.title}</label>)}</details><label className="ca-draft-option"><input type="checkbox" checked={prepareDraft} disabled={dirtyAny||!!running||!!pending} onChange={e=>setPrepareDraft(e.target.checked)}/>准备待审核修改（正式业务仍走原审核）</label>{prepareDraft&&<p>本地时间区保留原值；本轮仅准备修改草稿，不自动写入。</p>}</section>}
+  </section>;
+ }
+diff --git a/package-lock.json b/package-lock.json
+index ba28dc67..afe065d5 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.17.0-core.3",
++  "version": "2.18.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "pm-workbench",
+-      "version": "2.17.0-core.3",
++      "version": "2.18.0",
+       "dependencies": {
+         "@base-ui/react": "^1.7.0",
+         "@hookform/resolvers": "^5.7.1",
+diff --git a/package.json b/package.json
+index 7ae1cdd3..e2002b8c 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pm-workbench",
+-  "version": "2.17.0-core.3",
++  "version": "2.18.0",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+diff --git a/release.json b/release.json
+index 4d1e3008..70d8750d 100644
+--- a/release.json
++++ b/release.json
+@@ -1,6 +1,6 @@
+ {
+-  "version": "2.17.0-core.3",
+-  "build": "20261014.uat-ui01.1",
+-  "channel": "preview",
+-  "releasedOn": "2026-10-14"
++  "version": "2.18.0",
++  "build": "20261015.ux1.1",
++  "channel": "stable",
++  "releasedOn": "2026-10-15"
+ }
+diff --git a/scripts/test-integration-dev1-browser.mjs b/scripts/test-integration-dev1-browser.mjs
+index 093e242c..04314901 100644
+--- a/scripts/test-integration-dev1-browser.mjs
++++ b/scripts/test-integration-dev1-browser.mjs
+@@ -32,8 +32,8 @@ async function shot(name){await page.screenshot({path:path.join(output,name+'.pn
+ async function until(fn){for(let i=0;i<200;i++){const v=await fn();if(v)return v;await delay(40);}throw Error('Expected persisted state not reached');}
+ async function check(id,name,fn){if(process.env.PM_DEV1_CASES&&!process.env.PM_DEV1_CASES.split(',').some(p=>id.startsWith(p)))return;try{const evidence=await fn();results.push({id,name,passed:true,evidence});console.log('PASS',id,name);}catch(e){results.push({id,name,passed:false,error:e.stack});await shot('failure-'+id);throw e;}}
+ async function goto(view='attention',id,extra={}){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view,...(id?{record:id}:{}),...extra}));await page.locator('.v2-app').waitFor();if(id)await panel().locator('.work-item-panel').waitFor();}
+-async function compose(id=app.ids.action,view='attention',extra={}){await goto(view,id,extra);await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await entry().waitFor();await until(()=>entry().getByRole('button',{name:'发送',exact:true}).isVisible());}
+-async function send(){await entry().getByRole('button',{name:'发送',exact:true}).click();}
++async function compose(id=app.ids.action,view='attention',extra={}){await goto(view,id,extra);await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await entry().waitFor();await until(()=>entry().getByRole('button',{name:/^(发送|提交记录与问题|核实并继续本次提交)$/}).isVisible());for(const selector of ['.p1-conversation-history','.p1-prior-result']){const history=entry().locator(selector);if(await history.count())await history.locator(':scope > summary').click();}}
++async function send(){await entry().getByRole('button',{name:/^(发送|提交记录与问题|核实并继续本次提交)$/}).click();}
+ async function returned(){await panel().waitFor({state:'detached'});await receipt().waitFor();}
+ async function openCollab(id){await goto(id?'attention':'assistant',id);await collab().locator(':scope > summary').click();await until(()=>collab().getByRole('button',{name:'重新读取当前记录',exact:true}).isEnabled());assert.equal(await collab().getByRole('alert').count(),0,await collab().innerText());}
+ async function reread(){await collab().getByRole('button',{name:'重新读取当前记录',exact:true}).click();await until(()=>collab().getByRole('button',{name:'重新读取当前记录',exact:true}).isEnabled());}
+@@ -62,8 +62,8 @@ try{
+   await check('INPUT-images','pure and multiple original images keep identity/order through upload, save and reload',async()=>{
+     const imageFiles=[];for(let i=1;i<=2;i++){await page.setContent('<main style="padding:40px;font:28px sans-serif;background:#f8f9fc"><h1>DEV1 合成原图 '+i+'</h1><p>样件已收到，仅用于隔离验证。</p></main>');const file=path.join(output,'synthetic-'+i+'.png');await page.screenshot({path:file});imageFiles.push(file);}
+     const before=count(app.ids.action);await compose();await entry().getByLabel('添加原图',{exact:true}).setInputFiles(imageFiles[0]);await entry().getByText('图1 · synthetic-1.png',{exact:true}).waitFor();await send();await returned();assert.equal(count(app.ids.action),before+1);
+-    await compose();await entry().getByText('图片输入',{exact:true}).last().waitFor();await entry().getByLabel('添加原图',{exact:true}).setInputFiles([imageFiles[1],imageFiles[0]]);await entry().getByText('图2 · synthetic-1.png',{exact:true}).waitFor();await send();await returned();
+-    const original=state().sources.filter(r=>r.inputEnvelope&&r.attachments?.length===2).at(-1);assert.deepEqual(original.attachments.map(a=>a.name),['synthetic-2.png','synthetic-1.png']);assert.equal(count(app.ids.action),before+2);await page.reload();await compose();await entry().getByText('图片输入',{exact:true}).last().waitFor();await shot('images-reloaded');return {sourceId:original.id,attachments:original.attachments.map(a=>({id:a.id,name:a.name,sha256:a.sha256})),count:count(app.ids.action)};
++    await compose();await until(()=>entry().getByText('图片输入',{exact:true}).count());{const history=entry().locator('.p1-conversation-history');if(await history.count()&&!await history.evaluate(e=>e.open))await history.locator(':scope > summary').click();}await entry().getByText('图片输入',{exact:true}).last().waitFor();await entry().getByLabel('添加原图',{exact:true}).setInputFiles([imageFiles[1],imageFiles[0]]);await entry().getByText('图2 · synthetic-1.png',{exact:true}).waitFor();await send();await returned();
++    const original=state().sources.filter(r=>r.inputEnvelope&&r.attachments?.length===2).at(-1);assert.deepEqual(original.attachments.map(a=>a.name),['synthetic-2.png','synthetic-1.png']);assert.equal(count(app.ids.action),before+2);await page.reload();await compose();await until(()=>entry().getByText('图片输入',{exact:true}).count());{const history=entry().locator('.p1-conversation-history');if(await history.count()&&!await history.evaluate(e=>e.open))await history.locator(':scope > summary').click();}await entry().getByText('图片输入',{exact:true}).last().waitFor();await shot('images-reloaded');return {sourceId:original.id,attachments:original.attachments.map(a=>({id:a.id,name:a.name,sha256:a.sha256})),count:count(app.ids.action)};
+   });
+   await check('INPUT-before-failure','save failure keeps the text draft without a false success receipt',async()=>{
+     const before=count(app.ids.action);await compose();await input().fill('已收到合成失败恢复反馈');
+@@ -94,7 +94,7 @@ try{
+     const b=batchUI(batchId);await b.locator('[data-message-id]').nth(1).getByRole('checkbox').check();await b.locator('[data-message-id]').nth(2).getByRole('checkbox').check();await b.getByRole('button',{name:'保存本批所选决定（不发送）',exact:true}).click();await until(()=>record(batchId).reminderRun.items.every(m=>m.stage==='approved'));assert.equal(outbound.length,0);
+     await b.locator('[data-message-id]').nth(2).getByRole('button',{name:'这条由我执行',exact:true}).click();await until(()=>record(batchId).reminderRun.items[2].executionOwner==='human');await b.locator('.wb-int-execution > summary').click();await b.getByRole('button',{name:'执行本批已批准消息 · 2 条',exact:true}).waitFor();
+     await collab().getByRole('button',{name:'历史与结果',exact:true}).click();assert.equal(await b.getByRole('button',{name:'执行本批已批准消息 · 2 条',exact:true}).isDisabled(),true);await collab().getByRole('button',{name:'全部记录',exact:true}).click();await b.locator('.wb-int-execution').scrollIntoViewIfNeeded();await shot('batch-execution-scope');await b.getByRole('button',{name:'执行本批已批准消息 · 2 条',exact:true}).click();await until(()=>outbound.length===2&&record(batchId).reminderRun.items.filter(m=>m.stage==='readback_verified').length===2);await until(()=>b.getByRole('button',{name:'明确交回系统（不立即发送）',exact:true}).isEnabled());assert.equal(record(batchId).reminderRun.items[2].stage,'approved');
+-    await b.getByRole('button',{name:'明确交回系统（不立即发送）',exact:true}).click();await until(()=>record(batchId).reminderRun.items[2].executionOwner==='ai');assert.equal(outbound.length,2);await b.getByRole('button',{name:'执行本批已批准消息 · 1 条',exact:true}).click();await until(()=>outbound.length===3&&record(batchId).reminderRun.items.every(m=>m.stage==='readback_verified'));await openCollab();assert.equal(await collab().locator(':scope > summary').innerText(),'协作消息 · 待决定 0 · 历史与结果 3 条');assert.equal(outbound.length,3);await shot('results-reentered');return {batchId,sends:3,messageIds:record(batchId).reminderRun.items.map(m=>m.messageId)};
++    await b.getByRole('button',{name:'明确交回系统（不立即发送）',exact:true}).click();await until(()=>record(batchId).reminderRun.items[2].executionOwner==='ai');assert.equal(outbound.length,2);await b.getByRole('button',{name:'执行本批已批准消息 · 1 条',exact:true}).click();await until(()=>outbound.length===3&&record(batchId).reminderRun.items.every(m=>m.stage==='readback_verified'));await openCollab();assert.equal(await collab().locator(':scope > summary').innerText(),'协作消息 · 待决定 0 · 共 3 条记录');assert.equal(outbound.length,3);await shot('results-reentered');return {batchId,sends:3,messageIds:record(batchId).reminderRun.items.map(m=>m.messageId)};
+   });
+   await check('RECOVERY-conflict','409 is a known rejection; a newer server preview cannot be overwritten by a stale draft',async()=>{
+     const id=await newBatch('版本冲突');await openCollab();const b=batchUI(id),card=b.locator('[data-message-id]').first(),m=record(id).reminderRun.items[0];await card.getByRole('textbox').fill('本地尚未保存的合成草稿');await decide(id,[{id:m.id,fingerprint:m.fingerprint,action:'edit',text:'另一窗口已保存的新正文'}]);await card.getByRole('button',{name:'保存修改并回读预览',exact:true}).click();await collab().getByRole('alert').filter({hasText:'预览已变化'}).waitFor();assert.equal(await collab().getByRole('region',{name:'尚未核实的请求'}).count(),0);assert.equal(record(id).reminderRun.items[0].text,'另一窗口已保存的新正文');assert.equal(await card.getByRole('textbox').inputValue(),'本地尚未保存的合成草稿');await card.getByText(/这份本地草稿基于旧预览/).waitFor();await shot('preview-version-conflict');await card.getByRole('button',{name:'放弃本地修改，使用当前预览',exact:true}).click();return {httpStatus:409,serverText:record(id).reminderRun.items[0].text};
+diff --git a/scripts/test-integration-uat1-fix1-browser.mjs b/scripts/test-integration-uat1-fix1-browser.mjs
+index e06a7183..f944ede0 100644
+--- a/scripts/test-integration-uat1-fix1-browser.mjs
++++ b/scripts/test-integration-uat1-fix1-browser.mjs
+@@ -34,8 +34,8 @@ async function check(id,name,fn){if(process.env.PM_UAT1_FIX1_CASES&&!process.env
+ function fixture(name,{different=false}={}){const id='uat1-fix1-'+name+'-'+(++serial),f=fixtureState(id);f.s.workspaceName='合成验收 '+name;if(different){const row=f.s.sources.find(r=>r.id===f.ids.action);row.id='different-action-'+serial;f.ids.action=row.id;}app.store.insert(f.s);return {workspaceId:id,ids:f.ids};}
+ function setup(name){const f=fixture(name);workspaceId=f.workspaceId;ids=f.ids;return f;}
+ async function goto(view='attention',id){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId,view,...(id?{record:id}:{})}));await page.locator('.v2-app').waitFor();await until(()=>page.locator('#workspace-select').inputValue().then(v=>v===workspaceId));}
+-async function compose(){await goto('attention',ids.action);await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await input().waitFor();}
+-async function submit(){await until(()=>entry().getByRole('button',{name:'发送',exact:true}).isEnabled());await entry().getByRole('button',{name:'发送',exact:true}).click();}
++async function compose(){await goto('attention',ids.action);await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await input().waitFor();const prior=entry().locator('.p1-prior-result');if(await prior.count())await prior.locator(':scope > summary').click();}
++async function submit(){await until(()=>entry().getByRole('button',{name:/^(发送|提交记录与问题|核实并继续本次提交)$/}).isEnabled());await entry().getByRole('button',{name:/^(发送|提交记录与问题|核实并继续本次提交)$/}).click();}
+ async function saveProgress(text='已收到本轮合成样件'){await compose();await input().fill(text);await submit();await panel().waitFor({state:'detached'});await receipt().getByText('本地记录已保存',{exact:true}).waitFor();}
+ async function selectWorkspace(id){await page.locator('#workspace-select').selectOption(id);await until(()=>new URL(page.url()).searchParams.get('workspaceId')===id);await page.getByText('本地数据已连接',{exact:true}).waitFor();}
+ async function noStaleReceipt(){assert.equal(await page.locator('.p1-receipt').count(),0);for(const name of ['查看记录','修改记录','撤销本次操作','设置时间','目前都待定'])assert.equal(await page.getByRole('button',{name,exact:true}).count(),0);}
+diff --git a/scripts/test-integration-ux1-browser.mjs b/scripts/test-integration-ux1-browser.mjs
+new file mode 100644
+index 00000000..ae3e5cf3
+--- /dev/null
++++ b/scripts/test-integration-ux1-browser.mjs
+@@ -0,0 +1,55 @@
++import assert from 'node:assert/strict';
++import {createRequire} from 'node:module';
++import {mkdirSync,readdirSync,writeFileSync} from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {setTimeout as delay} from 'node:timers/promises';
++import * as d from '../dist-local/domain.mjs';
++import {startCoreFixture} from './core-fixtures.mjs';
++
++const output=path.resolve(process.env.PM_UX1_OUTPUT||'output/ux1/browser');mkdirSync(output,{recursive:true});
++const {chromium}=createRequire(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json'))('playwright');
++const cache=path.join(os.homedir(),'.agent-browser/browsers'),executablePath=path.join(cache,readdirSync(cache).filter(x=>x.startsWith('chrome-')).sort().at(-1),'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing');
++const outbound=[],client={simulation:true,identity:async()=>({scope:'tenant/app',userId:'ou_self',appId:'app',tenantKey:'tenant'}),run:async()=>{outbound.push('unexpected-send');throw Error('UX1 suite does not send');}};
++const app=await startCoreFixture({client}),browser=await chromium.launch({executablePath,headless:true}),context=await browser.newContext({viewport:{width:1440,height:900},timezoneId:'Asia/Shanghai'}),page=await context.newPage();
++const errors=[],external=[],posts=[],results=[],screenshots=[];let batchId;
++page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method()==='POST')posts.push({path:new URL(r.url()).pathname,body:r.postDataJSON()});});
++await context.route('**/*',route=>{const u=new URL(route.request().url());if(['http:','https:'].includes(u.protocol)&&u.origin!==app.origin){external.push(u.origin);return route.abort();}return route.continue();});
++const panel=()=>page.locator('.iw-dialog'),entry=()=>panel().locator('.p1-entry'),input=()=>entry().locator('[data-assistant-input]'),collab=()=>page.locator('.wb-int-collaboration').last();
++const batch=()=>collab().getByRole('region',{name:'协作批次 '+batchId,exact:true}),card=i=>batch().locator('[data-message-id]').nth(i);
++async function until(fn){for(let i=0;i<250;i++){const v=await fn();if(v)return v;await delay(30);}throw Error('Expected UI/persistent state not reached');}
++async function shot(name){await page.screenshot({path:path.join(output,name+'.png')});screenshots.push(name+'.png');}
++async function check(id,name,fn){if(process.env.PM_UX1_CASES&&!process.env.PM_UX1_CASES.split(',').some(prefix=>id.startsWith(prefix)))return;try{const evidence=await fn();results.push({id,name,passed:true,evidence});console.log('PASS',id,name);}catch(e){results.push({id,name,passed:false,error:e.stack});await shot('failure-'+id);writeFileSync(path.join(output,'failure-'+id+'.txt'),await page.locator('body').innerText());throw e;}}
++async function goto(view='attention',record){await page.goto(app.origin+'/?'+new URLSearchParams({workspaceId:app.workspaceId,view,...(record?{record}:{})}));await page.locator('.v2-app').waitFor();}
++async function compose(){await goto('attention',app.ids.action);await panel().getByRole('button',{name:'记录进展 / 讨论',exact:true}).click();await input().waitFor();await until(()=>entry().getByRole('button',{name:'提交记录与问题',exact:true}).isVisible());}
++function mutate(fn){const s=app.state(),revision=s.revision;fn(s);s.revision++;app.store.save(s,revision);}
++async function refreshCollab(){await collab().getByRole('button',{name:'重新读取当前记录',exact:true}).click();await until(()=>collab().getByRole('button',{name:'重新读取当前记录',exact:true}).isEnabled());}
++async function prepare(){mutate(s=>{s.people=[{id:'engineer',title:'合成责任人',projectIds:['p'],sourceIds:[],version:1,identityVerified:true,feishuUserId:'ou_engineer',feishuIdType:'open_id',feishuAppId:'app',feishuTenantKey:'tenant'}];s.sources.push({id:'ux-proof',title:'合成协作依据',excerpt:'请核对样件和报告。',projectIds:['p'],sourceIds:[],version:1});});const proof=app.state().sources.find(x=>x.id==='ux-proof');const r=await app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'prepare-messages',requestId:crypto.randomUUID(),messages:[app.ids.action,app.ids.risk].map((id,i)=>({id:'ux-draft-'+i,workItemId:id,title:'体验消息 '+(i+1),text:'请核对合成样件 '+(i+1)+'。\n完整内容保留，等待本人确认。',recipientId:'engineer',channel:'private',proof:[{sourceId:proof.id,fingerprint:d.coreProofFingerprint(proof),quote:proof.excerpt}]}))});batchId=r.source.id;await goto('assistant');await collab().locator(':scope > summary').click();await batch().waitFor();}
++function materialState(){mutate(s=>{s.sources.push({id:'ux-material',title:'合成测试资料',excerpt:'这是完整保留的合成资料正文。\n阅读只使用当前工作区已有来源。\n资料结束标记 UX1-END',projectIds:['p'],sourceIds:[],version:1,occurredAt:'2026-10-15T09:00:00+08:00'},{id:'ux-unavailable',title:'不可读合成资料',excerpt:'',projectIds:['p'],sourceIds:[],version:1,stale:true,intakeDocument:{error:'合成访问受限，正文尚未取得'}});d.ensureCore(s.sources.find(x=>x.id===app.ids.action)).delivery={delivered:false,decision:'资料已整理',materials:[{id:'ux-material',title:'合成测试资料'},{id:'ux-missing',title:'已移走的资料'},{id:'ux-unavailable',title:'不可读合成资料'}],gaps:[],messages:[]};});}
++try{
++ for(const viewport of [{width:1024,height:768},{width:1440,height:900}])await check('UX03-input-'+viewport.width,'current input and submit stay before previous output and remain easy to reach',async()=>{
++  await page.setViewportSize(viewport);await compose();await input().fill('本轮尚未提交的体验草稿');const first=await input().boundingBox(),button=await entry().getByRole('button',{name:'提交记录与问题',exact:true}).boundingBox();assert.ok(first.y>=0&&first.y<viewport.height);assert.ok(button.y>=0&&button.y+button.height<=viewport.height+1,JSON.stringify(button));assert.ok(button.y-first.y<580);await shot('input-'+viewport.width);return {input:first,submit:button,viewport};
++ });
++ await check('UX06-images','thumbnails expose original images, order changes only draft selection and original bytes remain available',async()=>{
++  await compose();const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9l8AAAAASUVORK5CYII=','base64');await entry().getByLabel('添加原图',{exact:true}).setInputFiles([{name:'first.png',mimeType:'image/png',buffer:png},{name:'second.png',mimeType:'image/png',buffer:png}]);await entry().getByText('图2 · second.png',{exact:true}).waitFor();await until(()=>entry().locator('.p1-image-grid img').evaluateAll(xs=>xs.length===2&&xs.every(x=>x.complete&&x.naturalWidth>0)));await entry().locator('.p1-image-grid li').first().getByRole('button',{name:'后移',exact:true}).click();assert.match(await entry().locator('.p1-image-grid li').first().innerText(),/图1 · second.png/);const href=await entry().getByRole('link',{name:'查看图1原图：second.png',exact:true}).getAttribute('href');const response=await page.request.get(app.origin+href);assert.equal(response.status(),200);assert.deepEqual(await response.body(),png);await entry().getByRole('button',{name:'移除图1',exact:true}).click();assert.equal(await entry().locator('.p1-image-grid li').count(),1);assert.match(await entry().locator('.p1-image-grid li').innerText(),/first.png/);await shot('image-order');return {originalByteMatch:true,noBusinessSubmit:true};
++ });
++ materialState();
++ await check('O01-item','material opens in existing evidence reader and Escape returns focus without a business write',async()=>{
++  await goto('attention',app.ids.action);const prep=panel().locator('.wb-int-core details').filter({has:page.locator('summary',{hasText:'资料与协作准备'})});await prep.locator(':scope > summary').click();const button=prep.getByRole('button',{name:'阅读资料：合成测试资料',exact:true});const before=JSON.stringify(app.state()),n=posts.length;await button.click();const reader=page.getByRole('dialog',{name:'资料阅读',exact:true});await reader.getByText(/UX1-END/).waitFor();await shot('material-reading');await page.keyboard.press('Escape');await reader.waitFor({state:'hidden'});assert.equal(await button.evaluate(x=>document.activeElement===x),true);assert.equal(JSON.stringify(app.state()),before);assert.equal(posts.length,n);return {stateUnchanged:true,focusReturned:true};
++ });
++ await check('O01-unavailable','missing and inaccessible material explain the actual gap and do not guess another URL',async()=>{
++  for(const title of ['已移走的资料','不可读合成资料']){await panel().getByRole('button',{name:'阅读资料：'+title,exact:true}).click();const reader=page.getByRole('dialog',{name:'资料阅读',exact:true});assert.match(await reader.innerText(),title==='已移走的资料'?/未找到/:/访问受限|不可用/);assert.equal(await reader.locator('a').count(),0);await reader.getByRole('button',{name:'返回原处',exact:true}).click();}return {fallbackUrlCreated:false};
++ });
++ await check('O01-assistant','prepared result uses the same reader while the current assistant draft and position survive',async()=>{
++  // Seed an explicitly synthetic completed model result through the original job persistence API.
++  const job=(await app.api('/api/v2/codex/jobs',{workspaceId:app.workspaceId,requestId:crypto.randomUUID(),sessionId:crypto.randomUUID(),parentJobId:'',mode:'answer',text:'讨论资料',sourceIds:[],contextRef:{kind:'workspace',id:app.workspaceId}})).job;let completed=await until(async()=>{const j=(await app.api('/api/v2/codex/jobs/'+job.id+'?workspaceId='+app.workspaceId)).job;return j.status!=='running'&&j;});completed.coreWorkOutcome={status:'prepared',summaries:[{sourceId:app.ids.action,title:'合成结果',dependencies:[],delivery:{decision:'资料已准备',delivered:false,materials:[{id:'ux-material',title:'合成测试资料'}],gaps:[],messages:[]},messages:[]}]};app.assistant.save(completed);await goto('assistant');await page.getByLabel('已有对话',{exact:true}).selectOption(completed.sessionId);const read=page.getByRole('button',{name:'阅读资料：合成测试资料',exact:true}).first();await read.waitFor();const input=page.locator('.ca-chat-compose [data-assistant-input]').first();await input.fill('阅读后继续的草稿');const before=JSON.stringify(app.state()),n=posts.length;await read.click();await page.getByRole('dialog',{name:'资料阅读',exact:true}).getByText(/UX1-END/).waitFor();await page.getByRole('button',{name:'返回原处',exact:true}).click();assert.equal(await input.inputValue(),'阅读后继续的草稿');assert.equal(JSON.stringify(app.state()),before);assert.equal(posts.length,n);return {draftPreserved:true,sameReader:true};
++ });
++ await prepare();
++ for(const viewport of [{width:1024,height:768},{width:1440,height:900}])await check('UX03-decisions-'+viewport.width,'selection summary and non-sending save stay visible while reviewing a message',async()=>{
++  await page.setViewportSize(viewport);await card(0).getByRole('checkbox').check();await card(0).getByRole('textbox').focus();const button=batch().getByRole('button',{name:'保存本批所选决定（不发送）',exact:true});const box=await button.boundingBox();assert.ok(box.y>=0&&box.y+box.height<=viewport.height,JSON.stringify(box));assert.match(await batch().locator('.wb-int-decision-bar').innerText(),/批准 1 条消息/);await shot('decision-'+viewport.width);await card(0).getByRole('checkbox').uncheck();return {save:box};
++ });
++ await check('UX04-details','summary counts all records accurately and technical identities stay under details',async()=>{assert.match(await collab().locator(':scope > summary').innerText(),/共 2 条记录/);assert.doesNotMatch(await collab().locator(':scope > summary').innerText(),/历史与结果/);assert.equal(await card(0).locator('code').first().isVisible(),false);assert.equal(await card(0).getByRole('textbox').inputValue(),'请核对合成样件 1。\n完整内容保留，等待本人确认。');return {fullTextRetained:true};});
++ await check('UX05-changes','empty changes section is absent and actual changed fields remain readable',async()=>{mutate(s=>{const items=s.sources.find(x=>x.id===batchId).reminderRun.items;items[0].previewChanges={previous:{target:{负责人:'相同'}},current:{target:{负责人:'相同'}}};items[1].previewChanges={previous:{target:{负责人:'原负责人'}},current:{target:{负责人:'新负责人'}}};});await refreshCollab();assert.equal(await card(0).locator('summary',{hasText:'本次业务前提变化'}).count(),0);await card(1).locator('summary',{hasText:'本次业务前提变化'}).click();await card(1).getByText('负责人：原负责人 → 新负责人',{exact:true}).waitFor();return {emptyHidden:true,realChangeShown:true};});
++ await check('UX05-locate','blocked read-only message identifies the draft and keyboard focus reaches local recovery; discard stays local',async()=>{await card(0).getByRole('textbox').fill('不可丢失的本地修改');let m=app.state().sources.find(x=>x.id===batchId).reminderRun.items[0];await app.api('/api/v2/core',{workspaceId:app.workspaceId,action:'decide-messages',sourceId:batchId,requestId:crypto.randomUUID(),decisions:[{id:m.id,fingerprint:m.fingerprint,action:'cancel'}]});await refreshCollab();const before=JSON.stringify(app.state()),n=posts.length;await batch().getByRole('button',{name:'定位并处理：体验消息 1',exact:true}).click();const draft=card(0).locator('.wb-int-local-draft');await draft.getByText('不可丢失的本地修改',{exact:true}).waitFor();assert.equal(await draft.getAttribute('open')!==null,true);await draft.getByRole('button',{name:'放弃这份本地草稿（不改变消息）',exact:true}).click();assert.equal(JSON.stringify(app.state()),before);assert.equal(posts.length,n);await shot('draft-recovery');return {localDiscardOnly:true,originalMessageUnchanged:true};});
++ await check('BOUNDARY','all new UX paths preserve original authorization and produce no real or simulated sends',async()=>{assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.deepEqual(outbound,[]);assert.equal(app.core.settings(app.workspaceId).enabled,false);return {realExternalWrites:0,simulatedSends:0,consoleErrors:errors};});
++}finally{writeFileSync(path.join(output,'results.json'),JSON.stringify({scope:'Original UX1 React/HTTP/isolated SQLite; synthetic fixtures/model results; no real model or external writes',results,errors,external,simulatedSends:outbound.length,screenshots},null,2));await browser.close();await app.close();}

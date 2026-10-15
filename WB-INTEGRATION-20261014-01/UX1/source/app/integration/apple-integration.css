@@ -1,0 +1,183 @@
+/* WB-INTEGRATION-20261014-01 / PLAN1. Derived from fixed UI R2 light tokens.
+   Imported once, after workbench-v2.css. No global button/input reset, fake dates,
+   alternate business state or changes to the original navigation/overlay geometry. */
+.v2-app {
+  --wb-i-bg: #f8f9fc;
+  --wb-i-surface: #fff;
+  --wb-i-text: #20252f;
+  --wb-i-muted: #5f6877;
+  --wb-i-line: #e5e8ef;
+  --wb-i-blue: #0065d8;
+  --wb-i-blue-fill: #edf4ff;
+  --wb-i-green: #2b7256;
+  --wb-i-green-fill: #edf7f1;
+  --wb-i-amber: #875511;
+  --wb-i-amber-fill: #fff5e6;
+  --wb-i-red: #b74746;
+  --wb-i-red-fill: #fff0ee;
+  --wb-i-glass: rgb(247 250 255 / 0.84);
+  --wb-i-shadow: 0 10px 30px rgb(26 40 70 / 0.08);
+  --wb-i-radius: 20px;
+  --ink: var(--wb-i-text);
+  --muted: var(--wb-i-muted);
+  --line: var(--wb-i-line);
+  --green: var(--wb-i-blue);
+  --wash: var(--wb-i-bg);
+  --bg: var(--wb-i-bg);
+  color: var(--wb-i-text);
+  background: var(--wb-i-bg);
+  color-scheme: light;
+}
+.v2-app .v2-sidebar {
+  background: var(--wb-i-glass);
+  border-color: rgb(255 255 255 / 0.94);
+  box-shadow: 1px 0 18px rgb(26 40 70 / 0.04);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(28px) saturate(1.4);
+}
+.v2-app .v2-sidebar nav > button {
+  color: var(--wb-i-muted);
+  border-radius: 12px;
+  min-height: 44px;
+}
+.v2-app .v2-sidebar nav > button.active {
+  color: var(--wb-i-text);
+  background: rgb(255 255 255 / 0.88);
+  box-shadow: 0 1px 4px rgb(26 40 70 / 0.10), inset 0 1px 0 #fff;
+}
+.v2-app .v2-sidebar nav > button.active svg { color: var(--wb-i-blue); }
+.v2-app .v2-sidebar nav > button:hover { background: var(--wb-i-blue-fill); }
+.v2-app .v2-workspace { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: 14px; }
+.v2-app .v2-brand > span { background: linear-gradient(145deg, #88b1f0, #4c75bc); color: #fff; box-shadow: inset 0 1px 1px rgb(255 255 255 / 0.65); }
+.v2-app .v2-main { background: var(--wb-i-bg); }
+.v2-app .v2-topbar {
+  background: var(--wb-i-glass);
+  border-color: var(--wb-i-line);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+.v2-app .v2-page-heading h1 { color: var(--wb-i-text); font-size: 27px; font-weight: 600; letter-spacing: -0.7px; }
+.v2-app .v2-page-heading p,
+.v2-app .v2-breadcrumb,
+.v2-app .v2-save-state { color: var(--wb-i-muted); }
+/* Existing input, image, manual-time and receipt DOM/callbacks are deliberately retained. */
+.v2-app .p1-entry,
+.v2-app .p1-receipt,
+.v2-app .wb-int-core {
+  color: var(--wb-i-text);
+  background: var(--wb-i-surface);
+  border: 1px solid var(--wb-i-line);
+  border-radius: var(--wb-i-radius);
+  box-shadow: var(--wb-i-shadow);
+  min-width: 0;
+}
+.v2-app .p1-entry .ca-toolbar { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: var(--wb-i-radius) var(--wb-i-radius) 0 0; }
+.v2-app .p1-entry .ca-user-message { background: var(--wb-i-blue-fill); color: var(--wb-i-text); }
+.v2-app .p1-entry .ca-assistant-message { background: var(--wb-i-surface); color: var(--wb-i-text); }
+.v2-app .p1-receipt { padding: 20px; }
+.v2-app .wb-int-core { padding: 20px; margin-block: 16px; }
+.v2-app .wb-int-core > details { border-top: 1px solid var(--wb-i-line); padding-block: 12px; }
+.v2-app .wb-int-receipt-heading { display: grid; gap: 5px; margin-bottom: 12px; }
+.v2-app .wb-int-receipt-heading strong { font-size: 15px; color: var(--wb-i-green); }
+.v2-app .wb-int-receipt-heading[data-tone="neutral"] strong { color: var(--wb-i-muted); }
+.v2-app .wb-int-receipt-heading[data-tone="amber"] strong { color: var(--wb-i-amber); }
+.v2-app .wb-int-receipt-heading[data-tone="blue"] strong { color: var(--wb-i-blue); }
+.v2-app .wb-int-receipt-heading small { color: var(--wb-i-muted); font-size: 12px; }
+.v2-app .wb-int-collaboration { margin-block: 16px; min-width: 0; color: var(--wb-i-text); font-size: 14px; line-height: 1.6; }
+.v2-app .wb-int-collaboration > summary { font-weight: 600; padding: 12px 4px; min-height: 44px; }
+.v2-app .wb-int-body { display: grid; gap: 16px; min-width: 0; }
+.v2-app .wb-int-body p { margin: 0 0 10px; overflow-wrap: anywhere; }
+.v2-app .wb-int-body :is(h3,h4) { margin: 0 0 8px; font-weight: 600; line-height: 1.5; }
+.v2-app .wb-int-body h3 { font-size: 17px; }
+.v2-app .wb-int-body h4 { font-size: 15px; }
+.v2-app .wb-int-body code { font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: normal; overflow-wrap: anywhere; }
+.v2-app .wb-int-toolbar,
+.v2-app .wb-int-actions,
+.v2-app .wb-int-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.v2-app .wb-int-toolbar { justify-content: space-between; }
+.v2-app .wb-int-toolbar p { margin: 0; color: var(--wb-i-muted); }
+.v2-app .wb-int-body button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--wb-i-blue);
+  background: var(--wb-i-surface);
+  border: 1px solid var(--wb-i-line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  min-height: 40px;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  cursor: pointer;
+}
+.v2-app .wb-int-body button:hover:not(:disabled) { background: var(--wb-i-blue-fill); }
+.v2-app .wb-int-body button:disabled { opacity: 0.55; cursor: not-allowed; }
+.v2-app .wb-int-body button.wb-int-primary { color: #fff; background: var(--wb-i-blue); border-color: var(--wb-i-blue); }
+.v2-app .wb-int-body button.wb-int-primary:hover:not(:disabled) { background: #0056b8; }
+.v2-app .wb-int-body button[aria-pressed="true"] { background: var(--wb-i-blue-fill); border-color: var(--wb-i-blue); }
+.v2-app .wb-int-batch,
+.v2-app .wb-int-section { min-width: 0; background: var(--wb-i-surface); border: 1px solid var(--wb-i-line); border-radius: var(--wb-i-radius); padding: 20px; }
+.v2-app .wb-int-message { min-width: 0; border-top: 1px solid var(--wb-i-line); padding-block: 20px; }
+.v2-app .wb-int-message-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.v2-app .wb-int-message-heading > div { min-width: 0; }
+.v2-app .wb-int-tag { display: inline-flex; flex-shrink: 0; padding: 4px 8px; border-radius: 7px; font-size: 12px; color: var(--wb-i-muted); background: var(--wb-i-bg); }
+.v2-app .wb-int-tag[data-tone="blue"] { color: var(--wb-i-blue); background: var(--wb-i-blue-fill); }
+.v2-app .wb-int-tag[data-tone="green"] { color: var(--wb-i-green); background: var(--wb-i-green-fill); }
+.v2-app .wb-int-tag[data-tone="amber"] { color: var(--wb-i-amber); background: var(--wb-i-amber-fill); }
+.v2-app .wb-int-tag[data-tone="red"] { color: var(--wb-i-red); background: var(--wb-i-red-fill); }
+.v2-app .wb-int-body .wb-int-muted { color: var(--wb-i-muted); font-size: 12px; }
+.v2-app .wb-int-full-text,
+.v2-app .wb-int-proof-list blockquote { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; line-height: 1.7; }
+.v2-app .wb-int-body blockquote { margin: 8px 0; border-left: 3px solid var(--wb-i-line); padding: 4px 12px; }
+.v2-app .wb-int-proof-list { padding-inline-start: 20px; }
+.v2-app .wb-int-proof-list li { margin-block: 10px; }
+.v2-app .wb-int-editor { display: grid; gap: 12px; margin-block: 12px; min-width: 0; }
+.v2-app .wb-int-editor > label { display: grid; gap: 6px; min-width: 0; }
+.v2-app .wb-int-editor :is(input,select,textarea),
+.v2-app .wb-int-warning select { width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--wb-i-line); border-radius: 12px; background: var(--wb-i-surface); color: var(--wb-i-text); padding: 10px 12px; }
+.v2-app .wb-int-editor textarea { resize: vertical; min-height: 150px; line-height: 1.7; }
+.v2-app .wb-int-check { display: flex; align-items: flex-start; gap: 10px; padding-block: 10px; min-height: 44px; }
+.v2-app .wb-int-check input { flex: 0 0 16px; width: 16px; height: 16px; margin-top: 4px; accent-color: var(--wb-i-blue); }
+.v2-app .wb-int-admissions { min-width: 0; border: 1px solid var(--wb-i-line); border-radius: 12px; padding: 12px; margin-block: 14px; }
+.v2-app .wb-int-admissions legend { padding-inline: 6px; font-weight: 600; }
+.v2-app .wb-int-history,
+.v2-app .wb-int-execution { margin-block: 14px; border-top: 1px solid var(--wb-i-line); padding-top: 10px; }
+.v2-app .wb-int-history article,
+.v2-app .wb-int-draft,
+.v2-app .wb-int-section > article { padding-block: 14px; border-bottom: 1px solid var(--wb-i-line); }
+.v2-app .wb-int-body summary { min-height: 40px; padding-block: 8px; }
+.v2-app .wb-int-warning { background: var(--wb-i-amber-fill); color: var(--wb-i-amber); border-radius: 12px; padding: 14px; }
+.v2-app .wb-int-feedback { background: var(--wb-i-blue-fill); border-radius: 12px; padding: 14px; }
+.v2-app .wb-int-error { color: var(--wb-i-red); background: var(--wb-i-red-fill); border-radius: 12px; padding: 12px; }
+.v2-app .wb-int-body :is(button,input,select,textarea,summary):focus-visible,
+.v2-app .wb-int-collaboration > summary:focus-visible { outline: 3px solid var(--wb-i-blue); outline-offset: 3px; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .v2-app .v2-sidebar, .v2-app .v2-topbar { background: #f7faff; }
+}
+@media (max-width: 700px) {
+  .v2-app .wb-int-batch, .v2-app .wb-int-section, .v2-app .wb-int-core, .v2-app .p1-receipt { padding: 14px; }
+  .v2-app .wb-int-message-heading { flex-direction: column; }
+  .v2-app .wb-int-tag { flex-shrink: 1; white-space: normal; }
+  .v2-app .wb-int-actions > button { flex: 1 1 170px; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-app .wb-int-body button { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .v2-app .v2-sidebar, .v2-app .v2-topbar { background: #f7faff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .v2-app .v2-sidebar, .v2-app .v2-topbar { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .v2-app .wb-int-tag { border: 1px solid CanvasText; }
+  .v2-app .wb-int-body button { border: 1px solid ButtonText; }
+}
+
+/* Existing ItemWorkspace dialog: retain native dialog/focus/scroll behavior and only restyle surfaces. */
+.v2-app .iw-dialog { background: var(--wb-i-surface); color: var(--wb-i-text); border-color: var(--wb-i-line); border-radius: 24px; box-shadow: 0 18px 55px rgb(26 40 70 / 0.18); }
+.v2-app .iw-dialog .iw-top { background: var(--wb-i-surface); border-color: var(--wb-i-line); }
+.v2-app .iw-dialog .iw-content { background: var(--wb-i-bg); }
+.v2-app .iw-dialog .iw-block { background: var(--wb-i-surface); border-color: var(--wb-i-line); border-radius: 16px; }
+.v2-app .iw-dialog .iw-context { color: var(--wb-i-muted); }
+/* UX1 keeps current choices and their save action together while the full messages stay readable. */
+.v2-app .wb-int-decision-bar{position:sticky;top:0;z-index:3;background:var(--wb-i-surface);border:1px solid var(--wb-i-line);border-radius:12px;padding:12px;margin:14px 0;box-shadow:0 3px 14px rgb(30 45 65 / .06)}
+.v2-app .wb-int-decision-bar>p{margin:0 0 8px}.v2-app .wb-int-decision-bar .wb-action-feedback{margin-bottom:0}.v2-app .wb-int-message{scroll-margin-block:150px 24px}.v2-app .wb-int-editor textarea{min-height:128px;font-size:14px}.v2-app .wb-int-warning button{margin:6px 0 6px 10px}
