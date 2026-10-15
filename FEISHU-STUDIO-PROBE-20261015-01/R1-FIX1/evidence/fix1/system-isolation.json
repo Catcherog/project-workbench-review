@@ -1,0 +1,188 @@
+{
+  "passed": true,
+  "kind": "real_system_sandbox_no_model",
+  "at": "2026-10-15T08:27:36.439Z",
+  "records": [
+    {
+      "name": "own_file",
+      "expected": {
+        "runId": "61d597ae-8165-4e4b-b487-56cd1252fe46",
+        "targetAlias": "own_file",
+        "target": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-a/allowed.txt",
+        "canonicalTarget": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-a/allowed.txt",
+        "canonicalVerified": true,
+        "targetExisted": true,
+        "contentSha256": "7479e580db285ec68cb5cd6614a9b8b2b257edcfba076a5d19d6c8ab0b15ac93",
+        "executorFingerprint": "1e238665b377c3ef21734890c783aa828cf912d175b90998b88276cefad0b25a",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "launchFingerprint": "4e1b823b5c3c438cabb347731b0b41c8547d2714f8648ff955c64b8b9f7c6717"
+      },
+      "receipt": {
+        "runId": "61d597ae-8165-4e4b-b487-56cd1252fe46",
+        "launchFingerprint": "4e1b823b5c3c438cabb347731b0b41c8547d2714f8648ff955c64b8b9f7c6717",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "executorFingerprint": "1e238665b377c3ef21734890c783aa828cf912d175b90998b88276cefad0b25a",
+        "terminationConfirmed": true,
+        "stopReason": "",
+        "commandTelemetry": "complete",
+        "origin": "controller_initiated_system_sandbox_not_model_tool",
+        "events": [
+          {
+            "type": "item.completed",
+            "item": {
+              "id": "61d597ae-8165-4e4b-b487-56cd1252fe46",
+              "type": "command_execution",
+              "command": "exec /bin/cat -- '/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-a/allowed.txt'",
+              "status": "completed",
+              "exit_code": 0,
+              "aggregated_output": "NON_SECRET_CANARY_c02b7cc0-5097-462a-acb4-b9a7ba1b1ccc"
+            }
+          }
+        ]
+      },
+      "verdict": {
+        "status": "read_succeeded",
+        "reason": "target_content_observed",
+        "denied": false,
+        "runId": "61d597ae-8165-4e4b-b487-56cd1252fe46",
+        "targetAlias": "own_file",
+        "operation": "read",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "itemIds": [
+          "61d597ae-8165-4e4b-b487-56cd1252fe46"
+        ]
+      },
+      "exit": 0
+    },
+    {
+      "name": "other_session",
+      "expected": {
+        "runId": "7c466c21-29f5-404f-bc88-393a44fe17e7",
+        "targetAlias": "other_session",
+        "target": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-b/sentinel.txt",
+        "canonicalTarget": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-b/sentinel.txt",
+        "canonicalVerified": true,
+        "targetExisted": true,
+        "contentSha256": "7479e580db285ec68cb5cd6614a9b8b2b257edcfba076a5d19d6c8ab0b15ac93",
+        "executorFingerprint": "1e238665b377c3ef21734890c783aa828cf912d175b90998b88276cefad0b25a",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "launchFingerprint": "8ff6373761b16a045d3626fa547abdcb5a73db222c51d321720c85326ea28383"
+      },
+      "receipt": {
+        "runId": "7c466c21-29f5-404f-bc88-393a44fe17e7",
+        "launchFingerprint": "8ff6373761b16a045d3626fa547abdcb5a73db222c51d321720c85326ea28383",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "executorFingerprint": "1e238665b377c3ef21734890c783aa828cf912d175b90998b88276cefad0b25a",
+        "terminationConfirmed": true,
+        "stopReason": "",
+        "commandTelemetry": "complete",
+        "origin": "controller_initiated_system_sandbox_not_model_tool",
+        "events": [
+          {
+            "type": "item.completed",
+            "item": {
+              "id": "7c466c21-29f5-404f-bc88-393a44fe17e7",
+              "type": "command_execution",
+              "command": "exec /bin/cat -- '/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-b/sentinel.txt'",
+              "status": "completed",
+              "exit_code": 1,
+              "aggregated_output": "cat: /PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-b/sentinel.txt: Operation not permitted\n"
+            }
+          }
+        ]
+      },
+      "verdict": {
+        "status": "denied",
+        "reason": "bound_terminal_os_denial",
+        "denied": true,
+        "runId": "7c466c21-29f5-404f-bc88-393a44fe17e7",
+        "targetAlias": "other_session",
+        "operation": "read",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "itemIds": [
+          "7c466c21-29f5-404f-bc88-393a44fe17e7"
+        ]
+      },
+      "exit": 1
+    },
+    {
+      "name": "symlink_escape",
+      "expected": {
+        "runId": "ae625214-2d77-4da9-85f5-d3070c286b7a",
+        "targetAlias": "symlink_escape",
+        "target": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-a/escape",
+        "canonicalTarget": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-b/sentinel.txt",
+        "canonicalVerified": true,
+        "targetExisted": true,
+        "contentSha256": "7479e580db285ec68cb5cd6614a9b8b2b257edcfba076a5d19d6c8ab0b15ac93",
+        "executorFingerprint": "1e238665b377c3ef21734890c783aa828cf912d175b90998b88276cefad0b25a",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "launchFingerprint": "787922567778972ad8856847e91facc03da2b014af559248aa3bec8d0d2520b7"
+      },
+      "receipt": {
+        "runId": "ae625214-2d77-4da9-85f5-d3070c286b7a",
+        "launchFingerprint": "787922567778972ad8856847e91facc03da2b014af559248aa3bec8d0d2520b7",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "executorFingerprint": "1e238665b377c3ef21734890c783aa828cf912d175b90998b88276cefad0b25a",
+        "terminationConfirmed": true,
+        "stopReason": "",
+        "commandTelemetry": "complete",
+        "origin": "controller_initiated_system_sandbox_not_model_tool",
+        "events": [
+          {
+            "type": "item.completed",
+            "item": {
+              "id": "ae625214-2d77-4da9-85f5-d3070c286b7a",
+              "type": "command_execution",
+              "command": "exec /bin/cat -- '/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-a/escape'",
+              "status": "completed",
+              "exit_code": 1,
+              "aggregated_output": "cat: /PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76/session-a/escape: Operation not permitted\n"
+            }
+          }
+        ]
+      },
+      "verdict": {
+        "status": "denied",
+        "reason": "bound_terminal_os_denial",
+        "denied": true,
+        "runId": "ae625214-2d77-4da9-85f5-d3070c286b7a",
+        "targetAlias": "symlink_escape",
+        "operation": "read",
+        "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c",
+        "itemIds": [
+          "ae625214-2d77-4da9-85f5-d3070c286b7a"
+        ]
+      },
+      "exit": 1
+    },
+    {
+      "name": "outside_directory",
+      "kind": "real_system_command",
+      "target": "/PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76",
+      "exit": 1,
+      "stderr": "ls: /PROBE_ROOT/runtime/isolation-7aeaff16-068a-496b-bf0f-fd62b52cfb76: Operation not permitted\n",
+      "permissionFingerprint": "563de5a4e6fde4fb181367352c9ffc90a959d9c03f16d206808d3377dc26d43c"
+    },
+    {
+      "name": "same_endpoint_network_control",
+      "endpointAlias": "OWN_LOOPBACK_CANARY",
+      "before": {
+        "exit": 0,
+        "matchedNonce": true,
+        "serverRequests": 1
+      },
+      "restricted": {
+        "exit": 7,
+        "serverRequests": 1,
+        "terminationConfirmed": true
+      },
+      "after": {
+        "exit": 0,
+        "matchedNonce": true,
+        "serverRequests": 2
+      },
+      "scope": "single local command endpoint; not model transport or all network destinations"
+    }
+  ]
+}

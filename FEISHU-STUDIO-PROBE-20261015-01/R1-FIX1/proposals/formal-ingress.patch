@@ -1,0 +1,178 @@
+--- a/scripts/feishu-event-bridge.mjs
++++ b/scripts/feishu-event-bridge.mjs
+@@ -9,7 +9,7 @@
+ /** The CLI owns WebSocket authentication and the shared bus. This bridge owns
+  * only its two consume subprocesses, and never stops another consumer's bus. */
+ export class FeishuEventBridge {
+- constructor({store,domain,monitor,client=new FeishuTaskClient(),launch=spawn,testMode=false,onMessage}={}){Object.assign(this,{store,domain,monitor,client,launch,testMode,onMessage});this.children=new Map();this.retries=new Map();this.streams={};this.queue=Promise.resolve();this.queued=0;this.closed=false;}
++ constructor({store,domain,monitor,client=new FeishuTaskClient(),launch=spawn,testMode=false,onMessage,testIngress=null}={}){Object.assign(this,{store,domain,monitor,client,launch,testMode,onMessage,testIngress});this.children=new Map();this.retries=new Map();this.streams={};this.queue=Promise.resolve();this.queued=0;this.closed=false;}
+  status(id){const c=this.monitor.control(id);return {enabled:!!c.eventPush?.enabled,revision:c.eventPush?.revision||0,streams:this.streams,lastEventAt:c.eventPush?.lastEventAt||'',received:c.eventPush?.received||0,error:c.eventPush?.error||'',coverage:'消息推送覆盖机器人可接收、且本人已授权采集的群；不覆盖本人全部私聊或没有机器人的群。用户纪要事件独立接收。未覆盖来源仍由原增量采集补齐。'};}
+  enabled(){return this.store.list().filter(w=>w.type!=='restored'&&this.monitor.control(w.id).enabled&&this.monitor.control(w.id).eventPush?.enabled);}
+  configure(id,input){const c=this.monitor.control(id);if(typeof input.enabled!=='boolean'||input.revision!==(c.eventPush?.revision||0))throw fail('事件接入设置已变化，请刷新');if(c.restored&&input.enabled)throw fail('恢复工作区不能接收实时事件');c.eventPush={...(c.eventPush||{}),enabled:input.enabled,revision:(c.eventPush?.revision||0)+1,error:''};this.monitor.save(id,c);this.sync();return this.status(id);}
+@@ -43,6 +43,8 @@
+   const control=this.monitor.control(workspaceId);if(!control.enabled||!control.eventPush?.enabled||control.restored)return;
+   const identity=await this.client.identity({signal:AbortSignal.timeout(30000)});
+   if(control.identity&&(control.identity.scope!==identity.scope||control.identity.userId!==identity.userId))throw fail('事件读取账号与已开启的采集身份不一致');
++  const probeMatch=this.testIngress?.match({identity,event,key});
++  if(probeMatch){await this.testIngress.handle(probeMatch);return;}
+   let source,reply;
+   if(key==='im.message.receive_v1'){
+    if(!/^om_[\w-]+$/.test(event.message_id||''))throw fail('推送缺少可核对的消息身份');
+--- a/scripts/agent-monitor.mjs
++++ b/scripts/agent-monitor.mjs
+@@ -15,9 +15,9 @@
+ 
+ /** Collection and recommendations only. There is no external-send or approval adapter here. */
+ export class AgentMonitor {
+-  constructor({ store, domain, reader = new PersonalMessageReader(), clock = () => new Date().toISOString(), testMode = false, sourceMode = testMode?'simulation':'live' }) {
++  constructor({ store, domain, reader = new PersonalMessageReader(), clock = () => new Date().toISOString(), testMode = false, sourceMode = testMode?'simulation':'live', testIngress = null }) {
+     if(!['simulation','live'].includes(sourceMode))throw fail('采集来源模式无效');
+-    Object.assign(this, { store, domain, reader, clock, testMode,sourceMode }); this.jobs = new Map(); this.suspended = new Set(); this.closed = false;
++    Object.assign(this, { store, domain, reader, clock, testMode,sourceMode,testIngress }); this.jobs = new Map(); this.suspended = new Set(); this.closed = false;
+   }
+   control(workspaceId) {
+     this.store.load(workspaceId);
+@@ -181,10 +181,11 @@
+         const windowSeconds=Math.max(30,Math.min(3600,initial.windowSeconds||3600)),wall=this.clock();
+         const start=new Date(Math.max(Date.parse(initial.startedAt),Date.parse(initial.personalThrough||initial.startedAt)-Math.min(15*60,windowSeconds/4)*1000)).toISOString();
+         const end=new Date(Math.min(Date.parse(wall),Date.parse(start)+windowSeconds*1000)).toISOString();
+-        const result = await this.reader.read({ start, end, signal: signalWithTimeout, discoverGroups:!!initial.discoverGroups, discoveryState:initial.discoveryState||{} });
++        const result = await this.reader.read({ start, end, signal: signalWithTimeout, discoverGroups:!!initial.discoverGroups, discoveryState:initial.discoveryState||{}, filterTestMessages:this.testIngress?messages=>this.testIngress.filterPolled({identity,messages}):undefined });
+         const afterIdentity=await this.reader.identity({signal:signalWithTimeout});
+         if(afterIdentity.scope!==identity.scope||afterIdentity.userId!==identity.userId)throw fail('读取期间飞书账号发生变化，本轮消息未保存',409);
+         if (signalWithTimeout.aborted) throw fail('本轮读取已取消');
++        if(this.testIngress)result.messages=await this.testIngress.filterPolled({identity,messages:result.messages});
+         this.store.transaction(() => {
+           c = this.control(workspaceId);
+           if (!c.enabled || c.revision !== initial.revision || c.generation !== initial.generation) throw fail('采集设置已变化，本轮结果未写入', 409);
+--- a/scripts/personal-message-reader.mjs
++++ b/scripts/personal-message-reader.mjs
+@@ -11,7 +11,7 @@
+ export class PersonalMessageReader {
+   constructor({ client = new FeishuTaskClient() } = {}) { this.client = client; }
+   identity(options) { return this.client.identity(options); }
+-  async read({ start, end, signal, discoverGroups = false, discoveryState = {} }) {
++  async read({ start, end, signal, discoverGroups = false, discoveryState = {}, filterTestMessages }) {
+     const messages = new Map(), issues = [];
+     const from=queryTime(start),to=queryTime(end,true);
+     for (const [channel, filter] of [['private', ['--chat-type', 'p2p']], ['mention', ['--is-at-me']]]) {
+@@ -40,6 +40,7 @@
+         if (page === 19) issues.push(`${channel === 'private' ? '私聊' : '@消息'}超出本轮分页范围；保留读取起点，下轮继续核对`);
+       }
+     }
++    if(filterTestMessages){const ordinary=await filterTestMessages([...messages.values()]);messages.clear();for(const row of ordinary)messages.set(row.message_id,row);}
+     let discovered;
+     if(discoverGroups){
+       try{
+--- a/scripts/local-http.mjs
++++ b/scripts/local-http.mjs
+@@ -58,15 +58,16 @@
+   const token=randomUUID(),origin='http://127.0.0.1:'+port;
+   const store=new LocalStore(dataDir,{testMode,failMigration:options.failMigration});
+   await store.initialize(legacy);
++  const testIngress=options.testIngress||null; // approved controller injection only; default is closed
+   const workItems=new WorkItems({store,domain});
+   const runtimeSettings=new AIRuntimeSettings(store);
+   const aiUsage=new AIUsage(store);
+   const backgroundAnalyse=(context,settings)=>aiUsage.run(context,{...settings,runtime:runtimeSettings.profile('background')},analyseFeedbackWithCodex);
+   const assistant=new CodexAssistant({...options.assistantOptions,store,domain,runtimeSettings,aiUsage});
+-  const agentMonitor=new AgentMonitor({...options.agentMonitorOptions,store,domain,testMode});
++  const agentMonitor=new AgentMonitor({...options.agentMonitorOptions,store,domain,testMode,testIngress});
+   const blockedRiskRead=async()=>{throw Error('隔离环境尚未配置风险补查适配器');};
+   const riskAgent=new RiskAgent({store,domain,monitor:agentMonitor,budgetStatus:()=>aiUsage.budgetStatus(),analyse:testMode?blockedRiskRead:backgroundAnalyse,reader:new RiskEvidenceReader({store,domain,...(testMode?{client:{identity:blockedRiskRead,run:blockedRiskRead}}:{})}),runtime:()=>runtimeSettings.profile('background'),...options.riskAgentOptions});
+-  const eventBridge=new FeishuEventBridge({store,domain,monitor:agentMonitor,testMode,...options.eventBridgeOptions});
++  const eventBridge=new FeishuEventBridge({store,domain,monitor:agentMonitor,testMode,...options.eventBridgeOptions,testIngress});
+   const feishuSync=new FeishuSync({...options.feishuSyncOptions,store,domain:options.feishuSyncOptions?.domain||domain});
+   const documentReader=new DeliverableDocumentReader({...options.documentReaderOptions,store,domain:options.documentReaderOptions?.domain||domain,dataDir});
+   const materialIntake=new MaterialIntake({store,domain,analyse:backgroundAnalyse,budgetStatus:()=>aiUsage.budgetStatus(),...options.intakeOptions});
+@@ -571,7 +572,7 @@
+   eventBridge.start();
+   meetingWorkflow.start();
+   if(Object.keys(notifications).length)notificationPump.start();
+-  const close=async()=>{workItems.close();clearInterval(periodic);await Promise.allSettled([...dataPublication.jobs.values()]);await Promise.all([coreInbox.close(),core.close(),eventBridge.close(),riskAgent.close(),projectChats.close(),agentMonitor.close(),comments.close(),assistant.close(),feishuSync.close(),documentReader.close(),feedbackIntake.close(),resultReview.close(),reminders.close(),taskContext.close(),meetingIntake.close(),caseChat.close(),approvalEvidence.close(),materialIntake.close(),meetingWorkflow.close(),notificationPump.close()]);return new Promise(resolve=>{server.close(()=>{store.close();resolve();});server.closeIdleConnections();});};
++  const close=async()=>{workItems.close();clearInterval(periodic);await Promise.allSettled([...dataPublication.jobs.values()]);await Promise.all([coreInbox.close(),core.close(),eventBridge.close(),riskAgent.close(),projectChats.close(),agentMonitor.close(),comments.close(),assistant.close(),feishuSync.close(),documentReader.close(),feedbackIntake.close(),resultReview.close(),reminders.close(),taskContext.close(),meetingIntake.close(),caseChat.close(),approvalEvidence.close(),materialIntake.close(),meetingWorkflow.close(),notificationPump.close()]);await testIngress?.close();return new Promise(resolve=>{server.close(()=>{store.close();resolve();});server.closeIdleConnections();});};
+   console.log('本地工作台 v2 已就绪：'+origin+'；SQLite：'+store.file);
+   return {server,store,close,origin,token,projectChats,dataPublication,comments,assistant,feishuSync,feedbackIntake,meetingIntake,caseChat,approvalEvidence,materialIntake,followups,reminders,meetingWorkflow,meetingMaterials,desktopNotifications,notificationPump,runtimeSettings,agentMonitor,riskAgent,eventBridge,core,coreInbox};
+ }
+--- /dev/null
++++ b/scripts/probe-operation.mjs
+@@ -0,0 +1,20 @@
++export class OperationStopped extends Error{
++  constructor(phase,reason){super(phase+':'+reason);this.phase=phase;this.reason=reason;}
++}
++
++/** Bounds the logical operation even if an adapter ignores AbortSignal. */
++export function bounded(phase,fn,{timeoutMs,signal,onUnderlying}={}){
++  if(signal?.aborted)return Promise.reject(new OperationStopped(phase,'cancelled'));
++  return new Promise((resolve,reject)=>{
++    const controller=new AbortController();let finished=false,timer;
++    const cleanup=()=>{clearTimeout(timer);signal?.removeEventListener('abort',cancel);};
++    const settle=(f,x)=>{if(finished)return;finished=true;cleanup();f(x);};
++    const cancel=()=>{settle(reject,new OperationStopped(phase,'cancelled'));controller.abort();};
++    signal?.addEventListener('abort',cancel,{once:true});
++    if(signal?.aborted){cancel();return;}
++    timer=setTimeout(()=>{settle(reject,new OperationStopped(phase,'timeout'));controller.abort();},timeoutMs);
++    const work=Promise.resolve().then(()=>{if(controller.signal.aborted)throw new OperationStopped(phase,'cancelled');return fn(controller.signal);});
++    onUnderlying?.(work);
++    work.then(v=>settle(resolve,v),e=>settle(reject,e));
++  });
++}
+--- /dev/null
++++ b/scripts/probe-ingress.mjs
+@@ -0,0 +1,56 @@
++// UNAPPLIED CANDIDATE. The current application never loads this module.
++import fs from 'node:fs';import {dirname} from 'node:path';import {DatabaseSync} from 'node:sqlite';import {createHash,randomUUID} from 'node:crypto';
++import {bounded} from './probe-operation.mjs';
++const hash=x=>createHash('sha256').update(JSON.stringify(x??null)).digest('hex');
++export class TestIngress{
++ constructor({file,appId,tenantId,enabled=false,windows=[],verify,enqueue,clock=()=>Date.now(),ioTimeoutMs=1000}){
++  if(ioTimeoutMs<1||ioTimeoutMs>30000)throw Error('INVALID_INGRESS_TIMEOUT');
++  Object.assign(this,{appId,tenantId,enabled,verify,enqueue,clock,ioTimeoutMs});this.windows=new Map(windows.map(w=>[w.token,w]));
++  for(const w of windows)if(!/^[a-f0-9]{32}$/.test(w.token)||!w.userId||!w.alias||!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.end<=w.start||w.end-w.start>3600000)throw Error('INVALID_TEST_WINDOW');
++  fs.mkdirSync(dirname(file),{recursive:true,mode:0o700});this.lock=file+'.owner';fs.mkdirSync(this.lock,{mode:0o700});fs.writeFileSync(this.lock+'/owner.json',JSON.stringify({id:randomUUID(),pid:process.pid,at:new Date().toISOString()}),{mode:0o600});
++  this.db=new DatabaseSync(file);try{this.db.exec('CREATE TABLE IF NOT EXISTS scope(k TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS tokens(token TEXT PRIMARY KEY,data TEXT); CREATE TABLE IF NOT EXISTS claims(id TEXT PRIMARY KEY,status TEXT,data TEXT); CREATE TABLE IF NOT EXISTS sessions(k TEXT PRIMARY KEY);');
++  this.db.exec('BEGIN IMMEDIATE');const scope=hash([appId,tenantId]),priorScope=this.db.prepare('SELECT k FROM scope').get();if(priorScope&&priorScope.k!==scope)throw Error('INGRESS_SCOPE_CHANGED');if(!priorScope)this.db.prepare('INSERT INTO scope VALUES(?)').run(scope);
++  for(const row of this.db.prepare('SELECT * FROM tokens').all()){const old=JSON.parse(row.data),next=this.windows.get(row.token);if(next&&JSON.stringify(next)!==JSON.stringify(old))throw Error('TEST_TOKEN_REUSE_DENIED');this.windows.set(row.token,old);}
++  for(const w of this.windows.values())this.db.prepare('INSERT OR IGNORE INTO tokens VALUES(?,?)').run(w.token,JSON.stringify(w));
++  this.db.exec("UPDATE claims SET status='held_after_restart' WHERE status IN ('verifying','dispatching')");
++  this.db.exec('COMMIT');}catch(e){try{this.db.exec('ROLLBACK');}catch{}this.db.close();fs.unlinkSync(this.lock+'/owner.json');fs.rmdirSync(this.lock);throw e;}
++  this.lifetime=new AbortController();this.pending=new Set();this.closed=false;
++ }
++ match({identity,event,key,source='event'}){
++  if(key!=='im.message.receive_v1')return null;
++  if(this.closed)throw Error('INGRESS_CLOSED_KEEP_TEST_QUARANTINE');
++  const prior=this.db.prepare('SELECT * FROM claims WHERE id=?').get(event.message_id||'');
++  let window;for(const w of this.windows.values())if(typeof event.content==='string'&&(event.content===`#PROBE ${w.token}`||event.content.startsWith(`#PROBE ${w.token} `))){window=w;break;}
++  if(!prior&&!window)return null;
++  return Object.freeze({identity,event,source,window:window||this.windows.get(JSON.parse(prior.data).token),prior});
++ }
++ async filterPolled({identity,messages}){
++  const ordinary=[];
++  for(const m of messages){const e={message_id:m.message_id,content:m.content,sender_id:typeof m.sender?.id==='string'?m.sender.id:m.sender?.id?.open_id||m.sender?.open_id,chat_id:m.chat_id,chat_type:m.chat_type,create_time:m.create_time};const match=this.match({identity,event:e,key:'im.message.receive_v1',source:'polling'});if(match)await this.handle(match);else ordinary.push(m);}
++  return ordinary;
++ }
++ handle(match){const p=this.route(match);this.pending.add(p);p.then(()=>this.pending.delete(p),()=>this.pending.delete(p));return p;}
++ save(id,status,data){this.db.prepare('INSERT INTO claims VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,data=excluded.data').run(id,status,JSON.stringify(data));return {handled:true,status};}
++ async route({identity,event:e,source,window:w}){
++  const old=this.db.prepare('SELECT * FROM claims WHERE id=?').get(e.message_id);
++  if(old&&!(source==='event'&&old.status==='observed_polling'))return {handled:true,status:'duplicate',storedStatus:old.status};
++  const data={token:w?.token||'',senderHash:hash(e.sender_id),chatHash:hash(e.chat_id),contentHash:hash(e.content),source};
++  if(source==='polling')return this.save(e.message_id,'observed_polling',data); // suppress collection; only a later verified event may execute
++  // A recognized test namespace is held even when disabled, invalid or late.
++  if(!w||typeof e.message_id!=='string'||!e.message_id.startsWith('om_')||!Number.isFinite(Number(e.create_time))||identity.appId!==this.appId||identity.tenantKey!==this.tenantId||e.sender_id!==w.userId||e.chat_type!=='p2p'||e.sender_type!=='user')return this.save(e.message_id,'quarantined_identity',data);
++  if(!this.enabled)return this.save(e.message_id,'held_disabled',data);
++  if(this.clock()<w.start||this.clock()>=w.end||Number(e.create_time)<w.start||Number(e.create_time)>=w.end)return this.save(e.message_id,'held_window',data);
++  this.save(e.message_id,'verifying',data);
++  let verified;
++  try{verified=await bounded('verify_test_message',s=>this.verify(e.message_id,{signal:s}),{timeoutMs:this.ioTimeoutMs,signal:this.lifetime.signal});}catch{return this.save(e.message_id,'held_verification',data);}
++  if(!verified||['message_id','sender_id','sender_type','chat_id','chat_type','content','create_time'].some(k=>String(e[k])!==String(verified[k]))||verified.appId!==this.appId||verified.tenantKey!==this.tenantId)return this.save(e.message_id,'quarantined_readback',data);
++  if(!this.enabled||this.lifetime.signal.aborted)return this.save(e.message_id,'held_disabled',data);
++  if(this.clock()>=w.end)return this.save(e.message_id,'held_window',data);
++  const action=e.content.slice(`#PROBE ${w.token}`.length).trim(),session=hash([this.appId,this.tenantId,e.sender_id,e.chat_id,w.token]);
++  if(action==='BEGIN'){this.db.prepare('INSERT OR IGNORE INTO sessions VALUES(?)').run(session);return this.save(e.message_id,'activated',data);}
++  if(action!=='RUN'||!this.db.prepare('SELECT k FROM sessions WHERE k=?').get(session))return this.save(e.message_id,'held_session',data);
++  this.save(e.message_id,'dispatching',data);
++  try{await bounded('dispatch_test_job',s=>this.enqueue({jobId:hash([this.appId,e.message_id]),sessionId:session,participantAlias:w.alias,operation:'synthetic_sum',expiresAt:w.end},{signal:s}),{timeoutMs:this.ioTimeoutMs,signal:this.lifetime.signal});return this.save(e.message_id,this.clock()>=w.end||this.lifetime.signal.aborted?'worker_ack_late':'worker_accepted',data);}catch{return this.save(e.message_id,'worker_unknown',data);}
++ }
++ async close(){this.enabled=false;this.lifetime.abort();await Promise.allSettled([...this.pending]);this.closed=true;this.db.close();fs.unlinkSync(this.lock+'/owner.json');fs.rmdirSync(this.lock);}
++}

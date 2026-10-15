@@ -1,0 +1,58 @@
+{
+  "kind": "actual_final_zip_unzip_verify_and_offline_retest",
+  "at": "2026-10-15T08:42:19.603245+00:00",
+  "archiveName": "Studio迁移验证包_R1-FIX1_20261015.zip",
+  "archiveSha256": "cd0da725352c938768555247e09b44d86d9bc8bdc95da7903c3b2b992661b0a4",
+  "archiveBytes": 89226,
+  "archiveEntries": 52,
+  "payloadHashesVerified": 51,
+  "manifestSelfExcluded": true,
+  "allPassed": true,
+  "checks": [
+    {
+      "command": "node --test tests/adapter.test.mjs tests/broker.test.mjs tests/budget.test.mjs tests/isolation-evidence.test.mjs tests/lifecycle.test.mjs tests/proposal.test.mjs",
+      "exit": 0,
+      "expected": 0,
+      "stdout": "✔ AP03 broker -> production process manager -> fake executable -> validated projection -> fake reply/readback (114.937334ms)\n✔ offline wiring rejects failed (96.265458ms)\n✔ offline wiring rejects extra (84.242667ms)\n✔ offline wiring rejects wrong-marker (89.841958ms)\n✔ offline wiring rejects no-complete (85.548875ms)\n✔ offline wiring rejects clarify (87.404125ms)\n✔ offline wiring rejects late (112.225166ms)\n✔ stopped offline wiring cannot emit a late reply (7.279292ms)\n✔ whitelist, tenant, app and group gates prevent model and reply (13.405583ms)\n✔ authoritative readback rejects forged sender or altered content (9.300792ms)\n✔ activation, explicit capability and reply binding (13.674167ms)\n✔ duplicate delivery and process restart do not rerun or resend (11.893208ms)\n✔ two synthetic people retain separate markers, directories and histories (16.157083ms)\n✔ message cannot raise privilege or request other session (8.473416ms)\n✔ model cannot supply another receiver (11.154292ms)\n✔ uncertain send survives restart without blind retry (12.19375ms)\n✔ deadline and persistent model budget stop work (13.32225ms)\n✔ timeout aborts worker and late completion sends nothing (19.003708ms)\n✔ recovered running/sending states are held, not retried (10.352667ms)\n✔ inherited counts, single concurrency, four incremental attempts and repeated import (28.34775ms)\n✔ unconfirmed termination retains active slot and consumed attempt (6.968166ms)\n✔ bound terminal target denial is recognized (0.7225ms)\n✔ AP01 printed denial without read (0.105042ms)\n✔ AP02 nonterminal/null (0.1415ms)\n✔ missing numeric exit (0.056541ms)\n✔ wrong target (0.111417ms)\n✔ wrong action (0.044041ms)\n✔ command plus forged denial (0.175667ms)\n✔ tool missing (0.119792ms)\n✔ target missing (0.061875ms)\n✔ unrelated error text (0.190459ms)\n✔ wrong exit type (0.091291ms)\n✔ model self-report and absent telemetry remain insufficient (0.080333ms)\n✔ timeout cannot become denial (0.153125ms)\n✔ cancelled cannot become denial (0.033042ms)\n✔ run, policy, executor and launch binding mismatch rejected (0.052833ms)\n✔ positive read is reported as success, never isolation pass (0.074708ms)\n✔ AP08 already aborted signal starts no child (2.035208ms)\n✔ actual stubborn process group is cancelled, escalated and confirmed absent (143.517041ms)\nℹ {\"kind\":\"actual_subprocess_group\",\"elapsedMs\":144,\"stopReason\":\"cancelled\",\"signals\":[\"SIGTERM\",\"SIGKILL\"],\"terminationConfirmed\":true,\"residualPids\":[]}\n✔ AP06 stalled verification has its own deadline and durable outcome (38.169625ms)\n✔ stop during verification ignores a late valid identity (11.097459ms)\n✔ AP05 unresponsive send times out to unknown and never repeats (42.075666ms)\n✔ AP09 readback timeout preserves sent receipt (37.895083ms)\n✔ stop cancels an in-flight send; late send result cannot mark readback (17.186209ms)\n✔ AP07 crash-queued becomes explicit interrupted_unstarted on restart (9.707791ms)\n✔ second broker cannot mutate the first owner state (6.169167ms)\n✔ AP04 stop reaches and terminates actual process worker (316.228083ms)\nℹ {\"kind\":\"broker_to_process_stop\",\"reason\":\"operator_stop\",\"elapsedMs\":285,\"logicalOperations\":0,\"unsettledWorkers\":0,\"settled\":true,\"confirmed\":true,\"processTerminationConfirmed\":true}\n✔ candidate event hook diverts only explicit verified sessions before formal save (12.620458ms)\n✔ same whitelist user ordinary business remains ordinary (7.843708ms)\n✔ wrong tenant, wrong actor and group are quarantined, never executed (6.518209ms)\n✔ unverified sender mismatch is held before dispatch (4.94625ms)\n✔ missing timestamp cannot bypass test window (5.557ms)\n✔ worker offline and timeout cannot fall back to formal ingestion (36.663292ms)\n✔ duplicates and late test messages remain quarantined after disable/restart (4.973708ms)\n✔ expiry retains test namespace while ordinary business continues (7.940459ms)\n✔ minutes event never enters test dispatcher (2.772958ms)\n✔ poll-first observation suppresses ingestion but later real-shaped event may claim once (5.182458ms)\n✔ candidate polling hook excludes test bot output and keeps ordinary source (4.484708ms)\n✔ candidate reader excludes reserved test mentions before group discovery triggers (3.861334ms)\nℹ tests 59\nℹ suites 0\nℹ pass 59\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 726.881792\n",
+      "stderr": ""
+    },
+    {
+      "command": "node src/import-budget.mjs",
+      "exit": 0,
+      "expected": 0,
+      "stdout": "{\n  total: 3,\n  newCalls: 0,\n  active: 0,\n  roundLimit: 20,\n  incrementalLimit: 4,\n  concurrency: 1\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": "node src/import-budget.mjs",
+      "exit": 0,
+      "expected": 0,
+      "stdout": "{\n  total: 3,\n  newCalls: 0,\n  active: 0,\n  roundLimit: 20,\n  incrementalLimit: 4,\n  concurrency: 1\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": "node src/start.mjs",
+      "exit": 2,
+      "expected": 2,
+      "stdout": "",
+      "stderr": "BLOCKED: R1-FIX1 真人入口关闭。应用范围、正式入库前分流、执行身份与模型路径证据仍待批准或补证。未连接飞书事件总线，未发送消息。\n"
+    },
+    {
+      "command": "node src/local-probe.mjs",
+      "exit": 2,
+      "expected": 2,
+      "stdout": "",
+      "stderr": "BLOCKED_B03: current operator bootstrap boundary is not isolated. Use the offline tests and preflight; no real model call was started.\n"
+    },
+    {
+      "command": "node tests/model-isolation.mjs",
+      "exit": 2,
+      "expected": 2,
+      "stdout": "",
+      "stderr": "BLOCKED_B03_B04: same-launch bootstrap isolation and complete model command receipts are not established. No model call was started. Do not lower the evidence predicate.\n"
+    }
+  ],
+  "realModelCalls": 0,
+  "feishuCalls": 0,
+  "studioTested": false
+}
