@@ -1,0 +1,106 @@
+
+> test
+> node --test tests/*.test.mjs
+
+✔ AP03 broker -> production process manager -> fake executable -> validated projection -> fake reply/readback (238.2855ms)
+✔ offline wiring rejects failed (205.863833ms)
+✔ offline wiring rejects extra (191.897791ms)
+✔ offline wiring rejects wrong-marker (138.132292ms)
+✔ offline wiring rejects no-complete (114.827542ms)
+✔ offline wiring rejects clarify (120.556417ms)
+✔ offline wiring rejects late (153.337875ms)
+✔ stopped offline wiring cannot emit a late reply (33.950792ms)
+✔ whitelist, tenant, app and group gates prevent model and reply (41.185625ms)
+✔ authoritative readback rejects forged sender or altered content (61.250417ms)
+✔ activation, explicit capability and reply binding (123.082542ms)
+✔ duplicate delivery and process restart do not rerun or resend (153.021375ms)
+✔ two synthetic people retain separate markers, directories and histories (152.769666ms)
+✔ message cannot raise privilege or request other session (33.024916ms)
+✔ model cannot supply another receiver (38.025916ms)
+✔ uncertain send survives restart without blind retry (54.066125ms)
+✔ deadline and persistent model budget stop work (45.191084ms)
+✔ timeout aborts worker and late completion sends nothing (39.216541ms)
+✔ recovered running/sending states are held, not retried (24.414167ms)
+✔ inherited counts, single concurrency, four incremental attempts and repeated import (70.004875ms)
+✔ unconfirmed termination retains active slot and consumed attempt (27.830166ms)
+✔ one broker selects both roles for the same synthetic user and binds local receipts (OFFLINE) (420.767083ms)
+ℹ {"kind":"OFFLINE_ONLY","realModelCalls":0,"entry":"createDualRoleProbe.submit -> ProbeBroker.accept -> process -> executeTracked -> runCodex(offline-fixture) -> validation -> local reply/readback","selections":[{"requestId":"synthetic-request-A","agentId":"test-summary","configurationSha256":"00dd2f62fa6b263e0eb3f393987d39ad293a82434ec35341bf00b4fe79406907","instructionsSha256":"710814986230904f5aa4635f52fc01401cf93620e9a23ecbc9b103868016ea45","runId":"5df6163b-c62d-460a-bd7f-b9479369e04c","executionKind":"offline-fixture","sourceMarker":"1eb2e27c-7ce7-412a-accd-97f0f2450c36","historyPassedToRunner":false,"result":{"source_marker":"1eb2e27c-7ce7-412a-accd-97f0f2450c36","source":"synthetic.json:tests","total":10,"passed":7,"failed":2,"blocked":1,"pass_rate_percent":70},"terminationConfirmed":true},{"requestId":"synthetic-request-B","agentId":"action-extract","configurationSha256":"415ff4c775e58ab71d4ebc04a8eee51010c1ed7ee99b558c8697a6752e3e99b5","instructionsSha256":"9ef12ea5b3bb16128065fb08e49af7603f06626a525e9790ebcc6d5ffde013f4","runId":"3518af22-0af7-430b-b994-275e56af8af4","executionKind":"offline-fixture","sourceMarker":"81ac4d9c-0ab2-4f38-a0d2-87f9b6ce65fe","historyPassedToRunner":false,"result":{"source_marker":"81ac4d9c-0ab2-4f38-a0d2-87f9b6ce65fe","source":"synthetic.json:minutes","tasks":[{"task":"补充接口说明","owner":"合成成员甲","deadline":null},{"task":"复核测试结果","owner":"合成成员乙","deadline":"2026-10-19"}]},"terminationConfirmed":true}],"receipts":[{"messageId":"local-receipt-1","chatId":"synthetic-chat-A","text":"【合成测试 77d9bcda-dc74-4a80-9da0-ae1cd25e3ff6】{\"source_marker\":\"1eb2e27c-7ce7-412a-accd-97f0f2450c36\",\"source\":\"synthetic.json:tests\",\"total\":10,\"passed\":7,\"failed\":2,\"blocked\":1,\"pass_rate_percent\":70}","target":{"messageId":"synthetic-request-A","chatId":"synthetic-chat-A","senderId":"synthetic-A","idempotencyKey":"768f28337f842e91dc58108575b40e5412440e5b86805e9c"}},{"messageId":"local-receipt-3","chatId":"synthetic-chat-B","text":"【合成测试 5c9a6100-939b-4608-b8c4-d56fce4cb4d4】{\"source_marker\":\"81ac4d9c-0ab2-4f38-a0d2-87f9b6ce65fe\",\"source\":\"synthetic.json:minutes\",\"tasks\":[{\"task\":\"补充接口说明\",\"owner\":\"合成成员甲\",\"deadline\":null},{\"task\":\"复核测试结果\",\"owner\":\"合成成员乙\",\"deadline\":\"2026-10-19\"}]}","target":{"messageId":"synthetic-request-B","chatId":"synthetic-chat-B","senderId":"synthetic-A","idempotencyKey":"e1e585f2f91868a66c32e5c23603ae8c3bc204b44ad8ba81"}}]}
+✔ role bindings and foreign input cannot pass result projection (0.598791ms)
+✔ real path stays closed and starts no process when minimum isolation is blocked (101.073ms)
+✔ missing termination receipt cannot be replaced by a successful returned business result (101.075958ms)
+✔ opaque executor without a process/no-spawn contract is not assumed safe (104.487125ms)
+✔ timeout then late unknown cannot rewrite sealed state (319.782083ms)
+✔ timeout then late success cannot rewrite sealed state (255.743625ms)
+✔ actual exit-unknown survives stripped errors, then only fresh OS reconciliation releases owner (164.252583ms)
+ℹ {"kind":"actual_short_child_with_injected_inspection_failure","injectedUnknown":true,"realGroupAbsentBeforeReconcile":true,"stopConfirmed":false,"ownerRetainedUntilCheck":true,"reconcileUsedRealOsChecks":true,"ownerReleasedAfterCheck":true}
+✔ canonical termination persistence failure keeps durable blocking state even after real exit (63.138625ms)
+✔ closed concurrent/repeated calls are idempotent and do not double-release (29.053875ms)
+✔ explicit pre-spawn cancellation and confirmed nonzero exit are safe failure paths (70.956333ms)
+✔ unknown state copied without owner still blocks restart and cannot be reconciled on another host (42.861458ms)
+✔ an asynchronous process intent after confirmed close cannot spawn a new child (76.331917ms)
+✔ managed adapter cannot claim safe exit with only an exception hint (21.92875ms)
+✔ mismatched terminal identity never replaces the started binding or permits recovery (33.714292ms)
+✔ owner PID reuse/mismatched startup identity is not auto-recoverable (9.60625ms)
+✔ all clearance paths reject parent confirmed with unsafe or unproved child records (498.44325ms)
+✔ required executor rejects late spawn after settle before stop (175.740417ms)
+ℹ {"scenario":"settled-before-stop","parent":"confirmed","children":["confirmed"],"lateSpawned":false,"stopConfirmed":true,"ownerRetained":false,"newAdmitted":true,"oldGroupMembers":[]}
+ℹ {"cleanupConfirmed":true,"residualPids":[]}
+✔ required executor rejects late spawn after settle after close (183.554959ms)
+ℹ {"scenario":"after-close-control","parent":"confirmed","children":["confirmed"],"lateSpawned":false,"stopConfirmed":true,"ownerRetained":false,"newAdmitted":true,"oldGroupMembers":[]}
+ℹ {"cleanupConfirmed":true,"residualPids":[]}
+✔ bound terminal target denial is recognized (1.126292ms)
+✔ AP01 printed denial without read (0.082458ms)
+✔ AP02 nonterminal/null (0.049542ms)
+✔ missing numeric exit (0.117708ms)
+✔ wrong target (0.069041ms)
+✔ wrong action (0.046458ms)
+✔ command plus forged denial (0.05525ms)
+✔ tool missing (0.052375ms)
+✔ target missing (0.053ms)
+✔ unrelated error text (0.105708ms)
+✔ wrong exit type (0.051333ms)
+✔ model self-report and absent telemetry remain insufficient (0.058792ms)
+✔ timeout cannot become denial (0.043583ms)
+✔ cancelled cannot become denial (0.026125ms)
+✔ run, policy, executor and launch binding mismatch rejected (0.0495ms)
+✔ positive read is reported as success, never isolation pass (0.10425ms)
+✔ AP08 already aborted signal starts no child (1.453292ms)
+✔ actual stubborn process group is cancelled, escalated and confirmed absent (133.945917ms)
+ℹ {"kind":"actual_subprocess_group","elapsedMs":134,"stopReason":"cancelled","signals":["SIGTERM","SIGKILL"],"terminationConfirmed":true,"residualPids":[]}
+✔ AP06 stalled verification has its own deadline and durable outcome (130.816833ms)
+✔ stop during verification ignores a late valid identity (90.112958ms)
+✔ AP05 unresponsive send times out to unknown and never repeats (145.303125ms)
+✔ AP09 readback timeout preserves sent receipt (78.81175ms)
+✔ stop cancels an in-flight send; late send result cannot mark readback (41.628584ms)
+✔ AP07 crash-queued becomes explicit interrupted_unstarted on restart (41.939291ms)
+✔ second broker cannot mutate the first owner state (26.3835ms)
+✔ AP04 stop reaches and terminates actual process worker (318.757ms)
+ℹ {"kind":"broker_to_process_stop","reason":"operator_stop","elapsedMs":272,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":true,"unknownExecutions":[],"persistenceFault":false,"confirmed":true}
+✔ candidate event hook diverts only explicit verified sessions before formal save (35.7405ms)
+✔ same whitelist user ordinary business remains ordinary (51.180541ms)
+✔ wrong tenant, wrong actor and group are quarantined, never executed (39.965167ms)
+✔ unverified sender mismatch is held before dispatch (57.107667ms)
+✔ missing timestamp cannot bypass test window (41.199ms)
+✔ worker offline and timeout cannot fall back to formal ingestion (189.500875ms)
+✔ duplicates and late test messages remain quarantined after disable/restart (79.413542ms)
+✔ expiry retains test namespace while ordinary business continues (39.404917ms)
+✔ minutes event never enters test dispatcher (9.711333ms)
+✔ poll-first observation suppresses ingestion but later real-shaped event may claim once (18.123833ms)
+✔ candidate polling hook excludes test bot output and keeps ordinary source (3.033084ms)
+✔ candidate reader excludes reserved test mentions before group discovery triggers (15.82775ms)
+✔ C01 positive control: idle broker confirms clean stop (69.900042ms)
+✔ C02 positive control: unresolved worker keeps stop unconfirmed and owner retained (191.320958ms)
+✔ B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop (129.340583ms)
+ℹ {"scenario":"unknown-before-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"messageStatus":"model_failed","stopReceipt":{"reason":"operator_stop","elapsedMs":8,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":false,"unknownExecutions":[{"executionId":"5c44eb56-b1e9-44be-92bc-bc3d32ca6fbd","messageId":"run","status":"unknown","runnerIds":[],"processes":[]}],"persistenceFault":false,"confirmed":false},"ownerExistsAfterClose":true,"realChildSpawned":false}
+✔ B01b safety: worker reporting unknown termination DURING stop must retain ownership (77.879666ms)
+ℹ {"scenario":"unknown-during-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"stopReceipt":{"reason":"operator_stop","elapsedMs":24,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":false,"unknownExecutions":[{"executionId":"fde655d1-1c03-4034-8d23-d0aade5bb55c","messageId":"run","status":"unknown","runnerIds":[],"processes":[]}],"persistenceFault":false,"confirmed":false},"ownerExistsAfterClose":true,"realChildSpawned":false}
+✔ C03 positive control: cooperative cancelled worker finishes before confirmed stop (68.470041ms)
+✔ C04 positive control: the separate model budget DOES retain unknown-termination occupancy (18.473042ms)
+ℹ tests 84
+ℹ suites 0
+ℹ pass 84
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1343.988083

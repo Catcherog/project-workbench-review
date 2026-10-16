@@ -1,0 +1,784 @@
+[
+  {
+    "root": "/DELEGATION_ROOT/runtime/demo-direct-b0ee997a-2c63-437b-9190-5f8a9a3a7337",
+    "synthetic": true,
+    "trustedPublicKeys": {
+      "bot": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAXsMVZa6lJHTa3i3i8lN1Z4gB1BZuz7UOCN3rB+UA4q8=\n-----END PUBLIC KEY-----\n",
+      "human": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA9S7yAXFLsZxC63QfmocT6Z/g71/8/OTgHUKeh2hH9Fk=\n-----END PUBLIC KEY-----\n",
+      "receiver": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEACpbotmkuyrLOxilgl6bdSYDKX2Q92aF+UIy81HMHaIs=\n-----END PUBLIC KEY-----\n"
+    },
+    "policy": {
+      "version": 1,
+      "binding": {
+        "version": 1,
+        "active": true,
+        "bot": "demo-engineer-bot",
+        "human": "demo-engineer-01"
+      },
+      "read": true,
+      "disclose": true,
+      "resourceVersion": "v1",
+      "revokedRequests": []
+    },
+    "confirmationMode": "direct-human-adapter",
+    "outcome": {
+      "status": "LOCAL_DELIVERY_VERIFIED",
+      "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+      "receiptId": "4c962b4a-4cb0-4a2f-b3ea-1ad6e3764046"
+    },
+    "counts": {
+      "summaryReads": 2,
+      "rawLogReads": 0,
+      "deliveryTools": 1,
+      "dispatches": 1,
+      "readbacks": 1
+    },
+    "receiverRecords": [
+      {
+        "id": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+        "hash": "73b1756764fa9d01d95ec7df3f6bd3ad2b92d803f6a83174711333e119dd0e83",
+        "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+        "receipt": "{\"protocol\":\"demo-delegation/v1\",\"channel\":\"receiver\",\"principal\":\"demo-muyi-bot\",\"payload\":{\"kind\":\"local-receipt\",\"requestId\":\"request-777ac647-157d-4032-a2ff-5ff57b267fea\",\"snapshotHash\":\"73b1756764fa9d01d95ec7df3f6bd3ad2b92d803f6a83174711333e119dd0e83\",\"contentSha256\":\"8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951\",\"recipient\":\"demo-muyi-01\",\"target\":\"demo-muyi-bot\",\"receiptId\":\"4c962b4a-4cb0-4a2f-b3ea-1ad6e3764046\",\"receivedAt\":1792108800000,\"synthetic\":true},\"signature\":\"XtuFH6RD56p8jsnn8+EOS/Qa5bTCIRgAmxupj6ljzn6sJQkcOeNW2fTVmxXBlhCJ3SHa9/n7b4sxZC0lDFa1CQ==\"}"
+      }
+    ],
+    "transcript": [
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "intent",
+            "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+            "nonce": "5132f07f-a41d-4e3f-8aa9-d8054e0fa49a",
+            "tenant": "demo-tenant",
+            "app": "demo-engineer-app",
+            "bot": "demo-engineer-bot",
+            "human": "demo-engineer-01",
+            "target": "demo-muyi-bot",
+            "targetApp": "demo-muyi-app",
+            "text": "把测试进展给指定合成接收人看一下",
+            "hops": 0
+          },
+          "signature": "t8v5X/zCy1tp6IR2KQ3khNSmvnCVNg9z/91op/QcgxXV388P5eCkYO8L+1wg3He0WRGSmGM/H6gAtIu8IfHyBA=="
+        }
+      },
+      {
+        "kind": "clarification",
+        "value": {
+          "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+          "question": "请一次确认项目、资料版本和范围：项目 X 的 v1 测试摘要，不附原始日志，交给指定合成接收人用于测试摘要审核，对吗？"
+        }
+      },
+      {
+        "kind": "synthetic-human-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "human",
+          "principal": "demo-engineer-01",
+          "payload": {
+            "kind": "answer",
+            "synthetic": true,
+            "human": "demo-engineer-01",
+            "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+            "intentHash": "ad3f32b45535d1f10174c188de4a2e7277a5d4b67952aac6f394f6790729b20a",
+            "answers": {
+              "resourceId": "demo-project-x/test-summary",
+              "resourceVersion": "v1",
+              "recipient": "demo-muyi-01",
+              "purpose": "review-test-summary"
+            }
+          },
+          "signature": "vFQAiE6onyVj8QB+PqZVK+/MrkzvlXPtBkRezhqraT+c7dsjfaA3fcQhJRqSzu5liQ5K0rOnwr3fCJ9LQCAuDQ=="
+        }
+      },
+      {
+        "kind": "exact-preview",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+          "tenant": "demo-tenant",
+          "app": "demo-engineer-app",
+          "bot": "demo-engineer-bot",
+          "human": "demo-engineer-01",
+          "targetApp": "demo-muyi-app",
+          "target": "demo-muyi-bot",
+          "recipient": "demo-muyi-01",
+          "resourceId": "demo-project-x/test-summary",
+          "resourceVersion": "v1",
+          "purpose": "review-test-summary",
+          "action": "deliver-summary",
+          "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+          "contentSha256": "8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951",
+          "policyVersion": 1,
+          "bindingVersion": 1,
+          "issuedAt": 1792108800000,
+          "expiresAt": 1792109100000,
+          "nonce": "5132f07f-a41d-4e3f-8aa9-d8054e0fa49a",
+          "confirmationRef": "974a8bfa-3468-4b9e-b865-7809b8d549d9",
+          "hops": 0
+        }
+      },
+      {
+        "kind": "synthetic-human-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "human",
+          "principal": "demo-engineer-01",
+          "payload": {
+            "kind": "confirmation",
+            "synthetic": true,
+            "human": "demo-engineer-01",
+            "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+            "snapshotHash": "73b1756764fa9d01d95ec7df3f6bd3ad2b92d803f6a83174711333e119dd0e83",
+            "decision": "approve",
+            "issuedAt": 1792108800000,
+            "expiresAt": 1792109100000,
+            "confirmationRef": "974a8bfa-3468-4b9e-b865-7809b8d549d9"
+          },
+          "signature": "RC5KYhB9HGAJOiymJaKVdbu7pV1hOKb7zzVzJK0t4P27VVzRTQrjECyT2j2Ko1Musv2SwcguAbBBNf+DvwCQCA=="
+        }
+      },
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "deliver",
+            "snapshot": {
+              "protocol": "demo-delegation/v1",
+              "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+              "tenant": "demo-tenant",
+              "app": "demo-engineer-app",
+              "bot": "demo-engineer-bot",
+              "human": "demo-engineer-01",
+              "targetApp": "demo-muyi-app",
+              "target": "demo-muyi-bot",
+              "recipient": "demo-muyi-01",
+              "resourceId": "demo-project-x/test-summary",
+              "resourceVersion": "v1",
+              "purpose": "review-test-summary",
+              "action": "deliver-summary",
+              "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+              "contentSha256": "8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951",
+              "policyVersion": 1,
+              "bindingVersion": 1,
+              "issuedAt": 1792108800000,
+              "expiresAt": 1792109100000,
+              "nonce": "5132f07f-a41d-4e3f-8aa9-d8054e0fa49a",
+              "confirmationRef": "974a8bfa-3468-4b9e-b865-7809b8d549d9",
+              "hops": 0
+            },
+            "confirmation": {
+              "protocol": "demo-delegation/v1",
+              "channel": "human",
+              "principal": "demo-engineer-01",
+              "payload": {
+                "kind": "confirmation",
+                "synthetic": true,
+                "human": "demo-engineer-01",
+                "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+                "snapshotHash": "73b1756764fa9d01d95ec7df3f6bd3ad2b92d803f6a83174711333e119dd0e83",
+                "decision": "approve",
+                "issuedAt": 1792108800000,
+                "expiresAt": 1792109100000,
+                "confirmationRef": "974a8bfa-3468-4b9e-b865-7809b8d549d9"
+              },
+              "signature": "RC5KYhB9HGAJOiymJaKVdbu7pV1hOKb7zzVzJK0t4P27VVzRTQrjECyT2j2Ko1Musv2SwcguAbBBNf+DvwCQCA=="
+            }
+          },
+          "signature": "4lMGxHWedL4vERh9Se1Q6mo9x6eWDIXdlyRHb17qNwH7vtZq/3njZi4c2zPF6hu1QzXZ32Ke0jQDAKdTgLd1Bg=="
+        }
+      },
+      {
+        "kind": "local-receipt",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "receiver",
+          "principal": "demo-muyi-bot",
+          "payload": {
+            "kind": "local-receipt",
+            "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+            "snapshotHash": "73b1756764fa9d01d95ec7df3f6bd3ad2b92d803f6a83174711333e119dd0e83",
+            "contentSha256": "8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951",
+            "recipient": "demo-muyi-01",
+            "target": "demo-muyi-bot",
+            "receiptId": "4c962b4a-4cb0-4a2f-b3ea-1ad6e3764046",
+            "receivedAt": 1792108800000,
+            "synthetic": true
+          },
+          "signature": "XtuFH6RD56p8jsnn8+EOS/Qa5bTCIRgAmxupj6ljzn6sJQkcOeNW2fTVmxXBlhCJ3SHa9/n7b4sxZC0lDFa1CQ=="
+        }
+      },
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "readback",
+            "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+            "snapshotHash": "73b1756764fa9d01d95ec7df3f6bd3ad2b92d803f6a83174711333e119dd0e83"
+          },
+          "signature": "nXdK9fotOtI7F7BN7NydIMdnTMPllwGVJ4riE1xi3la3i2k6qgu9Te7QeVhuhzZdekq6kMzhS1PULm8Rdu0ZDw=="
+        }
+      },
+      {
+        "kind": "readback-verified",
+        "value": {
+          "requestId": "request-777ac647-157d-4032-a2ff-5ff57b267fea",
+          "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+          "receiptId": "4c962b4a-4cb0-4a2f-b3ea-1ad6e3764046"
+        }
+      }
+    ],
+    "adapterProcesses": [
+      {
+        "executionId": "a0d4dd81-0482-4555-bc3f-9b54905cd3fc",
+        "rpcId": "acaa36ac-ba94-47ed-873d-8ee8c19f6ca2",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "5bced668479ea703279f2457a8ef28b4ee30dba1a471f4c3a260ebeae5975a02",
+        "outputSha256": "183899e1249983b8c5ab1020875a889db074bc72bdd0064129682a1011017110",
+        "pid": 47980,
+        "pgid": 47980,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "e3eac300-961c-46bd-9ffc-6e99ab7bd13c",
+        "rpcId": "b560dc26-f34e-4549-9cc1-12eb52fdb7b8",
+        "role": "engineer",
+        "requestType": "clarify",
+        "inputSha256": "350cd510c21f0ddd7bae20e6b96820824a41625f787fd28bdf3903b565514910",
+        "outputSha256": "e936872bc6310a7f90dde6b42a70a3b910475c0a430c8f93d804510ae765b67f",
+        "pid": 47982,
+        "pgid": 47982,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "8a132ab8-5190-4c59-8bd9-6a80fe3eda9e",
+        "rpcId": "b6810202-af66-49f7-8505-1cdbab48760e",
+        "role": "human",
+        "requestType": "sign",
+        "inputSha256": "2e27739b3fdd678de65f870ce526c748f02b6426ffd1f22f5dd11e568f42914f",
+        "outputSha256": "070da1e4848e4f9e24e6eaba2eb9c2470bc93d0c7de0cbfbffccad4bd695347b",
+        "pid": 47984,
+        "pgid": 47984,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "3e58e6cc-c929-4c52-9d5c-15783cb0489e",
+        "rpcId": "d234efc9-d0ec-460d-8fed-c655b110ec4b",
+        "role": "human",
+        "requestType": "sign",
+        "inputSha256": "38b894d0c6006cc7b7b10cb2418fb62852a1abdb66ee1fe8866edc6c1d9de20f",
+        "outputSha256": "432eb1ebfee94e15317ef4cec6bf3aaca348e495b4e4992f33014ae44a3ca0c2",
+        "pid": 47986,
+        "pgid": 47986,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "7eb6a664-fffe-4d47-a148-8a19ea7605fd",
+        "rpcId": "5f45e8df-2c81-4198-ba11-64f3529a69ac",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "3a39291a09e09778e26603210f50ca34d8cddc881cf24e3d47d5a370606629a9",
+        "outputSha256": "ea393c9419378caaf08d3d5bb525364f12f48491322b6e8ea5d82c41c94961a8",
+        "pid": 47988,
+        "pgid": 47988,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "cd145381-85e6-4c7f-9a88-3356c6e56fb0",
+        "rpcId": "71635923-e393-42c5-8301-dad24744a5b2",
+        "role": "receiver",
+        "requestType": "deliver",
+        "inputSha256": "3217da2982b164e7c316cb02a5d3c393bcff0b6b8cc45a3d770b8951a45babc6",
+        "outputSha256": "3315f3246be4c39a9ad42c74ef50e723ec9a4870c9ea74831a5df3a30c8d0f46",
+        "pid": 47991,
+        "pgid": 47991,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "c8617222-8806-4436-8c7c-3056076984f7",
+        "rpcId": "36507a31-165a-4a22-8f8e-a4e249f6f64e",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "9cca353d5f006305f8a6dab94e8a66ecec30bd2443ddfb3eeda0701407315dba",
+        "outputSha256": "f2719deead527de2417975e4815568c4a11e88f0c3f49321fdc75e5c526634d3",
+        "pid": 47999,
+        "pgid": 47999,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "e93fc885-7bbc-4cf0-b5bf-ddad60c2c721",
+        "rpcId": "f7b8946d-0760-4735-be42-3fc901beae54",
+        "role": "receiver",
+        "requestType": "readback",
+        "inputSha256": "c34576045ded2cdda81d839cadf18e9a2196cf71f587e5f5cac2ad6f6f5d3b52",
+        "outputSha256": "0655205bb3686b93995d36a7c133dd052496cd991b1f26491bbc2ea2be0a480c",
+        "pid": 48003,
+        "pgid": 48003,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      }
+    ],
+    "stop": {
+      "settled": true,
+      "processTerminationConfirmed": true,
+      "unknownExecutions": [],
+      "persistenceFault": false,
+      "confirmed": true,
+      "protocolSettled": true
+    }
+  },
+  {
+    "root": "/DELEGATION_ROOT/runtime/demo-relayed-b6594d90-f76c-4b2b-bae1-ad4e9720363b",
+    "synthetic": true,
+    "trustedPublicKeys": {
+      "bot": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAvjp9oNITWGWcX98StFp/ydLdRk5CP17bwNu8J+LeBRY=\n-----END PUBLIC KEY-----\n",
+      "human": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA3DT8rglw3rJQVhzkU6LKFzUP/kMC66lCTEQFGxbg9UM=\n-----END PUBLIC KEY-----\n",
+      "receiver": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA1KMRkRcbRGphUxUebX4dI/EPMd7of0wZdVj5JcksZA8=\n-----END PUBLIC KEY-----\n"
+    },
+    "policy": {
+      "version": 1,
+      "binding": {
+        "version": 1,
+        "active": true,
+        "bot": "demo-engineer-bot",
+        "human": "demo-engineer-01"
+      },
+      "read": true,
+      "disclose": true,
+      "resourceVersion": "v1",
+      "revokedRequests": []
+    },
+    "confirmationMode": "via-engineer-bot",
+    "outcome": {
+      "status": "LOCAL_DELIVERY_VERIFIED",
+      "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+      "receiptId": "9ce8b133-348d-42cb-a47d-8c29dbd7c905"
+    },
+    "counts": {
+      "summaryReads": 2,
+      "rawLogReads": 0,
+      "deliveryTools": 1,
+      "dispatches": 1,
+      "readbacks": 1
+    },
+    "receiverRecords": [
+      {
+        "id": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+        "hash": "51d4ca46ff63ac14eef80f794ab676b7ec3b32c46fef640b4b5308b926c6262b",
+        "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+        "receipt": "{\"protocol\":\"demo-delegation/v1\",\"channel\":\"receiver\",\"principal\":\"demo-muyi-bot\",\"payload\":{\"kind\":\"local-receipt\",\"requestId\":\"request-a8ae9c5c-97da-487d-9b70-49227ddd700f\",\"snapshotHash\":\"51d4ca46ff63ac14eef80f794ab676b7ec3b32c46fef640b4b5308b926c6262b\",\"contentSha256\":\"8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951\",\"recipient\":\"demo-muyi-01\",\"target\":\"demo-muyi-bot\",\"receiptId\":\"9ce8b133-348d-42cb-a47d-8c29dbd7c905\",\"receivedAt\":1792108800000,\"synthetic\":true},\"signature\":\"HfIEGbjHkCmk3jZ1XF5SjgqVgMwKtyQT1kWKNjZ+s9fp48sVTa5nzrS/WS2f5fO+ArfV3hkcGFamyxQMEat5AA==\"}"
+      }
+    ],
+    "transcript": [
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "intent",
+            "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+            "nonce": "bfdc24c8-a222-4d5e-8e9c-bdc68c8ec1bc",
+            "tenant": "demo-tenant",
+            "app": "demo-engineer-app",
+            "bot": "demo-engineer-bot",
+            "human": "demo-engineer-01",
+            "target": "demo-muyi-bot",
+            "targetApp": "demo-muyi-app",
+            "text": "把测试进展给指定合成接收人看一下",
+            "hops": 0
+          },
+          "signature": "TkIgc5uYyF2z8nOkpoIqd5P2b8khrP9mASFHlAXWY7QKLdsM27spL+aawTpKcHr8/+dSs+AwO69xoQV+1SWSCQ=="
+        }
+      },
+      {
+        "kind": "clarification",
+        "value": {
+          "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+          "question": "请一次确认项目、资料版本和范围：项目 X 的 v1 测试摘要，不附原始日志，交给指定合成接收人用于测试摘要审核，对吗？"
+        }
+      },
+      {
+        "kind": "synthetic-human-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "human",
+          "principal": "demo-engineer-01",
+          "payload": {
+            "kind": "answer",
+            "synthetic": true,
+            "human": "demo-engineer-01",
+            "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+            "intentHash": "d40dc5cd764d2723fb4860887a89d3e7cc1506361baa47754906433d9ce13ffa",
+            "answers": {
+              "resourceId": "demo-project-x/test-summary",
+              "resourceVersion": "v1",
+              "recipient": "demo-muyi-01",
+              "purpose": "review-test-summary"
+            }
+          },
+          "signature": "3WszabrYbx9oPKJ3bhZ/3TnAmnDEdk9DEyJcePfTNLz3D3A+bSsdjUl8eHtZG+aPblNQXDGCad6uJzyoxjf/Bg=="
+        }
+      },
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "relay-human-answer",
+            "inner": {
+              "protocol": "demo-delegation/v1",
+              "channel": "human",
+              "principal": "demo-engineer-01",
+              "payload": {
+                "kind": "answer",
+                "synthetic": true,
+                "human": "demo-engineer-01",
+                "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+                "intentHash": "d40dc5cd764d2723fb4860887a89d3e7cc1506361baa47754906433d9ce13ffa",
+                "answers": {
+                  "resourceId": "demo-project-x/test-summary",
+                  "resourceVersion": "v1",
+                  "recipient": "demo-muyi-01",
+                  "purpose": "review-test-summary"
+                }
+              },
+              "signature": "3WszabrYbx9oPKJ3bhZ/3TnAmnDEdk9DEyJcePfTNLz3D3A+bSsdjUl8eHtZG+aPblNQXDGCad6uJzyoxjf/Bg=="
+            }
+          },
+          "signature": "v16QEuGOCsoOYH1mVR2zwUFGXbfrIwkK5KRIwDntJxIYT2v5gqMriGnfub5a8lbscQYa7K4fTChHn5rxui4YAA=="
+        }
+      },
+      {
+        "kind": "exact-preview",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+          "tenant": "demo-tenant",
+          "app": "demo-engineer-app",
+          "bot": "demo-engineer-bot",
+          "human": "demo-engineer-01",
+          "targetApp": "demo-muyi-app",
+          "target": "demo-muyi-bot",
+          "recipient": "demo-muyi-01",
+          "resourceId": "demo-project-x/test-summary",
+          "resourceVersion": "v1",
+          "purpose": "review-test-summary",
+          "action": "deliver-summary",
+          "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+          "contentSha256": "8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951",
+          "policyVersion": 1,
+          "bindingVersion": 1,
+          "issuedAt": 1792108800000,
+          "expiresAt": 1792109100000,
+          "nonce": "bfdc24c8-a222-4d5e-8e9c-bdc68c8ec1bc",
+          "confirmationRef": "eb06696e-8cba-4e83-b251-3e87c366f933",
+          "hops": 0
+        }
+      },
+      {
+        "kind": "synthetic-human-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "human",
+          "principal": "demo-engineer-01",
+          "payload": {
+            "kind": "confirmation",
+            "synthetic": true,
+            "human": "demo-engineer-01",
+            "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+            "snapshotHash": "51d4ca46ff63ac14eef80f794ab676b7ec3b32c46fef640b4b5308b926c6262b",
+            "decision": "approve",
+            "issuedAt": 1792108800000,
+            "expiresAt": 1792109100000,
+            "confirmationRef": "eb06696e-8cba-4e83-b251-3e87c366f933"
+          },
+          "signature": "jvqMG/QYJfdi2HC+DJLFeOofF8xdbRxm/oaRDgP7uQM8DyrrhhRJ2a7JO7zhNTROS1XVdiaiaH29KZXuStIDAw=="
+        }
+      },
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "deliver",
+            "snapshot": {
+              "protocol": "demo-delegation/v1",
+              "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+              "tenant": "demo-tenant",
+              "app": "demo-engineer-app",
+              "bot": "demo-engineer-bot",
+              "human": "demo-engineer-01",
+              "targetApp": "demo-muyi-app",
+              "target": "demo-muyi-bot",
+              "recipient": "demo-muyi-01",
+              "resourceId": "demo-project-x/test-summary",
+              "resourceVersion": "v1",
+              "purpose": "review-test-summary",
+              "action": "deliver-summary",
+              "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+              "contentSha256": "8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951",
+              "policyVersion": 1,
+              "bindingVersion": 1,
+              "issuedAt": 1792108800000,
+              "expiresAt": 1792109100000,
+              "nonce": "bfdc24c8-a222-4d5e-8e9c-bdc68c8ec1bc",
+              "confirmationRef": "eb06696e-8cba-4e83-b251-3e87c366f933",
+              "hops": 0
+            },
+            "confirmation": {
+              "protocol": "demo-delegation/v1",
+              "channel": "human",
+              "principal": "demo-engineer-01",
+              "payload": {
+                "kind": "confirmation",
+                "synthetic": true,
+                "human": "demo-engineer-01",
+                "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+                "snapshotHash": "51d4ca46ff63ac14eef80f794ab676b7ec3b32c46fef640b4b5308b926c6262b",
+                "decision": "approve",
+                "issuedAt": 1792108800000,
+                "expiresAt": 1792109100000,
+                "confirmationRef": "eb06696e-8cba-4e83-b251-3e87c366f933"
+              },
+              "signature": "jvqMG/QYJfdi2HC+DJLFeOofF8xdbRxm/oaRDgP7uQM8DyrrhhRJ2a7JO7zhNTROS1XVdiaiaH29KZXuStIDAw=="
+            }
+          },
+          "signature": "81CP+mLjS4hooUmSc7mqPV+PRFsvPHtUZ74fIll7OCMX0cdVrw+W2h2yDxu0YFGcXdZtTOOy7EERrvQrO0bNAQ=="
+        }
+      },
+      {
+        "kind": "local-receipt",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "receiver",
+          "principal": "demo-muyi-bot",
+          "payload": {
+            "kind": "local-receipt",
+            "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+            "snapshotHash": "51d4ca46ff63ac14eef80f794ab676b7ec3b32c46fef640b4b5308b926c6262b",
+            "contentSha256": "8562000dd34f5666d5d39b817393dd4cf0a7401b219cd3797c984282a1e83951",
+            "recipient": "demo-muyi-01",
+            "target": "demo-muyi-bot",
+            "receiptId": "9ce8b133-348d-42cb-a47d-8c29dbd7c905",
+            "receivedAt": 1792108800000,
+            "synthetic": true
+          },
+          "signature": "HfIEGbjHkCmk3jZ1XF5SjgqVgMwKtyQT1kWKNjZ+s9fp48sVTa5nzrS/WS2f5fO+ArfV3hkcGFamyxQMEat5AA=="
+        }
+      },
+      {
+        "kind": "bot-wire",
+        "value": {
+          "protocol": "demo-delegation/v1",
+          "channel": "bot",
+          "principal": "demo-engineer-bot",
+          "payload": {
+            "kind": "readback",
+            "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+            "snapshotHash": "51d4ca46ff63ac14eef80f794ab676b7ec3b32c46fef640b4b5308b926c6262b"
+          },
+          "signature": "8OkisHHDQ2Vvl3bHHPzP6F51mC37ChXaSBxEq8iFGAowcpYHbprofRA/2pnFYyatJ01YIk+Aw4unAkT/JtMTBA=="
+        }
+      },
+      {
+        "kind": "readback-verified",
+        "value": {
+          "requestId": "request-a8ae9c5c-97da-487d-9b70-49227ddd700f",
+          "body": "合成测试：计划 10 项，通过 7 项，失败 2 项，阻塞 1 项，通过率 70%。不附原始日志。",
+          "receiptId": "9ce8b133-348d-42cb-a47d-8c29dbd7c905"
+        }
+      }
+    ],
+    "adapterProcesses": [
+      {
+        "executionId": "1bbb1b09-3b41-4288-a47b-756ee8af9232",
+        "rpcId": "f73ce53a-cb9c-454d-8640-b92c003e2d54",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "e2c4d34421879c2bf5ce30c1d164c37466dd066921a1ea14cb6e307df87466bb",
+        "outputSha256": "a324fdd798fcb7aa0d35666bde71c5bb99a9e8f2bde4a715794c708d82e003cd",
+        "pid": 48006,
+        "pgid": 48006,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "fac29de5-0328-4a6c-9001-60615c1452b8",
+        "rpcId": "b85a0884-df2d-49a4-a724-13f96edd8596",
+        "role": "engineer",
+        "requestType": "clarify",
+        "inputSha256": "ca89c8fd6eb32e0b1f0128681f250da07e049cf96452f240b5ce70c9033c9dd2",
+        "outputSha256": "346f661000ebfdc34684f97badd33ebb6b7b750423269f01cb75b60b50b5c2bc",
+        "pid": 48008,
+        "pgid": 48008,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "4f60a178-df6c-4450-977f-3cef80612604",
+        "rpcId": "38e31dc8-032e-47a1-861e-ea1fedf31669",
+        "role": "human",
+        "requestType": "sign",
+        "inputSha256": "f1a7df231d4f62a7b35d9a8e31dcce5c8000c4ab243094f2f2a2a4ff63df5bda",
+        "outputSha256": "a9f0150f85b54c6322b913ab2501d00c22085a504a6a7a49491f929c0b8b8d3d",
+        "pid": 48010,
+        "pgid": 48010,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "cd030062-8d19-4ba2-a959-b52f50952445",
+        "rpcId": "c6baefce-113c-4ea0-92b0-effd5d6cd2d2",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "696635f5b16b3700b100d27aeafba0ff46e667d2f693d049cbbe3ffa7908ce99",
+        "outputSha256": "3373f00c0c456329efda00991a7b679d76a56dbfe3a9e9a66570d9576af6f737",
+        "pid": 48013,
+        "pgid": 48013,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "277961b8-8de8-4e85-90b6-f87f6b015d6e",
+        "rpcId": "6b4b5132-70d3-4855-b822-76d32c343946",
+        "role": "human",
+        "requestType": "sign",
+        "inputSha256": "362bfa387c825b37ec1cf51a8cc5e481dda006141e82d8d0f2647b46604f84d2",
+        "outputSha256": "fdd9cfee1859dc8bb8f7386fb65ccdf2ee10e9c4d7cbfc03293fee870d9552f6",
+        "pid": 48018,
+        "pgid": 48018,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "a3861d0e-98cf-439b-b74b-64a312aecb2a",
+        "rpcId": "bdcdfae1-4d63-4630-ac3e-61aac961dddd",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "8ea6ea33ed24ef8e021587a4a0aeea479146d13809d170fee6114f41c9bcfb1b",
+        "outputSha256": "aef48c17bb196119a5f521937e76bc138cff95b3825133cbec0d049b3304af63",
+        "pid": 48020,
+        "pgid": 48020,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "fe0b23e3-8ed1-495c-8820-c6d39d09359a",
+        "rpcId": "60f992fc-5ea0-461f-aea8-bc8e1e742991",
+        "role": "receiver",
+        "requestType": "deliver",
+        "inputSha256": "33dec31a6d0e995254c2c8c474ed97f2134a28105207bc2df94005e6aa62b570",
+        "outputSha256": "efef336efcbd15b6b72b9f30a4c0d4fba5c522c4f7d7094e456c59644de0765e",
+        "pid": 48022,
+        "pgid": 48022,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "58e9a3c4-d6f4-4f8d-9156-22d561356145",
+        "rpcId": "46bef78d-73ef-4d22-9d43-24ddd59dfddb",
+        "role": "engineer",
+        "requestType": "sign",
+        "inputSha256": "b7d225060b7be3a3bcd67c88586a7354e0646195cff4aedc96da2253bd0055ab",
+        "outputSha256": "8717d7efb37516daf579c9d627677875e6a8b62f46532085aae11b276c141869",
+        "pid": 48024,
+        "pgid": 48024,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      },
+      {
+        "executionId": "9a0c2593-c330-4653-bb3e-48c8a1678985",
+        "rpcId": "d7575805-ac33-4f6b-b535-995fc826b020",
+        "role": "receiver",
+        "requestType": "readback",
+        "inputSha256": "7d7cc71181db87d6fe75ab8b02a7bcc378d471f42e36db45a24c0ef70263cf3c",
+        "outputSha256": "b1811d32f7fbed6f5fe076782d5d403902e8b8453ea85d3b10fb08e83758b0d7",
+        "pid": 48026,
+        "pgid": 48026,
+        "exit": 0,
+        "stopReason": "",
+        "terminationConfirmed": true,
+        "lifecyclePersisted": true,
+        "residualPids": []
+      }
+    ],
+    "stop": {
+      "settled": true,
+      "processTerminationConfirmed": true,
+      "unknownExecutions": [],
+      "persistenceFault": false,
+      "confirmed": true,
+      "protocolSettled": true
+    }
+  }
+]
