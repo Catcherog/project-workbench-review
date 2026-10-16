@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: CONTROL: valid signed replay before expiry returns existing verified result
+ok 1 - CONTROL: valid signed replay before expiry returns existing verified result
+  ---
+  duration_ms: 6.280458
+  type: 'test'
+  ...
+# Subtest: CONTROL: expired but never-dispatched authorization may become EXPIRED
+ok 2 - CONTROL: expired but never-dispatched authorization may become EXPIRED
+  ---
+  duration_ms: 2.884166
+  type: 'test'
+  ...
+# Subtest: R1-B01: expiry replay must preserve LOCAL_DELIVERY_VERIFIED
+not ok 3 - R1-B01: expiry replay must preserve LOCAL_DELIVERY_VERIFIED
+  ---
+  duration_ms: 3.661916
+  type: 'test'
+  location: '/FIX1_ROOT/private/input/review1/direct_dm_review/tests/reviewer-r1-terminal-state.test.mjs:30:68'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'EXPIRED'
+    - 'LOCAL_DELIVERY_VERIFIED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'LOCAL_DELIVERY_VERIFIED'
+  actual: 'EXPIRED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///FIX1_ROOT/private/input/review1/direct_dm_review/tests/reviewer-r1-terminal-state.test.mjs:31:139)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: R1-B01: expiry replay must preserve DELIVERY_UNKNOWN
+not ok 4 - R1-B01: expiry replay must preserve DELIVERY_UNKNOWN
+  ---
+  duration_ms: 3.325375
+  type: 'test'
+  location: '/FIX1_ROOT/private/input/review1/direct_dm_review/tests/reviewer-r1-terminal-state.test.mjs:30:68'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'EXPIRED'
+    - 'DELIVERY_UNKNOWN'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'DELIVERY_UNKNOWN'
+  actual: 'EXPIRED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///FIX1_ROOT/private/input/review1/direct_dm_review/tests/reviewer-r1-terminal-state.test.mjs:31:139)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: R1-B01: subsequent permission revocation must not erase a verified delivery fact
+not ok 5 - R1-B01: subsequent permission revocation must not erase a verified delivery fact
+  ---
+  duration_ms: 3.528208
+  type: 'test'
+  location: '/FIX1_ROOT/private/input/review1/direct_dm_review/tests/reviewer-r1-terminal-state.test.mjs:33:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'REVOKED'
+    - 'LOCAL_DELIVERY_VERIFIED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'LOCAL_DELIVERY_VERIFIED'
+  actual: 'REVOKED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///FIX1_ROOT/private/input/review1/direct_dm_review/tests/reviewer-r1-terminal-state.test.mjs:34:156)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 2
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 58.307583

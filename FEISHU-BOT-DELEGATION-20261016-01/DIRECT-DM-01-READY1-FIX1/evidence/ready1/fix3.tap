@@ -1,0 +1,524 @@
+TAP version 13
+# Subtest: AP03 broker -> production process manager -> fake executable -> validated projection -> fake reply/readback
+ok 1 - AP03 broker -> production process manager -> fake executable -> validated projection -> fake reply/readback
+  ---
+  duration_ms: 227.498459
+  type: 'test'
+  ...
+# Subtest: offline wiring rejects failed
+ok 2 - offline wiring rejects failed
+  ---
+  duration_ms: 261.015167
+  type: 'test'
+  ...
+# Subtest: offline wiring rejects extra
+ok 3 - offline wiring rejects extra
+  ---
+  duration_ms: 183.656958
+  type: 'test'
+  ...
+# Subtest: offline wiring rejects wrong-marker
+ok 4 - offline wiring rejects wrong-marker
+  ---
+  duration_ms: 131.443
+  type: 'test'
+  ...
+# Subtest: offline wiring rejects no-complete
+ok 5 - offline wiring rejects no-complete
+  ---
+  duration_ms: 116.791083
+  type: 'test'
+  ...
+# Subtest: offline wiring rejects clarify
+ok 6 - offline wiring rejects clarify
+  ---
+  duration_ms: 117.042416
+  type: 'test'
+  ...
+# Subtest: offline wiring rejects late
+ok 7 - offline wiring rejects late
+  ---
+  duration_ms: 167.06375
+  type: 'test'
+  ...
+# Subtest: stopped offline wiring cannot emit a late reply
+ok 8 - stopped offline wiring cannot emit a late reply
+  ---
+  duration_ms: 27.575875
+  type: 'test'
+  ...
+# Subtest: whitelist, tenant, app and group gates prevent model and reply
+ok 9 - whitelist, tenant, app and group gates prevent model and reply
+  ---
+  duration_ms: 47.788958
+  type: 'test'
+  ...
+# Subtest: authoritative readback rejects forged sender or altered content
+ok 10 - authoritative readback rejects forged sender or altered content
+  ---
+  duration_ms: 59.719
+  type: 'test'
+  ...
+# Subtest: activation, explicit capability and reply binding
+ok 11 - activation, explicit capability and reply binding
+  ---
+  duration_ms: 115.356791
+  type: 'test'
+  ...
+# Subtest: duplicate delivery and process restart do not rerun or resend
+ok 12 - duplicate delivery and process restart do not rerun or resend
+  ---
+  duration_ms: 158.115125
+  type: 'test'
+  ...
+# Subtest: two synthetic people retain separate markers, directories and histories
+ok 13 - two synthetic people retain separate markers, directories and histories
+  ---
+  duration_ms: 162.123125
+  type: 'test'
+  ...
+# Subtest: message cannot raise privilege or request other session
+ok 14 - message cannot raise privilege or request other session
+  ---
+  duration_ms: 36.977
+  type: 'test'
+  ...
+# Subtest: model cannot supply another receiver
+ok 15 - model cannot supply another receiver
+  ---
+  duration_ms: 44.338583
+  type: 'test'
+  ...
+# Subtest: uncertain send survives restart without blind retry
+ok 16 - uncertain send survives restart without blind retry
+  ---
+  duration_ms: 47.726291
+  type: 'test'
+  ...
+# Subtest: deadline and persistent model budget stop work
+ok 17 - deadline and persistent model budget stop work
+  ---
+  duration_ms: 55.510375
+  type: 'test'
+  ...
+# Subtest: timeout aborts worker and late completion sends nothing
+ok 18 - timeout aborts worker and late completion sends nothing
+  ---
+  duration_ms: 34.382459
+  type: 'test'
+  ...
+# Subtest: recovered running/sending states are held, not retried
+ok 19 - recovered running/sending states are held, not retried
+  ---
+  duration_ms: 27.724459
+  type: 'test'
+  ...
+# Subtest: inherited counts, single concurrency, four incremental attempts and repeated import
+ok 20 - inherited counts, single concurrency, four incremental attempts and repeated import
+  ---
+  duration_ms: 81.252208
+  type: 'test'
+  ...
+# Subtest: unconfirmed termination retains active slot and consumed attempt
+ok 21 - unconfirmed termination retains active slot and consumed attempt
+  ---
+  duration_ms: 33.399333
+  type: 'test'
+  ...
+# Subtest: one broker selects both roles for the same synthetic user and binds local receipts (OFFLINE)
+ok 22 - one broker selects both roles for the same synthetic user and binds local receipts (OFFLINE)
+  ---
+  duration_ms: 432.501542
+  type: 'test'
+  ...
+# {"kind":"OFFLINE_ONLY","realModelCalls":0,"entry":"createDualRoleProbe.submit -> ProbeBroker.accept -> process -> executeTracked -> runCodex(offline-fixture) -> validation -> local reply/readback","selections":[{"requestId":"synthetic-request-A","agentId":"test-summary","configurationSha256":"00dd2f62fa6b263e0eb3f393987d39ad293a82434ec35341bf00b4fe79406907","instructionsSha256":"710814986230904f5aa4635f52fc01401cf93620e9a23ecbc9b103868016ea45","runId":"4de81c9b-8edb-40c1-bb9e-0fe7e4a90e86","executionKind":"offline-fixture","sourceMarker":"cab1deaf-25c7-494c-aed8-380517af6f4c","historyPassedToRunner":false,"result":{"source_marker":"cab1deaf-25c7-494c-aed8-380517af6f4c","source":"synthetic.json:tests","total":10,"passed":7,"failed":2,"blocked":1,"pass_rate_percent":70},"terminationConfirmed":true},{"requestId":"synthetic-request-B","agentId":"action-extract","configurationSha256":"415ff4c775e58ab71d4ebc04a8eee51010c1ed7ee99b558c8697a6752e3e99b5","instructionsSha256":"9ef12ea5b3bb16128065fb08e49af7603f06626a525e9790ebcc6d5ffde013f4","runId":"2eb41067-b5ba-45be-8e55-09dd1f18df98","executionKind":"offline-fixture","sourceMarker":"7f9534cb-6434-486b-a661-3723497d50fa","historyPassedToRunner":false,"result":{"source_marker":"7f9534cb-6434-486b-a661-3723497d50fa","source":"synthetic.json:minutes","tasks":[{"task":"补充接口说明","owner":"合成成员甲","deadline":null},{"task":"复核测试结果","owner":"合成成员乙","deadline":"2026-10-19"}]},"terminationConfirmed":true}],"receipts":[{"messageId":"local-receipt-1","chatId":"synthetic-chat-A","text":"【合成测试 7be04f45-2bf0-4c21-a60e-716ed232d4cc】{\\"source_marker\\":\\"cab1deaf-25c7-494c-aed8-380517af6f4c\\",\\"source\\":\\"synthetic.json:tests\\",\\"total\\":10,\\"passed\\":7,\\"failed\\":2,\\"blocked\\":1,\\"pass_rate_percent\\":70}","target":{"messageId":"synthetic-request-A","chatId":"synthetic-chat-A","senderId":"synthetic-A","idempotencyKey":"768f28337f842e91dc58108575b40e5412440e5b86805e9c"}},{"messageId":"local-receipt-3","chatId":"synthetic-chat-B","text":"【合成测试 0300e130-9182-42ae-addf-016255fff51a】{\\"source_marker\\":\\"7f9534cb-6434-486b-a661-3723497d50fa\\",\\"source\\":\\"synthetic.json:minutes\\",\\"tasks\\":[{\\"task\\":\\"补充接口说明\\",\\"owner\\":\\"合成成员甲\\",\\"deadline\\":null},{\\"task\\":\\"复核测试结果\\",\\"owner\\":\\"合成成员乙\\",\\"deadline\\":\\"2026-10-19\\"}]}","target":{"messageId":"synthetic-request-B","chatId":"synthetic-chat-B","senderId":"synthetic-A","idempotencyKey":"e1e585f2f91868a66c32e5c23603ae8c3bc204b44ad8ba81"}}]}
+# Subtest: role bindings and foreign input cannot pass result projection
+ok 23 - role bindings and foreign input cannot pass result projection
+  ---
+  duration_ms: 0.646208
+  type: 'test'
+  ...
+# Subtest: real path stays closed and starts no process when minimum isolation is blocked
+ok 24 - real path stays closed and starts no process when minimum isolation is blocked
+  ---
+  duration_ms: 105.941333
+  type: 'test'
+  ...
+# Subtest: missing termination receipt cannot be replaced by a successful returned business result
+ok 25 - missing termination receipt cannot be replaced by a successful returned business result
+  ---
+  duration_ms: 114.971833
+  type: 'test'
+  ...
+# Subtest: opaque executor without a process/no-spawn contract is not assumed safe
+ok 26 - opaque executor without a process/no-spawn contract is not assumed safe
+  ---
+  duration_ms: 102.290875
+  type: 'test'
+  ...
+# Subtest: timeout then late unknown cannot rewrite sealed state
+ok 27 - timeout then late unknown cannot rewrite sealed state
+  ---
+  duration_ms: 320.906375
+  type: 'test'
+  ...
+# Subtest: timeout then late success cannot rewrite sealed state
+ok 28 - timeout then late success cannot rewrite sealed state
+  ---
+  duration_ms: 262.053166
+  type: 'test'
+  ...
+# Subtest: actual exit-unknown survives stripped errors, then only fresh OS reconciliation releases owner
+ok 29 - actual exit-unknown survives stripped errors, then only fresh OS reconciliation releases owner
+  ---
+  duration_ms: 170.509792
+  type: 'test'
+  ...
+# {"kind":"actual_short_child_with_injected_inspection_failure","injectedUnknown":true,"realGroupAbsentBeforeReconcile":true,"stopConfirmed":false,"ownerRetainedUntilCheck":true,"reconcileUsedRealOsChecks":true,"ownerReleasedAfterCheck":true}
+# Subtest: canonical termination persistence failure keeps durable blocking state even after real exit
+ok 30 - canonical termination persistence failure keeps durable blocking state even after real exit
+  ---
+  duration_ms: 46.859
+  type: 'test'
+  ...
+# Subtest: closed concurrent/repeated calls are idempotent and do not double-release
+ok 31 - closed concurrent/repeated calls are idempotent and do not double-release
+  ---
+  duration_ms: 33.521875
+  type: 'test'
+  ...
+# Subtest: explicit pre-spawn cancellation and confirmed nonzero exit are safe failure paths
+ok 32 - explicit pre-spawn cancellation and confirmed nonzero exit are safe failure paths
+  ---
+  duration_ms: 69.488208
+  type: 'test'
+  ...
+# Subtest: unknown state copied without owner still blocks restart and cannot be reconciled on another host
+ok 33 - unknown state copied without owner still blocks restart and cannot be reconciled on another host
+  ---
+  duration_ms: 45.352708
+  type: 'test'
+  ...
+# Subtest: an asynchronous process intent after confirmed close cannot spawn a new child
+ok 34 - an asynchronous process intent after confirmed close cannot spawn a new child
+  ---
+  duration_ms: 76.083625
+  type: 'test'
+  ...
+# Subtest: managed adapter cannot claim safe exit with only an exception hint
+ok 35 - managed adapter cannot claim safe exit with only an exception hint
+  ---
+  duration_ms: 21.656875
+  type: 'test'
+  ...
+# Subtest: mismatched terminal identity never replaces the started binding or permits recovery
+ok 36 - mismatched terminal identity never replaces the started binding or permits recovery
+  ---
+  duration_ms: 32.904417
+  type: 'test'
+  ...
+# Subtest: owner PID reuse/mismatched startup identity is not auto-recoverable
+ok 37 - owner PID reuse/mismatched startup identity is not auto-recoverable
+  ---
+  duration_ms: 11.157334
+  type: 'test'
+  ...
+# Subtest: all clearance paths reject parent confirmed with unsafe or unproved child records
+ok 38 - all clearance paths reject parent confirmed with unsafe or unproved child records
+  ---
+  duration_ms: 483.255792
+  type: 'test'
+  ...
+# Subtest: required executor rejects late spawn after settle before stop
+ok 39 - required executor rejects late spawn after settle before stop
+  ---
+  duration_ms: 172.673834
+  type: 'test'
+  ...
+# {"scenario":"settled-before-stop","parent":"confirmed","children":["confirmed"],"lateSpawned":false,"stopConfirmed":true,"ownerRetained":false,"newAdmitted":true,"oldGroupMembers":[]}
+# {"cleanupConfirmed":true,"residualPids":[]}
+# Subtest: required executor rejects late spawn after settle after close
+ok 40 - required executor rejects late spawn after settle after close
+  ---
+  duration_ms: 198.659917
+  type: 'test'
+  ...
+# {"scenario":"after-close-control","parent":"confirmed","children":["confirmed"],"lateSpawned":false,"stopConfirmed":true,"ownerRetained":false,"newAdmitted":true,"oldGroupMembers":[]}
+# {"cleanupConfirmed":true,"residualPids":[]}
+# Subtest: bound terminal target denial is recognized
+ok 41 - bound terminal target denial is recognized
+  ---
+  duration_ms: 1.0025
+  type: 'test'
+  ...
+# Subtest: AP01 printed denial without read
+ok 42 - AP01 printed denial without read
+  ---
+  duration_ms: 0.075708
+  type: 'test'
+  ...
+# Subtest: AP02 nonterminal/null
+ok 43 - AP02 nonterminal/null
+  ---
+  duration_ms: 0.112084
+  type: 'test'
+  ...
+# Subtest: missing numeric exit
+ok 44 - missing numeric exit
+  ---
+  duration_ms: 0.070666
+  type: 'test'
+  ...
+# Subtest: wrong target
+ok 45 - wrong target
+  ---
+  duration_ms: 0.053208
+  type: 'test'
+  ...
+# Subtest: wrong action
+ok 46 - wrong action
+  ---
+  duration_ms: 0.129167
+  type: 'test'
+  ...
+# Subtest: command plus forged denial
+ok 47 - command plus forged denial
+  ---
+  duration_ms: 0.153459
+  type: 'test'
+  ...
+# Subtest: tool missing
+ok 48 - tool missing
+  ---
+  duration_ms: 0.058458
+  type: 'test'
+  ...
+# Subtest: target missing
+ok 49 - target missing
+  ---
+  duration_ms: 0.052083
+  type: 'test'
+  ...
+# Subtest: unrelated error text
+ok 50 - unrelated error text
+  ---
+  duration_ms: 0.080292
+  type: 'test'
+  ...
+# Subtest: wrong exit type
+ok 51 - wrong exit type
+  ---
+  duration_ms: 0.044916
+  type: 'test'
+  ...
+# Subtest: model self-report and absent telemetry remain insufficient
+ok 52 - model self-report and absent telemetry remain insufficient
+  ---
+  duration_ms: 0.055125
+  type: 'test'
+  ...
+# Subtest: timeout cannot become denial
+ok 53 - timeout cannot become denial
+  ---
+  duration_ms: 0.041417
+  type: 'test'
+  ...
+# Subtest: cancelled cannot become denial
+ok 54 - cancelled cannot become denial
+  ---
+  duration_ms: 0.023042
+  type: 'test'
+  ...
+# Subtest: run, policy, executor and launch binding mismatch rejected
+ok 55 - run, policy, executor and launch binding mismatch rejected
+  ---
+  duration_ms: 0.058167
+  type: 'test'
+  ...
+# Subtest: positive read is reported as success, never isolation pass
+ok 56 - positive read is reported as success, never isolation pass
+  ---
+  duration_ms: 0.080375
+  type: 'test'
+  ...
+# Subtest: AP08 already aborted signal starts no child
+ok 57 - AP08 already aborted signal starts no child
+  ---
+  duration_ms: 1.618667
+  type: 'test'
+  ...
+# Subtest: actual stubborn process group is cancelled, escalated and confirmed absent
+ok 58 - actual stubborn process group is cancelled, escalated and confirmed absent
+  ---
+  duration_ms: 134.486416
+  type: 'test'
+  ...
+# {"kind":"actual_subprocess_group","elapsedMs":134,"stopReason":"cancelled","signals":["SIGTERM","SIGKILL"],"terminationConfirmed":true,"residualPids":[]}
+# Subtest: AP06 stalled verification has its own deadline and durable outcome
+ok 59 - AP06 stalled verification has its own deadline and durable outcome
+  ---
+  duration_ms: 93.505583
+  type: 'test'
+  ...
+# Subtest: stop during verification ignores a late valid identity
+ok 60 - stop during verification ignores a late valid identity
+  ---
+  duration_ms: 82.610291
+  type: 'test'
+  ...
+# Subtest: AP05 unresponsive send times out to unknown and never repeats
+ok 61 - AP05 unresponsive send times out to unknown and never repeats
+  ---
+  duration_ms: 127.969333
+  type: 'test'
+  ...
+# Subtest: AP09 readback timeout preserves sent receipt
+ok 62 - AP09 readback timeout preserves sent receipt
+  ---
+  duration_ms: 100.935458
+  type: 'test'
+  ...
+# Subtest: stop cancels an in-flight send; late send result cannot mark readback
+ok 63 - stop cancels an in-flight send; late send result cannot mark readback
+  ---
+  duration_ms: 39.852916
+  type: 'test'
+  ...
+# Subtest: AP07 crash-queued becomes explicit interrupted_unstarted on restart
+ok 64 - AP07 crash-queued becomes explicit interrupted_unstarted on restart
+  ---
+  duration_ms: 52.611208
+  type: 'test'
+  ...
+# Subtest: second broker cannot mutate the first owner state
+ok 65 - second broker cannot mutate the first owner state
+  ---
+  duration_ms: 37.171
+  type: 'test'
+  ...
+# Subtest: AP04 stop reaches and terminates actual process worker
+ok 66 - AP04 stop reaches and terminates actual process worker
+  ---
+  duration_ms: 336.743542
+  type: 'test'
+  ...
+# {"kind":"broker_to_process_stop","reason":"operator_stop","elapsedMs":281,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":true,"unknownExecutions":[],"persistenceFault":false,"confirmed":true}
+# Subtest: candidate event hook diverts only explicit verified sessions before formal save
+ok 67 - candidate event hook diverts only explicit verified sessions before formal save
+  ---
+  duration_ms: 46.093916
+  type: 'test'
+  ...
+# Subtest: same whitelist user ordinary business remains ordinary
+ok 68 - same whitelist user ordinary business remains ordinary
+  ---
+  duration_ms: 48.772541
+  type: 'test'
+  ...
+# Subtest: wrong tenant, wrong actor and group are quarantined, never executed
+ok 69 - wrong tenant, wrong actor and group are quarantined, never executed
+  ---
+  duration_ms: 51.078375
+  type: 'test'
+  ...
+# Subtest: unverified sender mismatch is held before dispatch
+ok 70 - unverified sender mismatch is held before dispatch
+  ---
+  duration_ms: 51.691
+  type: 'test'
+  ...
+# Subtest: missing timestamp cannot bypass test window
+ok 71 - missing timestamp cannot bypass test window
+  ---
+  duration_ms: 36.1385
+  type: 'test'
+  ...
+# Subtest: worker offline and timeout cannot fall back to formal ingestion
+ok 72 - worker offline and timeout cannot fall back to formal ingestion
+  ---
+  duration_ms: 180.068166
+  type: 'test'
+  ...
+# Subtest: duplicates and late test messages remain quarantined after disable/restart
+ok 73 - duplicates and late test messages remain quarantined after disable/restart
+  ---
+  duration_ms: 72.718708
+  type: 'test'
+  ...
+# Subtest: expiry retains test namespace while ordinary business continues
+ok 74 - expiry retains test namespace while ordinary business continues
+  ---
+  duration_ms: 42.878375
+  type: 'test'
+  ...
+# Subtest: minutes event never enters test dispatcher
+ok 75 - minutes event never enters test dispatcher
+  ---
+  duration_ms: 24.032209
+  type: 'test'
+  ...
+# Subtest: poll-first observation suppresses ingestion but later real-shaped event may claim once
+ok 76 - poll-first observation suppresses ingestion but later real-shaped event may claim once
+  ---
+  duration_ms: 25.785125
+  type: 'test'
+  ...
+# Subtest: candidate polling hook excludes test bot output and keeps ordinary source
+ok 77 - candidate polling hook excludes test bot output and keeps ordinary source
+  ---
+  duration_ms: 10.048875
+  type: 'test'
+  ...
+# Subtest: candidate reader excludes reserved test mentions before group discovery triggers
+ok 78 - candidate reader excludes reserved test mentions before group discovery triggers
+  ---
+  duration_ms: 20.9605
+  type: 'test'
+  ...
+# Subtest: C01 positive control: idle broker confirms clean stop
+ok 79 - C01 positive control: idle broker confirms clean stop
+  ---
+  duration_ms: 74.193917
+  type: 'test'
+  ...
+# Subtest: C02 positive control: unresolved worker keeps stop unconfirmed and owner retained
+ok 80 - C02 positive control: unresolved worker keeps stop unconfirmed and owner retained
+  ---
+  duration_ms: 193.0135
+  type: 'test'
+  ...
+# Subtest: B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop
+ok 81 - B01a safety: a settled worker with terminationConfirmed=false must NOT confirm stop
+  ---
+  duration_ms: 112.33125
+  type: 'test'
+  ...
+# {"scenario":"unknown-before-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"messageStatus":"model_failed","stopReceipt":{"reason":"operator_stop","elapsedMs":4,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":false,"unknownExecutions":[{"executionId":"5a1abdb6-4c91-4b26-b4e6-20f26da04522","messageId":"run","status":"unknown","runnerIds":[],"processes":[]}],"persistenceFault":false,"confirmed":false},"ownerExistsAfterClose":true,"realChildSpawned":false}
+# Subtest: B01b safety: worker reporting unknown termination DURING stop must retain ownership
+ok 82 - B01b safety: worker reporting unknown termination DURING stop must retain ownership
+  ---
+  duration_ms: 99.628667
+  type: 'test'
+  ...
+# {"scenario":"unknown-during-stop","workerEvidence":{"terminationConfirmed":false,"residualPids":[424242]},"stopReceipt":{"reason":"operator_stop","elapsedMs":35,"logicalOperations":0,"unsettledWorkers":0,"settled":true,"processTerminationConfirmed":false,"unknownExecutions":[{"executionId":"b836c92b-a428-4b52-ae51-6adb342fefb8","messageId":"run","status":"unknown","runnerIds":[],"processes":[]}],"persistenceFault":false,"confirmed":false},"ownerExistsAfterClose":true,"realChildSpawned":false}
+# Subtest: C03 positive control: cooperative cancelled worker finishes before confirmed stop
+ok 83 - C03 positive control: cooperative cancelled worker finishes before confirmed stop
+  ---
+  duration_ms: 71.8835
+  type: 'test'
+  ...
+# Subtest: C04 positive control: the separate model budget DOES retain unknown-termination occupancy
+ok 84 - C04 positive control: the separate model budget DOES retain unknown-termination occupancy
+  ---
+  duration_ms: 20.189666
+  type: 'test'
+  ...
+1..84
+# tests 84
+# suites 0
+# pass 84
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1357.294167

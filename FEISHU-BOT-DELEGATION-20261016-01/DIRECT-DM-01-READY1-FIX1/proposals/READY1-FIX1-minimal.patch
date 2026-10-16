@@ -1,0 +1,70 @@
+diff --git a/dm/candidate/scripts/direct-dm-controller.mjs b/dm/candidate/scripts/direct-dm-controller.mjs
+index d89a6b9..0759f19 100644
+--- a/dm/candidate/scripts/direct-dm-controller.mjs
++++ b/dm/candidate/scripts/direct-dm-controller.mjs
+@@ -2,7 +2,7 @@ import {digest} from './direct-dm-authority.mjs';
+ import {normalizeDmMessage} from './direct-dm-isolation.mjs';
+ // Trusted local composition only; never accepts approval fields from an event.
+ export class DirectDmController {
+- constructor({gate,authority,transport}={}){Object.assign(this,{gate,authority,transport});this.closed=false;this.active=new Set();this.jobs=new Set();}
++ constructor({gate,authority,transport}={}){Object.assign(this,{gate,authority});Object.defineProperty(this,'transport',{value:transport,enumerable:true});this.closed=false;this.active=new Set();this.jobs=new Set();}
+  current(m){if(this.closed)throw Error('DM_EXECUTION_STOPPED');const policy=this.authority.current(m);this.gate.policy(m,policy);return policy;}
+  register(manifest){if(this.closed)throw Error('DM_EXECUTION_STOPPED');return this.authority.admit(manifest);}
+  track(job){this.jobs.add(job);job.finally(()=>this.jobs.delete(job)).catch(()=>{});return job;}
+diff --git a/dm/candidate/scripts/direct-dm-runtime.mjs b/dm/candidate/scripts/direct-dm-runtime.mjs
+index 4b362d2..002a99b 100644
+--- a/dm/candidate/scripts/direct-dm-runtime.mjs
++++ b/dm/candidate/scripts/direct-dm-runtime.mjs
+@@ -1,6 +1,6 @@
+ import {readFileSync,realpathSync} from 'node:fs';
+ import {join,relative,isAbsolute} from 'node:path';
+-import {DirectDmAuthority,readPrivateJson,digest,canonical} from './direct-dm-authority.mjs';
++import {DirectDmAuthority,readPrivateJson,digest,canonical,bindingOf} from './direct-dm-authority.mjs';
+ import {DirectDmTransport} from './direct-dm-transport.mjs';
+ import {DirectDmController} from './direct-dm-controller.mjs';
+ // Local setup file is outside every message/body/HTTP input path. No setup
+@@ -18,6 +18,14 @@ export function verifyBuild(root,manifestFile){
+  for(const file of ['direct-dm-authority','direct-dm-transport','direct-dm-controller','direct-dm-runtime','direct-dm-isolation','direct-dm-activation','local-http','local-store','feishu-event-bridge','personal-message-reader','agent-monitor','core-feishu-input'])if(!seen.has('scripts/'+file+'.mjs'))throw Error('BUILD_MANIFEST_INCOMPLETE');
+  return digest(list);
+ }
++function assertExecutionBinding(manifest,...bindings){
++ const expected=bindingOf(manifest);
++ for(const value of [expected,...bindings]){
++  // Reject missing, non-string, internally inconsistent or extra binding fields.
++  // Comparing only each source to itself would recreate READY1-B01.
++  if(!value||Object.values(bindingOf(value)).some(v=>typeof v!=='string'||!v)||value.scope!==value.tenantKey+'/'+value.appId||value.ownerId===value.participantId||value.ownerChatId===value.participantChatId||canonical(value)!==canonical(expected))throw Error('EXECUTION_BINDING_MISMATCH');
++ }
++}
+ export function composeDirectDmController({store,configFile,root,runner,clock}={}){
+  if(!configFile)return null;const c=readPrivateJson(configFile);
+  if(c.enabled!==true)return null;
+@@ -27,10 +35,13 @@ export function composeDirectDmController({store,configFile,root,runner,clock}={
+  const authority=new DirectDmAuthority({approvalFile:c.approvalFile,publicKey:c.publicKey,publicKeyHash:c.publicKeyHash,buildHash,store,clock});
+  const transport=new DirectDmTransport({cli:c.cli,cliHash:c.cliHash,binding:c.binding,...(runner?{runner}:{})});
+  // Recheck bytes for each action; a startup-only verification is insufficient.
+- const verifyLocal=()=>{
++ const verifyLocal=manifest=>{
+   if(verifyBuild(root,c.buildManifest)!==buildHash)throw Error('BUILD_SNAPSHOT_MISMATCH');
+   if(canonical(JSON.parse(readFileSync(configFile,'utf8')))!==canonical(c))throw Error('EXECUTION_CONFIGURATION_CHANGED');
++  // authority.admit/current separately verify that this exact manifest and
++  // binding match the signed approval. Both checks precede registration/effects.
++  assertExecutionBinding(manifest,c.binding,transport.binding);
+  };
+- const checked={current:m=>{verifyLocal();return authority.current(m);},admit:m=>{verifyLocal();return authority.admit(m);}};
++ const checked={current:m=>{verifyLocal(m);return authority.current(m);},admit:m=>{verifyLocal(m);return authority.admit(m);}};
+  return new DirectDmController({gate:store.directDmIsolation,authority:checked,transport});
+ }
+diff --git a/dm/candidate/scripts/direct-dm-transport.mjs b/dm/candidate/scripts/direct-dm-transport.mjs
+index 20a0128..b4312f1 100644
+--- a/dm/candidate/scripts/direct-dm-transport.mjs
++++ b/dm/candidate/scripts/direct-dm-transport.mjs
+@@ -11,7 +11,8 @@ export const runCli=(file,args,{signal}={})=>new Promise((resolve,reject)=>execF
+ export class DirectDmTransport {
+  constructor({cli,cliHash,binding,runner=runCli}={}){
+   if(!cli||!(/^[a-f0-9]{64}$/).test(cliHash||''))fail('CLI_NOT_PINNED');
+-  this.cli=realpathSync(cli);this.cliHash=cliHash;this.binding=structuredClone(binding);this.runner=runner;
++  this.cli=realpathSync(cli);this.cliHash=cliHash;this.runner=runner;
++  Object.defineProperty(this,'binding',{value:Object.freeze(structuredClone(binding)),enumerable:true});
+   for(const key of ['appId','tenantKey','ownerId','participantId','botId','ownerChatId','participantChatId'])if(!binding?.[key])fail('BINDING_INCOMPLETE');
+   if(binding.ownerChatId===binding.participantChatId)fail('BINDING_INCOMPLETE');
+  }

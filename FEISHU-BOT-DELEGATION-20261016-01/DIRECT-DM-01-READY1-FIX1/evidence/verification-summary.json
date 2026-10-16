@@ -1,0 +1,77 @@
+{
+  "task": "FEISHU-BOT-DELEGATION-20261016-01/DIRECT-DM-01-FIX1",
+  "state": "REPAIR_CANDIDATE_WAITING_INCREMENTAL_REVIEW_NOT_ALL_GREEN",
+  "before": {
+    "dmOriginal": {
+      "tests": 32,
+      "pass": 32,
+      "fail": 0
+    },
+    "dmReviewer": {
+      "tests": 9,
+      "pass": 5,
+      "fail": 4
+    },
+    "r1ReviewerSlice": {
+      "tests": 5,
+      "pass": 2,
+      "fail": 3
+    },
+    "r1ReviewerFullEngine": {
+      "tests": 5,
+      "pass": 2,
+      "fail": 3
+    }
+  },
+  "after": {
+    "r1All": {
+      "tests": 34,
+      "pass": 34,
+      "fail": 0,
+      "includes": {
+        "originalNodeTests": 14,
+        "originalParameterizedScenarios": 39,
+        "migratedReviewerTests": 5,
+        "extendedNodeTests": 15
+      }
+    },
+    "fix3Inherited": {
+      "tests": 84,
+      "pass": 84,
+      "fail": 0
+    },
+    "dmAll": {
+      "tests": 62,
+      "pass": 61,
+      "fail": 1,
+      "includes": {
+        "originalStateAndIngress": 32,
+        "reviewerContracts": 9,
+        "additionalBoundaryTests": 8,
+        "fullServiceTests": 13
+      }
+    },
+    "originalBridge": {
+      "checks": 5,
+      "pass": 5,
+      "fail": 0
+    }
+  },
+  "remainingFailure": {
+    "file": "dm/tests/direct-dm.test.mjs",
+    "test": "late replies and outputs stay excluded, ordinary future traffic is allowed",
+    "actual": true,
+    "expected": false,
+    "scope": "unreferenced normal-looking future text in the same two reserved bot conversations",
+    "disposition": "Unchanged assertion retained. Passive isolation and automatic allowance of indistinguishable late text cannot both be satisfied. Requires explicit review/business choice; not a waived pass."
+  },
+  "realPlatformMessageReads": 0,
+  "realPlatformMessageSends": 0,
+  "memberQueries": 0,
+  "memberResubmissions": 0,
+  "newRealModelCalls": 0,
+  "formalServiceInstalls": 0,
+  "formalServiceRestarts": 0,
+  "memberStatus": "User reported approval passed in this turn; effective availability not re-read under the offline-only scope",
+  "independentGptReview": "pending; no claim of full R1 or engineer bot interoperability approval"
+}

@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: CONTROL: matching approved/config/platform bindings permit one synthetic preview
+ok 1 - CONTROL: matching approved/config/platform bindings permit one synthetic preview
+  ---
+  duration_ms: 14.512791
+  type: 'test'
+  ...
+# Subtest: CONTROL: platform tenant drifting from local config is blocked before send
+ok 2 - CONTROL: platform tenant drifting from local config is blocked before send
+  ---
+  duration_ms: 6.70625
+  type: 'test'
+  ...
+# Subtest: B01 tenant: initial local tenant differing from signed approval must be denied before send
+not ok 3 - B01 tenant: initial local tenant differing from signed approval must be denied before send
+  ---
+  duration_ms: 7.554958
+  type: 'test'
+  location: '/READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:83:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"name":"initial-config-tenant-mismatch","realPlatformCalls":0,"fakeSendCalls":1,"registered":true,"error":null,"requestState":"AWAITING_CONFIRMATION","databaseCapability":3,"actualScopeOrdinaryHeld":false}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:84:160)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: B01 bot: initial local bot differing from signed approval must be denied before send
+not ok 4 - B01 bot: initial local bot differing from signed approval must be denied before send
+  ---
+  duration_ms: 6.733625
+  type: 'test'
+  location: '/READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:86:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"name":"initial-config-bot-mismatch","realPlatformCalls":0,"fakeSendCalls":1,"registered":true,"error":null,"requestState":"READBACK_FAILED","databaseCapability":3,"actualScopeOrdinaryHeld":true}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:87:107)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: B01 owner: initial local operator differing from signed approval must be denied before send
+not ok 5 - B01 owner: initial local operator differing from signed approval must be denied before send
+  ---
+  duration_ms: 9.121708
+  type: 'test'
+  location: '/READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:89:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"name":"initial-config-owner-mismatch","realPlatformCalls":0,"fakeSendCalls":1,"registered":true,"error":null,"requestState":"AWAITING_CONFIRMATION","databaseCapability":3,"actualScopeOrdinaryHeld":false}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:90:116)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: CONTROL: recipient chat mismatch is blocked before send
+ok 6 - CONTROL: recipient chat mismatch is blocked before send
+  ---
+  duration_ms: 5.861875
+  type: 'test'
+  ...
+# Subtest: CONTROL: invalid signature is blocked before registration or capability change
+ok 7 - CONTROL: invalid signature is blocked before registration or capability change
+  ---
+  duration_ms: 4.469916
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 4
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 94.04675

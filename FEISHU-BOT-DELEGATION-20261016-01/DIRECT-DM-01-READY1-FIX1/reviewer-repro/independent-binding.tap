@@ -1,0 +1,102 @@
+TAP version 13
+# (node:522) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: CONTROL: matching approved/config/platform bindings permit one synthetic preview
+ok 1 - CONTROL: matching approved/config/platform bindings permit one synthetic preview
+  ---
+  duration_ms: 52.562946
+  type: 'test'
+  ...
+# Subtest: CONTROL: platform tenant drifting from local config is blocked before send
+ok 2 - CONTROL: platform tenant drifting from local config is blocked before send
+  ---
+  duration_ms: 27.811657
+  type: 'test'
+  ...
+# Subtest: B01 tenant: initial local tenant differing from signed approval must be denied before send
+not ok 3 - B01 tenant: initial local tenant differing from signed approval must be denied before send
+  ---
+  duration_ms: 25.733266
+  type: 'test'
+  location: '/mnt/data/READY1_GPT_REVIEW3/repro/binding-consistency.test.mjs:83:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"name":"initial-config-tenant-mismatch","realPlatformCalls":0,"fakeSendCalls":1,"registered":true,"error":null,"requestState":"AWAITING_CONFIRMATION","databaseCapability":3,"actualScopeOrdinaryHeld":false}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/READY1_GPT_REVIEW3/repro/binding-consistency.test.mjs:84:160)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B01 bot: initial local bot differing from signed approval must be denied before send
+not ok 4 - B01 bot: initial local bot differing from signed approval must be denied before send
+  ---
+  duration_ms: 26.098564
+  type: 'test'
+  location: '/mnt/data/READY1_GPT_REVIEW3/repro/binding-consistency.test.mjs:86:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"name":"initial-config-bot-mismatch","realPlatformCalls":0,"fakeSendCalls":1,"registered":true,"error":null,"requestState":"READBACK_FAILED","databaseCapability":3,"actualScopeOrdinaryHeld":true}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/READY1_GPT_REVIEW3/repro/binding-consistency.test.mjs:87:107)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: B01 owner: initial local operator differing from signed approval must be denied before send
+not ok 5 - B01 owner: initial local operator differing from signed approval must be denied before send
+  ---
+  duration_ms: 26.219712
+  type: 'test'
+  location: '/mnt/data/READY1_GPT_REVIEW3/repro/binding-consistency.test.mjs:89:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"name":"initial-config-owner-mismatch","realPlatformCalls":0,"fakeSendCalls":1,"registered":true,"error":null,"requestState":"AWAITING_CONFIRMATION","databaseCapability":3,"actualScopeOrdinaryHeld":false}
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///mnt/data/READY1_GPT_REVIEW3/repro/binding-consistency.test.mjs:90:116)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: CONTROL: recipient chat mismatch is blocked before send
+ok 6 - CONTROL: recipient chat mismatch is blocked before send
+  ---
+  duration_ms: 28.542723
+  type: 'test'
+  ...
+# Subtest: CONTROL: invalid signature is blocked before registration or capability change
+ok 7 - CONTROL: invalid signature is blocked before registration or capability change
+  ---
+  duration_ms: 17.33132
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 4
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 279.809329

@@ -1,0 +1,381 @@
+{
+  "mode": "full engine, real local processes, synthetic keys only",
+  "tests": 5,
+  "reports": [
+    {
+      "name": "valid-replay",
+      "passed": true,
+      "state": "LOCAL_DELIVERY_VERIFIED",
+      "before": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 1
+      },
+      "after": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 1
+      },
+      "receiverWrites": 1,
+      "adapterStarts": 8,
+      "roles": [
+        "engineer",
+        "human",
+        "receiver"
+      ],
+      "journal": [
+        {
+          "n": 1,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 2,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "NEEDS_INFORMATION",
+          "data": "{}"
+        },
+        {
+          "n": 3,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "PREVIEW_CREATED",
+          "data": "{\"snapshotHash\":\"88101268b7b42d004171c1affb454d18f6efeb879b709390327b613ea662829f\",\"counts\":{\"summaryReads\":1,\"rawLogReads\":0,\"deliveryTools\":0,\"dispatches\":0,\"readbacks\":0}}"
+        },
+        {
+          "n": 4,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "AUTHORIZED",
+          "data": "{\"snapshotHash\":\"88101268b7b42d004171c1affb454d18f6efeb879b709390327b613ea662829f\",\"synthetic\":true}"
+        },
+        {
+          "n": 5,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "DELIVERING",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":0}}"
+        },
+        {
+          "n": 6,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "LOCAL_RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 7,
+          "request_id": "request-ba2b876b-4c9a-42fc-8582-a85488851710",
+          "event": "LOCAL_DELIVERY_VERIFIED",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":1}}"
+        }
+      ]
+    },
+    {
+      "name": "unexecuted-expiry",
+      "passed": true,
+      "state": "EXPIRED",
+      "before": {
+        "summaryReads": 1,
+        "rawLogReads": 0,
+        "deliveryTools": 0,
+        "dispatches": 0,
+        "readbacks": 0
+      },
+      "after": {
+        "summaryReads": 1,
+        "rawLogReads": 0,
+        "deliveryTools": 0,
+        "dispatches": 0,
+        "readbacks": 0
+      },
+      "receiverWrites": 0,
+      "adapterStarts": 5,
+      "roles": [
+        "engineer",
+        "human"
+      ],
+      "journal": [
+        {
+          "n": 1,
+          "request_id": "request-00cf42f1-8d6e-40dd-9fbd-9f9f74d506ad",
+          "event": "RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 2,
+          "request_id": "request-00cf42f1-8d6e-40dd-9fbd-9f9f74d506ad",
+          "event": "NEEDS_INFORMATION",
+          "data": "{}"
+        },
+        {
+          "n": 3,
+          "request_id": "request-00cf42f1-8d6e-40dd-9fbd-9f9f74d506ad",
+          "event": "PREVIEW_CREATED",
+          "data": "{\"snapshotHash\":\"ece04ad108d7e5ea3be3f714f6adf2d72eef405d41f0dc1021ac0b2f0988e16c\",\"counts\":{\"summaryReads\":1,\"rawLogReads\":0,\"deliveryTools\":0,\"dispatches\":0,\"readbacks\":0}}"
+        },
+        {
+          "n": 4,
+          "request_id": "request-00cf42f1-8d6e-40dd-9fbd-9f9f74d506ad",
+          "event": "AUTHORIZED",
+          "data": "{\"snapshotHash\":\"ece04ad108d7e5ea3be3f714f6adf2d72eef405d41f0dc1021ac0b2f0988e16c\",\"synthetic\":true}"
+        },
+        {
+          "n": 5,
+          "request_id": "request-00cf42f1-8d6e-40dd-9fbd-9f9f74d506ad",
+          "event": "AUTHORIZATION_DENIED",
+          "data": "{\"state\":\"EXPIRED\",\"reason\":\"EXPIRED_OR_INVALID_WINDOW\",\"checkedAt\":1792109100000,\"deliveryFactPreserved\":false,\"priorStatus\":\"AUTHORIZED\",\"resultingStatus\":\"EXPIRED\"}"
+        },
+        {
+          "n": 6,
+          "request_id": "request-00cf42f1-8d6e-40dd-9fbd-9f9f74d506ad",
+          "event": "DELIVERY_DENIED",
+          "data": "{\"reason\":\"EXPIRED_OR_INVALID_WINDOW\",\"counts\":{\"summaryReads\":1,\"rawLogReads\":0,\"deliveryTools\":0,\"dispatches\":0,\"readbacks\":0}}"
+        }
+      ]
+    },
+    {
+      "name": "expiry-LOCAL_DELIVERY_VERIFIED",
+      "passed": true,
+      "state": "LOCAL_DELIVERY_VERIFIED",
+      "before": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 1
+      },
+      "after": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 1
+      },
+      "receiverWrites": 1,
+      "adapterStarts": 8,
+      "roles": [
+        "engineer",
+        "human",
+        "receiver"
+      ],
+      "journal": [
+        {
+          "n": 1,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 2,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "NEEDS_INFORMATION",
+          "data": "{}"
+        },
+        {
+          "n": 3,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "PREVIEW_CREATED",
+          "data": "{\"snapshotHash\":\"4c8eff31ffd98dd7a5a987865f4e191898de69aaa43abaee33ea0d6470acd17a\",\"counts\":{\"summaryReads\":1,\"rawLogReads\":0,\"deliveryTools\":0,\"dispatches\":0,\"readbacks\":0}}"
+        },
+        {
+          "n": 4,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "AUTHORIZED",
+          "data": "{\"snapshotHash\":\"4c8eff31ffd98dd7a5a987865f4e191898de69aaa43abaee33ea0d6470acd17a\",\"synthetic\":true}"
+        },
+        {
+          "n": 5,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "DELIVERING",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":0}}"
+        },
+        {
+          "n": 6,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "LOCAL_RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 7,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "LOCAL_DELIVERY_VERIFIED",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":1}}"
+        },
+        {
+          "n": 8,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "AUTHORIZATION_DENIED",
+          "data": "{\"state\":\"EXPIRED\",\"reason\":\"EXPIRED_OR_INVALID_WINDOW\",\"checkedAt\":1792109100000,\"deliveryFactPreserved\":true,\"priorStatus\":\"LOCAL_DELIVERY_VERIFIED\",\"resultingStatus\":\"LOCAL_DELIVERY_VERIFIED\"}"
+        },
+        {
+          "n": 9,
+          "request_id": "request-1cabdfaa-9e31-4fd4-91b0-dbfe63ad2342",
+          "event": "DELIVERY_DENIED",
+          "data": "{\"reason\":\"EXPIRED_OR_INVALID_WINDOW\",\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":1}}"
+        }
+      ]
+    },
+    {
+      "name": "expiry-DELIVERY_UNKNOWN",
+      "passed": true,
+      "state": "DELIVERY_UNKNOWN",
+      "before": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 0
+      },
+      "after": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 0
+      },
+      "receiverWrites": 1,
+      "adapterStarts": 6,
+      "roles": [
+        "engineer",
+        "human",
+        "receiver"
+      ],
+      "journal": [
+        {
+          "n": 1,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 2,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "NEEDS_INFORMATION",
+          "data": "{}"
+        },
+        {
+          "n": 3,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "PREVIEW_CREATED",
+          "data": "{\"snapshotHash\":\"789438496ce0252a5a3c72570ed312dcdc14b310a1d08584262a3ea0a2909428\",\"counts\":{\"summaryReads\":1,\"rawLogReads\":0,\"deliveryTools\":0,\"dispatches\":0,\"readbacks\":0}}"
+        },
+        {
+          "n": 4,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "AUTHORIZED",
+          "data": "{\"snapshotHash\":\"789438496ce0252a5a3c72570ed312dcdc14b310a1d08584262a3ea0a2909428\",\"synthetic\":true}"
+        },
+        {
+          "n": 5,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "DELIVERING",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":0}}"
+        },
+        {
+          "n": 6,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "DELIVERY_UNKNOWN",
+          "data": "{\"reason\":\"ADAPTER_IO_UNKNOWN\"}"
+        },
+        {
+          "n": 7,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "AUTHORIZATION_DENIED",
+          "data": "{\"state\":\"EXPIRED\",\"reason\":\"EXPIRED_OR_INVALID_WINDOW\",\"checkedAt\":1792109100000,\"deliveryFactPreserved\":true,\"priorStatus\":\"DELIVERY_UNKNOWN\",\"resultingStatus\":\"DELIVERY_UNKNOWN\"}"
+        },
+        {
+          "n": 8,
+          "request_id": "request-75c02e95-a36b-4591-9b90-e1e30f0fa0ae",
+          "event": "DELIVERY_DENIED",
+          "data": "{\"reason\":\"EXPIRED_OR_INVALID_WINDOW\",\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":0}}"
+        }
+      ]
+    },
+    {
+      "name": "revoked-delivery",
+      "passed": true,
+      "state": "LOCAL_DELIVERY_VERIFIED",
+      "before": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 1
+      },
+      "after": {
+        "summaryReads": 2,
+        "rawLogReads": 0,
+        "deliveryTools": 1,
+        "dispatches": 1,
+        "readbacks": 1
+      },
+      "receiverWrites": 1,
+      "adapterStarts": 8,
+      "roles": [
+        "engineer",
+        "human",
+        "receiver"
+      ],
+      "journal": [
+        {
+          "n": 1,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 2,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "NEEDS_INFORMATION",
+          "data": "{}"
+        },
+        {
+          "n": 3,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "PREVIEW_CREATED",
+          "data": "{\"snapshotHash\":\"d806e265750adc157e1832a49d48f222474fb1fd7f22b2e9eaf46f2f56f37727\",\"counts\":{\"summaryReads\":1,\"rawLogReads\":0,\"deliveryTools\":0,\"dispatches\":0,\"readbacks\":0}}"
+        },
+        {
+          "n": 4,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "AUTHORIZED",
+          "data": "{\"snapshotHash\":\"d806e265750adc157e1832a49d48f222474fb1fd7f22b2e9eaf46f2f56f37727\",\"synthetic\":true}"
+        },
+        {
+          "n": 5,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "DELIVERING",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":0}}"
+        },
+        {
+          "n": 6,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "LOCAL_RECEIVED",
+          "data": "{}"
+        },
+        {
+          "n": 7,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "LOCAL_DELIVERY_VERIFIED",
+          "data": "{\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":1}}"
+        },
+        {
+          "n": 8,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "AUTHORIZATION_DENIED",
+          "data": "{\"state\":\"REVOKED\",\"reason\":\"DISCLOSURE_DENIED\",\"checkedAt\":1792108800000,\"deliveryFactPreserved\":true,\"priorStatus\":\"LOCAL_DELIVERY_VERIFIED\",\"resultingStatus\":\"LOCAL_DELIVERY_VERIFIED\"}"
+        },
+        {
+          "n": 9,
+          "request_id": "request-fb792a97-cc0a-4330-8248-3100615421e4",
+          "event": "DELIVERY_DENIED",
+          "data": "{\"reason\":\"DISCLOSURE_DENIED\",\"counts\":{\"summaryReads\":2,\"rawLogReads\":0,\"deliveryTools\":1,\"dispatches\":1,\"readbacks\":1}}"
+        }
+      ]
+    }
+  ],
+  "realModelCalls": 0,
+  "platformMessages": 0
+}

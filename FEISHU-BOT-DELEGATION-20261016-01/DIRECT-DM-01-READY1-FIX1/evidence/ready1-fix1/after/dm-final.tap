@@ -1,0 +1,912 @@
+TAP version 13
+# Subtest: offline accepted preview, verified human envelope, one summary and readback
+ok 1 - offline accepted preview, verified human envelope, one summary and readback
+  ---
+  duration_ms: 7.406084
+  type: 'test'
+  ...
+# Subtest: rejection is read back and never permits summary
+ok 2 - rejection is read back and never permits summary
+  ---
+  duration_ms: 4.099625
+  type: 'test'
+  ...
+# Subtest: identity, exact body, current policy and readback failures stay quarantined
+    # Subtest: wrongActor
+    ok 1 - wrongActor
+      ---
+      duration_ms: 4.904375
+      type: 'test'
+      ...
+    # Subtest: botCannotConfirm
+    ok 2 - botCannotConfirm
+      ---
+      duration_ms: 6.487917
+      type: 'test'
+      ...
+    # Subtest: wrongChat
+    ok 3 - wrongChat
+      ---
+      duration_ms: 4.124833
+      type: 'test'
+      ...
+    # Subtest: wrongApp
+    ok 4 - wrongApp
+      ---
+      duration_ms: 9.276875
+      type: 'test'
+      ...
+    # Subtest: wrongCode
+    ok 5 - wrongCode
+      ---
+      duration_ms: 6.307542
+      type: 'test'
+      ...
+    # Subtest: bareAgreement
+    ok 6 - bareAgreement
+      ---
+      duration_ms: 5.253084
+      type: 'test'
+      ...
+    # Subtest: quoteApproval
+    ok 7 - quoteApproval
+      ---
+      duration_ms: 5.283792
+      type: 'test'
+      ...
+    # Subtest: unthreaded
+    ok 8 - unthreaded
+      ---
+      duration_ms: 22.713542
+      type: 'test'
+      ...
+    # Subtest: expired
+    ok 9 - expired
+      ---
+      duration_ms: 8.662791
+      type: 'test'
+      ...
+    # Subtest: permissionRevoked
+    ok 10 - permissionRevoked
+      ---
+      duration_ms: 4.854041
+      type: 'test'
+      ...
+    # Subtest: changedVersion
+    ok 11 - changedVersion
+      ---
+      duration_ms: 7.621583
+      type: 'test'
+      ...
+    # Subtest: changedPreview
+    ok 12 - changedPreview
+      ---
+      duration_ms: 4.242916
+      type: 'test'
+      ...
+    # Subtest: deleted
+    ok 13 - deleted
+      ---
+      duration_ms: 4.079417
+      type: 'test'
+      ...
+    # Subtest: absentTimestamp
+    ok 14 - absentTimestamp
+      ---
+      duration_ms: 38.005667
+      type: 'test'
+      ...
+    # Subtest: malformedTimestamp
+    ok 15 - malformedTimestamp
+      ---
+      duration_ms: 3.589667
+      type: 'test'
+      ...
+    1..15
+ok 3 - identity, exact body, current policy and readback failures stay quarantined
+  ---
+  duration_ms: 162.891792
+  type: 'test'
+  ...
+# Subtest: lost send result remains reserved after restart, with no blind retry
+ok 4 - lost send result remains reserved after restart, with no blind retry
+  ---
+  duration_ms: 9.68375
+  type: 'test'
+  ...
+# Subtest: worker offline and verification timeout cannot fall through to business
+ok 5 - worker offline and verification timeout cannot fall through to business
+  ---
+  duration_ms: 21.832875
+  type: 'test'
+  ...
+# Subtest: simultaneous repeated confirmation consumes the request once
+ok 6 - simultaneous repeated confirmation consumes the request once
+  ---
+  duration_ms: 4.071875
+  type: 'test'
+  ...
+# Subtest: stop while readback is pending prevents authorization, including unknown stop
+ok 7 - stop while readback is pending prevents authorization, including unknown stop
+  ---
+  duration_ms: 3.904125
+  type: 'test'
+  ...
+# Subtest: late replies, outputs and ordinary new traffic in approved bot chats stay excluded
+ok 8 - late replies, outputs and ordinary new traffic in approved bot chats stay excluded
+  ---
+  duration_ms: 15.492667
+  type: 'test'
+  ...
+# Subtest: readback failure is distinct from delivery and keeps the result excluded
+ok 9 - readback failure is distinct from delivery and keeps the result excluded
+  ---
+  duration_ms: 10.846875
+  type: 'test'
+  ...
+# Subtest: missing approvals and reused manifest cannot arm a send
+ok 10 - missing approvals and reused manifest cannot arm a send
+  ---
+  duration_ms: 3.735375
+  type: 'test'
+  ...
+# Subtest: ledger loss or corruption fails closed instead of silently recreating
+ok 11 - ledger loss or corruption fails closed instead of silently recreating
+  ---
+  duration_ms: 4.722917
+  type: 'test'
+  ...
+# Subtest: DM-B01 persistent boundary holds arbitrary future input without using words or expiry
+ok 12 - DM-B01 persistent boundary holds arbitrary future input without using words or expiry
+  ---
+  duration_ms: 7.487042
+  type: 'test'
+  ...
+# Subtest: DM-B02 final root/parent variants work without a preceding hold or passive-chat match
+ok 13 - DM-B02 final root/parent variants work without a preceding hold or passive-chat match
+  ---
+  duration_ms: 5.11425
+  type: 'test'
+  ...
+# Subtest: DM-B02 quarantined reference chains propagate beyond outbound effects
+ok 14 - DM-B02 quarantined reference chains propagate beyond outbound effects
+  ---
+  duration_ms: 6.3195
+  type: 'test'
+  ...
+# Subtest: DM-B02 reader preserves authoritative parent/root fields even if shortcut omits them
+ok 15 - DM-B02 reader preserves authoritative parent/root fields even if shortcut omits them
+  ---
+  duration_ms: 4.579333
+  type: 'test'
+  ...
+# Subtest: DM-B02 readback failure cannot produce a partially trusted source batch
+ok 16 - DM-B02 readback failure cannot produce a partially trusted source batch
+  ---
+  duration_ms: 7.359125
+  type: 'test'
+  ...
+# Subtest: inconsistent trusted identity fields never authorize a human confirmation
+ok 17 - inconsistent trusted identity fields never authorize a human confirmation
+  ---
+  duration_ms: 6.069167
+  type: 'test'
+  ...
+# Subtest: DM-B03 uncertain owner inspection keeps the live intent and denies another send
+ok 18 - DM-B03 uncertain owner inspection keeps the live intent and denies another send
+  ---
+  duration_ms: 5.132791
+  type: 'test'
+  ...
+# Subtest: DM-B03 actual owner death recovers unknown once, preserving the intent and denying late mutation
+ok 19 - DM-B03 actual owner death recovers unknown once, preserving the intent and denying late mutation
+  ---
+  duration_ms: 39.860375
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60858；SQLite：/TEMP_ROOT/fix1-full-service-VdcBBt/store/workbench.sqlite
+# Subtest: complete candidate service boots without isolation when never activated
+ok 20 - complete candidate service boots without isolation when never activated
+  ---
+  duration_ms: 122.508084
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60863；SQLite：/TEMP_ROOT/fix1-full-service-987q8P/store/workbench.sqlite
+# Subtest: full host routes event, polling, discovery and final storage through durable isolation
+ok 21 - full host routes event, polling, discovery and final storage through durable isolation
+  ---
+  duration_ms: 67.228292
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60865；SQLite：/TEMP_ROOT/fix1-full-service-QbAsSs/store/workbench.sqlite
+# Subtest: full host blocks legacy leaked source before input, budget retry or automatic receipt
+ok 22 - full host blocks legacy leaked source before input, budget retry or automatic receipt
+  ---
+  duration_ms: 87.716292
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60868；SQLite：/TEMP_ROOT/fix1-full-service-yiillG/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60869；SQLite：/TEMP_ROOT/fix1-full-service-yiillG/store/workbench.sqlite
+# Subtest: full service restores passive isolation without the temporary configuration
+ok 23 - full service restores passive isolation without the temporary configuration
+  ---
+  duration_ms: 58.266125
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60872；SQLite：/TEMP_ROOT/fix1-full-service-ajY7Du/store/workbench.sqlite
+# Subtest: full service refuses a redirect to another empty ledger
+ok 24 - full service refuses a redirect to another empty ledger
+  ---
+  duration_ms: 54.25925
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60874；SQLite：/TEMP_ROOT/fix1-full-service-cTXHVh/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60878；SQLite：/TEMP_ROOT/fix1-full-service-cTXHVh/store/workbench.sqlite
+# Subtest: full service fails closed on lost ledger and retains history after restoring the file
+ok 25 - full service fails closed on lost ledger and retains history after restoring the file
+  ---
+  duration_ms: 56.853083
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60880；SQLite：/TEMP_ROOT/fix1-full-service-FdsJD3/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60883；SQLite：/TEMP_ROOT/fix1-full-service-FdsJD3/store/workbench.sqlite
+# Subtest: full service fails closed on corrupt ledger without creating an empty replacement
+ok 26 - full service fails closed on corrupt ledger without creating an empty replacement
+  ---
+  duration_ms: 56.293459
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60884；SQLite：/TEMP_ROOT/fix1-full-service-9jMEhr/store/workbench.sqlite
+# Subtest: same path with a different empty ledger is rejected by persistent ledger identity
+ok 27 - same path with a different empty ledger is rejected by persistent ledger identity
+  ---
+  duration_ms: 48.462583
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60888；SQLite：/TEMP_ROOT/fix1-full-service-mGpW9n/store/workbench.sqlite
+# Subtest: missing sidecar or missing database registration cannot silently disable isolation
+    # Subtest: sidecar
+# 本地工作台 v2 已就绪：http://127.0.0.1:60891；SQLite：/TEMP_ROOT/fix1-full-service-UAyYdn/store/workbench.sqlite
+    ok 1 - sidecar
+      ---
+      duration_ms: 48.454125
+      type: 'test'
+      ...
+    # Subtest: setting
+    ok 2 - setting
+      ---
+      duration_ms: 39.839541
+      type: 'test'
+      ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60895；SQLite：/TEMP_ROOT/fix1-full-service-ZhXrT1/store/workbench.sqlite
+    1..2
+ok 28 - missing sidecar or missing database registration cannot silently disable isolation
+  ---
+  duration_ms: 88.745125
+  type: 'test'
+  ...
+# Subtest: old full host refuses the latched data version before starting consumers
+# 本地工作台 v2 已就绪：http://127.0.0.1:60898；SQLite：/TEMP_ROOT/fix1-full-service-GXBVo6/store/workbench.sqlite
+ok 29 - old full host refuses the latched data version before starting consumers
+  ---
+  duration_ms: 52.059959
+  type: 'test'
+  ...
+# Subtest: a second active consumer cannot take over or rewrite a live sending intent
+ok 30 - a second active consumer cannot take over or rewrite a live sending intent
+  ---
+  duration_ms: 36.252417
+  type: 'test'
+  ...
+# Subtest: actual event bridge excludes preview, reply and output before business read/write
+ok 31 - actual event bridge excludes preview, reply and output before business read/write
+  ---
+  duration_ms: 54.319959
+  type: 'test'
+  ...
+# Subtest: actual private and mention readers exclude test data but retain normal messages
+ok 32 - actual private and mention readers exclude test data but retain normal messages
+  ---
+  duration_ms: 5.430834
+  type: 'test'
+  ...
+# Subtest: actual group discovery blocks copied test triggers and messages
+ok 33 - actual group discovery blocks copied test triggers and messages
+  ---
+  duration_ms: 5.009041
+  type: 'test'
+  ...
+# Subtest: actual monitor final barrier catches a reader that omitted early filtering
+ok 34 - actual monitor final barrier catches a reader that omitted early filtering
+  ---
+  duration_ms: 49.498958
+  type: 'test'
+  ...
+# Subtest: actual final storage barrier blocks injected test sources atomically
+ok 35 - actual final storage barrier blocks injected test sources atomically
+  ---
+  duration_ms: 38.117875
+  type: 'test'
+  ...
+# Subtest: actual input and automatic receipt paths stop before model or send
+ok 36 - actual input and automatic receipt paths stop before model or send
+  ---
+  duration_ms: 4.110334
+  type: 'test'
+  ...
+# Subtest: READY1 real child process preserves exact literal arguments without a shell
+ok 37 - READY1 real child process preserves exact literal arguments without a shell
+  ---
+  duration_ms: 625.435375
+  type: 'test'
+  ...
+# Subtest: READY1 changed CLI bytes prevent every subprocess
+ok 38 - READY1 changed CLI bytes prevent every subprocess
+  ---
+  duration_ms: 0.716792
+  type: 'test'
+  ...
+# Subtest: READY1 final pre-send revocation permits identity reads but no send process
+ok 39 - READY1 final pre-send revocation permits identity reads but no send process
+  ---
+  duration_ms: 395.339959
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60859；SQLite：/TEMP_ROOT/fix1-full-service-2u33DX/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60864；SQLite：/TEMP_ROOT/fix1-full-service-U0LjgN/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60866；SQLite：/TEMP_ROOT/fix1-full-service-gDPGYY/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60870；SQLite：/TEMP_ROOT/fix1-full-service-bBZ3CR/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60875；SQLite：/TEMP_ROOT/fix1-full-service-PtxGZM/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60879；SQLite：/TEMP_ROOT/fix1-full-service-09dAt3/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60885；SQLite：/TEMP_ROOT/fix1-full-service-p8y7xB/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60889；SQLite：/TEMP_ROOT/fix1-full-service-PiKLC5/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial tenant before durable registration
+ok 40 - B01 complete host rejects initial tenant before durable registration
+  ---
+  duration_ms: 145.676083
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60893；SQLite：/TEMP_ROOT/fix1-full-service-ulckzq/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial scope before durable registration
+ok 41 - B01 complete host rejects initial scope before durable registration
+  ---
+  duration_ms: 67.833708
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60899；SQLite：/TEMP_ROOT/fix1-full-service-37nzzY/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial app before durable registration
+ok 42 - B01 complete host rejects initial app before durable registration
+  ---
+  duration_ms: 101.262583
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60901；SQLite：/TEMP_ROOT/fix1-full-service-0A8dai/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial owner before durable registration
+ok 43 - B01 complete host rejects initial owner before durable registration
+  ---
+  duration_ms: 64.368708
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60903；SQLite：/TEMP_ROOT/fix1-full-service-14At0Z/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial participant before durable registration
+ok 44 - B01 complete host rejects initial participant before durable registration
+  ---
+  duration_ms: 63.730542
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60905；SQLite：/TEMP_ROOT/fix1-full-service-pd0m8x/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial bot before durable registration
+ok 45 - B01 complete host rejects initial bot before durable registration
+  ---
+  duration_ms: 60.572209
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60907；SQLite：/TEMP_ROOT/fix1-full-service-emr0kH/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial ownerChat before durable registration
+ok 46 - B01 complete host rejects initial ownerChat before durable registration
+  ---
+  duration_ms: 63.076375
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60909；SQLite：/TEMP_ROOT/fix1-full-service-gXPZ1F/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial participantChat before durable registration
+ok 47 - B01 complete host rejects initial participantChat before durable registration
+  ---
+  duration_ms: 61.75625
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60910；SQLite：/TEMP_ROOT/fix1-full-service-0oTpQ4/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial policyVersion before durable registration
+ok 48 - B01 complete host rejects initial policyVersion before durable registration
+  ---
+  duration_ms: 60.739333
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60912；SQLite：/TEMP_ROOT/fix1-full-service-cHIWe4/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial resourceVersion before durable registration
+ok 49 - B01 complete host rejects initial resourceVersion before durable registration
+  ---
+  duration_ms: 58.533375
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60914；SQLite：/TEMP_ROOT/fix1-full-service-p1ygyK/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial purpose before durable registration
+ok 50 - B01 complete host rejects initial purpose before durable registration
+  ---
+  duration_ms: 54.724708
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60916；SQLite：/TEMP_ROOT/fix1-full-service-kBSu2c/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial summaryHash before durable registration
+ok 51 - B01 complete host rejects initial summaryHash before durable registration
+  ---
+  duration_ms: 50.566208
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60918；SQLite：/TEMP_ROOT/fix1-full-service-QKJ8Qa/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial previewHash before durable registration
+ok 52 - B01 complete host rejects initial previewHash before durable registration
+  ---
+  duration_ms: 48.074375
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60920；SQLite：/TEMP_ROOT/fix1-full-service-oTRSik/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial swappedRoles before durable registration
+ok 53 - B01 complete host rejects initial swappedRoles before durable registration
+  ---
+  duration_ms: 46.95825
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60922；SQLite：/TEMP_ROOT/fix1-full-service-XD0OJn/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial missingScope before durable registration
+ok 54 - B01 complete host rejects initial missingScope before durable registration
+  ---
+  duration_ms: 51.375458
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60924；SQLite：/TEMP_ROOT/fix1-full-service-Sc1iS8/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial nonStringOwner before durable registration
+ok 55 - B01 complete host rejects initial nonStringOwner before durable registration
+  ---
+  duration_ms: 52.068834
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60927；SQLite：/TEMP_ROOT/fix1-full-service-qkNS4L/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial emptyVersion before durable registration
+ok 56 - B01 complete host rejects initial emptyVersion before durable registration
+  ---
+  duration_ms: 49.5935
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60928；SQLite：/TEMP_ROOT/fix1-full-service-16LfrC/store/workbench.sqlite
+# Subtest: B01 complete host rejects initial extraField before durable registration
+ok 57 - B01 complete host rejects initial extraField before durable registration
+  ---
+  duration_ms: 50.456208
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60930；SQLite：/TEMP_ROOT/fix1-full-service-16LfrC/store/workbench.sqlite
+# Subtest: B01 complete host matching signed admission, preview, original confirmation, one summary and persistent isolation
+ok 58 - B01 complete host matching signed admission, preview, original confirmation, one summary and persistent isolation
+  ---
+  duration_ms: 99.97325
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60932；SQLite：/TEMP_ROOT/fix1-full-service-16LfrC/store/workbench.sqlite
+# Subtest: B01 platform tenantKey must match the same approved binding
+ok 59 - B01 platform tenantKey must match the same approved binding
+  ---
+  duration_ms: 58.672792
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60933；SQLite：/TEMP_ROOT/fix1-full-service-x6cBRO/store/workbench.sqlite
+# Subtest: B01 platform appId must match the same approved binding
+ok 60 - B01 platform appId must match the same approved binding
+  ---
+  duration_ms: 56.420792
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60935；SQLite：/TEMP_ROOT/fix1-full-service-idyp0w/store/workbench.sqlite
+# Subtest: B01 platform ownerId must match the same approved binding
+ok 61 - B01 platform ownerId must match the same approved binding
+  ---
+  duration_ms: 69.271541
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60936；SQLite：/TEMP_ROOT/fix1-full-service-4rt2tx/store/workbench.sqlite
+# Subtest: B01 platform botId must match the same approved binding
+ok 62 - B01 platform botId must match the same approved binding
+  ---
+  duration_ms: 54.684917
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60937；SQLite：/TEMP_ROOT/fix1-full-service-1hAZnR/store/workbench.sqlite
+# Subtest: B01 original signature control still rejects before registration or capability change
+ok 63 - B01 original signature control still rejects before registration or capability change
+  ---
+  duration_ms: 50.259417
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60938；SQLite：/TEMP_ROOT/fix1-full-service-QZKBry/store/workbench.sqlite
+# Subtest: B01 mismatched restart stops active work and preserves original passive isolation and unknown facts
+ok 64 - B01 mismatched restart stops active work and preserves original passive isolation and unknown facts
+  ---
+  duration_ms: 97.313042
+  type: 'test'
+  ...
+# Subtest: B01 changed signed approval after admission cannot redirect the registered request
+ok 65 - B01 changed signed approval after admission cannot redirect the registered request
+  ---
+  duration_ms: 60.082667
+  type: 'test'
+  ...
+# Subtest: B01 config change during platform identity reads is rejected before send
+ok 66 - B01 config change during platform identity reads is rejected before send
+  ---
+  duration_ms: 57.00375
+  type: 'test'
+  ...
+# Subtest: B01 approval change during platform identity reads is rejected before send
+ok 67 - B01 approval change during platform identity reads is rejected before send
+  ---
+  duration_ms: 54.120833
+  type: 'test'
+  ...
+# Subtest: B01 controller cannot swap the actual transport or mutate its bound identity
+ok 68 - B01 controller cannot swap the actual transport or mutate its bound identity
+  ---
+  duration_ms: 34.750667
+  type: 'test'
+  ...
+# Subtest: B01 untrusted event identity never grants summary even when its request marker matches
+ok 69 - B01 untrusted event identity never grants summary even when its request marker matches
+  ---
+  duration_ms: 65.543541
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60860；SQLite：/TEMP_ROOT/fix1-full-service-trVOXE/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60867；SQLite：/TEMP_ROOT/fix1-full-service-MUcq62/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60871；SQLite：/TEMP_ROOT/fix1-full-service-2iGRO9/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60876；SQLite：/TEMP_ROOT/fix1-full-service-Ptyt06/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60881；SQLite：/TEMP_ROOT/fix1-full-service-CmbpX8/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60886；SQLite：/TEMP_ROOT/fix1-full-service-mZrB4Q/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:60892；SQLite：/TEMP_ROOT/fix1-full-service-ji41cL/store/workbench.sqlite
+# Subtest: READY1 complete host: signed authority -> bot preview -> raw confirm -> one bot summary -> original readback
+ok 70 - READY1 complete host: signed authority -> bot preview -> raw confirm -> one bot summary -> original readback
+  ---
+  duration_ms: 213.018
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60896；SQLite：/TEMP_ROOT/fix1-full-service-tmKvoM/store/workbench.sqlite
+# Subtest: READY1 absent review evidence never invokes transport
+ok 71 - READY1 absent review evidence never invokes transport
+  ---
+  duration_ms: 119.093875
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60900；SQLite：/TEMP_ROOT/fix1-full-service-NgPmUE/store/workbench.sqlite
+# Subtest: READY1 absent installation evidence never invokes transport
+ok 72 - READY1 absent installation evidence never invokes transport
+  ---
+  duration_ms: 65.222292
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60902；SQLite：/TEMP_ROOT/fix1-full-service-QoZJ3l/store/workbench.sqlite
+# Subtest: READY1 absent exactText evidence never invokes transport
+ok 73 - READY1 absent exactText evidence never invokes transport
+  ---
+  duration_ms: 77.294375
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60904；SQLite：/TEMP_ROOT/fix1-full-service-qJCnZl/store/workbench.sqlite
+# Subtest: READY1 absent conversationBinding evidence never invokes transport
+ok 74 - READY1 absent conversationBinding evidence never invokes transport
+  ---
+  duration_ms: 64.150708
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60906；SQLite：/TEMP_ROOT/fix1-full-service-p2jnG9/store/workbench.sqlite
+# Subtest: READY1 absent memberVisibility evidence never invokes transport
+ok 75 - READY1 absent memberVisibility evidence never invokes transport
+  ---
+  duration_ms: 60.006334
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60908；SQLite：/TEMP_ROOT/fix1-full-service-4Cf2lI/store/workbench.sqlite
+# Subtest: READY1 rejects altered signature before transport
+ok 76 - READY1 rejects altered signature before transport
+  ---
+  duration_ms: 67.629542
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60911；SQLite：/TEMP_ROOT/fix1-full-service-62x2Za/store/workbench.sqlite
+# Subtest: READY1 rejects altered snapshot before transport
+ok 77 - READY1 rejects altered snapshot before transport
+  ---
+  duration_ms: 61.452958
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60913；SQLite：/TEMP_ROOT/fix1-full-service-F8reO5/store/workbench.sqlite
+# Subtest: READY1 rejects altered config before transport
+ok 78 - READY1 rejects altered config before transport
+  ---
+  duration_ms: 55.870625
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60915；SQLite：/TEMP_ROOT/fix1-full-service-qiOnSx/store/workbench.sqlite
+# Subtest: READY1 rejects altered permissions before transport
+ok 79 - READY1 rejects altered permissions before transport
+  ---
+  duration_ms: 50.599959
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60917；SQLite：/TEMP_ROOT/fix1-full-service-dn4XuA/store/workbench.sqlite
+# Subtest: READY1 wrongApp stays unverified and cannot resend
+ok 80 - READY1 wrongApp stays unverified and cannot resend
+  ---
+  duration_ms: 57.32925
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60919；SQLite：/TEMP_ROOT/fix1-full-service-zbKJqJ/store/workbench.sqlite
+# Subtest: READY1 wrongTenant stays unverified and cannot resend
+ok 81 - READY1 wrongTenant stays unverified and cannot resend
+  ---
+  duration_ms: 53.818083
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60921；SQLite：/TEMP_ROOT/fix1-full-service-cRSmjt/store/workbench.sqlite
+# Subtest: READY1 lostReceipt stays unverified and cannot resend
+ok 82 - READY1 lostReceipt stays unverified and cannot resend
+  ---
+  duration_ms: 75.583875
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60923；SQLite：/TEMP_ROOT/fix1-full-service-3uMstd/store/workbench.sqlite
+# Subtest: READY1 readFailure stays unverified and cannot resend
+ok 83 - READY1 readFailure stays unverified and cannot resend
+  ---
+  duration_ms: 60.661958
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60925；SQLite：/TEMP_ROOT/fix1-full-service-3uMstd/store/workbench.sqlite
+# Subtest: READY1 wrongBody stays unverified and cannot resend
+ok 84 - READY1 wrongBody stays unverified and cannot resend
+  ---
+  duration_ms: 65.050833
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60926；SQLite：/TEMP_ROOT/fix1-full-service-ZQeKas/store/workbench.sqlite
+# Subtest: READY1 formattedTime stays unverified and cannot resend
+ok 85 - READY1 formattedTime stays unverified and cannot resend
+  ---
+  duration_ms: 68.20675
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60929；SQLite：/TEMP_ROOT/fix1-full-service-Ho900h/store/workbench.sqlite
+# Subtest: READY1 wrongSender stays unverified and cannot resend
+ok 86 - READY1 wrongSender stays unverified and cannot resend
+  ---
+  duration_ms: 61.545375
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60931；SQLite：/TEMP_ROOT/fix1-full-service-ivVXq1/store/workbench.sqlite
+# Subtest: READY1 wrongMessageTenant stays unverified and cannot resend
+ok 87 - READY1 wrongMessageTenant stays unverified and cannot resend
+  ---
+  duration_ms: 62.19725
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:60934；SQLite：/TEMP_ROOT/fix1-full-service-uzCIuK/store/workbench.sqlite
+# Subtest: READY1 revocation during original-message read prevents summary and keeps quarantine
+ok 88 - READY1 revocation during original-message read prevents summary and keeps quarantine
+  ---
+  duration_ms: 71.09225
+  type: 'test'
+  ...
+# Subtest: READY1 expiry and stopped worker keep ordinary input isolated after restart with config removed
+ok 89 - READY1 expiry and stopped worker keep ordinary input isolated after restart with config removed
+  ---
+  duration_ms: 76.532417
+  type: 'test'
+  ...
+# Subtest: READY1 thrown worker handler cannot fall through to business
+ok 90 - READY1 thrown worker handler cannot fall through to business
+  ---
+  duration_ms: 53.295
+  type: 'test'
+  ...
+# Subtest: READY1 signed local import latches one request and performs no I/O
+ok 91 - READY1 signed local import latches one request and performs no I/O
+  ---
+  duration_ms: 61.834375
+  type: 'test'
+  ...
+# Subtest: READY1 principle approval alone cannot register a request or change data capability
+ok 92 - READY1 principle approval alone cannot register a request or change data capability
+  ---
+  duration_ms: 44.739625
+  type: 'test'
+  ...
+# Subtest: READY1 tampered manifest cannot register even with genuine approval of another manifest
+ok 93 - READY1 tampered manifest cannot register even with genuine approval of another manifest
+  ---
+  duration_ms: 62.331625
+  type: 'test'
+  ...
+# Subtest: CONTROL: late direct reply to preview is quarantined
+ok 94 - CONTROL: late direct reply to preview is quarantined
+  ---
+  duration_ms: 6.448167
+  type: 'test'
+  ...
+# Subtest: B01: late unthreaded test response must not fall through to business
+ok 95 - B01: late unthreaded test response must not fall through to business
+  ---
+  duration_ms: 5.201
+  type: 'test'
+  ...
+# Subtest: CONTROL: raw root-only late reply is recognized
+ok 96 - CONTROL: raw root-only late reply is recognized
+  ---
+  duration_ms: 5.592208
+  type: 'test'
+  ...
+# Subtest: B02a: final source barrier must preserve a known root-only reference
+ok 97 - B02a: final source barrier must preserve a known root-only reference
+  ---
+  duration_ms: 3.753875
+  type: 'test'
+  ...
+# Subtest: CONTROL: source barrier recognizes direct parent
+ok 98 - CONTROL: source barrier recognizes direct parent
+  ---
+  duration_ms: 7.794333
+  type: 'test'
+  ...
+# Subtest: B02b: reply to a quarantined reply remains in the quarantine chain
+ok 99 - B02b: reply to a quarantined reply remains in the quarantine chain
+  ---
+  duration_ms: 5.91875
+  type: 'test'
+  ...
+# Subtest: CONTROL: original request marker remains quarantined after stop
+ok 100 - CONTROL: original request marker remains quarantined after stop
+  ---
+  duration_ms: 4.93225
+  type: 'test'
+  ...
+# Subtest: DM-B03a: interrupted pre-send intent should be reported unknown after reopen
+ok 101 - DM-B03a: interrupted pre-send intent should be reported unknown after reopen
+  ---
+  duration_ms: 6.071792
+  type: 'test'
+  ...
+# Subtest: CONTROL: unresolved pre-send intent is not blindly retried after reopen
+ok 102 - CONTROL: unresolved pre-send intent is not blindly retried after reopen
+  ---
+  duration_ms: 18.931542
+  type: 'test'
+  ...
+# Subtest: A01 never activated host has no isolation or version change
+ok 103 - A01 never activated host has no isolation or version change
+  ---
+  duration_ms: 13.241917
+  type: 'test'
+  ...
+# Subtest: A02 configured empty ledger alone does not latch registration
+ok 104 - A02 configured empty ledger alone does not latch registration
+  ---
+  duration_ms: 9.784333
+  type: 'test'
+  ...
+# Subtest: A03 registration survives absent config and stop; unrelated chat remains free
+ok 105 - A03 registration survives absent config and stop; unrelated chat remains free
+  ---
+  duration_ms: 35.343833
+  type: 'test'
+  ...
+# Subtest: A04 another empty ledger cannot replace the persisted path
+ok 106 - A04 another empty ledger cannot replace the persisted path
+  ---
+  duration_ms: 15.8065
+  type: 'test'
+  ...
+# Subtest: A05 missing ledger is not silently recreated
+ok 107 - A05 missing ledger is not silently recreated
+  ---
+  duration_ms: 43.872459
+  type: 'test'
+  ...
+# Subtest: A06 corrupt ledger is not silently recreated
+ok 108 - A06 corrupt ledger is not silently recreated
+  ---
+  duration_ms: 34.849167
+  type: 'test'
+  ...
+# Subtest: A07 same path empty replacement is rejected
+ok 109 - A07 same path empty replacement is rejected
+  ---
+  duration_ms: 27.744209
+  type: 'test'
+  ...
+# Subtest: A08-sidecar loss is rejected despite missing temporary config
+ok 110 - A08-sidecar loss is rejected despite missing temporary config
+  ---
+  duration_ms: 12.241459
+  type: 'test'
+  ...
+# Subtest: A08-setting loss is rejected despite missing temporary config
+ok 111 - A08-setting loss is rejected despite missing temporary config
+  ---
+  duration_ms: 21.884416
+  type: 'test'
+  ...
+# Subtest: A09 same ledger without registered request is rejected
+ok 112 - A09 same ledger without registered request is rejected
+  ---
+  duration_ms: 22.1545
+  type: 'test'
+  ...
+# Subtest: A10 inconsistent independent registry is rejected
+ok 113 - A10 inconsistent independent registry is rejected
+  ---
+  duration_ms: 52.282542
+  type: 'test'
+  ...
+# Subtest: A11 crash-point after latch but before request insert fails closed on restart
+ok 114 - A11 crash-point after latch but before request insert fails closed on restart
+  ---
+  duration_ms: 31.128625
+  type: 'test'
+  ...
+# Subtest: A12 attached isolation property cannot be silently removed
+ok 115 - A12 attached isolation property cannot be silently removed
+  ---
+  duration_ms: 18.731917
+  type: 'test'
+  ...
+# Subtest: B01 root and parent variants work outside persistent chat without prior hold
+ok 116 - B01 root and parent variants work outside persistent chat without prior hold
+  ---
+  duration_ms: 11.272375
+  type: 'test'
+  ...
+# Subtest: B02 quarantined reference chain survives reopening outside reserved chats
+ok 117 - B02 quarantined reference chain survives reopening outside reserved chats
+  ---
+  duration_ms: 3.672875
+  type: 'test'
+  ...
+# Subtest: B03 bound incomplete time is held but pre-boundary unrelated history is allowed
+ok 118 - B03 bound incomplete time is held but pre-boundary unrelated history is allowed
+  ---
+  duration_ms: 2.578
+  type: 'test'
+  ...
+# Subtest: O01-alive observer cannot steal sending owner
+ok 119 - O01-alive observer cannot steal sending owner
+  ---
+  duration_ms: 4.023667
+  type: 'test'
+  ...
+# Subtest: O01-unknown observer cannot steal sending owner
+ok 120 - O01-unknown observer cannot steal sending owner
+  ---
+  duration_ms: 11.657875
+  type: 'test'
+  ...
+# Subtest: O02 actual killed child owner recovers once, retains payload and never resends
+ok 121 - O02 actual killed child owner recovers once, retains payload and never resends
+  ---
+  duration_ms: 37.305
+  type: 'test'
+  ...
+1..121
+# tests 138
+# suites 0
+# pass 138
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2016.517375

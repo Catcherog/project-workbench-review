@@ -1,0 +1,142 @@
+diff --git a/dm/tests/binding-full-fixture.mjs b/dm/tests/binding-full-fixture.mjs
+new file mode 100644
+index 0000000..4b622df
+--- /dev/null
++++ b/dm/tests/binding-full-fixture.mjs
+@@ -0,0 +1,50 @@
++import assert from 'node:assert/strict';
++import {readFileSync,writeFileSync,chmodSync} from 'node:fs';
++import {join,resolve} from 'node:path';
++import {generateKeyPairSync,sign} from 'node:crypto';
++import {fullFixture,blockedExternal,restoreExecutionGuard} from './full-service-fixture.mjs';
++import {digest,canonical,bindingOf} from '../candidate/scripts/direct-dm-authority.mjs';
++import {verifyBuild} from '../candidate/scripts/direct-dm-runtime.mjs';
++
++const root=resolve(import.meta.dirname,'../candidate');
++export async function setup({arm=false,configPatch={},platformPatch={}}={}){
++ const c=await fullFixture(),m=c.f.manifest,buildManifest=join(root,'build-manifest.json'),buildHash=verifyBuild(root,buildManifest);
++ const {publicKey,privateKey}=generateKeyPairSync('ed25519'),pem=publicKey.export({type:'spki',format:'pem'}),approvalFile=join(c.dir,'approval.json'),configFile=join(c.dir,'control.json'),cli=join(c.dir,'synthetic-cli');
++ writeFileSync(cli,'synthetic executable pinned by hash; runner supplied in test mode');
++ const config={version:1,enabled:true,buildManifest,buildHash,publicKey:pem,publicKeyHash:digest(pem),approvalFile,cli,cliHash:digest(readFileSync(cli,'utf8')),binding:{...bindingOf(m),...configPatch}};
++ writeFileSync(configFile,JSON.stringify(config),{mode:0o600});
++ const actual={...config.binding,...platformPatch};
++ const state={calls:[],sends:[],messages:new Map(),mode:'ok',readHook:null,identityHook:null};
++ const raw=(id,chat,text,who='app')=>({message_id:id,chat_id:chat,msg_type:'text',sender:{id:who==='app'?m.appId:m.participantId,id_type:who==='app'?'app_id':'open_id',sender_type:who,tenant_key:m.tenantKey},body:{content:JSON.stringify({text})},create_time:String(m.issuedAt+(who==='app'?0:100)),deleted:false});
++ const runner=async(_file,args,{signal}={})=>{
++  state.calls.push([...args]);assert.equal(args.at(-1)==='user'||args.includes('bot')||args.includes('user'),true);
++  if(args[0]==='whoami'){const identity=args.at(-1);return {identity,available:true,appId:state.mode==='wrongApp'?'other':actual.appId,brand:'feishu',onBehalfOf:{openId:actual.ownerId}};}
++  if(args[2]==='/open-apis/bot/v3/info'){await state.identityHook?.();return {ok:true,identity:'bot',data:{open_id:actual.botId,activate_status:2}};}
++  if(args[2]==='/open-apis/authen/v1/user_info')return {ok:true,identity:'user',data:{open_id:actual.ownerId,tenant_key:state.mode==='wrongTenant'?'other':actual.tenantKey}};
++  if(args[1]==='+messages-send'){
++   assert.equal(args[args.indexOf('--as')+1],'bot');
++   const chat=args[args.indexOf('--chat-id')+1],text=args[args.indexOf('--text')+1],id='om_ready_'+(state.sends.length+1);
++   state.sends.push({chat,text,id,idempotencyKey:args[args.indexOf('--idempotency-key')+1]});
++   if(state.mode==='lostReceipt')throw Error('SYNTHETIC_LOST_RECEIPT');
++   state.messages.set(id,raw(id,chat,text));return {ok:true,identity:'bot',data:{message_id:id,chat_id:chat}};
++  }
++  if(args[2]?.startsWith('/open-apis/im/v1/messages/')){
++   const id=args[2].split('/').at(-1);if(state.readHook)await state.readHook(id);
++   if(state.mode==='readFailure')throw Error('SYNTHETIC_READ_FAILURE');
++   const value=structuredClone(state.messages.get(id));
++   if(state.mode==='wrongBody')value.body.content=JSON.stringify({text:'changed'});
++   if(state.mode==='formattedTime')value.create_time='2026-10-16 16:00';
++   if(state.mode==='wrongSender')value.sender.id='other';
++   if(state.mode==='wrongMessageTenant')value.sender.tenant_key='other';
++   return {ok:true,identity:'bot',data:{items:value?[value]:[]}};
++  }
++  throw Error('UNEXPECTED_OFFLINE_CLI_CALL');
++ };
++ const app=await c.start({directDmControlFile:configFile,directDmRuntimeOptions:{runner,clock:()=>c.state.now}});if(arm)c.arm();c.state.now=m.issuedAt+1;
++ const payload={version:1,task:'DIRECT-DM-01-READY1',revoked:false,buildHash,manifestHash:digest(m),binding:bindingOf(m),ledgerId:app.store.directDmIsolation.ledgerId,notBefore:m.issuedAt,expiresAt:m.expiresAt,evidence:Object.fromEntries(['review','installation','exactText','isolationPrinciple','memberVisibility','conversationBinding','read','disclose'].map(k=>[k,{approved:true,reference:'synthetic-only:'+k,sha256:digest('synthetic:'+k)}]))};
++ function approve(change){if(change)change(payload);writeFileSync(approvalFile,JSON.stringify({payload,signature:sign(null,Buffer.from(canonical(payload)),privateKey).toString('base64')}),{mode:0o600});}
++ approve();
++ function confirmation(){const event={...c.f.event,parent_id:state.sends[0].id};const r=raw(event.message_id,event.chat_id,event.content,'user');r.parent_id=event.parent_id;state.messages.set(event.message_id,r);return event;}
++ app.agentMonitor.configure('official',{revision:0,enabled:true,personal:true,discoverGroups:true,intervalSeconds:60});app.eventBridge.configure('official',{revision:0,enabled:true});
++ return {c,app,m,state,actual,config,configFile,approvalFile,payload,approve,confirmation,runner,async close(){await c.dispose();assert.equal(c.state.externalModels,0);assert.equal(blockedExternal.length,0);}};
++}
+diff --git a/dm/tests/ready1-fix1-binding.test.mjs b/dm/tests/ready1-fix1-binding.test.mjs
+new file mode 100644
+index 0000000..74bd25a
+--- /dev/null
++++ b/dm/tests/ready1-fix1-binding.test.mjs
+@@ -0,0 +1,68 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {readFileSync,writeFileSync,existsSync} from 'node:fs';
++import {setup} from './binding-full-fixture.mjs';
++import {activationKey,activationFile} from '../candidate/scripts/direct-dm-activation.mjs';
++import {blockedExternal,restoreExecutionGuard} from './full-service-fixture.mjs';
++const records=[];
++const counts=x=>({requests:x.app.store.directDmIsolation.db.prepare('SELECT COUNT(*) n FROM requests').get().n,effects:x.app.store.directDmIsolation.db.prepare('SELECT COUNT(*) n FROM effects').get().n,capability:x.app.store.db.prepare('PRAGMA user_version').get().user_version,marker:existsSync(activationFile(x.c.dataDir)),setting:x.app.store.getSetting(activationKey),sendCalls:x.state.sends.length});
++const untouched={requests:0,effects:0,capability:2,marker:false,setting:null,sendCalls:0};
++const ordinary=(x,overrides={})=>({...x.c.f.event,message_id:'om_plain_after_binding_fix',parent_id:'',root_id:'',content:'ordinary new business without a marker',create_time:x.m.expiresAt+1000,...overrides});
++const patches={
++ tenant:{tenantKey:'tenant_other',scope:'tenant_other/fixture-app'},
++ scope:{scope:'different/fixture-app'},app:{appId:'app_other',scope:'fixture-tenant/app_other'},
++ owner:{ownerId:'ou_other_owner'},participant:{participantId:'ou_other_participant'},bot:{botId:'ou_other_bot'},
++ ownerChat:{ownerChatId:'oc_other_owner'},participantChat:{participantChatId:'oc_other_participant'},
++ policyVersion:{policyVersion:'different'},resourceVersion:{resourceVersion:'v2'},purpose:{purpose:'different-purpose'},summaryHash:{summaryHash:'a'.repeat(64)},previewHash:{previewHash:'b'.repeat(64)},
++ swappedRoles:{ownerId:'ou_fixture_participant',participantId:'ou_fixture_owner',ownerChatId:'oc_fixture_bot_participant',participantChatId:'oc_fixture_bot_owner'},
++ missingScope:{scope:undefined},nonStringOwner:{ownerId:123},emptyVersion:{policyVersion:''},extraField:{unapprovedField:'extra'}
++};
++for(const [name,configPatch] of Object.entries(patches))test('B01 complete host rejects initial '+name+' before durable registration',async()=>{
++ const x=await setup({configPatch});try{
++  assert.deepEqual(counts(x),untouched);assert.throws(()=>x.app.directDmController.register(x.m),/EXECUTION_BINDING_MISMATCH/);
++  assert.deepEqual(counts(x),untouched);assert.equal(x.state.calls.length,0);assert.equal(x.app.store.load('official').sources.length,0);
++  records.push({case:'initial-'+name,...counts(x),platformAndConfigSelfConsistent:true});
++ }finally{await x.close();}
++});
++test('B01 complete host matching signed admission, preview, original confirmation, one summary and persistent isolation',async()=>{
++ const x=await setup();try{
++  assert.equal(x.app.directDmController.register(x.m).state,'PREPARED');assert.equal(x.state.calls.length,0);
++  await x.app.directDmController.deliver(x.m.id,'preview');const event=x.confirmation();await x.app.eventBridge.ingest('official','im.message.receive_v1',event);await x.app.eventBridge.ingest('official','im.message.receive_v1',event);
++  assert.equal(x.app.store.directDmIsolation.status(x.m.id).state,'DELIVERED_READBACK_VERIFIED');assert.equal(x.state.sends.length,2);assert.equal(x.state.sends[1].text,x.m.summary);
++  x.c.state.now=x.m.expiresAt+1001;await x.app.eventBridge.ingest('official','im.message.receive_v1',ordinary(x));assert.equal(x.app.store.load('official').sources.length,0);
++  assert.equal(x.app.store.directDmIsolation.hold({identity:x.c.f.identity,message:ordinary(x,{message_id:'om_other_chat',chat_id:'oc_other_normal'}),channel:'control'}),false);
++  records.push({case:'matching-full-chain',state:'DELIVERED_READBACK_VERIFIED',syntheticSendCalls:2,sources:0});
++ }finally{await x.close();}
++});
++for(const [key,value,code] of [['tenantKey','other','PLATFORM_TENANT_CHANGED'],['appId','other','PLATFORM_APP_CHANGED'],['ownerId','ou_other','PLATFORM_OPERATOR_CHANGED'],['botId','ou_other','PLATFORM_BOT_CHANGED']])test('B01 platform '+key+' must match the same approved binding',async()=>{
++ const x=await setup({platformPatch:{[key]:value}});try{x.app.directDmController.register(x.m);await assert.rejects(x.app.directDmController.deliver(x.m.id,'preview'),new RegExp(code));assert.equal(x.state.sends.length,0);assert.equal(x.app.store.directDmIsolation.status(x.m.id).state,'DELIVERY_UNKNOWN');}finally{await x.close();}
++});
++test('B01 original signature control still rejects before registration or capability change',async()=>{
++ const x=await setup();try{const e=JSON.parse(readFileSync(x.approvalFile));e.signature=Buffer.alloc(64).toString('base64');writeFileSync(x.approvalFile,JSON.stringify(e));assert.throws(()=>x.app.directDmController.register(x.m),/APPROVAL_SIGNATURE_INVALID/);assert.deepEqual(counts(x),untouched);}finally{await x.close();}
++});
++test('B01 mismatched restart stops active work and preserves original passive isolation and unknown facts',async()=>{
++ const x=await setup();try{
++  x.app.directDmController.register(x.m);x.state.mode='lostReceipt';await assert.rejects(x.app.directDmController.deliver(x.m.id,'preview'));
++  const gate=x.app.store.directDmIsolation,request=gate.request(x.m.id),effects=gate.db.prepare('SELECT * FROM effects').all(),marker=readFileSync(activationFile(x.c.dataDir),'utf8'),saved=x.app.store.getSetting(activationKey);await x.c.close();
++  x.config.binding={...x.config.binding,tenantKey:'other',scope:'other/fixture-app'};writeFileSync(x.configFile,JSON.stringify(x.config));
++  const restarted=await x.c.start({configured:false,directDmControlFile:x.configFile,directDmRuntimeOptions:{runner:x.runner,clock:()=>x.c.state.now}});
++  await assert.rejects(restarted.directDmController.deliver(x.m.id,'preview'),/EXECUTION_BINDING_MISMATCH/);assert.equal(x.state.sends.length,1);
++  assert.deepEqual(restarted.store.directDmIsolation.request(x.m.id),request);assert.deepEqual(restarted.store.directDmIsolation.db.prepare('SELECT * FROM effects').all(),effects);assert.equal(readFileSync(activationFile(x.c.dataDir),'utf8'),marker);assert.deepEqual(restarted.store.getSetting(activationKey),saved);assert.equal(restarted.store.db.prepare('PRAGMA user_version').get().user_version,3);
++  x.c.state.now=x.m.expiresAt+1001;await restarted.eventBridge.ingest('official','im.message.receive_v1',ordinary(x));assert.equal(restarted.store.load('official').sources.length,0);
++  await x.c.close();const passive=await x.c.start({configured:false});assert.equal(passive.directDmController,null);assert.equal(passive.store.directDmIsolation.hold({identity:x.c.f.identity,message:ordinary(x,{message_id:'om_missing_config'}),channel:'test'}),true);assert.deepEqual(passive.store.directDmIsolation.request(x.m.id),request);
++  records.push({case:'mismatched-restart',activeRejected:true,passiveHold:true,capability:3,unknownFactPreserved:true,blindResends:0});
++ }finally{await x.close();}
++});
++test('B01 changed signed approval after admission cannot redirect the registered request',async()=>{
++ const x=await setup();try{x.app.directDmController.register(x.m);const before=x.app.store.directDmIsolation.request(x.m.id);x.approve(p=>p.binding.botId='ou_changed');await assert.rejects(x.app.directDmController.deliver(x.m.id,'preview'),/APPROVAL_BINDING_INVALID/);assert.equal(x.state.calls.length,0);assert.deepEqual(x.app.store.directDmIsolation.request(x.m.id),before);assert.equal(x.app.store.directDmIsolation.hold({identity:x.c.f.identity,message:ordinary(x),channel:'test'}),true);}finally{await x.close();}
++});
++for(const kind of ['config','approval'])test('B01 '+kind+' change during platform identity reads is rejected before send',async()=>{
++ const x=await setup();try{x.app.directDmController.register(x.m);x.state.identityHook=async()=>{if(kind==='config'){x.config.binding.botId='ou_changed';writeFileSync(x.configFile,JSON.stringify(x.config));}else x.approve(p=>p.binding.botId='ou_changed');};await assert.rejects(x.app.directDmController.deliver(x.m.id,'preview'));assert.equal(x.state.sends.length,0);assert.equal(x.app.store.directDmIsolation.status(x.m.id).state,'DELIVERY_UNKNOWN');assert.equal(x.app.store.directDmIsolation.hold({identity:x.c.f.identity,message:ordinary(x),channel:'test'}),true);}finally{await x.close();}
++});
++test('B01 controller cannot swap the actual transport or mutate its bound identity',async()=>{
++ const x=await setup();try{const controller=x.app.directDmController;assert.throws(()=>{controller.transport={binding:{botId:'other'}};},TypeError);assert.throws(()=>{controller.transport.binding.botId='other';},TypeError);assert.throws(()=>{controller.transport.binding={...x.config.binding,ownerId:'other'};},TypeError);assert.equal(x.state.calls.length,0);}finally{await x.close();}
++});
++test('B01 untrusted event identity never grants summary even when its request marker matches',async()=>{
++ const x=await setup();try{x.app.directDmController.register(x.m);await x.app.directDmController.deliver(x.m.id,'preview');const before=x.state.calls.length;await x.app.directDmController.handle({identity:{...x.c.f.identity,scope:'other/fixture-app',tenantKey:'other'},message:x.confirmation()});assert.equal(x.state.sends.length,1);assert.equal(x.state.calls.length,before);assert.equal(x.app.store.directDmIsolation.status(x.m.id).state,'AWAITING_CONFIRMATION');assert.equal(x.app.store.load('official').sources.length,0);}finally{await x.close();}
++});
++test.after(()=>{assert.equal(blockedExternal.length,0);writeFileSync(new URL('../../evidence/ready1-fix1/after/full-host-binding.json',import.meta.url),JSON.stringify({mode:'actual full host; synthetic CLI port; no reviewer host shim',records,blockedExternal,realPlatformCalls:0,realModelCalls:0},null,2));restoreExecutionGuard();});
+diff --git a/dm/tests/ready1-runtime.test.mjs b/dm/tests/ready1-runtime.test.mjs
+index 172b724..975fb44 100644
+--- a/dm/tests/ready1-runtime.test.mjs
++++ b/dm/tests/ready1-runtime.test.mjs
+@@ -94,5 +94,6 @@ test('READY1 principle approval alone cannot register a request or change data c
+  const x=await setup({arm:false});try{x.approve(p=>p.evidence.installation.approved=false);assert.throws(()=>x.app.directDmController.register(x.m),/APPROVAL_EVIDENCE_MISSING/);assert.equal(x.app.store.directDmIsolation.db.prepare('SELECT COUNT(*) n FROM requests').get().n,0);assert.equal(x.app.store.db.prepare('PRAGMA user_version').get().user_version,2);assert.equal(x.state.calls.length,0);}finally{await x.close();}
+ });
+ test('READY1 tampered manifest cannot register even with genuine approval of another manifest',async()=>{
+- const x=await setup({arm:false});try{assert.throws(()=>x.app.directDmController.register({...x.m,ownerChatId:'oc_changed'}),/APPROVAL_BINDING/);assert.equal(x.app.store.directDmIsolation.db.prepare('SELECT COUNT(*) n FROM requests').get().n,0);assert.equal(x.state.calls.length,0);}finally{await x.close();}
++ const x=await setup({arm:false});try{assert.throws(()=>x.app.directDmController.register({...x.m,ownerChatId:'oc_changed'}),/APPROVAL_BINDING|EXECUTION_BINDING_MISMATCH/); // Same denial, now also possible at the earlier execution-binding check.
++assert.equal(x.app.store.directDmIsolation.db.prepare('SELECT COUNT(*) n FROM requests').get().n,0);assert.equal(x.state.calls.length,0);}finally{await x.close();}
+ });

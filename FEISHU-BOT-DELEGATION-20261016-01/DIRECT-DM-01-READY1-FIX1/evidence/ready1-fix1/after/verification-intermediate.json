@@ -1,0 +1,62 @@
+[
+  {
+    "group": "dm",
+    "command": [
+      "node",
+      "--test",
+      "--test-reporter=tap",
+      "tests/direct-dm.test.mjs",
+      "tests/fix1-boundaries.test.mjs",
+      "tests/full-service.test.mjs",
+      "tests/ingress.test.mjs",
+      "tests/ready1-cli-process.test.mjs",
+      "tests/ready1-fix1-binding.test.mjs",
+      "tests/ready1-runtime.test.mjs",
+      "tests/reviewer-isolation-contract.test.mjs",
+      "tests/reviewer2-persistence.test.mjs"
+    ],
+    "cwd": "dm",
+    "exit": 1,
+    "summary": [
+      "# tests 115",
+      "# pass 114",
+      "# fail 1",
+      "# cancelled 0",
+      "# skipped 0"
+    ]
+  },
+  {
+    "group": "bridge",
+    "command": [
+      "node",
+      "candidate/scripts/test-feishu-event-bridge.mjs"
+    ],
+    "cwd": "dm",
+    "exit": 0,
+    "summary": [
+      "PASS only an in-scope group event is read back through the current user",
+      "PASS duplicate event delivery does not create another source",
+      "PASS unrelated bot group and bot private messages do not expand personal scope",
+      "PASS generated user notes enter as unread document links for the research loop",
+      "PASS paused subscriptions ignore late incoming events"
+    ]
+  },
+  {
+    "group": "reviewer-seven",
+    "command": [
+      "node",
+      "--test",
+      "--test-reporter=tap",
+      "binding-consistency.test.mjs"
+    ],
+    "cwd": "reviewer-repro",
+    "exit": 0,
+    "summary": [
+      "# tests 7",
+      "# pass 7",
+      "# fail 0",
+      "# cancelled 0",
+      "# skipped 0"
+    ]
+  }
+]

@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: CONTROL: matching approved/config/platform bindings permit one synthetic preview
+not ok 1 - CONTROL: matching approved/config/platform bindings permit one synthetic preview
+  ---
+  duration_ms: 11.351625
+  type: 'test'
+  location: '/READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:77:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'UNEXPECTED_CLI'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'UNEXPECTED_CLI'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:78:44)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: CONTROL: platform tenant drifting from local config is blocked before send
+not ok 2 - CONTROL: platform tenant drifting from local config is blocked before send
+  ---
+  duration_ms: 7.106541
+  type: 'test'
+  location: '/READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:80:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'UNEXPECTED_CLI'
+    - 'PLATFORM_TENANT_CHANGED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'PLATFORM_TENANT_CHANGED'
+  actual: 'UNEXPECTED_CLI'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///READY1_FIX1_ROOT/private/before/reviewer/binding-consistency.test.mjs:81:139)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: B01 tenant: initial local tenant differing from signed approval must be denied before send
+ok 3 - B01 tenant: initial local tenant differing from signed approval must be denied before send
+  ---
+  duration_ms: 8.0955
+  type: 'test'
+  ...
+# Subtest: B01 bot: initial local bot differing from signed approval must be denied before send
+ok 4 - B01 bot: initial local bot differing from signed approval must be denied before send
+  ---
+  duration_ms: 7.339166
+  type: 'test'
+  ...
+# Subtest: B01 owner: initial local operator differing from signed approval must be denied before send
+ok 5 - B01 owner: initial local operator differing from signed approval must be denied before send
+  ---
+  duration_ms: 6.501458
+  type: 'test'
+  ...
+# Subtest: CONTROL: recipient chat mismatch is blocked before send
+ok 6 - CONTROL: recipient chat mismatch is blocked before send
+  ---
+  duration_ms: 10.892
+  type: 'test'
+  ...
+# Subtest: CONTROL: invalid signature is blocked before registration or capability change
+ok 7 - CONTROL: invalid signature is blocked before registration or capability change
+  ---
+  duration_ms: 5.6095
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 5
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 93.008375

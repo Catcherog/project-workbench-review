@@ -1,0 +1,1 @@
+Reviewer shim only, never install. Original source/test and original failure remain in the downloaded private input. The only assertion adaptation accepts the new earlier binding error for the existing chat mismatch control; send=0 stays mandatory. Product modules here mirror the fixed candidate.
