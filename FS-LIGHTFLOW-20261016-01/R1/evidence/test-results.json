@@ -1,0 +1,98 @@
+[
+  {
+    "id": "T01",
+    "status": "通过",
+    "actual": "六节点实读为系统开始加五业务节点；仅项目启动、结项要求对应模拟决定，中间没有项目批准或完成意见。",
+    "evidence_type": "真实页面配置、原生流转；决定为模拟",
+    "private_source": "config-audit-summary.json",
+    "private_source_sha256": "67ef31b5db51af5f8bc46df21f5ccb6a6b86eadaaa51e0f0cf36d879d465bc3b"
+  },
+  {
+    "id": "T02",
+    "status": "通过",
+    "actual": "复用项目描述、节点负责人、独立交付物、补充要求和成果版本；验证策划并入方案记录。没有新增五份阶段报告，人员仅操作者。",
+    "evidence_type": "原生实例与字段读回",
+    "private_source": "final-verification.json",
+    "private_source_sha256": "c77e9c1e4fe2efc5fa7802b2a056e0e52113b0a1aaaa8a4a485afb775b9a3873"
+  },
+  {
+    "id": "T03",
+    "status": "失败",
+    "actual": "B无任何交付物，填入模拟立项决定后仍可完成项目启动；A方案记录含待判断范围仍可流转。齐套、空清单及待判断不能被此配置可靠拦截。",
+    "evidence_type": "真实页面反例；读取失败和失效关联未做故障注入",
+    "private_source": "T03-empty-list-readback.json",
+    "private_source_sha256": "e520ae9cf8e2a6f03074a2595744df4465f26b5b0f0d1f16841282876c37fa0e"
+  },
+  {
+    "id": "T04",
+    "status": "通过",
+    "actual": "章程成果状态仍为未开始，交付物审核改为已审核后，启动节点可流转；未增设PM或AI二审。模拟项目决定另行检查。",
+    "evidence_type": "真实字段更新、页面点击及读回",
+    "private_source": "T04-reviewed-state-not-finished.json",
+    "private_source_sha256": "91242fa9dd0d478a38a19ca40b60d790cc1321d5427ec0aed4a5a9e329c5a381"
+  },
+  {
+    "id": "T05",
+    "status": "通过",
+    "actual": "已有成果未审核时点击完成被拦截；补齐既定审核标记后正常推进。此结果仅覆盖已关联对象，不证明缺失对象可被发现。",
+    "evidence_type": "真实页面操作与服务器读回",
+    "private_source": "T05-main-still-startup.json",
+    "private_source_sha256": "862116da3cb3a4c268baea04ef2716477fe2210b2d901f89950740dd4de5349f"
+  },
+  {
+    "id": "T06",
+    "status": "通过",
+    "actual": "执行节点保留工具包、使用资料、资料入口三份独立记录；结项引用既有方案、验证、移交等主记录及版本，未重复上传原件。",
+    "evidence_type": "实例、节点关系及引用读回；工时汇总去重未覆盖",
+    "private_source": "T06-reused-master-records.json",
+    "private_source_sha256": "0fd175338a8bbf537a4dc1b9faf71511f49c5c249c558cd62bdd5fd4d16829a1"
+  },
+  {
+    "id": "T07",
+    "status": "通过",
+    "actual": "B立项保持进行中时，经全局资源库建立独立方案准备记录并关联B。未开始节点卡片没有新增入口，该记录未挂入未开始节点；未伪造前序完成。",
+    "evidence_type": "真实资源库页面创建及前后状态读回",
+    "private_source": "T07-upstream-remains-open.json",
+    "private_source_sha256": "9baa768cd52a544b6ba0b777d0944f8918f36f44410f2247754b1c3012a98837"
+  },
+  {
+    "id": "T08",
+    "status": "失败",
+    "actual": "明确不通过的合成验证结果，在已审核时仍能完成验证节点；已保留反例，回滚并补入v2复验。未受影响的记录ID和历史仍保留。",
+    "evidence_type": "真实页面负例、隔离回滚与合成复验",
+    "private_source": "T08-failed-verification-passed-readback.json",
+    "private_source_sha256": "0c5d6eef634e4ce6d21635d884ad2112c64586a7f2d494de44024c4cce437cf1"
+  },
+  {
+    "id": "T09",
+    "status": "通过",
+    "actual": "缺少模拟立项或最终验收结项决定时均被实际拦截；补入对应模拟决定后可继续。只是文本测试标记的匹配，不是审批路由或授权身份校验。",
+    "evidence_type": "真实原生拦截＋明确合成决定；真实审批未执行",
+    "private_source": "T09-close-missing-decision-ui.txt",
+    "private_source_sha256": "e76d69db7768e45d45735228c91ba2b048c47db810458398c813666e70d3ecf8"
+  },
+  {
+    "id": "T10",
+    "status": "失败",
+    "actual": "将本期必要移交改为未审核、无需交付并写后续优化理由，结项仍能通过；当前结项条件未重检前阶段必交项。反例已恢复，正常样例最终按完整合成条件结束。",
+    "evidence_type": "真实字段反例、页面结项与恢复",
+    "private_source": "T10-negative-close-readback.json",
+    "private_source_sha256": "e0fdcb3c4d60b3f412168a1f36f74c8e4ab27b07fd8ca7a1da3800298b1fb378"
+  },
+  {
+    "id": "T11",
+    "status": "通过",
+    "actual": "模板及A/B保存后均读回v7；A八份节点成果、B一份独立准备记录身份保持。执行记录防重拒绝重放创建指令；本次重入未新建任何对象。原生UI重复新增资源的防重能力未验证。",
+    "evidence_type": "刷新、重入、远端读回及执行器防重检查",
+    "private_source": "T11-replay-guard.json",
+    "private_source_sha256": "0488dfd2d096e9993200b87c54b120444dba1b13a6801da1b1e11a9849c16ef6"
+  },
+  {
+    "id": "T12",
+    "status": "通过",
+    "actual": "原通用流程16个项目的名称、版本和更新时间一致；参考测试项目字段和角色按无序归一后完全一致。全部测试节点无排期、估分或实际工时；A/B工时记录为0；九份交付物未启用工时登记。回滚恢复只涉及本轮对象。",
+    "evidence_type": "定向只读比对、写入范围记录、恢复实测；通知送达未验证",
+    "private_source": "final-verification.json",
+    "private_source_sha256": "c77e9c1e4fe2efc5fa7802b2a056e0e52113b0a1aaaa8a4a485afb775b9a3873"
+  }
+]
