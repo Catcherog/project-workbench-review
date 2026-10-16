@@ -1,0 +1,557 @@
+diff --git a/00_当前交接.md b/00_当前交接.md
+new file mode 100644
+index 0000000..e100995
+--- /dev/null
++++ b/00_当前交接.md
+@@ -0,0 +1,54 @@
++# MATRIX-COMPAT-01 当前交接
++
++任务：FS-LIGHTWORK-20261015-01 / MATRIX-COMPAT-01；任务书 v1.0-exec。日期：2026-10-16，北京时间。
++
++**本轮部分完成，未达到整条兼容链路通过。** T02 真实只读接口 → 独立聚合代码已跑通，业务周 2026-09-14—09-20 为 8 小时，9 月亦为 8 小时；26 项离线边界测试通过。**原组件源码没有取得，因此结果尚未进入原矩阵的隔离预览；C03、C09 未通过验证。** 真实项目没有非空登记，C08 仍未验证。未替换正式实例。
++
++## 组件定位结果
++
++- 实际入口：[TH2共享中心 → 项目管理 → 项目看板](https://example.invalid/source/9f502079403e)。矩阵组件 `WIDGET-MATRIX-TEST`，页面 `PAGE-TEST`。
++- 载体：飞书多维表格 AI 自定义页面 `WEBPAGE-TEST`，通过插件嵌入看板；当前[独立发布页](https://example.invalid/source/7771e38ff50d)仍加载 **v6 / 1791598323773**。
++- 原设计：已读取 10 月 9 日初版、10 月 10 日项目关联及搜索同步、紧凑布局及字号要求，并按用户指引读取 **“评估飞书周例会图表实现”**（`CHAT-DESIGN-TEST`）的生成、嵌入及修改轮次。记录表明代码由飞书自定义页面生成并托管；未找到该轮本机组件源码导出。
++- 现存数据：Base `BASE-TEST` 下工时表 `TABLE-HOURS-TEST`，27 条虚构计划分配记录；另关联项目演示表。已用既有用户身份重新读取字段和全部 27 条记录，分页完整。
++- 原组件源码：已检查相关本机输出目录、指定会话生成记录、飞书页面“编辑/更多”菜单及已加载脚本定位。菜单仅见 AI 编辑和“查看已关联的数据表”；构建脚本独立访问返回 AccessDenied，未绕过。**没有将脚本 URL、DOM、历史提示词或本轮新代码冒充原组件源码。** 原组件内部 props/API、取数实现和查看者授权仍无法完整审计。
++
++## 本轮实现与对账
++
++在独立本机目录编写 `src/aggregate.mjs`、一次性真实读取程序和测试。保留原登记入口，逐行读取同组投入人、发生期、小时及登记标识；稳定 ID 全程用字符串；小时使用十进制求和；累计字段和预计值不计入实际。所有输出均标记 `componentBinding: unverified`。
++
++| 事实 | 本轮结果 |
++|---|---|
++| T02 工作项 / 原生行 | ITEM-T02 / ROW-TEST-01 |
++| 投入人 | 人员-样本A / `PERSON-TEST-01` |
++| 原周期 | 2026-09-14 00:00:00.000 至 09-20 23:59:59.999，Asia/Shanghai |
++| 周 / 月只读聚合 | 2026-09-14—09-20：8 小时；2026-09：8 小时 |
++| 业务归属 | 源字段返回“非项目”；不伪装成正式项目，不展示成“1个项目” |
++| 来源覆盖 | 仅此来源 1 行；已知真实项目登记 total=0、节点与人员累计实际值为空 |
++| 证据含义 | 真实接口读取既有合成测试登记；不是员工真实劳动时长证明，也不是全部个人投入 |
++| 原矩阵单元格 | **未接通，未生成对应单元格截图**；本机聚合 JSON 不算原组件展示 |
++
++真实读取并进入适配代码的回执见 `evidence/live-adapter-run.txt` 及其指向的 `live-*` 目录；来源、版本、原始时间值、登记标识和覆盖原因均保留。`evidence/aggregate-week.json`、`aggregate-month.json` 是另一次接口快照重放结果，和实时读取分开标注。
++
++## 分层验收
++
++| 检查项 | 当前结论 |
++|---|---|
++| C01 原组件基线 | 部分：实例、v6、设计、数据表字段已定位；原源码及内部输入契约未取得 |
++| C02 T02 接口读取 | 通过本轮 1 行样本，真实接口→聚合为 8 小时 |
++| C03 接入既有组件 | **未验证：没有原源码，未做替代矩阵** |
++| C04—C07 聚合与异常边界 | 独立适配代码 26 项离线合成测试通过；不等于原组件相同测试通过 |
++| C08 真正项目非空来源 | **未验证：已知对象无非空记录** |
++| C09 飞书隔离测试宿主 | **未验证：没有已获授权且已接入新适配的测试宿主** |
++| C10 原功能及副作用 | 原发布版月度筛选、人员筛选、点击明细、搜索同步、清除、0/待填写及刷新定向核对通过；新适配对原组件的兼容回归未执行 |
++
++前后读回：T02 所读字段、已知项目登记和节点、矩阵 27 条记录、看板 API 返回配置均一致。发布 iframe 仍为 v6。未执行业务写入、发布、共享权限调整、正式服务修改、同步或真人外发。共享权限未另做全量权限审计；前后字段一致不代表平台没有其他后台事件。
++
++## 实际测试入口与停止点
++
++上述独立发布页可打开原月度演示矩阵，**不是本轮 8 小时周汇总预览**。本轮没有可交付的原组件隔离预览地址，也没有启动临时服务；原因是原组件源码/可隔离开发入口缺失。
++
++可复跑入口见 [03_复跑与文件清单.md](03_复跑与文件清单.md)。本地源代码基准与结果完整 SHA 记录在 `evidence/code-version.json`；原云组件没有已取得的 Git 提交，不用本地提交冒充。
++
++下一步先取得**同一自定义页面的可导出源码，或已授权的隔离开发入口**，再补 C03。C08 等待已有授权的非空真实项目记录，C09 单独验证宿主身份、可见范围、取数和刷新。当前停止，等待 GPT 复审和用户验收；R1 仍为部分完成。
++
++原始证据保留本机；另备脱敏审核包。沿用本任务前轮的本机交接位置，未向其他聊天发消息，未上传公开仓库，未声称 GPT 已读回。
+diff --git a/01_既有契约与最小差异.md b/01_既有契约与最小差异.md
+new file mode 100644
+index 0000000..efbfa9b
+--- /dev/null
++++ b/01_既有契约与最小差异.md
+@@ -0,0 +1,29 @@
++# 既有契约与最小差异
++
++这是**真实底表字段契约与候选聚合输出的比对**。没有原组件源码，不能将它表述为已经验证的组件内部接口。
++
++| 项目 | 原矩阵已核实情况 | 个人周实际汇总需要的差异 |
++|---|---|---|
++| 人员 | 工程师字段为文本，演示值工程师甲/乙/丙 | 保存 `feishu-project-user-key` 命名空间与原字符串 ID；尚无到原文本人员的已核实映射，不能把真实人配给“甲” |
++| 时间 | 月份文本 2026-10/11/12；页面下拉仅这些月 | 周列需前闭后开日期边界；T02 必须展示 9/14—9/20，不迁移源日期；9月月结果应同源聚合 |
++| 工时 | 分配工时，计划口径 | 独立 actual 口径；不覆盖计划值、不相加；原小时不乘8 |
++| 项目 | 所属项目选项＋总览项目记录ID关联 | 非项目不能冒充项目；项目数与事项数分别保留，原定位控件如何容纳非项目尚待组件验证 |
++| 空值 | 明确0→已确认未安排；待填写→缺计划 | 实际明确0、未登记、失败、拒绝、分页未完、部分覆盖和待确认分别输出；不沿用“未安排”描述实际空值 |
++| 明细 | 点击显示工程师月份各项目分配及关联项目总览 | 每一实际小计须携带原行定位、登记标识、原发生期和覆盖；不存在原总览关联时不猜配 |
++| 刷新 | 原发布页重载可恢复读取演示表 | 本轮仅一次性真实读取及重复读取；原组件适配的刷新/缓存仍未验证 |
++| 权限 | 原页面与底表在当前用户下可访问 | 当前 CLI 读取身份不等于每位看板查看者；没有服务端查看者授权，不提供真实明细的公共前端接口 |
++
++实际读取的字段定义在 `evidence/matrix-fields.json`，27 条完整底表读取在 `matrix-records-before.ndjson` 与对应 manifest。母版设计在 `baseline/`，当前界面及关联表读回在 `evidence/`。
++
++候选代码的行为：
++
++- 按完整来源定位去重。相同服务端版本内容冲突、没有可排序版本而值不同，均保留冲突；本机读取时间不替代服务端版本。
++- 多次完整快照先选择服务端最新版本，再归组；源行被删除不会因为把历史快照做并集而残留。重复分页行不翻倍，不按“同人同周同小时”删除不同合法行。
++- 相同登记标识出现在不同来源定位时单列待确认，不宣称已证实跨源重复；未用父项/子项累计值加入实际明细。此范围仅一个源条目，不扩展扫描其他源。
++- 同周记录直接计入；跨周缺分配依据不均摊、不全部放开始周；跨月的一周可在周口径计一次，但月口径待确认。
++- 原始毫秒时间、ISO文本、原小时字符串、规范化小时、人员命名空间、业务归属和读取时间均保留。`group_uuid` 仅在完整联合源键中使用，不声称全局唯一或写入幂等。
++- 实际聚合代码有周/月能力；这**不代表原组件已经增加周模式**。
++
++最小接线尚未实施：把原组件的数据读取边界接到该候选输出，显式选择计划/实际与周/月，并复用原布局、筛选和明细。具体函数签名、字段适配和最小 UI 提示须拿到原源码再确定；本轮未凭截图重写界面。
++
++权限依据：[飞书项目 OpenAPI FAQ](https://www.feishu.cn/content/60bl79n2)要求插件具备相应权限，调用 user_key 也具备空间权限。该文档只能说明核验要求，不能证明本矩阵的具体运行身份或查看者权限已经通过。
+diff --git a/02_测试与证据.md b/02_测试与证据.md
+new file mode 100644
+index 0000000..d31eac7
+--- /dev/null
++++ b/02_测试与证据.md
+@@ -0,0 +1,41 @@
++# 测试与证据
++
++## 实时接口与独立代码
++
++执行 `node src/read-live.mjs`，按本机 `input/read-scope.json` 中固定对象，依次执行已登录状态检查、T02 全字段读取、已知项目工时记录读取、state_1 节点读取，再将当次 T02 响应交给 `aggregate`。
++
++最近完整结果见 `evidence/no-write-and-live-verification.json`。T02 1 行在业务周 2026-09-14—09-20 得 8 小时，在 2026-09 月亦得 8 小时；非项目事项数1，项目数未知，覆盖限定为已读来源。原真实项目工时 total=0；节点及人员 actual_work_time 为空。
++
++`node src/replay.mjs` 单独重放此前接口快照。它不是再次实时取数，不是组件预览。
++
++## 离线合成测试
++
++`node --test tests/*.test.mjs`：**26/26通过**，记录在 `evidence/unit-tests.tap`。覆盖同组人员/周期/小时、防串行；相同源重复、服务端更新替换、删除行、同版本冲突、无版本冲突、不同合法记录；跨源登记标识歧义；北京时间周日/周一、跨周、跨月；精确十进制；明确零与空、缺字段、失败/拒绝/未完分页；同名不同ID、数值ID拒绝；累计与计划排除；非项目归属；输入不修改。
++
++这些使用完全离线的合成标识，**没有新增或编辑飞书测试登记**。测试只证明独立聚合代码，不证明原组件、平台所有行标识稳定性或真实项目非空字段映射。
++
++## 原发布组件定向回读
++
++2026-10-16 在原独立发布页实际操作：
++
++1. 月份起始从10月切到11月，列缩为11—12月，再恢复10—12月。
++2. 工程师筛选取消乙，显示甲、丙，再全选恢复。
++3. 点击甲11月精密关节64小时组成色块，明细为80/64/24，月合计168；关联总览为设计验证、41.3%、DVT评审。
++4. 搜索“软件”，选择软件工具，已有明细中的定位与总览同步到功能测试、55%、测试评审，月合计仍168。
++5. 清除定位后无旧项目总览残留，关闭明细；刷新后九格数据、0/已确认未安排、待填写均重新出现。
++
++证据分别为 `month-filter.txt`、`person-filter.txt`、`project-detail.txt`、`project-search.txt/png`、`project-cleared.txt`、`published-after-refresh.txt/png`。本轮没有追加物理鼠标 hover 或全面键盘测试，旧证据没有并作本轮新通过。
++
++## 无业务写入核对
++
++- T02 本轮前后全字段响应相同。
++- 已知项目登记与 state_1 节点本轮前后响应相同。
++- 原矩阵27条记录前后字节相同；完整分页均 has_more=false。
++- 看板 API 返回的页面配置前后相同，发布版本仍v6。
++- 调用中无创建、更新、删除、发布、共享调整、消息发送或同步命令。未启动任何测试或正式服务。
++
++配置未变的核对限于上述可读字段和对象，不冒充完整共享权限审计。
++
++## 仍缺的证据
++
++C01的原组件源码与内部输入契约；C03的真实源→原组件隔离单元格；C08的非空真正项目类型实际登记；C09的新增适配在已授权飞书测试宿主中的身份、权限、取数、筛选和刷新。任何本机 JSON、离线样本、原演示页面或旧截图都不替代这些证据。
+diff --git a/03_复跑与文件清单.md b/03_复跑与文件清单.md
+new file mode 100644
+index 0000000..f732357
+--- /dev/null
++++ b/03_复跑与文件清单.md
+@@ -0,0 +1,36 @@
++# 复跑与文件清单
++
++Node.js 18+；聚合及离线测试没有外部依赖，不需要安装新框架。
++
++在此目录执行：
++
++```sh
++node --test tests/*.test.mjs
++node src/replay.mjs
++node src/read-live.mjs
++node src/verify-evidence.mjs
++```
++
++- 第一条只用合成数据。
++- 第二条需本机 `evidence/` 内的既有接口快照，只重放，不联网。
++- 第三条只读固定真实测试对象，需现有 Meegle 登录与本机 `input/read-scope.json`；不切换登录、不扩权、不自动登录。每次输出独立 `evidence/live-*` 目录，不更新源记录、不维持常驻进程。
++- 第四条核对本轮固定基线及8小时样本。以后源记录确实变化时可能失败；应解释变化，不能为了通过断言修改来源。
++
++## 代码
++
++| 文件 | 用途 |
++|---|---|
++| src/aggregate.mjs | 候选行级读取、版本去重、周/月归组、来源覆盖与异常输出 |
++| src/read-live.mjs | 一次性真实只读→独立适配 |
++| src/replay.mjs | 原始接口快照重放 |
++| src/verify-evidence.mjs | 前后值和本轮对账核对 |
++| tests/aggregate.test.mjs | 26项离线边界测试 |
++| source-baseline.json | 云端v6定位与原源码缺口；不宣称是原组件代码 |
++| evidence/code-version.json | 本机独立代码基准与结果完整SHA |
++| evidence/implementation.patch | 独立代码及文档差异；不是原组件补丁 |
++
++`input/` 是本轮任务原附件、固定对象清单和输入快照；`baseline/` 是已定位的历史设计；`evidence/` 是本机私有原始接口/UI证据。三者不进入公开审核材料。
++
++当前没有本轮周汇总的网页预览链接；原发布页只供查看原月度设计。未启动本机 HTTP 服务，因此不存在可用但被遗漏的测试网址。
++
++`MATRIX-COMPAT-01_脱敏审核包.zip` 包含代码、合成测试、脱敏结论与样本，无凭据、真实人员、原始业务JSON和内网页面截图。包只在本机准备，没有上传GitHub或发送聊天；接收端尚未读回。原始证据仍以本机目录为准。
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000..96d1f6e
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,10 @@
++{
++  "name": "matrix-compat-01-readonly-probe",
++  "private": true,
++  "type": "module",
++  "scripts": {
++    "test": "node --test tests/*.test.mjs",
++    "replay": "node src/replay.mjs",
++    "read-live": "node src/read-live.mjs"
++  }
++}
+diff --git a/src/aggregate.mjs b/src/aggregate.mjs
+new file mode 100644
+index 0000000..b89e1c2
+--- /dev/null
++++ b/src/aggregate.mjs
+@@ -0,0 +1,156 @@
++// Candidate read-only aggregation contract. The original matrix source is not
++// available; this module deliberately does not impersonate its component API.
++export const F = Object.freeze({parent:'field_f34a5f', person:'field_4ede40', period:'field_036afd', hours:'field_3a677c', registration:'field_fe8c78', note:'field_9d3b78', total:'field_896a57', ownership:'field_2c4f5a'});
++const DAY=86400000, OFFSET=8*3600000;
++const STATES=new Set(['ok','no_records','permission_denied','request_failed','pagination_incomplete','mapping_unverified']);
++const copy=x=>structuredClone(x);
++const canonical=x=>JSON.stringify(x,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
++function id(x,label){if(typeof x!=='string'||!x.trim())throw new Error(`invalid_${label}`);return x;}
++function field(fields,key,required=false){
++  if(!Array.isArray(fields))throw new Error('invalid_fields');
++  const found=fields.filter(f=>f.key===key);
++  if(found.length>1)throw new Error(`duplicate_field:${key}`);
++  if(required&&found.length!==1)throw new Error(`missing_field:${key}`);
++  return found[0]?.value;
++}
++export function decimal(value){
++  // Preserve source decimal hours, with no binary floating point accumulation.
++  if(typeof value!=='string'||!/^\d+(?:\.\d+)?$/.test(value)||value.length>100)throw new Error('invalid_decimal_hours');
++  let [a,b='']=value.split('.');a=a.replace(/^0+(?=\d)/,'');b=b.replace(/0+$/,'');
++  return b?`${a}.${b}`:a;
++}
++export function sumHours(values){
++  const ds=values.map(decimal), scale=Math.max(0,...ds.map(s=>(s.split('.')[1]||'').length));
++  const units=ds.reduce((n,s)=>{const[a,b='']=s.split('.');return n+BigInt(a+b.padEnd(scale,'0'));},0n);
++  const v=units.toString().padStart(scale+1,'0');
++  return decimal(scale?`${v.slice(0,-scale)}.${v.slice(-scale)}`:v);
++}
++function instant(v){
++  if(!v||!Number.isSafeInteger(v.timestamp))throw new Error('invalid_timestamp');
++  const parsed=v.iso_time?Date.parse(v.iso_time):null;
++  if(parsed!==null&&(!Number.isFinite(parsed)||Math.abs(parsed-v.timestamp)>999))throw new Error('timestamp_iso_mismatch');
++  return v.timestamp;
++}
++function localDate(ms){return new Date(ms+OFFSET).toISOString().slice(0,10);}
++export function periodAt(ms,mode){
++  if(!Number.isSafeInteger(ms))throw new Error('invalid_timestamp');
++  const shifted=new Date(ms+OFFSET), dayStart=Date.UTC(shifted.getUTCFullYear(),shifted.getUTCMonth(),shifted.getUTCDate())-OFFSET;
++  let start,end;
++  if(mode==='week'){start=dayStart-((shifted.getUTCDay()+6)%7)*DAY;end=start+7*DAY;}
++  else if(mode==='month'){start=Date.UTC(shifted.getUTCFullYear(),shifted.getUTCMonth(),1)-OFFSET;end=Date.UTC(shifted.getUTCFullYear(),shifted.getUTCMonth()+1,1)-OFFSET;}
++  else throw new Error('invalid_period_mode');
++  return {key:mode==='week'?localDate(start):localDate(start).slice(0,7), startInclusive:start,endExclusive:end,label:mode==='week'?`${localDate(start)}—${localDate(end-1)}`:localDate(start).slice(0,7),timeZone:'Asia/Shanghai'};
++}
++function provenance(a,rowId){return {space:id(a.owned_project?.key,'space'),type:id(a.work_item_type?.key,'type'),workItemId:id(a.work_item_id,'workitem_id'),parentField:F.parent,rowId};}
++function sourceKey(source){return canonical(source);}
++function versionOf(response){
++  const updated=field(response.work_item_fields,'updated_at');
++  // Only use the server timestamp, never the local read time, to order versions.
++  if(updated)return instant(updated);
++  const iso=response.work_item_attribute?.update_time;
++  if(!iso)return null;
++  const ms=Date.parse(iso);return Number.isFinite(ms)?ms:null;
++}
++function ownerOf(response){
++  const raw=field(response.work_item_fields,F.ownership);
++  // Preserve the exact source label. Never infer a project from the title.
++  return {label:typeof raw?.label==='string'?raw.label:null,value:typeof raw?.value==='string'?raw.value:null,projectRef:null,projectMapping:'unverified'};
++}
++export function normalize(snapshot){
++  const {response,readAt}=snapshot;
++  if(!Number.isFinite(Date.parse(readAt)))throw new Error('invalid_read_time');
++  const a=response?.work_item_attribute;
++  if(!a)throw new Error('missing_workitem_identity');
++  const source=provenance(a,undefined), sourceId=sourceKey(source), version=versionOf(response), rows=[],issues=[];
++  const group=field(response.work_item_fields,F.parent,true);
++  if(group!==null&&!Array.isArray(group))throw new Error('invalid_compound_rows');
++  const complete=snapshot.complete===true&&response.pagination?.has_more!==true;
++  for(const [index,cells] of (group||[]).entries()){
++    try{
++      const rowId=id(field(cells,'group_uuid',true),'row_id'), person=field(cells,F.person,true), schedule=field(cells,F.period,true);
++      const start=instant(schedule?.start_time), end=instant(schedule?.end_time);
++      if(end<start||!Number.isSafeInteger(end+1))throw new Error('invalid_interval');
++      const rowSource=provenance(a,rowId);
++      const sourceHours=field(cells,F.hours,true);
++      rows.push({key:sourceKey(rowSource),source:rowSource,person:{namespace:'feishu-project-user-key',id:id(person?.key,'person_id'),name:typeof person.name==='string'?person.name:null},startInclusive:start,endInclusive:end,endExclusive:end+1,sourcePeriod:copy(schedule),sourceHours,hours:decimal(sourceHours),registrationId:id(field(cells,F.registration,true),'registration_id'),note:field(cells,F.note)||null,ownership:ownerOf(response),readAt,version,kind:'actual',sourceTitle:a.work_item_name||null});
++    }catch(e){issues.push({sourceId,rowIndex:index,code:e.message});}
++  }
++  return {sourceId,source,rows,issues,complete,readAt,version,reconciliationOnly:field(response.work_item_fields,F.total)??null,identity:a.work_item_name};
++}
++function semanticRow(row){const {readAt,version,...business}=row;return canonical(business);}
++function semanticSnapshot(snapshot){return canonical({complete:snapshot.complete,rows:snapshot.rows.map(semanticRow).sort(),issues:snapshot.issues});}
++function chooseVersion(versions,semantic){
++  if(versions.length===1)return {value:versions[0]};
++  const contents=new Set(versions.map(semantic));
++  if(contents.size===1){
++    return {value:[...versions].sort((a,b)=>(b.version??-Infinity)-(a.version??-Infinity)||Date.parse(b.readAt)-Date.parse(a.readAt))[0]};
++  }
++  if(versions.some(v=>v.version===null))return {conflict:'unversioned_conflict'};
++  const latest=Math.max(...versions.map(v=>v.version));
++  const candidates=versions.filter(v=>v.version===latest);
++  if(new Set(candidates.map(semantic)).size!==1)return {conflict:'same_version_conflict'};
++  return {value:candidates[0]};
++}
++function groupBy(values,key){const m=new Map();for(const v of values){const k=key(v);if(!m.has(k))m.set(k,[]);m.get(k).push(v);}return m;}
++export function aggregate(snapshots,{mode='week',coverage=[],people=[],periods=[]}={}){
++  const errors=[],normalized=[],sourceStatuses=[],rows=[];
++  for(const s of snapshots){try{normalized.push(normalize(s));}catch(e){errors.push({code:e.message,source:s.sourceHint||null});}}
++  // Choose a whole snapshot first. A newer complete snapshot can remove rows;
++  // unioning historic rows would silently retain deleted records forever.
++  for(const [sourceId,versions] of groupBy(normalized,s=>s.sourceId)){
++    const chosen=chooseVersion(versions,semanticSnapshot);
++    if(chosen.conflict){errors.push({code:chosen.conflict,sourceId});sourceStatuses.push({sourceId,status:'conflict'});continue;}
++    const s=chosen.value;errors.push(...s.issues);
++    sourceStatuses.push({sourceId,status:!s.complete?'pagination_incomplete':s.issues.length?'partial':s.rows.length?'ok':'no_records',readAt:s.readAt});
++    for(const [key,duplicates] of groupBy(s.rows,r=>r.key)){
++      const row=chooseVersion(duplicates,semanticRow);
++      if(row.conflict)errors.push({code:row.conflict,key});else rows.push(row.value);
++    }
++  }
++  const external=coverage.map(c=>{
++    if(!STATES.has(c.status))throw new Error('invalid_coverage_state');
++    return copy(c);
++  });
++  const cells=new Map(), pending=[],crossSourceCandidates=[];
++  // Same registration at different locators is only a possible duplicate.
++  // Quarantine it until an explicit relation resolves the ambiguity.
++  const ambiguous=new Set();
++  for(const [registration,rs] of groupBy(rows,r=>r.registrationId)){
++    if(new Set(rs.map(r=>r.key)).size>1){
++      crossSourceCandidates.push({registration,keys:rs.map(r=>r.key)});rs.forEach(r=>ambiguous.add(r.key));
++    }
++  }
++  function ensure(person,period){
++    const key=canonical([person.namespace,person.id,mode,period.key]);
++    if(!cells.has(key))cells.set(key,{key,person:copy(person),period:copy(period),kind:'actual',unit:'hour',hours:null,rows:[],pending:[],valueState:'no_records'});
++    return cells.get(key);
++  }
++  for(const person of people){id(person.id,'person_id');id(person.namespace,'person_namespace');for(const ms of periods)ensure(person,periodAt(ms,mode));}
++  for(const row of rows){
++    const period=periodAt(row.startInclusive,mode), last=periodAt(row.endInclusive,mode);
++    let reason=null;
++    if(ambiguous.has(row.key))reason='cross_source_duplicate_unresolved';
++    else if(period.key!==last.key)reason=mode==='week'?'cross_week_unallocated':'cross_month_unallocated';
++    if(reason){
++      const item={reason,row};pending.push(item);
++      // Keep a pending warning on every overlapping period, without allocating
++      // any hours. Long spans are rejected rather than expanding unboundedly.
++      let cursor=period.startInclusive, count=0;
++      while(cursor<=row.endInclusive&&count++<370){const p=periodAt(cursor,mode);ensure(row.person,p).pending.push({rowKey:row.key,reason});cursor=p.endExclusive;}
++      if(cursor<=row.endInclusive)errors.push({code:'interval_too_large',key:row.key});
++      continue;
++    }
++    ensure(row.person,period).rows.push(row);
++  }
++  const coverageGaps=[...sourceStatuses.filter(s=>s.status!=='ok'),...external.filter(c=>c.status!=='ok'),...errors.map(e=>({status:'invalid_or_conflict',...e}))];
++  for(const cell of cells.values()){
++    if(cell.rows.length){cell.hours=sumHours(cell.rows.map(r=>r.hours));cell.valueState=cell.hours==='0'?'explicit_zero':'recorded';}
++    if(cell.pending.length)cell.valueState=cell.rows.length?'recorded_with_pending':'pending';
++    cell.coverage='covered_sources_only';
++    cell.coverageGaps=copy(coverageGaps);
++    cell.caption='已覆盖来源小计；不代表该人员全部实际投入';
++    cell.nonProjectItemCount=new Set(cell.rows.filter(r=>r.ownership.label==='非项目').map(r=>r.source.workItemId)).size;
++    cell.projectCount=null; // No verified project identity mapping in this probe.
++  }
++  return {contract:'candidate-actual-aggregate/v1',componentBinding:'unverified',timeZone:'Asia/Shanghai',mode,unit:'hour',cells:[...cells.values()].sort((a,b)=>a.person.id.localeCompare(b.person.id)||a.period.startInclusive-b.period.startInclusive),pending,errors,crossSourceCandidates,sourceStatuses,coverage:external,coverageGaps,rowsRead:rows.length};
++}
+diff --git a/src/read-live.mjs b/src/read-live.mjs
+new file mode 100644
+index 0000000..eabdcca
+--- /dev/null
++++ b/src/read-live.mjs
+@@ -0,0 +1,33 @@
++// Explicitly invoked CLI reads only; no daemon, remote listener or write command.
++import { spawnSync } from 'node:child_process';
++import { mkdir,writeFile } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { aggregate } from './aggregate.mjs';
++const root=fileURLToPath(new URL('../',import.meta.url));
++const config=JSON.parse(await (await import('node:fs/promises')).readFile(root+'input/read-scope.json','utf8'));
++function run(args){
++  const p=spawnSync('meegle',[...args,'--format','json'],{encoding:'utf8',timeout:30000,maxBuffer:2_000_000});
++  if(p.status!==0)throw new Error(`read failed (${p.status??'timeout'}); no fallback or write attempted`);
++  return JSON.parse(p.stdout);
++}
++const auth=run(['auth','status']);
++if(auth.authenticated!==true||auth.host!=='project.feishu.cn')throw new Error('Existing Feishu profile not ready; no login/profile change attempted.');
++const dir=root+'evidence/live-'+new Date().toISOString().replace(/[:.]/g,'-');await mkdir(dir,{recursive:true});
++const base=['--project-key',config.projectKey];
++const commands={
++ 't02-all-fields':['workitem','get',...base,'--work-item-id',config.extraItemId,'--fields','_all','--page-size','100'],
++ 'project-records':['workhour','list-records',...base,'--work-item-id',config.projectItemId,'--work-item-type',config.projectType,'--page-num','1'],
++ 'project-node':['workflow','get-node',...base,'--work-item-id',config.projectItemId,'--node-id-list','state_1','--need-sub-task','false']
++};
++const receipts=[],responses={};
++for(const[name,args]of Object.entries(commands)){const startedAt=new Date().toISOString();const data=run(args);responses[name]=data;await writeFile(`${dir}/${name}.json`,JSON.stringify(data,null,2));receipts.push({name,startedAt,readAt:new Date().toISOString(),args});}
++await writeFile(`${dir}/receipt.json`,JSON.stringify(receipts,null,2));
++const total=responses['project-records'].Pagination?.total;
++const coverage=[{source:'known-real-project',status:total===0?'no_records':'mapping_unverified',total:total??null,meaning:'空记录不代表零投入；非空真实项目字段映射未验证'}];
++for(const mode of ['week','month']){
++ const response=responses['t02-all-fields'];
++ const output=aggregate([{response,readAt:receipts[0].readAt,complete:response.pagination?.has_more===false}],{mode,coverage});
++ await writeFile(`${dir}/aggregate-${mode}.json`,JSON.stringify(output,null,2));
++ console.log(JSON.stringify({mode,source:'live-api-to-adapter',componentBinding:output.componentBinding,cells:output.cells.map(c=>({period:c.period.label,hours:c.hours,coverage:c.caption})),pending:output.pending.length,errors:output.errors.length}));
++}
++console.log(dir);
+diff --git a/src/replay.mjs b/src/replay.mjs
+new file mode 100644
+index 0000000..cef9ebb
+--- /dev/null
++++ b/src/replay.mjs
+@@ -0,0 +1,14 @@
++import { readFile,writeFile } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { aggregate } from './aggregate.mjs';
++const root=fileURLToPath(new URL('../',import.meta.url));
++const response=JSON.parse(await readFile(root+'evidence/t02-all-fields.json','utf8'));
++const receipt=JSON.parse(await readFile(root+'evidence/read-receipt.json','utf8'));
++const records=JSON.parse(await readFile(root+'evidence/project-records-before.json','utf8'));
++const total=records.Pagination?.total;
++const coverage=[{source:'known-real-project',status:total===0?'no_records':'mapping_unverified',total:total??null,meaning:'真实项目非空实际来源及合并未验证，空结果不代表零投入'}];
++for(const mode of ['week','month']){
++  const data=aggregate([{response,readAt:receipt.readAt,complete:response.pagination?.has_more===false}],{mode,coverage});
++  await writeFile(root+`evidence/aggregate-${mode}.json`,JSON.stringify(data,null,2));
++  console.log(JSON.stringify({mode,source:'real-api-snapshot-replay',componentBinding:data.componentBinding,cells:data.cells.map(c=>({personId:c.person.id,period:c.period.label,hours:c.hours,valueState:c.valueState,coverage:c.caption,nonProjectItemCount:c.nonProjectItemCount})),pending:data.pending.length,errors:data.errors.length}));
++}
+diff --git a/src/verify-evidence.mjs b/src/verify-evidence.mjs
+new file mode 100644
+index 0000000..e9177e1
+--- /dev/null
++++ b/src/verify-evidence.mjs
+@@ -0,0 +1,24 @@
++import { readFile,readdir,writeFile } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import assert from 'node:assert/strict';
++const root=fileURLToPath(new URL('../',import.meta.url));
++const dirs=(await readdir(root+'evidence',{withFileTypes:true})).filter(d=>d.isDirectory()&&d.name.startsWith('live-')).map(d=>d.name).sort();
++const latest=dirs.at(-1);assert.ok(latest,'Run read-live first.');
++const json=async p=>JSON.parse(await readFile(root+'evidence/'+p,'utf8'));
++const equal=(a,b)=>{assert.deepEqual(a,b);return true;};
++const checks={
++ t02_all_fields_unchanged:equal(await json('t02-all-fields.json'),await json(latest+'/t02-all-fields.json')),
++ project_records_unchanged:equal(await json('project-records-before.json'),await json(latest+'/project-records.json')),
++ project_node_unchanged:equal(await json('project-node-before.json'),await json(latest+'/project-node.json')),
++ dashboard_page_config_unchanged:equal((await json('dashboard-before.json')).data,(await json('dashboard-after.json')).data),
++ matrix_records_unchanged:equal(await readFile(root+'evidence/matrix-records-before.ndjson','utf8'),await readFile(root+'evidence/matrix-records-after.ndjson','utf8'))
++};
++checks.matrix_records_count=(await readFile(root+'evidence/matrix-records-before.ndjson','utf8')).trim().split('\n').length;
++for(const mode of ['week','month']){
++ const d=await json(latest+`/aggregate-${mode}.json`);assert.equal(d.cells.length,1);assert.equal(d.errors.length,0);
++ const c=d.cells[0];assert.equal(c.hours,'8');assert.equal(c.rows.length,1);assert.equal(c.rows[0].person.id,c.person.id);
++ assert.equal(c.period.label,mode==='week'?'2026-09-14—2026-09-20':'2026-09');
++ checks[mode+'_live_result']={personId:c.person.id,period:c.period.label,hours:c.hours,sameRowSources:c.rows.length,nonProjectItems:c.nonProjectItemCount,coveredOnly:c.coverage==='covered_sources_only',componentBinding:d.componentBinding};
++}
++const result={observedAt:new Date().toISOString(),latestLiveDirectory:'evidence/'+latest,checks,limits:'仅核对实际读取的源字段、节点、底表记录和页面配置；共享权限未改但未单独全量回读。该脚本的8小时断言仅固定本轮样本，未来源变化应解释差异，不能改写源数据。'};
++await writeFile(root+'evidence/no-write-and-live-verification.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
+diff --git a/tests/aggregate.test.mjs b/tests/aggregate.test.mjs
+new file mode 100644
+index 0000000..dff4374
+--- /dev/null
++++ b/tests/aggregate.test.mjs
+@@ -0,0 +1,100 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { aggregate, normalize, periodAt, sumHours, F } from '../src/aggregate.mjs';
++const at=s=>Date.parse(s+'+08:00');
++const person={namespace:'feishu-project-user-key',id:'9000000000000000001',name:'合成人员甲'};
++function row({who=person.id,name=person.name,hours='8',start='2026-09-14T00:00:00',end='2026-09-20T23:59:59.999',rid='row-A',reg=rid}={}){
++ return [{key:F.person,value:{key:who,name}},{key:F.hours,value:hours},{key:F.period,value:{start_time:{timestamp:at(start)},end_time:{timestamp:at(end)}}},{key:F.registration,value:reg},{key:'group_uuid',value:rid}];
++}
++function snap(rows=[row()],{version='2026-10-15T09:00:00+08:00',readAt='2026-10-16T09:00:00+08:00',item='synthetic-item-A',complete=true,total='8',ownership='非项目'}={}){
++ return {readAt,complete,response:{pagination:{has_more:!complete},work_item_attribute:{owned_project:{key:'synthetic-space'},work_item_type:{key:'synthetic-type'},work_item_id:item,update_time:version,work_item_name:'合成测试事项'},work_item_fields:[{key:F.parent,value:rows},{key:F.total,value:total},{key:F.ownership,value:{label:ownership,value:'synthetic-option'}}]}};
++}
++const cell=(r,who=person.id,key='2026-09-14')=>r.cells.find(c=>c.person.id===who&&c.period.key===key);
++test('C04 same-row person, period and hours remain associated',()=>{
++ const r=aggregate([snap([row(),row({who:'9000000000000000002',hours:'3',rid:'B'}),row({hours:'2',rid:'C',start:'2026-09-21T00:00:00',end:'2026-09-27T23:59:59.999'})])]);
++ assert.equal(cell(r).hours,'8');assert.equal(cell(r,'9000000000000000002').hours,'3');assert.equal(cell(r,person.id,'2026-09-21').hours,'2');
++});
++test('C05 identical query and duplicate rows do not multiply totals',()=>{
++ const s=snap([row(),row()]);const r=aggregate([s,structuredClone(s)]);assert.equal(cell(r).hours,'8');assert.equal(cell(r).rows.length,1);
++});
++test('C05 server update replaces old hours independently of read order',()=>{
++ const old=snap(),latest=snap([row({hours:'9'})],{version:'2026-10-15T10:00:00+08:00'});
++ for(const ss of [[old,latest],[latest,old]])assert.equal(cell(aggregate(ss)).hours,'9');
++});
++test('C05 latest complete source snapshot removes deleted rows',()=>{
++ const old=snap([row(),row({rid:'B',hours:'2'})]);const latest=snap([row()],{version:'2026-10-15T10:00:00+08:00'});
++ assert.equal(cell(aggregate([old,latest])).hours,'8');
++});
++test('C05 same server version with different data fails closed',()=>{
++ const r=aggregate([snap(),snap([row({hours:'9'})])]);assert.equal(r.cells.length,0);assert.equal(r.errors[0].code,'same_version_conflict');
++});
++test('C05 read time cannot resolve conflicting unversioned data',()=>{
++ const r=aggregate([snap([],{version:null}),snap([row()],{version:null,readAt:'2026-10-16T10:00:00+08:00'})]);
++ assert.equal(r.cells.length,0);assert.equal(r.errors[0].code,'unversioned_conflict');
++});
++test('C05 distinct legitimate rows of equal hours remain additive',()=>{
++ assert.equal(cell(aggregate([snap([row(),row({rid:'B'})])])).hours,'16');
++});
++test('C05 ambiguous registration reused at different source locators is pending',()=>{
++ const r=aggregate([snap(),snap([row()],{item:'synthetic-item-B'})]);assert.equal(cell(r).hours,null);assert.equal(r.pending.length,2);assert.equal(r.crossSourceCandidates.length,1);
++});
++test('C06 Beijing Sunday and Monday are separate weeks',()=>{
++ assert.equal(periodAt(at('2026-09-20T23:59:59.999'),'week').key,'2026-09-14');assert.equal(periodAt(at('2026-09-21T00:00:00'),'week').key,'2026-09-21');
++});
++test('C06 interval ending exactly on Monday includes that instant and is pending',()=>{
++ const r=aggregate([snap([row({end:'2026-09-21T00:00:00'})])]);assert.equal(r.pending[0].reason,'cross_week_unallocated');assert.ok(r.cells.every(c=>c.hours===null));
++});
++test('C06 cross-week record is not distributed, repeated or assigned to its start',()=>{
++ const r=aggregate([snap([row({end:'2026-09-22T23:59:59.999',hours:'20'})])]);assert.equal(r.pending.length,1);assert.equal(r.cells.length,2);assert.ok(r.cells.every(c=>c.hours===null&&c.valueState==='pending'));
++});
++test('C06 cross-month week counts once weekly but awaits allocation monthly',()=>{
++ const s=snap([row({start:'2026-09-28T00:00:00',end:'2026-10-04T23:59:59.999'})]);
++ const w=aggregate([s]),m=aggregate([s],{mode:'month'});assert.equal(w.cells[0].hours,'8');assert.equal(w.cells.length,1);assert.equal(m.pending[0].reason,'cross_month_unallocated');assert.ok(m.cells.every(c=>c.hours===null));
++});
++test('C06 September row remains September in both modes',()=>{
++ assert.equal(aggregate([snap()],{mode:'month'}).cells[0].period.key,'2026-09');assert.equal(aggregate([snap()]).cells[0].period.label,'2026-09-14—2026-09-20');
++});
++test('C06 decimal hours are exact and never multiplied by eight',()=>{
++ const r=aggregate([snap([row({hours:'0.1'}),row({rid:'B',hours:'0.2'})])]);assert.equal(cell(r).hours,'0.3');assert.equal(sumHours(['0008.000']),'8');
++});
++test('C07 no rows differs from an explicit zero',()=>{
++ const options={people:[person],periods:[at('2026-09-14T00:00:00')]};
++ const absent=cell(aggregate([snap([])],options)),zero=cell(aggregate([snap([row({hours:'0'})])],options));
++ assert.equal(absent.hours,null);assert.equal(absent.valueState,'no_records');assert.equal(zero.hours,'0');assert.equal(zero.valueState,'explicit_zero');assert.ok(!JSON.stringify(zero).includes('已确认未安排'));
++});
++test('C07 null numeric field is invalid, never zero',()=>{
++ const r=aggregate([snap([row({hours:null})])]);assert.equal(r.cells.length,0);assert.equal(r.errors[0].code,'invalid_decimal_hours');
++});
++test('C07 coverage gaps retain known subtotal with explicit reason',()=>{
++ for(const status of ['no_records','permission_denied','request_failed','pagination_incomplete','mapping_unverified']){
++  const r=aggregate([snap()],{coverage:[{source:'project-source',status}]});assert.equal(cell(r).hours,'8');assert.equal(cell(r).coverageGaps[0].status,status);assert.match(cell(r).caption,/不代表/);
++ }
++});
++test('C07 partial source pagination is visible even with usable rows',()=>{
++ const r=aggregate([snap([row()],{complete:false})]);assert.equal(cell(r).hours,'8');assert.equal(cell(r).coverageGaps[0].status,'pagination_incomplete');
++});
++test('C07 absent parent field is missing coverage, not a zero',()=>{
++ const s=snap();s.response.work_item_fields=s.response.work_item_fields.filter(f=>f.key!==F.parent);const r=aggregate([s]);assert.equal(r.cells.length,0);assert.match(r.errors[0].code,/missing_field/);
++});
++test('same display names cannot merge distinct stable personnel IDs',()=>{
++ const r=aggregate([snap([row(),row({who:'9000000000000000002',name:person.name,hours:'3',rid:'B'})])]);assert.equal(r.cells.length,2);assert.equal(cell(r).hours,'8');
++});
++test('unsafe numeric personnel identifiers are rejected',()=>{
++ const r=aggregate([snap([row({who:9000000000000000001})])]);assert.equal(r.errors[0].code,'invalid_person_id');assert.equal(r.cells.length,0);
++});
++test('source total and expected schedule are excluded from actual aggregation',()=>{
++ const s=snap([row()],{total:'888'});s.response.work_item_current_node=[{estimated_score:1000}];s.response.work_item_fields.push({key:'field_bb4c2c',value:'1000'});
++ assert.equal(cell(aggregate([s])).hours,'8');assert.equal(normalize(s).reconciliationOnly,'888');
++});
++test('non-project source preserves ownership without inventing a formal project',()=>{
++ const c=cell(aggregate([snap()]));assert.equal(c.nonProjectItemCount,1);assert.equal(c.projectCount,null);assert.equal(c.rows[0].ownership.projectRef,null);
++});
++test('duplicate fields and missing identity cannot silently corrupt association',()=>{
++ const rr=row();rr.push({key:F.hours,value:'99'});const r=aggregate([snap([rr])]);assert.equal(r.cells.length,0);assert.match(r.errors[0].code,/duplicate_field/);
++});
++test('source timestamp is authoritative but contradictory ISO date is rejected',()=>{
++ const rr=row();rr.find(f=>f.key===F.period).value.start_time.iso_time='2026-09-21T00:00:00+08:00';const r=aggregate([snap([rr])]);assert.equal(r.errors[0].code,'timestamp_iso_mismatch');
++});
++test('aggregation has no source mutation or claimed component binding',()=>{
++ const s=snap(),before=JSON.stringify(s);const r=aggregate([s]);assert.equal(JSON.stringify(s),before);assert.equal(r.componentBinding,'unverified');
++});
