@@ -1,0 +1,185 @@
+diff --git a/src/execution-state.mjs b/src/execution-state.mjs
+index e32fddc..30ff21a 100644
+--- a/src/execution-state.mjs
++++ b/src/execution-state.mjs
+@@ -3,6 +3,23 @@ import {dirname} from 'node:path';
+ import {randomUUID} from 'node:crypto';
+ import {processIdentity,liveGroupMembers,executionHostFingerprint} from './process.mjs';
+ const safe=new Set(['no_process','confirmed','confirmed_legacy','reconciled_exited']);
++// Derived clearance checks every child; a cached parent label never grants clearance.
++export function processStateClear(p){
++ if(!p||p.bindingMismatch)return false;
++ if(p.status==='no_process')return p.spawned===false&&p.terminalConfirmed===true;
++ if(!['confirmed','reconciled_exited'].includes(p.status)||p.spawned!==true||!Number.isSafeInteger(p.pid)||p.pid<=0||p.pgid!==p.pid||!p.identity||!p.commandFingerprint)return false;
++ if(p.status==='reconciled_exited')return p.reconciliation?.absent===true&&p.reconciliation.pid===p.pid&&p.reconciliation.pgid===p.pgid&&p.reconciliation.identity===p.identity;
++ return p.terminalConfirmed===true&&Array.isArray(p.residualPids)&&p.residualPids.length===0;
++}
++export function runStateClear(r){
++ if(!r||!safe.has(r.status)||!r.settledAt||!r.processes||Array.isArray(r.processes))return false;
++ const ps=Object.values(r.processes);
++ if(!ps.every(processStateClear))return false;
++ if(!ps.length)return r.status==='no_process'&&r.mode==='logical-only'||r.status==='confirmed_legacy'&&r.mode==='opaque';
++ if(r.status==='no_process')return ps.every(p=>p.spawned===false);
++ if(r.status==='confirmed')return ps.some(p=>p.spawned===true);
++ return r.status==='reconciled_exited'&&!!r.reconciliation;
++}
+ export const executionStatePath=file=>file+'.executions.json';
+ export function readExecutionState(file){
+  const state=JSON.parse(fs.readFileSync(executionStatePath(file),'utf8'));
+@@ -10,7 +27,7 @@ export function readExecutionState(file){
+  return state;
+ }
+ export function executionStateClear(file){
+- try{const s=readExecutionState(file);return s.hostFingerprint===executionHostFingerprint()&&!s.persistenceFault&&!fs.existsSync(executionStatePath(file)+'.fault')&&Object.values(s.runs).every(r=>safe.has(r.status));}catch{return false;}
++ try{const s=readExecutionState(file);return s.hostFingerprint===executionHostFingerprint()&&!s.persistenceFault&&!fs.existsSync(executionStatePath(file)+'.fault')&&Object.values(s.runs).every(runStateClear);}catch{return false;}
+ }
+ function atomicSave(path,state){
+  fs.mkdirSync(dirname(path),{recursive:true,mode:0o700});const tmp=path+'.'+randomUUID()+'.tmp';let fd;
+@@ -26,7 +43,7 @@ export class ExecutionState{
+  }
+  save(){try{this.persist(this.path,this.state);return true;}catch(e){this.state.persistenceFault=true;this.state.faultReason=e.code||e.message;try{fs.writeFileSync(this.path+'.fault','termination persistence requires reconciliation',{mode:0o600});}catch{}return false;}}
+  fault(reason){this.state.persistenceFault=true;this.state.faultReason=reason;this.save();}
+- safe(id){return !!this.state.runs[id]&&safe.has(this.state.runs[id].status)&&!this.state.persistenceFault;}
++ safe(id){return runStateClear(this.state.runs[id])&&!this.state.persistenceFault&&!fs.existsSync(this.path+'.fault');}
+  begin(messageId,mode){
+   const id=randomUUID();this.state.runs[id]={id,messageId,mode,status:'pending',sealed:false,runnerIds:[],processes:{},createdAt:new Date().toISOString()};
+   if(!this.save())throw Error('TERMINATION_LEDGER_UNWRITABLE');return id;
+@@ -34,18 +51,18 @@ export class ExecutionState{
+  record(id,event){
+   const r=this.state.runs[id];if(!r)return false;
+   // A late intent may not spawn. Late terminal callbacks never rewrite a sealed decision.
+-  if(this.closed||r.sealed)return !['intent','started'].includes(event.type);
++  if(this.closed||r.sealed||r.settledAt)return !['intent','started','runner'].includes(event.type);
+   if(event.runId&&!r.runnerIds.includes(event.runId))r.runnerIds.push(event.runId);
+   if(event.type==='runner')return this.save();
+   const key=event.processKey;if(!key)return false;
+   const p=r.processes[key]||{processKey:key};
+   if(event.type==='intent')Object.assign(p,{status:'pending',commandFingerprint:event.commandFingerprint});
+-  else if(event.type==='not_started')Object.assign(p,{status:'no_process',spawned:false,reason:event.reason});
++  else if(event.type==='not_started')Object.assign(p,{status:'no_process',spawned:false,reason:event.reason,terminalConfirmed:true});
+   else if(event.type==='started')Object.assign(p,{status:'running',spawned:true,pid:event.pid,pgid:event.pgid,identity:event.identity});
+   else if(event.type==='finished'){
+    const binding=!event.spawned||(Number.isSafeInteger(p.pid)&&p.pid===event.pid&&p.pgid===event.pgid&&typeof p.identity==='string'&&p.identity.length>0&&p.identity===event.identity);
+    const confirmed=event.terminationConfirmed===true&&binding&&Array.isArray(event.residualPids)&&event.residualPids.length===0;
+-   Object.assign(p,{status:confirmed?(event.spawned?'confirmed':'no_process'):'unknown',spawned:event.spawned,exit:event.exit,stopReason:event.stopReason,residualPids:event.residualPids});
++   Object.assign(p,{status:confirmed?(event.spawned?'confirmed':'no_process'):'unknown',spawned:event.spawned,exit:event.exit,stopReason:event.stopReason,residualPids:event.residualPids,terminalConfirmed:confirmed});
+    if(binding)Object.assign(p,{pid:event.pid,pgid:event.pgid,identity:event.identity});
+    else p.bindingMismatch=true; // never replace the started process identity with a mismatched receipt
+    if(!confirmed)r.unknownSticky=true;
+@@ -59,7 +76,7 @@ export class ExecutionState{
+   const ps=Object.values(r.processes),hint=error?.evidence;
+   if(hint?.terminationConfirmed===false){r.unknownSticky=true;r.failureHint='executor_reported_unknown';}
+   if(r.unknownSticky||this.state.persistenceFault)r.status='unknown';
+-  else if(ps.length)r.status=ps.every(p=>safe.has(p.status))?(ps.some(p=>p.spawned)?'confirmed':'no_process'):'unknown';
++  else if(ps.length)r.status=ps.every(processStateClear)?(ps.some(p=>p.spawned)?'confirmed':'no_process'):'unknown';
+   else if(r.mode==='logical-only')r.status='no_process';
+   // Backward compatibility for the reviewer's explicitly safe, controller-owned fake executor.
+   // A bare result field cannot enter here, and this cannot override any process-manager record.
+@@ -67,8 +84,8 @@ export class ExecutionState{
+   else r.status='unknown';
+   r.settledAt=new Date().toISOString();if(r.status==='unknown')r.unknownSticky=true;this.save();
+  }
+- seal(){for(const r of Object.values(this.state.runs)){if(!safe.has(r.status)){r.status='unknown';r.unknownSticky=true;}r.sealed=true;}this.save();return this.summary();}
+- summary(){const unknown=Object.values(this.state.runs).filter(r=>!safe.has(r.status)).map(r=>({executionId:r.id,messageId:r.messageId,status:r.status,runnerIds:r.runnerIds,processes:Object.values(r.processes)}));return {processTerminationConfirmed:!unknown.length&&!this.state.persistenceFault,unknownExecutions:unknown,persistenceFault:!!this.state.persistenceFault};}
++ seal(){for(const r of Object.values(this.state.runs)){if(!runStateClear(r)){r.status='unknown';r.unknownSticky=true;}r.sealed=true;}this.save();return this.summary();}
++ summary(){const unknown=Object.values(this.state.runs).filter(r=>!runStateClear(r)).map(r=>({executionId:r.id,messageId:r.messageId,status:r.status,runnerIds:r.runnerIds,processes:Object.values(r.processes)}));return {processTerminationConfirmed:!unknown.length&&!this.state.persistenceFault&&!fs.existsSync(this.path+'.fault'),unknownExecutions:unknown,persistenceFault:!!this.state.persistenceFault};}
+  close(){this.closed=true;}
+ }
+ 
+@@ -78,16 +95,16 @@ export function reconcileExecution(file,id,{identity=processIdentity,members=liv
+  const ps=Object.values(r.processes);if(!ps.length)throw Error('PROCESS_BINDING_MISSING');
+  const checks=[];
+  for(const p of ps){
+-  if(p.status==='no_process'){checks.push({processKey:p.processKey,noProcess:true});continue;}
++  if(p.status==='no_process'&&processStateClear(p)){checks.push({processKey:p.processKey,noProcess:true});continue;}
+   if(p.bindingMismatch)throw Error('PROCESS_BINDING_MISMATCH');
+   if(!Number.isSafeInteger(p.pid)||p.pid<=0||p.pgid!==p.pid||!p.identity||!p.commandFingerprint)throw Error('PROCESS_BINDING_MISSING');
+   const current=identity(p.pid);if(current!==null)throw Error(current===p.identity?'PROCESS_STILL_ACTIVE':'PID_REUSED_OR_MISMATCH');
+   const live=members(p.pgid);if(!Array.isArray(live)||live.length)throw Error('PROCESS_GROUP_UNCONFIRMED');
+-  checks.push({processKey:p.processKey,pid:p.pid,pgid:p.pgid,identity:p.identity,absent:true});
++  const checked={processKey:p.processKey,pid:p.pid,pgid:p.pgid,identity:p.identity,absent:true};checks.push(checked);p.status='reconciled_exited';p.reconciliation=checked;
+  }
+  r.status='reconciled_exited';r.reconciliation={at:new Date().toISOString(),checks};
+  // A failed durable write is not repaired by assuming an empty or incomplete ledger is safe.
+- if(Object.values(state.runs).every(x=>safe.has(x.status))){state.persistenceFault=false;delete state.faultReason;}
++ if(Object.values(state.runs).every(runStateClear)){state.persistenceFault=false;delete state.faultReason;}
+  atomicSave(executionStatePath(file),state);
+  if(!state.persistenceFault&&fs.existsSync(executionStatePath(file)+'.fault'))fs.unlinkSync(executionStatePath(file)+'.fault');
+  return {executionId:id,reconciled:true,safetyCleared:executionStateClear(file),checks};
+diff --git a/tests/fix3-child-clearance.test.mjs b/tests/fix3-child-clearance.test.mjs
+new file mode 100644
+index 0000000..2eae514
+--- /dev/null
++++ b/tests/fix3-child-clearance.test.mjs
+@@ -0,0 +1,29 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs/promises';
++import {existsSync} from 'node:fs';
++import os from 'node:os';
++import {join} from 'node:path';
++import {ProbeBroker} from '../src/broker.mjs';
++import {executionStateClear,executionStatePath} from '../src/execution-state.mjs';
++
++test('all clearance paths reject parent confirmed with unsafe or unproved child records',async()=>{
++ const cases=[{status:'pending'},{status:'running'},{status:'unknown'},{status:'confirmed'},
++  {status:'confirmed',terminalConfirmed:true,residualPids:null},{status:'no_process',spawned:true,terminalConfirmed:true}];
++ for(const child of cases){
++  const root=await fs.mkdtemp(join(os.tmpdir(),'fix3-clearance-')),file=join(root,'broker.sqlite');
++  const execute=async()=>{};execute.processLifecycle='required';
++  const config={file,appId:'synthetic-app',tenantId:'synthetic-tenant',participants:[],deadline:Date.now()+60000,execute,verify:async()=>null,reply:async()=>null,readReply:async()=>null};
++  const broker=new ProbeBroker(config),id=broker.terminations.begin('synthetic-request','managed');
++  try{
++   const run=broker.terminations.state.runs[id];Object.assign(run,{status:'confirmed',settledAt:new Date().toISOString(),processes:{synthetic:{processKey:'synthetic',spawned:true,pid:424242,pgid:424242,identity:'synthetic-only-no-signals',commandFingerprint:'synthetic',...child}}});broker.terminations.save();
++   assert.equal(broker.terminations.safe(id),false);assert.equal(broker.terminations.summary().processTerminationConfirmed,false);assert.equal(executionStateClear(file),false);
++   assert.throws(()=>broker.ownership.release(),/TERMINATION_NOT_CONFIRMED/);
++   // Copy only synthetic ledger state, deliberately omit owner: restart must still deny.
++   const copied=join(root,'copy.sqlite');await fs.copyFile(executionStatePath(file),executionStatePath(copied));
++   assert.throws(()=>new ProbeBroker({...config,file:copied}),/TERMINATION_RECONCILIATION_REQUIRED/);
++   const receipt=await broker.close();assert.equal(receipt.confirmed,false);assert.equal(existsSync(file+'.owner'),true);
++   assert.equal(Object.keys(broker.terminations.state.runs[id].processes).length,1);
++  }finally{await broker.close();await fs.rm(root,{recursive:true,force:true});}
++ }
++});
+diff --git a/tests/fix3-late-spawn.test.mjs b/tests/fix3-late-spawn.test.mjs
+new file mode 100644
+index 0000000..2caff08
+--- /dev/null
++++ b/tests/fix3-late-spawn.test.mjs
+@@ -0,0 +1,36 @@
++// Reconstructed from the GPT FIX2 review timing; not claimed as the original attachment.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs/promises';
++import {existsSync} from 'node:fs';
++import os from 'node:os';
++import {join} from 'node:path';
++import {ProbeBroker} from '../src/broker.mjs';
++import {processRun,liveGroupMembers} from '../src/process.mjs';
++import {readExecutionState} from '../src/execution-state.mjs';
++const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
++for(const afterClose of [false,true])test('required executor rejects late spawn after settle '+(afterClose?'after close':'before stop'),async t=>{
++ const root=await fs.mkdtemp(join(os.tmpdir(),'fix3-late-')),file=join(root,'broker.sqlite'),gate=deferred(),started=deferred(),controller=new AbortController();let late,first,next;
++ const execute=async x=>{
++  first=await processRun('/bin/sleep',['0.02'],{signal:x.signal});
++  late=(async()=>{await gate.promise;return processRun('/bin/sleep',['1'],{signal:controller.signal,timeoutMs:1500,onSpawn:r=>started.resolve(r)});})();
++  return {marker:x.marker,summary:'synthetic result'};
++ };execute.processLifecycle='required';
++ const events=new Map(),sent=[];
++ const config={file,appId:'synthetic-app',tenantId:'synthetic-tenant',participants:[{id:'synthetic-user',alias:'A'}],deadline:Date.now()+60000,execute,verify:async id=>events.get(id),reply:async(target,text)=>{const r={messageId:'reply-'+sent.length,chatId:target.chatId,text};sent.push(r);return r;},readReply:async id=>sent.find(x=>x.messageId===id)};
++ const broker=new ProbeBroker(config);
++ const accept=async(id,text)=>{const e={appId:config.appId,tenantId:config.tenantId,senderId:'synthetic-user',senderType:'user',chatId:'synthetic-chat',chatType:'p2p',messageId:id,text,createdAt:Date.now()};events.set(id,e);await broker.accept(e);await broker.queue;};
++ try{
++  await accept('begin','联调开始');await accept('run','计算合成样本');assert.equal(first.terminationConfirmed,true);assert.equal(broker.workers.size,0);
++  if(afterClose)await broker.close();
++  gate.resolve();const observed=await Promise.race([started.promise,late]);
++  const before=Object.values(readExecutionState(file).runs)[0];const stop=await broker.close(),ownerRetained=existsSync(file+'.owner');let newAdmitted=false;
++  try{next=new ProbeBroker(config);newAdmitted=true;}catch{}
++  t.diagnostic(JSON.stringify({scenario:afterClose?'after-close-control':'settled-before-stop',parent:before.status,children:Object.values(before.processes).map(x=>x.status),lateSpawned:!!observed.pid,stopConfirmed:stop.confirmed,ownerRetained,newAdmitted,oldGroupMembers:observed.pgid?liveGroupMembers(observed.pgid):[]}));
++  assert.equal(observed.spawned??!!observed.pid,false,'settled execution identity must refuse before spawn');
++  assert.equal(stop.confirmed,true);assert.equal(newAdmitted,true);
++ }finally{
++  gate.resolve();controller.abort();if(late){const r=await late;assert.equal(r.terminationConfirmed,true);if(r.pgid)assert.deepEqual(liveGroupMembers(r.pgid),[]);t.diagnostic(JSON.stringify({cleanupConfirmed:r.terminationConfirmed,residualPids:r.residualPids}));}
++  if(next)await next.close();await broker.close();await fs.rm(root,{recursive:true,force:true});
++ }
++});

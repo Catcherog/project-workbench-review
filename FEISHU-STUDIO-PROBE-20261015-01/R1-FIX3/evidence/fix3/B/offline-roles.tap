@@ -1,0 +1,29 @@
+TAP version 13
+# Subtest: one broker selects both roles for the same synthetic user and binds local receipts (OFFLINE)
+ok 1 - one broker selects both roles for the same synthetic user and binds local receipts (OFFLINE)
+  ---
+  duration_ms: 230.228458
+  type: 'test'
+  ...
+# {"kind":"OFFLINE_ONLY","realModelCalls":0,"entry":"createDualRoleProbe.submit -> ProbeBroker.accept -> process -> executeTracked -> runCodex(offline-fixture) -> validation -> local reply/readback","selections":[{"requestId":"synthetic-request-A","agentId":"test-summary","configurationSha256":"00dd2f62fa6b263e0eb3f393987d39ad293a82434ec35341bf00b4fe79406907","instructionsSha256":"710814986230904f5aa4635f52fc01401cf93620e9a23ecbc9b103868016ea45","runId":"d9b96657-705e-4df7-aaae-2ade8d3fbd91","executionKind":"offline-fixture","sourceMarker":"d05c2d67-43ea-4f17-9e87-5c1afe334cea","historyPassedToRunner":false,"result":{"source_marker":"d05c2d67-43ea-4f17-9e87-5c1afe334cea","source":"synthetic.json:tests","total":10,"passed":7,"failed":2,"blocked":1,"pass_rate_percent":70},"terminationConfirmed":true},{"requestId":"synthetic-request-B","agentId":"action-extract","configurationSha256":"415ff4c775e58ab71d4ebc04a8eee51010c1ed7ee99b558c8697a6752e3e99b5","instructionsSha256":"9ef12ea5b3bb16128065fb08e49af7603f06626a525e9790ebcc6d5ffde013f4","runId":"eb57968a-ddea-42f6-a872-472be848f1f5","executionKind":"offline-fixture","sourceMarker":"4a15b0c8-15af-46a0-837e-b576868ece19","historyPassedToRunner":false,"result":{"source_marker":"4a15b0c8-15af-46a0-837e-b576868ece19","source":"synthetic.json:minutes","tasks":[{"task":"补充接口说明","owner":"合成成员甲","deadline":null},{"task":"复核测试结果","owner":"合成成员乙","deadline":"2026-10-19"}]},"terminationConfirmed":true}],"receipts":[{"messageId":"local-receipt-1","chatId":"synthetic-chat-A","text":"【合成测试 8357929b-9b17-4ec9-a436-0e35a9b198c0】{\\"source_marker\\":\\"d05c2d67-43ea-4f17-9e87-5c1afe334cea\\",\\"source\\":\\"synthetic.json:tests\\",\\"total\\":10,\\"passed\\":7,\\"failed\\":2,\\"blocked\\":1,\\"pass_rate_percent\\":70}","target":{"messageId":"synthetic-request-A","chatId":"synthetic-chat-A","senderId":"synthetic-A","idempotencyKey":"768f28337f842e91dc58108575b40e5412440e5b86805e9c"}},{"messageId":"local-receipt-3","chatId":"synthetic-chat-B","text":"【合成测试 1f463fa8-9f1b-400a-8457-a1dfc9e83ff9】{\\"source_marker\\":\\"4a15b0c8-15af-46a0-837e-b576868ece19\\",\\"source\\":\\"synthetic.json:minutes\\",\\"tasks\\":[{\\"task\\":\\"补充接口说明\\",\\"owner\\":\\"合成成员甲\\",\\"deadline\\":null},{\\"task\\":\\"复核测试结果\\",\\"owner\\":\\"合成成员乙\\",\\"deadline\\":\\"2026-10-19\\"}]}","target":{"messageId":"synthetic-request-B","chatId":"synthetic-chat-B","senderId":"synthetic-A","idempotencyKey":"e1e585f2f91868a66c32e5c23603ae8c3bc204b44ad8ba81"}}]}
+# Subtest: role bindings and foreign input cannot pass result projection
+ok 2 - role bindings and foreign input cannot pass result projection
+  ---
+  duration_ms: 0.62725
+  type: 'test'
+  ...
+# Subtest: real path stays closed and starts no process when minimum isolation is blocked
+ok 3 - real path stays closed and starts no process when minimum isolation is blocked
+  ---
+  duration_ms: 25.341083
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 297.299334

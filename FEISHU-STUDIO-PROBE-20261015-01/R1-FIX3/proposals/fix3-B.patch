@@ -1,0 +1,267 @@
+diff --git a/package.json b/package.json
+index db4ea2a..dc852a3 100644
+--- a/package.json
++++ b/package.json
+@@ -1,5 +1,5 @@
+ {
+-  "name": "feishu-studio-probe-r1-fix2",
++  "name": "feishu-studio-probe-r1-fix3",
+   "private": true,
+   "type": "module",
+   "scripts": {
+diff --git a/roles/action-extract.json b/roles/action-extract.json
+new file mode 100644
+index 0000000..0049475
+--- /dev/null
++++ b/roles/action-extract.json
+@@ -0,0 +1 @@
++{"agent_id":"action-extract","version":"1.0.0","task_type":"action-extract","instruction_file":"action-extract.md","input_file":"synthetic.json","result_contract":{"type":"action_items","keys":["source_marker","source","tasks"],"task_keys":["task","owner","deadline"]}}
+diff --git a/roles/action-extract.md b/roles/action-extract.md
+new file mode 100644
+index 0000000..5311476
+--- /dev/null
++++ b/roles/action-extract.md
+@@ -0,0 +1,2 @@
++只处理当前工作目录 synthetic.json 的合成纪要。实际读取文件后提取任务、责任人及纪要中明确约定的截止日期；没有期限必须为 null，不自行推算。将文件中的 source_marker 原样放入结果。source 必须定位为 synthetic.json:minutes；结果字段为 source_marker/source/tasks，tasks 每项字段为 task/owner/deadline。
++外层输出遵守受控 runner 的 marker/summary/missing/question 契约。marker 使用控制器给定的会话标记；summary 是上述提取结果的 JSON 字符串；missing 为 []，question 为 ""。不得读取其他目录、调用外部工具、执行嵌套模型或决定回复目标。
+diff --git a/roles/test-summary.json b/roles/test-summary.json
+new file mode 100644
+index 0000000..b3c25a3
+--- /dev/null
++++ b/roles/test-summary.json
+@@ -0,0 +1 @@
++{"agent_id":"test-summary","version":"1.0.0","task_type":"test-summary","instruction_file":"test-summary.md","input_file":"synthetic.json","result_contract":{"type":"statistics","keys":["source_marker","source","total","passed","failed","blocked","pass_rate_percent"]}}
+diff --git a/roles/test-summary.md b/roles/test-summary.md
+new file mode 100644
+index 0000000..908c3ad
+--- /dev/null
++++ b/roles/test-summary.md
+@@ -0,0 +1,2 @@
++只处理当前工作目录 synthetic.json 的合成测试结果。实际读取文件后统计总数、通过、失败、阻塞和百分比通过率；不要预设数值。将文件中的 source_marker 原样放入统计结果。source 必须定位为 synthetic.json:tests，统计结果字段为 source_marker/source/total/passed/failed/blocked/pass_rate_percent。
++外层输出遵守受控 runner 的 marker/summary/missing/question 契约。marker 使用控制器给定的会话标记；summary 是上述统计结果的 JSON 字符串；missing 为 []，question 为 ""。不得读取其他目录、调用外部工具、执行嵌套模型或决定回复目标。
+diff --git a/src/bootstrap.mjs b/src/bootstrap.mjs
+new file mode 100644
+index 0000000..ab162e6
+--- /dev/null
++++ b/src/bootstrap.mjs
+@@ -0,0 +1,21 @@
++import {homedir} from 'node:os';
++import {resolve,join} from 'node:path';
++import {buildLaunch,hash} from './launch.mjs';
++export const extraDisabled=['shell_snapshot','workspace_dependencies','daemon_auto_start','code_mode_host','unbounded_connection_retries','goals'];
++// The trusted CLI parent may read existing auth, but not user configuration, memory,
++// skills, history or business files. Its model-generated tools retain the inner profile.
++export function bootstrapPolicy(runtimeRoot){
++ return ['(version 1)','(allow default)','(deny file-read* file-write* (subpath "/Users"))',
++  `(allow file-read* file-write* (subpath ${JSON.stringify(resolve(runtimeRoot))}))`,
++  `(allow file-read* (literal ${JSON.stringify(join(homedir(),'.codex','auth.json'))}))`].join('\n');
++}
++export function buildRoleLaunch(options){
++ const {runtimeRoot,bootstrapFile,instructions}=options;
++ const launch=buildLaunch(options);
++ const overrides=['-c','developer_instructions='+JSON.stringify(instructions),'-c','allow_login_shell=false',
++  '-c','sqlite_home='+JSON.stringify(join(runtimeRoot,'state')),'-c','log_dir='+JSON.stringify(join(runtimeRoot,'logs')),
++  ...extraDisabled.flatMap(x=>['--disable',x])];
++ const args=[...launch.args.slice(0,-1),...overrides,'-'];
++ const descriptor={...launch.descriptor,args,disabled:[...launch.descriptor.disabled,...extraDisabled],personalBootstrapIsolation:'scoped_parent_seatbelt_plus_tool_profile',parentPolicySha256:hash(bootstrapPolicy(runtimeRoot)),stateScope:resolve(runtimeRoot),instructionsSha256:hash(instructions),wrapper:'/usr/bin/sandbox-exec'};
++ return {binary:'/usr/bin/sandbox-exec',args:['-f',bootstrapFile,options.binary,...args],cwd:launch.cwd,env:launch.env,descriptor,fingerprint:hash(descriptor)};
++}
+diff --git a/src/broker.mjs b/src/broker.mjs
+index 1b4bf76..d74e852 100644
+--- a/src/broker.mjs
++++ b/src/broker.mjs
+@@ -9,11 +9,11 @@ import {withinExecution} from './execution-context.mjs';
+ 
+ // Transport remains offline. Identity must come from the trusted adapter, never model text.
+ export class ProbeBroker{
+- constructor({file,appId,tenantId,participants,deadline,verify,execute,reply,readReply,clock=()=>Date.now(),maxCalls=20,taskTimeoutMs=180000,maxReplies=40,verifyTimeoutMs=1000,sendTimeoutMs=1000,readbackTimeoutMs=1000,maxStopMs=4000}){
++ constructor({selectTask,file,appId,tenantId,participants,deadline,verify,execute,reply,readReply,clock=()=>Date.now(),maxCalls=20,taskTimeoutMs=180000,maxReplies=40,verifyTimeoutMs=1000,sendTimeoutMs=1000,readbackTimeoutMs=1000,maxStopMs=4000}){
+   if(!Number.isFinite(deadline)||deadline<=clock()||deadline-clock()>3600000)throw Error('INVALID_WINDOW');
+   if(!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>20||taskTimeoutMs<1||taskTimeoutMs>180000||maxReplies<1||maxReplies>40||maxStopMs<50||maxStopMs>4500)throw Error('INVALID_LIMITS');
+   for(const x of [verifyTimeoutMs,sendTimeoutMs,readbackTimeoutMs])if(!Number.isFinite(x)||x<1||x>30000)throw Error('INVALID_IO_LIMIT');
+-  Object.assign(this,{appId,tenantId,participants:new Map(participants.map(x=>[x.id,x.alias])),deadline,verify,execute,reply,readReply,clock,maxCalls,taskTimeoutMs,maxReplies,verifyTimeoutMs,sendTimeoutMs,readbackTimeoutMs,maxStopMs});
++  Object.assign(this,{selectTask,appId,tenantId,participants:new Map(participants.map(x=>[x.id,x.alias])),deadline,verify,execute,reply,readReply,clock,maxCalls,taskTimeoutMs,maxReplies,verifyTimeoutMs,sendTimeoutMs,readbackTimeoutMs,maxStopMs});
+   this.file=file;this.ownership=acquireOwner(file,{requiresClearance:true});this.jobsRoot=resolve(dirname(file),'jobs');
+   try{
+    this.terminations=new ExecutionState(file);
+@@ -78,12 +78,13 @@ export class ProbeBroker{
+   if(this.stopped||this.clock()>=this.deadline){this.update(id,'cancelled_unstarted');return;}
+   const data=JSON.parse(row.data);let session=this.db.prepare('SELECT * FROM sessions WHERE k=?').get(row.session);
+   if(data.text==='联调开始'&&!session){session={k:row.session,marker:randomUUID(),history:'[]'};this.db.prepare('INSERT INTO sessions VALUES(?,?,?)').run(session.k,session.marker,session.history);await this.send(row,data,'合成测试会话已开始。发送“计算合成样本”可执行一次受控验证。');return;}
+-  if(data.text!=='计算合成样本'){await this.send(row,data,'本轮仅支持合成样本计算；身份、权限和其他会话均不能通过消息修改。');return;}
++  const task=this.selectTask?this.selectTask(data.text):data.text==='计算合成样本'?{kind:'legacy'}:null;
++  if(!task){await this.send(row,data,'本轮仅支持合成样本计算；身份、权限和其他会话均不能通过消息修改。');return;}
+   if(this.count('calls')>=this.maxCalls){this.update(id,'call_limit');return;}
+   this.db.prepare("UPDATE meta SET v=v+1 WHERE k='calls'").run();this.update(id,'running');
+   let result;
+   try{
+-   result=await bounded('execute',signal=>this.executeTracked(id,{marker:session.marker,alias:data.alias,history:JSON.parse(session.history),jobDir:resolve(this.jobsRoot,row.session,hash(id)),signal}),{timeoutMs:this.taskTimeoutMs,signal:this.lifetime.signal,onUnderlying:p=>this.track(p,this.workers)});
++   result=await bounded('execute',signal=>this.executeTracked(id,{task,requestId:id,sessionKey:row.session,marker:session.marker,alias:data.alias,history:JSON.parse(session.history),jobDir:resolve(this.jobsRoot,row.session,hash(id)),signal}),{timeoutMs:this.taskTimeoutMs,signal:this.lifetime.signal,onUnderlying:p=>this.track(p,this.workers)});
+    if(this.stopped||this.clock()>=this.deadline){this.update(id,'model_failed');this.note(id,'execute_cancelled');return;}
+    if(!result||Object.keys(result).sort().join(',')!=='marker,summary'||result.marker!==session.marker||typeof result.summary!=='string'||result.summary.length>1800)throw Error('INVALID_MODEL_RESULT');
+   }catch(e){this.update(id,'model_failed');this.note(id,'execute_failed',{reason:e.reason||e.message});return;}
+diff --git a/src/dual-role-probe.mjs b/src/dual-role-probe.mjs
+new file mode 100644
+index 0000000..4cb7eb2
+--- /dev/null
++++ b/src/dual-role-probe.mjs
+@@ -0,0 +1,3 @@
++// Deliberate hard gate: no real launch capability is enabled in this blocked delivery.
++console.error(JSON.stringify({status:'BLOCKED',reason:'parent_and_command_sandbox_composition_unavailable',realModelStarts:0,offlineReproduction:'node --test tests/dual-role.test.mjs'}));
++process.exitCode=2;
+diff --git a/src/dual-role.mjs b/src/dual-role.mjs
+new file mode 100644
+index 0000000..15e814a
+--- /dev/null
++++ b/src/dual-role.mjs
+@@ -0,0 +1,69 @@
++// Synthetic transport only. Real launch remains blocked by composed sandbox preflight.
++import fs from 'node:fs/promises';
++import {resolve,join,relative,isAbsolute} from 'node:path';
++import {randomUUID} from 'node:crypto';
++import {ProbeBroker} from './broker.mjs';
++import {runCodex,validateCompletion,hash} from './codex.mjs';
++import {recordExecution} from './execution-context.mjs';
++const kinds=new Set(['test-summary','action-extract']);
++export const selectRole=text=>kinds.has(text)?{agentId:text}:null;
++export async function loadRole(id){
++ if(!kinds.has(id))throw Error('UNKNOWN_TASK_TYPE');
++ const config=JSON.parse(await fs.readFile(new URL('../roles/'+id+'.json',import.meta.url),'utf8'));
++ if(config.agent_id!==id||config.task_type!==id||config.instruction_file!==id+'.md'||config.input_file!=='synthetic.json')throw Error('ROLE_CONFIGURATION_MISMATCH');
++ const instructions=await fs.readFile(new URL('../roles/'+config.instruction_file,import.meta.url),'utf8');
++ return {config,instructions,configurationSha256:hash(config),instructionsSha256:hash(instructions)};
++}
++export function validateRoleResult(result,role,input){
++ let value;try{value=JSON.parse(result.summary);}catch{throw Error('ROLE_RESULT_NOT_JSON');}
++ const keys=Object.keys(value||{}).sort().join(',');
++ if(keys!==role.config.result_contract.keys.slice().sort().join(',')||value.source_marker!==input.source_marker||result.missing.length||result.question)throw Error('ROLE_RESULT_CONTRACT');
++ if(role.config.agent_id==='test-summary'){
++  const n=input.tests.length,passed=input.tests.filter(x=>x.status==='passed').length,failed=input.tests.filter(x=>x.status==='failed').length,blocked=input.tests.filter(x=>x.status==='blocked').length;
++  if(value.source!=='synthetic.json:tests'||value.total!==n||value.passed!==passed||value.failed!==failed||value.blocked!==blocked||value.pass_rate_percent!==100*passed/n)throw Error('INVALID_STATISTICS');
++ }else{
++  const expected=[{task:'补充接口说明',owner:'合成成员甲',deadline:null},{task:'复核测试结果',owner:'合成成员乙',deadline:'2026-10-19'}];
++  if(value.source!=='synthetic.json:minutes'||!Array.isArray(value.tasks)||value.tasks.length!==2||value.tasks.some((x,i)=>Object.keys(x).sort().join(',')!=='deadline,owner,task'||Object.entries(expected[i]).some(([k,v])=>x[k]!==v)))throw Error('INVALID_ACTION_ITEMS');
++ }
++ return value;
++}
++export function validateRoleBinding(record,expected){
++ for(const key of ['requestId','agentId','configurationSha256','instructionsSha256','runId','launchFingerprint'])if(!record[key]||record[key]!==expected[key])throw Error('ROLE_BINDING_MISMATCH:'+key);
++}
++export function createDualRoleProbe({root,offlineFixture}={}){
++ if(!root)throw Error('ROOT_REQUIRED');root=resolve(root);const sourceEvents=new Map(),receipts=[],executions=[],claims=new Set();
++ const execute=async input=>{
++  let runnerEntered=false;
++  try{
++   const role=await loadRole(input.task.agentId);
++   if(!offlineFixture)throw Error('REAL_LAUNCH_BLOCKED: nested parent/command sandbox unavailable');
++   if(claims.has(role.config.agent_id))throw Error('ROLE_ATTEMPT_ALREADY_CONSUMED');
++   const job=resolve(input.jobDir),rel=relative(join(root,'jobs'),job);if(!rel||rel.startsWith('..')||isAbsolute(rel))throw Error('JOB_SCOPE_MISMATCH');
++   await fs.mkdir(job,{recursive:true,mode:0o700});const realRel=relative(await fs.realpath(join(root,'jobs')),await fs.realpath(job));if(!realRel||realRel.startsWith('..')||isAbsolute(realRel))throw Error('JOB_SYMLINK_ESCAPE');
++   const source_marker=randomUUID();
++   const synthetic=role.config.agent_id==='test-summary'?{source_marker,tests:Array.from({length:10},(_,i)=>({id:'case-'+i,status:i<7?'passed':i<9?'failed':'blocked'}))}:{source_marker,minutes:['合成成员甲补充接口说明，未约定截止日期','合成成员乙复核测试结果，截止日期 2026-10-19']};
++   await fs.writeFile(join(job,'synthetic.json'),JSON.stringify(synthetic),{flag:'wx',mode:0o600});
++   const prompt=role.instructions+'\n控制器会话 marker：'+input.marker;
++   if(prompt.includes(source_marker))throw Error('SOURCE_MARKER_LEAKED_IN_PROMPT');
++   claims.add(role.config.agent_id);runnerEntered=true;
++   const envelope=await runCodex({binary:process.execPath,prefixArgs:[resolve(offlineFixture)],jobDir:job,prompt,marker:input.marker,executionKind:'offline-fixture',model:'gpt-6-astra',effort:'low',signal:input.signal});
++   validateCompletion(envelope,input.marker);
++   if(envelope.evidence.inputSha256!==hash(prompt))throw Error('PROMPT_BINDING_MISMATCH');
++   const value=validateRoleResult(envelope.result,role,synthetic);
++   const record={requestId:input.requestId,sessionKey:input.sessionKey,agentId:role.config.agent_id,configurationSha256:role.configurationSha256,instructionsSha256:role.instructionsSha256,runId:envelope.evidence.runId,launchFingerprint:envelope.evidence.launchFingerprint,jobDir:job,input:synthetic,prompt,historyPassedToRunner:false,result:value,envelope};
++   const currentRole=await loadRole(input.task.agentId);validateRoleBinding(record,{requestId:input.requestId,agentId:input.task.agentId,configurationSha256:currentRole.configurationSha256,instructionsSha256:currentRole.instructionsSha256,runId:envelope.evidence.runId,launchFingerprint:envelope.evidence.launchFingerprint});
++   executions.push(record);return {marker:envelope.result.marker,summary:envelope.result.summary};
++  }finally{if(!runnerEntered)recordExecution({type:'not_started',processKey:'role-preflight-'+input.requestId,reason:'real_launch_blocked_or_invalid_request'});}
++ };execute.processLifecycle='required';
++ const broker=new ProbeBroker({file:join(root,'broker.sqlite'),appId:'synthetic-app',tenantId:'synthetic-tenant',participants:[{id:'synthetic-A',alias:'A'},{id:'synthetic-B',alias:'B'}],deadline:Date.now()+600000,maxCalls:2,selectTask:selectRole,execute,
++  verify:async id=>sourceEvents.get(id),reply:async(target,text)=>{const r={messageId:'local-receipt-'+receipts.length,chatId:target.chatId,text,target};receipts.push(r);return r;},readReply:async id=>receipts.find(x=>x.messageId===id)});
++ const admittedSessions=new Set();
++ const submit=async request=>{
++  if(Object.keys(request).sort().join(',')!=='chatId,requestId,senderId,taskType'||!kinds.has(request.taskType))return {status:'unknown_or_invalid_task'};
++  const event={appId:'synthetic-app',tenantId:'synthetic-tenant',senderId:request.senderId,senderType:'user',chatId:request.chatId,chatType:'p2p',messageId:request.requestId,text:request.taskType,createdAt:Date.now()};
++  const session=request.senderId+'|'+request.chatId;
++  if(!admittedSessions.has(session)){const start={...event,messageId:'activate-'+request.requestId,text:'联调开始'};sourceEvents.set(start.messageId,start);await broker.accept(start);await broker.queue;admittedSessions.add(session);}
++  sourceEvents.set(event.messageId,event);const admission=await broker.accept(event);await broker.queue;return admission;
++ };
++ return {submit,broker,receipts,executions,close:()=>broker.close()};
++}
+diff --git a/src/start.mjs b/src/start.mjs
+index 1fe931c..eb711c0 100644
+--- a/src/start.mjs
++++ b/src/start.mjs
+@@ -1,2 +1,2 @@
+-console.error('BLOCKED: R1-FIX2 仅允许离线修复验证；真实模型、真人发送、正式安装与 Studio 接线均未开放。');
++console.error('BLOCKED: R1-FIX3 当前仅完成离线修复验证，真实合成入口因隔离前置失败保持关闭；真实模型、真人发送、正式安装与 Studio 接线均未开放。');
+ process.exitCode=2;
+diff --git a/tests/dual-role.test.mjs b/tests/dual-role.test.mjs
+new file mode 100644
+index 0000000..4011915
+--- /dev/null
++++ b/tests/dual-role.test.mjs
+@@ -0,0 +1,26 @@
++import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import os from 'node:os';import {join} from 'node:path';import {fileURLToPath} from 'node:url';
++import {createDualRoleProbe,loadRole,selectRole,validateRoleBinding,validateRoleResult} from '../src/dual-role.mjs';
++const fixture=fileURLToPath(new URL('./fixtures/fake-role-codex.mjs',import.meta.url));
++test('one broker selects both roles for the same synthetic user and binds local receipts (OFFLINE)',async t=>{
++ const root=await fs.mkdtemp(join(os.tmpdir(),'fix3-roles-')),probe=createDualRoleProbe({root,offlineFixture:fixture});
++ try{
++  const a={requestId:'synthetic-request-A',senderId:'synthetic-A',chatId:'synthetic-chat-A',taskType:'test-summary'};
++  const b={requestId:'synthetic-request-B',senderId:'synthetic-A',chatId:'synthetic-chat-B',taskType:'action-extract'};
++  for(const request of [a,b]){assert.equal((await probe.submit(request)).status,'queued');const record=probe.executions.at(-1),role=await loadRole(request.taskType);validateRoleBinding(record,{...record,requestId:request.requestId,agentId:request.taskType,configurationSha256:role.configurationSha256,instructionsSha256:role.instructionsSha256});const receipt=probe.receipts.find(x=>x.target.messageId===request.requestId);assert.equal(receipt.target.senderId,request.senderId);assert.equal(receipt.chatId,request.chatId);assert.equal(receipt.text.includes(record.envelope.result.summary),true);assert.equal(record.envelope.evidence.executionKind,'offline-fixture');assert.equal(record.historyPassedToRunner,false);assert.equal(record.prompt.includes(record.input.source_marker),false);}
++  const [x,y]=probe.executions;assert.notEqual(x.configurationSha256,y.configurationSha256);assert.notEqual(x.instructionsSha256,y.instructionsSha256);assert.notEqual(x.jobDir,y.jobDir);assert.notEqual(x.input.source_marker,y.input.source_marker);assert.equal(x.result.pass_rate_percent,70);assert.equal(y.result.tasks[0].deadline,null);
++  assert.equal((await probe.submit(a)).status,'duplicate');assert.equal(probe.executions.length,2);
++  assert.equal((await probe.submit({...a,requestId:'bad',taskType:'unknown'})).status,'unknown_or_invalid_task');assert.equal((await probe.submit({...a,configurationPath:'/not-accepted'})).status,'unknown_or_invalid_task');assert.equal(probe.executions.length,2);
++  assert.equal((await probe.close()).confirmed,true);
++  const evidence={kind:'OFFLINE_ONLY',realModelCalls:0,entry:'createDualRoleProbe.submit -> ProbeBroker.accept -> process -> executeTracked -> runCodex(offline-fixture) -> validation -> local reply/readback',selections:probe.executions.map(r=>({requestId:r.requestId,agentId:r.agentId,configurationSha256:r.configurationSha256,instructionsSha256:r.instructionsSha256,runId:r.runId,executionKind:r.envelope.evidence.executionKind,sourceMarker:r.input.source_marker,historyPassedToRunner:r.historyPassedToRunner,result:r.result,terminationConfirmed:r.envelope.evidence.terminationConfirmed})),receipts:probe.receipts.filter(r=>r.target.messageId.startsWith('synthetic-request'))};t.diagnostic(JSON.stringify(evidence));
++ }finally{await probe.close();await fs.rm(root,{recursive:true,force:true});}
++});
++test('role bindings and foreign input cannot pass result projection',async()=>{
++ const record={requestId:'r',agentId:'test-summary',configurationSha256:'c',instructionsSha256:'i',runId:'run',launchFingerprint:'l'};
++ for(const field of Object.keys(record))assert.throws(()=>validateRoleBinding({...record,[field]:'mismatch'},record),/BINDING_MISMATCH/);
++ assert.equal(selectRole('test-summary').agentId,'test-summary');assert.equal(selectRole('action-extract').agentId,'action-extract');assert.equal(selectRole('sender:synthetic-A'),null);
++ const role=await loadRole('test-summary');assert.throws(()=>validateRoleResult({summary:JSON.stringify({source_marker:'other-role',source:'synthetic.json:tests',total:10,passed:7,failed:2,blocked:1,pass_rate_percent:70}),missing:[],question:''},role,{source_marker:'this-role',tests:[]}),/ROLE_RESULT_CONTRACT/);
++});
++test('real path stays closed and starts no process when minimum isolation is blocked',async()=>{
++ const root=await fs.mkdtemp(join(os.tmpdir(),'fix3-blocked-')),probe=createDualRoleProbe({root});
++ try{await probe.submit({requestId:'blocked-request',senderId:'synthetic-A',chatId:'synthetic-chat',taskType:'test-summary'});assert.equal(probe.executions.length,0);assert.equal(probe.broker.db.prepare('SELECT status FROM messages WHERE id=?').get('blocked-request').status,'model_failed');assert.equal(Object.values(probe.broker.terminations.state.runs).flatMap(r=>Object.values(r.processes)).some(p=>p.spawned),false);assert.equal((await probe.close()).confirmed,true);}finally{await probe.close();await fs.rm(root,{recursive:true,force:true});}
++});
+diff --git a/tests/fixtures/fake-role-codex.mjs b/tests/fixtures/fake-role-codex.mjs
+new file mode 100644
+index 0000000..91aff4d
+--- /dev/null
++++ b/tests/fixtures/fake-role-codex.mjs
+@@ -0,0 +1,8 @@
++// Offline fixture only. These emitted events are simulated, never real model evidence.
++import fs from 'node:fs/promises';
++const args=process.argv.slice(2),arg=k=>args[args.indexOf(k)+1];let prompt='';for await(const chunk of process.stdin)prompt+=chunk;
++const source=JSON.parse(await fs.readFile(arg('-C')+'/synthetic.json','utf8'));
++const marker=prompt.split('控制器会话 marker：').at(-1).trim();
++const value=source.tests?{source_marker:source.source_marker,source:'synthetic.json:tests',total:source.tests.length,passed:source.tests.filter(x=>x.status==='passed').length,failed:source.tests.filter(x=>x.status==='failed').length,blocked:source.tests.filter(x=>x.status==='blocked').length,pass_rate_percent:70}:{source_marker:source.source_marker,source:'synthetic.json:minutes',tasks:[{task:'补充接口说明',owner:'合成成员甲',deadline:null},{task:'复核测试结果',owner:'合成成员乙',deadline:'2026-10-19'}]};
++const result={marker,summary:JSON.stringify(value),missing:[],question:''};await fs.writeFile(arg('--output-last-message'),JSON.stringify(result));
++for(const e of [{type:'thread.started',thread_id:'offline-'+source.source_marker},{type:'turn.started'},{type:'item.completed',item:{id:'read',type:'command_execution',command:'cat synthetic.json',status:'completed',exit_code:0,aggregated_output:JSON.stringify(source)}},{type:'item.completed',item:{id:'final',type:'agent_message',text:JSON.stringify(result)}},{type:'turn.completed',usage:{input_tokens:0,output_tokens:0}}])console.log(JSON.stringify(e));
+diff --git a/tests/minimum-isolation.mjs b/tests/minimum-isolation.mjs
+new file mode 100644
+index 0000000..d2c3956
+--- /dev/null
++++ b/tests/minimum-isolation.mjs
+@@ -0,0 +1,21 @@
++// Non-model macOS diagnostic; reproduces the candidate bootstrap boundary and its composition failure.
++import fs from 'node:fs/promises';import {existsSync} from 'node:fs';import os from 'node:os';import {resolve,join} from 'node:path';import {spawnSync} from 'node:child_process';import {bootstrapPolicy,buildRoleLaunch} from '../src/bootstrap.mjs';import {permissionArgs,hash} from '../src/launch.mjs';import {cleanEnv} from '../src/process.mjs';
++const root=resolve('runtime/minimum-check'),job=join(root,'job'),peer=resolve('runtime/minimum-peer'),binary='/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex';
++await fs.mkdir(job,{recursive:true});await fs.mkdir(peer,{recursive:true});await fs.writeFile(join(job,'allowed.txt'),'SYNTHETIC_ALLOWED');await fs.writeFile(join(peer,'forbidden.txt'),'SYNTHETIC_PEER');
++const profile=join(root,'bootstrap.sb');await fs.writeFile(profile,bootstrapPolicy(root));
++const checks=[];const check=(name,cmd,args,ok)=>{const r=spawnSync(cmd,args,{cwd:job,env:cleanEnv(),encoding:'utf8',timeout:10000,maxBuffer:2**20});const passed=ok(r);checks.push({name,exit:r.status,passed,stdout:r.stdout,stderr:r.stderr});if(!passed)throw Error('MINIMUM_ISOLATION_FAILED:'+name);};
++check('parent reads own synthetic data','/usr/bin/sandbox-exec',['-f',profile,'/bin/cat',join(job,'allowed.txt')],r=>r.status===0&&r.stdout==='SYNTHETIC_ALLOWED');
++check('parent denies peer synthetic data','/usr/bin/sandbox-exec',['-f',profile,'/bin/cat',join(peer,'forbidden.txt')],r=>r.status!==0&&!r.stdout);
++// Test openability only; never read or print credential or personal instruction bytes.
++for(const [name,path,expect] of [['personal AGENTS',join(os.homedir(),'.codex','AGENTS.md'),false],['user config',join(os.homedir(),'.codex','config.toml'),false],['existing auth',join(os.homedir(),'.codex','auth.json'),true]]){
++ if(!existsSync(path)){checks.push({name,present:false,passed:!expect});if(expect)throw Error('AUTH_NOT_PRESENT');continue;}
++ check('parent open '+name,'/usr/bin/sandbox-exec',['-f',profile,'/bin/sh','-c','if [ -r "$1" ]; then echo READABLE; else echo DENIED; fi','probe',path],r=>r.status===0&&r.stdout.trim()===(expect?'READABLE':'DENIED'));
++}
++const native=['sandbox',...permissionArgs(job),'-P','probe','-C',job,'--'];
++check('inner profile reads own synthetic data',binary,[...native,'/bin/cat',join(job,'allowed.txt')],r=>r.status===0&&r.stdout==='SYNTHETIC_ALLOWED');
++check('inner profile denies peer synthetic data',binary,[...native,'/bin/cat',join(peer,'forbidden.txt')],r=>r.status!==0&&!r.stdout);
++check('inner profile denies auth open',binary,[...native,'/bin/sh','-c','if [ -r "$1" ]; then echo READABLE; else echo DENIED; fi','probe',join(os.homedir(),'.codex','auth.json')],r=>r.status===0&&r.stdout.trim()==='DENIED');
++const launch=buildRoleLaunch({binary,runtimeRoot:root,bootstrapFile:profile,jobDir:job,outputFile:join(root,'final.json'),schemaFile:join(root,'schema.json'),instructions:'Synthetic controlled role',model:'gpt-6-astra',effort:'low'});
++const result={at:new Date().toISOString(),passed:true,checks,launch:launch.descriptor,launchFingerprint:launch.fingerprint,policy:bootstrapPolicy(root),parentReadScope:'auth file and own per-role runtime only within /Users; system runtime allowed',existingLoginUnchanged:true,realModelCallsAdded:0,globalConfigChanges:0,limitation:'Scoped synthetic launch checks only. Not full B03/B04 or multi-tenant isolation. debug prompt-input cannot use ignore-user-config and fails under parent deny; no equivalent prompt-dump claim.'};const composed=spawnSync('/usr/bin/sandbox-exec',['-f',profile,'/usr/bin/sandbox-exec','-p','(version 1)(allow default)','/bin/cat',join(job,'allowed.txt')],{cwd:job,env:cleanEnv(),encoding:'utf8',timeout:10000});
++result.individualChecksPassed=result.passed;delete result.passed;result.composedSandbox={exit:composed.status,stdout:composed.stdout,stderr:composed.stderr,passed:composed.status===0&&composed.stdout==='SYNTHETIC_ALLOWED'};result.minimumReady=result.individualChecksPassed&&result.composedSandbox.passed;
++await fs.mkdir('runtime',{recursive:true});await fs.writeFile('runtime/minimum-isolation-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify({individualChecksPassed:result.individualChecksPassed,composedSandbox:result.composedSandbox,minimumReady:result.minimumReady,realModelCalls:0}));process.exitCode=result.minimumReady?0:2;

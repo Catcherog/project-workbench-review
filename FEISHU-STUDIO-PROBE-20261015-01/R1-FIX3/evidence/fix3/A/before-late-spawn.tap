@@ -1,0 +1,43 @@
+TAP version 13
+# Subtest: required executor rejects late spawn after settle before stop
+not ok 1 - required executor rejects late spawn after settle before stop
+  ---
+  duration_ms: 97.948416
+  type: 'test'
+  location: '/PROBE_ROOT/tests/fix3-late-spawn.test.mjs:12:38'
+  failureType: 'testCodeFailure'
+  error: |-
+    settled execution identity must refuse before spawn
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///PROBE_ROOT/tests/fix3-late-spawn.test.mjs:30:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# {"scenario":"settled-before-stop","parent":"confirmed","children":["confirmed","running"],"lateSpawned":true,"stopConfirmed":true,"ownerRetained":false,"newAdmitted":true,"oldGroupMembers":[72651]}
+# {"cleanupConfirmed":true,"residualPids":[]}
+# Subtest: required executor rejects late spawn after settle after close
+ok 2 - required executor rejects late spawn after settle after close
+  ---
+  duration_ms: 62.457083
+  type: 'test'
+  ...
+# {"scenario":"after-close-control","parent":"confirmed","children":["confirmed"],"lateSpawned":false,"stopConfirmed":true,"ownerRetained":false,"newAdmitted":true,"oldGroupMembers":[]}
+# {"cleanupConfirmed":true,"residualPids":[]}
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 200.076417
