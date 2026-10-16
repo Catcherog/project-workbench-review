@@ -1,0 +1,117 @@
+✖ B01 duplicate multiplicity must not create snapshot version conflict, reverse=false (1.613667ms)
+✖ B01 duplicate multiplicity must not create snapshot version conflict, reverse=true (0.27825ms)
+✔ CONTROL same logical rows in different order remain 10 hours (1.396459ms)
+✔ CONTROL genuine same-version hour conflict remains rejected (0.1435ms)
+✔ CONTROL reader success reaches the real adapter using a fake CLI (547.9455ms)
+✖ B02 available T02 subtotal must survive independent project failure: records-denied (191.822416ms)
+✖ B02 available T02 subtotal must survive independent project failure: node-failed (249.495667ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 3
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1026.785416
+
+✖ failing tests:
+
+test at review/additional.test.mjs:23:36
+✖ B01 duplicate multiplicity must not create snapshot version conflict, reverse=false (1.613667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   errors: [
+  +     'same_version_conflict'
+  -   errors: [],
+  -   hours: [
+  -     '8'
+      ],
+  +   hours: []
+    }
+  
+      at TestContext.<anonymous> (file:///REVIEW_HOME/evidence/before-replay/review/additional.test.mjs:26:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { hours: [], errors: [ 'same_version_conflict' ] },
+    expected: { hours: [ '8' ], errors: [] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at review/additional.test.mjs:23:36
+✖ B01 duplicate multiplicity must not create snapshot version conflict, reverse=true (0.27825ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   errors: [
+  +     'same_version_conflict'
+  -   errors: [],
+  -   hours: [
+  -     '8'
+      ],
+  +   hours: []
+    }
+  
+      at TestContext.<anonymous> (file:///REVIEW_HOME/evidence/before-replay/review/additional.test.mjs:26:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { hours: [], errors: [ 'same_version_conflict' ] },
+    expected: { hours: [ '8' ], errors: [] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at review/additional.test.mjs:66:56
+✖ B02 available T02 subtotal must survive independent project failure: records-denied (191.822416ms)
+  AssertionError [ERR_ASSERTION]: {"exitCode":1,"sourceSaved":true,"receiptSaved":false,"aggregateSaved":false}
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///REVIEW_HOME/evidence/before-replay/review/additional.test.mjs:68:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at review/additional.test.mjs:66:56
+✖ B02 available T02 subtotal must survive independent project failure: node-failed (249.495667ms)
+  AssertionError [ERR_ASSERTION]: {"exitCode":1,"sourceSaved":true,"receiptSaved":false,"aggregateSaved":false}
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///REVIEW_HOME/evidence/before-replay/review/additional.test.mjs:68:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
