@@ -1,0 +1,126 @@
+// Explicitly invoked CLI reads only; no daemon, remote listener or write command.
+import { spawnSync } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { aggregate } from './aggregate.mjs';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const dir = root + 'evidence/live-' + new Date().toISOString().replace(/[:.]/g, '-');
+const receipts = [];
+const now = () => new Date().toISOString();
+await mkdir(dir, { recursive: true });
+const save = (name, value) => writeFile(`${dir}/${name}.json`, JSON.stringify(value, null, 2));
+await save('receipt', receipts);
+
+function failure(code, exitCode = null, status = 'request_failed') {
+  // Diagnostics are an allowlist. Never persist raw stderr, invalid stdout,
+  // exception messages or arbitrary upstream error text that may contain secrets.
+  return { ok: false, status, reason: { code, exitCode } };
+}
+function run(args) {
+  const p = spawnSync('meegle', [...args, '--format', 'json'], {
+    encoding: 'utf8', timeout: 30000, maxBuffer: 2_000_000,
+  });
+  let data;
+  try { data = JSON.parse(p.stdout); } catch { /* Report a bounded reason below. */ }
+  const errorCode = typeof data?.error === 'string' ? data.error : data?.error?.code;
+  if (['permission_denied', 'PERMISSION_DENIED'].includes(errorCode)) {
+    return failure('upstream_permission_denied', p.status, 'permission_denied');
+  }
+  if (p.status !== 0) return failure(p.error?.code === 'ETIMEDOUT' ? 'cli_timeout' : 'cli_nonzero', p.status);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return failure('invalid_json_response', p.status);
+  if (data.error || data.ok === false) return failure('upstream_error', p.status);
+  return { ok: true, status: 'ok', data };
+}
+async function record(name, args, startedAt, result, persistResponse = true) {
+  const receipt = { name, startedAt, readAt: now(), args, ok: result.ok, status: result.status };
+  if (!result.ok) receipt.reason = result.reason;
+  if (result.ok && persistResponse) await save(name, result.data);
+  if (!result.ok) await save(`${name}-failure`, receipt);
+  receipts.push(receipt);
+  await save('receipt', receipts);
+  return receipt;
+}
+async function skip(commands, reason) {
+  for (const [name, args] of Object.entries(commands)) {
+    await record(name, args, now(), failure(reason, null, 'skipped'));
+  }
+}
+function projectCoverage(result) {
+  if (!result.ok) return { source: 'known-real-project', status: result.status, reason: result.reason };
+  const page = result.data.Pagination;
+  const total = page?.total;
+  if (!Number.isSafeInteger(total) || total < 0) {
+    return { source: 'known-real-project', status: 'request_failed', reason: { code: 'invalid_project_record_response' } };
+  }
+  const incomplete = page.has_more === true || (total > 0 && (
+    !Number.isSafeInteger(page.page_size) || !Number.isSafeInteger(page.page_num) ||
+    page.page_size <= 0 || page.page_num <= 0 || total > page.page_size * page.page_num
+  ));
+  return { source: 'known-real-project', status: incomplete ? 'pagination_incomplete' : total === 0 ? 'no_records' : 'mapping_unverified', total,
+    meaning: '空记录不代表零投入；非空真实项目字段映射未验证' };
+}
+
+async function main() {
+  let config;
+  try { config = JSON.parse(await readFile(root + 'input/read-scope.json', 'utf8')); }
+  catch { await record('scope', [], now(), failure('invalid_scope_config')); process.exitCode = 1; return; }
+  if (!config || typeof config !== 'object' || Array.isArray(config) ||
+      !['projectKey', 'extraItemId', 'projectItemId', 'projectType'].every(k => typeof config[k] === 'string' && config[k].trim())) {
+    await record('scope', [], now(), failure('invalid_scope_config')); process.exitCode = 1; return;
+  }
+  const base = ['--project-key', config.projectKey];
+  const commands = {
+    't02-all-fields': ['workitem', 'get', ...base, '--work-item-id', config.extraItemId, '--fields', '_all', '--page-size', '100'],
+    'project-records': ['workhour', 'list-records', ...base, '--work-item-id', config.projectItemId, '--work-item-type', config.projectType, '--page-num', '1'],
+    'project-node': ['workflow', 'get-node', ...base, '--work-item-id', config.projectItemId, '--node-id-list', 'state_1', '--need-sub-task', 'false'],
+  };
+  const authStarted = now();
+  let auth = run(['auth', 'status']);
+  if (auth.ok && (auth.data.authenticated !== true || auth.data.host !== 'project.feishu.cn')) auth = failure('global_identity_or_host_mismatch');
+  await record('auth-status', ['auth', 'status'], authStarted, auth, false);
+  if (!auth.ok) { await skip(commands, 'global_auth_blocked'); process.exitCode = 1; return; }
+
+  const results = {};
+  for (const [name, args] of Object.entries(commands)) {
+    const startedAt = now();
+    let result = run(args);
+    if (name === 'project-records' && result.ok &&
+        (!Number.isSafeInteger(result.data.Pagination?.total) || result.data.Pagination.total < 0)) {
+      result = failure('invalid_project_record_response');
+    }
+    if (name === 't02-all-fields' && result.ok) {
+      const a = result.data.work_item_attribute;
+      if (a?.owned_project?.key !== config.projectKey || a?.work_item_id !== config.extraItemId ||
+          (config.extraItemType && a?.work_item_type?.key !== config.extraItemType)) {
+        result = failure('source_scope_mismatch');
+      }
+    }
+    results[name] = result;
+    await record(name, args, startedAt, result);
+    if (result.reason?.code === 'source_scope_mismatch') {
+      await skip(Object.fromEntries(Object.entries(commands).filter(([key]) => !results[key])), 'source_scope_blocked');
+      process.exitCode = 1;
+      return;
+    }
+  }
+  const t02 = results['t02-all-fields'];
+  const node = results['project-node'];
+  const coverage = [projectCoverage(results['project-records']), {
+    source: 'project-node-check', status: node.status,
+    ...(node.ok ? { meaning: '辅助累计值核对；不作为实际明细来源' } : { reason: node.reason }),
+  }];
+  if (!t02.ok) coverage.push({ source: 'known-extra-item', status: t02.status, reason: t02.reason });
+  const t02Receipt = receipts.find(r => r.name === 't02-all-fields');
+  const snapshots = t02.ok ? [{ response: t02.data, readAt: t02Receipt.readAt, complete: t02.data.pagination?.has_more === false }] : [];
+  for (const mode of ['week', 'month']) {
+    const output = aggregate(snapshots, { mode, coverage });
+    await save(`aggregate-${mode}`, output);
+    console.log(JSON.stringify({ mode, source: 'live-api-to-adapter', status: output.coverageGaps.length ? 'partial' : 'ok',
+      componentBinding: output.componentBinding, cells: output.cells.map(c => ({ period: c.period.label, hours: c.hours, coverage: c.caption })),
+      coverageGaps: output.coverageGaps, pending: output.pending.length, errors: output.errors.length }));
+  }
+  if (!t02.ok) process.exitCode = 1;
+}
+await main();
+console.log(dir);

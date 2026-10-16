@@ -1,0 +1,97 @@
+diff --git a/src/auth-readiness.mjs b/src/auth-readiness.mjs
+new file mode 100644
+index 0000000..fe69f34
+--- /dev/null
++++ b/src/auth-readiness.mjs
+@@ -0,0 +1,14 @@
++// A renewable user session is not an identity change. The callback may only
++// perform an already-authorized read through the CLI, then return fresh status.
++export function ensureLarkUserReady(auth, expectedOpenId, refreshViaRead) {
++  const matches = value => value?.brand === 'feishu' &&
++    value.identities?.user?.openId === expectedOpenId && !!expectedOpenId;
++  if (!matches(auth)) throw Error('identity_mismatch');
++  if (auth.identities.user.status === 'ready') return auth;
++  if (auth.identities.user.status !== 'needs_refresh' || auth.identities.user.available !== true)
++    throw Error('user_auth_not_ready');
++  const refreshed = refreshViaRead();
++  if (!matches(refreshed)) throw Error('identity_mismatch');
++  if (refreshed.identities.user.status !== 'ready') throw Error('user_auth_not_ready');
++  return refreshed;
++}
+diff --git a/src/sync-once.mjs b/src/sync-once.mjs
+index 70830af..3f1e81b 100644
+--- a/src/sync-once.mjs
++++ b/src/sync-once.mjs
+@@ -5,6 +5,7 @@ import { readFile, writeFile, mkdir, open, unlink } from 'node:fs/promises';
+ import { fileURLToPath } from 'node:url';
+ import { resolve, join } from 'node:path';
+ import { projectRows, planWrites } from './target-projection.mjs';
++import { ensureLarkUserReady } from './auth-readiness.mjs';
+ 
+ const root=fileURLToPath(new URL('../',import.meta.url));
+ const scope=JSON.parse(await readFile(join(root,'input/target-scope.json'),'utf8'));
+@@ -39,7 +40,11 @@ async function readTarget(name){
+ try{
+   const who=call('meegle',['user','me','--format','json']);
+   const auth=call(lark,['auth','status']);
+-  if(who.user_key!==scope.sourcePersonId || auth.brand!=='feishu' || auth.identities?.user?.openId!==scope.larkUserOpenId || auth.identities.user.status!=='ready') throw Error('identity_mismatch');
++  if(who.user_key!==scope.sourcePersonId) throw Error('identity_mismatch');
++  ensureLarkUserReady(auth,scope.larkUserOpenId,()=>{
++    call(lark,['base','+field-list',...targetArgs]);
++    return call(lark,['auth','status']);
++  });
+   receipt.identityChecked=true;await save();
+   const read=spawnSync(process.execPath,['src/read-live.mjs'],{cwd:root,encoding:'utf8',timeout:150000,maxBuffer:1_000_000});
+   if(read.status!==0) throw Error('live_read_failed');
+diff --git a/src/sync-real-once.mjs b/src/sync-real-once.mjs
+index 19b688a..5371247 100644
+--- a/src/sync-real-once.mjs
++++ b/src/sync-real-once.mjs
+@@ -6,6 +6,7 @@ import {join} from 'node:path';
+ import {fileURLToPath} from 'node:url';
+ import {aggregate} from './aggregate.mjs';
+ import {projectReal} from './real-projection.mjs';
++import {ensureLarkUserReady} from './auth-readiness.mjs';
+ const root=fileURLToPath(new URL('../',import.meta.url));
+ const scope=JSON.parse(await readFile(join(root,'input/target-scope.json'),'utf8'));
+ const imports=Object.values(JSON.parse(await readFile(join(root,'input/real-import-map.json'),'utf8')));
+@@ -31,7 +32,11 @@ try{
+  const projectAuth=call('meegle',['auth','status','--format','json']);
+  if(projectAuth.authenticated!==true||projectAuth.host!=='project.feishu.cn')throw Error('identity_or_host_mismatch');
+  const who=call('meegle',['user','me','--format','json']),auth=call(lark,['auth','status']);
+- if(who.user_key!==scope.sourcePersonId||auth.brand!=='feishu'||auth.identities?.user?.openId!==scope.larkUserOpenId||auth.identities.user.status!=='ready')throw Error('identity_mismatch');
++ if(who.user_key!==scope.sourcePersonId)throw Error('identity_mismatch');
++ ensureLarkUserReady(auth,scope.larkUserOpenId,()=>{
++  call(lark,['base','+field-list',...targetArgs]);
++  return call(lark,['auth','status']);
++ });
+  const snapshots=[];const needsReview=new Set();let failedItems=0,unregisteredItems=0,missingDetailItems=0;
+  for(const item of imports){
+   let response;
+diff --git a/tests/auth-readiness.test.mjs b/tests/auth-readiness.test.mjs
+new file mode 100644
+index 0000000..31bd249
+--- /dev/null
++++ b/tests/auth-readiness.test.mjs
+@@ -0,0 +1,21 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {ensureLarkUserReady} from '../src/auth-readiness.mjs';
++const status=(state='ready',id='test-actor')=>({brand:'feishu',identities:{user:{openId:id,status:state,available:true}}});
++test('an existing ready session needs no extra read',()=>{
++  const a=status();assert.equal(ensureLarkUserReady(a,'test-actor',()=>{throw Error('unexpected_read');}),a);
++});
++test('renewable session performs one authorized read and rechecks the same identity',()=>{
++  let calls=0;const a=ensureLarkUserReady(status('needs_refresh'),'test-actor',()=>{calls++;return status();});
++  assert.equal(calls,1);assert.equal(a.identities.user.status,'ready');
++});
++test('a different identity cannot trigger the refresh read',()=>{
++  let calls=0;assert.throws(()=>ensureLarkUserReady(status('needs_refresh','another-user'),'test-actor',()=>{calls++;}),/identity_mismatch/);assert.equal(calls,0);
++});
++test('a changed identity after renewal still prevents writes',()=>{
++  assert.throws(()=>ensureLarkUserReady(status('needs_refresh'),'test-actor',()=>status('ready','another-user')),/identity_mismatch/);
++});
++test('non-renewable or unsuccessful renewal does not become ready',()=>{
++  assert.throws(()=>ensureLarkUserReady(status('unavailable'),'test-actor',()=>status()),/user_auth_not_ready/);
++  assert.throws(()=>ensureLarkUserReady(status('needs_refresh'),'test-actor',()=>status('needs_refresh')),/user_auth_not_ready/);
++});
