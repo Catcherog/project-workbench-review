@@ -1,0 +1,509 @@
+diff --git a/package.json b/package.json
+index 96d1f6e..f9ea253 100644
+--- a/package.json
++++ b/package.json
+@@ -1,10 +1,13 @@
+ {
+-  "name": "matrix-compat-01-readonly-probe",
++  "name": "matrix-th2-uat-01-test-integration",
+   "private": true,
+   "type": "module",
+   "scripts": {
+-    "test": "node --test tests/*.test.mjs",
++    "test": "node --test tests/*.test.mjs review/additional.test.mjs",
+     "replay": "node src/replay.mjs",
+-    "read-live": "node src/read-live.mjs"
++    "read-live": "node src/read-live.mjs",
++    "sync:sample": "node src/sync-once.mjs",
++    "sync:real": "node src/sync-real-once.mjs",
++    "import:preview": "node src/import-real-tasks.mjs"
+   }
+ }
+diff --git a/src/aggregate.mjs b/src/aggregate.mjs
+index 8c77649..b6af6e8 100644
+--- a/src/aggregate.mjs
++++ b/src/aggregate.mjs
+@@ -56,7 +56,8 @@ function ownerOf(response){
+   // Preserve the exact source label. Never infer a project from the title.
+   return {label:typeof raw?.label==='string'?raw.label:null,value:typeof raw?.value==='string'?raw.value:null,projectRef:null,projectMapping:'unverified'};
+ }
+-export function normalize(snapshot){
++export function normalize(snapshot,{registrationPolicy='required'}={}){
++  if(!['required','source_locator'].includes(registrationPolicy))throw new Error('invalid_registration_policy');
+   const {response,readAt}=snapshot;
+   if(!Number.isFinite(Date.parse(readAt)))throw new Error('invalid_read_time');
+   const a=response?.work_item_attribute;
+@@ -72,7 +73,12 @@ export function normalize(snapshot){
+       if(end<start||!Number.isSafeInteger(end+1))throw new Error('invalid_interval');
+       const rowSource=provenance(a,rowId);
+       const sourceHours=field(cells,F.hours,true);
+-      rows.push({key:sourceKey(rowSource),source:rowSource,person:{namespace:'feishu-project-user-key',id:id(person?.key,'person_id'),name:typeof person.name==='string'?person.name:null},startInclusive:start,endInclusive:end,endExclusive:end+1,sourcePeriod:copy(schedule),sourceHours,hours:decimal(sourceHours),registrationId:id(field(cells,F.registration,true),'registration_id'),note:field(cells,F.note)||null,ownership:ownerOf(response),readAt,version,kind:'actual',sourceTitle:a.work_item_name||null});
++      const registration=field(cells,F.registration,registrationPolicy==='required');
++      const registrationDerived=registrationPolicy==='source_locator'&&(registration==null||(typeof registration==='string'&&!registration.trim()));
++      // Human entry does not require typing a technical ID. The opt-in policy
++      // uses the full native locator; it never writes this value to the source.
++      const registrationId=registrationDerived?sourceKey(rowSource):id(registration,'registration_id');
++      rows.push({key:sourceKey(rowSource),source:rowSource,person:{namespace:'feishu-project-user-key',id:id(person?.key,'person_id'),name:typeof person.name==='string'?person.name:null},startInclusive:start,endInclusive:end,endExclusive:end+1,sourcePeriod:copy(schedule),sourceHours,hours:decimal(sourceHours),registrationId,...(registrationDerived?{registrationDerived:true}:{}),note:field(cells,F.note)||null,ownership:ownerOf(response),readAt,version,kind:'actual',sourceTitle:a.work_item_name||null});
+     }catch(e){issues.push({sourceId,rowIndex:index,code:e.message});}
+   }
+   return {sourceId,source,rows,issues,complete,readAt,version,reconciliationOnly:field(response.work_item_fields,F.total)??null,identity:a.work_item_name};
+@@ -96,9 +102,9 @@ function chooseVersion(versions,semantic){
+   return {value:candidates[0]};
+ }
+ function groupBy(values,key){const m=new Map();for(const v of values){const k=key(v);if(!m.has(k))m.set(k,[]);m.get(k).push(v);}return m;}
+-export function aggregate(snapshots,{mode='week',coverage=[],people=[],periods=[]}={}){
++export function aggregate(snapshots,{mode='week',coverage=[],people=[],periods=[],registrationPolicy='required'}={}){
+   const errors=[],normalized=[],sourceStatuses=[],rows=[];
+-  for(const s of snapshots){try{normalized.push(normalize(s));}catch(e){errors.push({code:e.message,source:s.sourceHint||null});}}
++  for(const s of snapshots){try{normalized.push(normalize(s,{registrationPolicy}));}catch(e){errors.push({code:e.message,source:s.sourceHint||null});}}
+   // Choose a whole snapshot first. A newer complete snapshot can remove rows;
+   // unioning historic rows would silently retain deleted records forever.
+   for(const [sourceId,versions] of groupBy(normalized,s=>s.sourceId)){
+@@ -119,9 +125,9 @@ export function aggregate(snapshots,{mode='week',coverage=[],people=[],periods=[
+   // Same registration at different locators is only a possible duplicate.
+   // Quarantine it until an explicit relation resolves the ambiguity.
+   const ambiguous=new Set();
+-  for(const [registration,rs] of groupBy(rows,r=>r.registrationId)){
++  for(const [,rs] of groupBy(rows,r=>canonical([r.registrationDerived?'native-locator':'source-registration',r.registrationId]))){
+     if(new Set(rs.map(r=>r.key)).size>1){
+-      crossSourceCandidates.push({registration,keys:rs.map(r=>r.key)});rs.forEach(r=>ambiguous.add(r.key));
++      crossSourceCandidates.push({registration:rs[0].registrationId,keys:rs.map(r=>r.key)});rs.forEach(r=>ambiguous.add(r.key));
+     }
+   }
+   function ensure(person,period){
+diff --git a/src/import-real-tasks.mjs b/src/import-real-tasks.mjs
+new file mode 100644
+index 0000000..65e57bc
+--- /dev/null
++++ b/src/import-real-tasks.mjs
+@@ -0,0 +1,68 @@
++// Copies only the user-selected open source tasks into the existing TEST type.
++// Original Tasks, source assignees, hours, and schedules are never written.
++import { readFile, writeFile, mkdir } from 'node:fs/promises';
++import { spawnSync } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++import { join } from 'node:path';
++const root=fileURLToPath(new URL('../',import.meta.url));
++const scope=JSON.parse(await readFile(join(root,'input/target-scope.json'),'utf8'));
++const list=JSON.parse(await readFile(join(root,'evidence/current/real-tasklist.json'),'utf8')).data.tasklist;
++const fields=JSON.parse(await readFile(join(root,'evidence/current/real-tasklist-fields.json'),'utf8')).data.items;
++const priorities=JSON.parse(await readFile(join(root,'evidence/current/requirement-priority-field.json'),'utf8')).list[0];
++const summaries=JSON.parse(await readFile(join(root,'evidence/current/real-tasklist-items-page1.json'),'utf8')).data;
++if(!scope.sourceTasklistGuid||list.guid!==scope.sourceTasklistGuid||summaries.has_more)throw Error('source_list_scope_mismatch');
++const selected=summaries.items.filter(t=>t.completed_at==='0');
++if(selected.length!==16)throw Error('source_selection_changed');
++const dir=join(root,'evidence/real-import');await mkdir(dir,{recursive:true});
++const ledgerPath=join(root,'input/real-import-map.json');
++let ledger={};try{ledger=JSON.parse(await readFile(ledgerPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
++const save=()=>writeFile(ledgerPath,JSON.stringify(ledger,null,2));
++function run(cmd,args){const p=spawnSync(cmd,args,{cwd:root,encoding:'utf8',timeout:45000,maxBuffer:2_000_000});if(p.status!==0)throw Error('command_failed_'+p.status);const v=JSON.parse(p.stdout);if(v.error||v.ok===false)throw Error('upstream_failure');return v;}
++function textField(t,name){
++ const f=t.custom_fields.find(f=>f.name===name);if(!f)return '';
++ if(f.type==='text')return f.text_value??'';
++ const meta=fields.find(m=>m.guid===f.guid);const options=meta?.single_select_setting?.options??meta?.multi_select_setting?.options??[];
++ const ids=f.single_select_value?[f.single_select_value]:(f.multi_select_value??[]);
++ return ids.map(id=>{const o=options.find(o=>o.guid===id);if(!o)throw Error('unmapped_source_option');return o.name;}).join('、');
++}
++const who=run('meegle',['user','me','--format','json']);if(who.user_key!==scope.sourcePersonId)throw Error('operator_changed');
++const plans=[];
++for(const summary of selected){
++ if(ledger[summary.guid]?.targetId){plans.push({sourceGuid:summary.guid,status:'already_created',targetId:ledger[summary.guid].targetId});continue;}
++ if(ledger[summary.guid]?.status==='creating')throw Error('unresolved_create_requires_readback');
++ const src=run(join(root,'.tooling/node_modules/.bin/lark-cli'),['task','tasks','get','--task-guid',summary.guid,'--as','user']).data.task;
++ await writeFile(join(dir,summary.guid+'-source.json'),JSON.stringify(src,null,2));
++ if(src.completed_at!=='0'){plans.push({sourceGuid:src.guid,status:'now_completed_skipped'});continue;}
++ if(!(src.tasklists??[]).some(x=>x.tasklist_guid===list.guid||x.guid===list.guid))throw Error('source_membership_mismatch');
++ const priority=textField(src,'优先级');const priorityId=priority?priorities.option.find(o=>o.option_name===priority)?.option_id:null;
++ if(priority&&!priorityId)throw Error('priority_mapping_missing');
++ const sourceLink=src.url; if(!sourceLink||new URL(sourceLink).searchParams.get('guid')!==src.guid)throw Error('source_link_mismatch');
++ const retained=['需求编号','优先级','需求分类','发起部门','审批编号'].map(n=>`${n}：${textField(src,n)||'未填写'}`).join('\n\n');
++ const description=`这是一份真实需求的体验副本，原任务记录和办理状态保持不变。详细问题、附件与讨论请查看[原任务](${sourceLink})。\n\n${retained}\n\n实际工时尚未登记；没有复制或推算原负责人的投入。体验负责人为当前操作人，未向原任务成员派发或发送消息。`;
++ const payload={project_key:scope.sourceProjectKey,work_item_type:scope.sourceType,fields:[
++ {field_key:'template',field_value:scope.lightTemplateId},
++ {field_key:'name',field_value:`【体验】${src.summary}`},
++ {field_key:'description',field_value:description},
++ {field_key:'field_8cc591',field_value:`REAL-UAT-20261016 | ${sourceLink}`},
++ {field_key:'field_238b96',field_value:scope.pilotGroupOptionId},
++ {field_key:'field_436ee3',field_value:'false'},
++ {field_key:'field_0f3756',field_value:'false'},
++ {field_key:'role_owners',field_value:JSON.stringify([{role:scope.ownerRoleKey,owners:[scope.sourcePersonId]}])},
++ ...(priorityId?[{field_key:priorities.field_key,field_value:priorityId}]:[])]};
++ await writeFile(join(dir,src.guid+'-payload.json'),JSON.stringify(payload,null,2));
++ if(!process.argv.includes('--apply')){plans.push({sourceGuid:src.guid,status:'prepared',name:src.summary});continue;}
++ ledger[src.guid]={status:'creating',sourceUpdatedAt:src.updated_at,startedAt:new Date().toISOString()};await save();
++ const result=run('meegle',['workitem','create','--params',JSON.stringify(payload),'--format','json']);
++ await writeFile(join(dir,src.guid+'-create.json'),JSON.stringify(result,null,2));
++ const targetId=result.work_item_id??result.id;
++ if(!targetId)throw Error('unrecognized_creation_receipt');
++ ledger[src.guid]={...ledger[src.guid],status:'created',targetId:String(targetId),priority,sourceUrl:sourceLink,name:src.summary};await save();
++ const back=run('meegle',['workitem','get','--project-key',scope.sourceProjectKey,'--work-item-id',String(targetId),'--fields','_all','--page-size','100','--format','json']);
++ await writeFile(join(dir,src.guid+'-readback.json'),JSON.stringify(back,null,2));
++ if(back.work_item_attribute?.work_item_id!==String(targetId)||back.work_item_attribute?.work_item_type?.key!==scope.sourceType)throw Error('target_identity_mismatch');
++ const sourceField=back.work_item_fields.find(f=>f.key==='field_8cc591')?.value;
++ if(sourceField!==payload.fields.find(f=>f.field_key==='field_8cc591').field_value)throw Error('source_reference_readback_mismatch');
++ ledger[src.guid].status='verified';await save();plans.push({sourceGuid:src.guid,status:'verified',targetId:String(targetId)});
++}
++await writeFile(join(dir,'summary.json'),JSON.stringify({selected:16,results:plans,originalWrites:0,sourceHoursCopied:0},null,2));
++console.log(JSON.stringify({selected:16,results:plans},null,2));
+diff --git a/src/real-projection.mjs b/src/real-projection.mjs
+new file mode 100644
+index 0000000..64dcce6
+--- /dev/null
++++ b/src/real-projection.mjs
+@@ -0,0 +1,41 @@
++import {createHash} from 'node:crypto';
++const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
++const day=ms=>new Date(ms+8*3600000).toISOString().slice(0,10);
++export function projectReal(outputs,{aliases,allowedPersonIds,runId,readAt,totalItems,unregisteredItems,failedItems,missingDetailItems=0}){
++  // Aliasing is not authorization. The current preview is limited to the
++  // explicitly approved test actor; other people's hours must not leak into it.
++  if(!Array.isArray(allowedPersonIds)||!allowedPersonIds.length)throw Error('display_scope_required');
++  if(outputs.some(out=>out.cells.some(c=>!allowedPersonIds.includes(c.person.id))))throw Error('person_outside_display_scope');
++  const rows=[];
++  for(const out of outputs){
++    for(const c of out.cells){
++      const person=aliases[c.person.id];if(!person)throw Error('missing_person_alias');
++      const h=c.hours==null?null:Number(c.hours);
++      if(h!==null&&(!Number.isFinite(h)||h<0||h>Number.MAX_SAFE_INTEGER||String(h)!==c.hours))throw Error('unsafe_hours');
++      const partial=out.coverageGaps.length>0||out.pending.length>0||failedItems>0;
++      const sourceRows=c.rows.map(r=>({key:r.key,version:r.version,hours:r.hours,start:r.startInclusive,end:r.endExclusive,registrationDerived:r.registrationDerived===true}));
++      const hasUnknownOwnership=c.rows.some(r=>!r.ownership.label);
++      rows.push({'汇总键':`real|${person.id}|${out.mode}|${c.period.key}`,'数据集':'real','记录类型':'aggregate',
++        '人员':person.name,'人员键':person.id,'口径':'actual','周期类型':out.mode,'周期':c.period.label,
++        '周期开始':day(c.period.startInclusive),'周期结束不含':day(c.period.endExclusive),'实际小时':h,
++        '来源行数':c.rows.length,'非项目事项数':hasUnknownOwnership?null:c.nonProjectItemCount,
++        '来源事项数':totalItems,'待登记事项数':unregisteredItems,
++        '范围说明':'真实需求体验副本的已覆盖来源小计；不代表全部投入；校验样本不参与本数值',
++        '覆盖缺口':`待登记或核对${unregisteredItems}项（其中明细未返回${missingDetailItems}项）；读取失败${failedItems}项；待分配${out.pending.length}行；异常${out.errors.length}项`,
++        '来源摘要':`来自本批真实需求体验副本的${c.rows.length}行登记；${hasUnknownOwnership?'项目归属尚未完整核实；':''}无手填登记标识时使用原生行标识对账`,
++        '来源版本':hash(sourceRows.map(r=>[r.key,r.version])),'来源指纹':hash(sourceRows),
++        '读取时间':readAt,'更新时间':new Date().toISOString(),'运行标识':runId,
++        '刷新结果':h===null?'pending':partial?'success_partial':'success'});
++    }
++  }
++  rows.push({'汇总键':'real|scope','数据集':'real','记录类型':'scope','人员':null,'人员键':null,'口径':'actual','周期类型':'scope','周期':null,
++    '周期开始':null,'周期结束不含':null,'实际小时':null,'来源行数':outputs[0].rowsRead,
++    '非项目事项数':null,'来源事项数':totalItems,'待登记事项数':unregisteredItems,
++    '范围说明':'仅覆盖本批真实需求体验副本；未登记不代表零投入；校验样本单独展示',
++    '覆盖缺口':`明细未返回${missingDetailItems}项；读取失败${failedItems}项；明细需核对${outputs[0].errors.length}处；周/月待确认${outputs[0].pending.length}/${outputs[1].pending.length}行。不包含本轮43条已完成原任务历史；缺少明细不能解释为零投入。`,
++    '来源摘要':`当前范围${totalItems}项；${unregisteredItems}项待登记或核对。${missingDetailItems?'当前接口未返回这些事项的实际明细；未使用累计字段的0代替实际投入。':''}工程师在飞书测试事项登记一次，由执行端手动读取更新。`,
++    '来源版本':null,'来源指纹':hash(outputs[0].sourceStatuses.map(x=>[x.sourceId,x.status])),
++    '读取时间':readAt,'更新时间':new Date().toISOString(),'运行标识':runId,
++    '刷新结果':failedItems||outputs[0].errors.length||outputs[0].pending.length?'success_partial':outputs[0].rowsRead===0?'success_no_records':'success_partial'});
++  return rows;
++}
+diff --git a/src/sync-once.mjs b/src/sync-once.mjs
+new file mode 100644
+index 0000000..70830af
+--- /dev/null
++++ b/src/sync-once.mjs
+@@ -0,0 +1,91 @@
++// Explicit, single-run synchronization to the allowlisted test table only.
++// No schedule, listener, source writes, permission changes, or publication.
++import { spawnSync } from 'node:child_process';
++import { readFile, writeFile, mkdir, open, unlink } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { resolve, join } from 'node:path';
++import { projectRows, planWrites } from './target-projection.mjs';
++
++const root=fileURLToPath(new URL('../',import.meta.url));
++const scope=JSON.parse(await readFile(join(root,'input/target-scope.json'),'utf8'));
++const lark=join(root,'.tooling/node_modules/.bin/lark-cli');
++const runId='UAT-'+new Date().toISOString().replace(/[:.]/g,'-');
++const dir=join(root,'evidence',runId);
++await mkdir(dir,{recursive:true});
++const receipt={runId,status:'running',startedAt:new Date().toISOString(),actions:[]};
++const save=()=>writeFile(join(dir,'receipt.json'),JSON.stringify(receipt,null,2));
++const lockPath=join(root,'input/sync.lock');
++const lock=await open(lockPath,'wx');
++await lock.close();
++await save();
++function call(command,args){
++  const p=spawnSync(command,args,{cwd:root,encoding:'utf8',timeout:60000,maxBuffer:4_000_000});
++  if(p.status!==0) throw Error(`command_failed_${p.status??'timeout'}`);
++  let value;try{value=JSON.parse(p.stdout);}catch{throw Error('invalid_response');}
++  if(value.ok===false||value.error) throw Error('upstream_failed');
++  return value;
++}
++const targetArgs=['--base-token',scope.baseToken,'--table-id',scope.tableId,'--as','user'];
++async function readTarget(name){
++  const file=join(dir,name+'.ndjson');
++  const meta=call(lark,['base','+record-list',...targetArgs,'--output',file]);
++  if(meta.has_more!==false||meta.records_count>200) throw Error('incomplete_or_unexpected_target');
++  const rows=(await readFile(file,'utf8')).trim().split('\n').filter(Boolean).map(x=>JSON.parse(x));
++  if(rows.length!==meta.records_count) throw Error('target_record_count_mismatch');
++  const sample=rows.filter(r=>r['数据集']==='sample'||(!r['数据集']&&r['汇总键']?.startsWith(`actual|${scope.aliasId}|`)));
++  if(sample.length>2)throw Error('unexpected_sample_count');
++  return sample;
++}
++try{
++  const who=call('meegle',['user','me','--format','json']);
++  const auth=call(lark,['auth','status']);
++  if(who.user_key!==scope.sourcePersonId || auth.brand!=='feishu' || auth.identities?.user?.openId!==scope.larkUserOpenId || auth.identities.user.status!=='ready') throw Error('identity_mismatch');
++  receipt.identityChecked=true;await save();
++  const read=spawnSync(process.execPath,['src/read-live.mjs'],{cwd:root,encoding:'utf8',timeout:150000,maxBuffer:1_000_000});
++  if(read.status!==0) throw Error('live_read_failed');
++  const liveDir=read.stdout.trim().split('\n').at(-1);
++  if(!liveDir.startsWith(join(root,'evidence/live-')) || resolve(liveDir)!==liveDir) throw Error('invalid_live_path');
++  receipt.sourceDirectory=liveDir;
++  const outputs=await Promise.all(['week','month'].map(async mode=>JSON.parse(await readFile(join(liveDir,`aggregate-${mode}.json`),'utf8'))));
++  const rows=projectRows(outputs,scope,runId,new Date().toISOString());
++  if(rows.some(r=>Date.now()-Date.parse(r['读取时间'])>300000)) throw Error('stale_source');
++  await writeFile(join(dir,'projected-rows.json'),JSON.stringify(rows,null,2));
++  const fieldSchema=call(lark,['base','+field-list',...targetArgs]);
++  const writable=new Set(fieldSchema.data.fields.filter(f=>['text','number'].includes(f.type)).map(f=>f.name));
++  if(rows.some(r=>Object.keys(r).some(k=>!writable.has(k)))) throw Error('target_schema_mismatch');
++  const ownerFile=join(root,'input/target-owned-records.json');
++  let owned=[];try{owned=JSON.parse(await readFile(ownerFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
++  const before=await readTarget('target-before');
++  const plan=planWrites(rows,before,owned);
++  for(const action of plan){
++    const args=['base','+record-upsert',...targetArgs,'--json',JSON.stringify(action.fields)];
++    if(action.recordId)args.push('--record-id',action.recordId);
++    const result=call(lark,args);
++    await writeFile(join(dir,`write-${receipt.actions.length+1}.json`),JSON.stringify(result,null,2));
++    // A returned creation receipt is saved before any next write. If the
++    // response shape is unknown, stop; never retry an uncertain creation.
++    const ids=result.data?.record?.record_id_list ?? result.data?.record_id_list ?? (result.data?.record_id?[result.data.record_id]:[]);
++    if(!action.recordId && ids.length!==1) throw Error('creation_receipt_unrecognized');
++    const recordId=action.recordId??ids[0];
++    if(!owned.includes(recordId)){owned.push(recordId);await writeFile(ownerFile,JSON.stringify(owned,null,2));}
++    receipt.actions.push({key:action.fields['汇总键'],recordId,operation:action.recordId?'update':'create',ok:true});await save();
++  }
++  let after=await readTarget('target-after');
++  const matches=()=>after.length===rows.length && rows.every(expected=>{
++    const found=after.filter(r=>r['汇总键']===expected['汇总键']);
++    return found.length===1 && Object.entries(expected).every(([k,v])=>found[0][k]===v);
++  });
++  if(!matches()){
++    await new Promise(resolve=>setTimeout(resolve,1200));
++    after=await readTarget('target-after-settled');
++  }
++  if(!matches())throw Error('target_readback_mismatch');
++  receipt.status='passed';receipt.targetRecords=after.length;
++  receipt.cells=after.map(r=>({person:r['人员'],mode:r['周期类型'],period:r['周期'],hours:r['实际小时'],runId:r['运行标识'],recordId:r.record_id}));
++}catch(e){
++  receipt.status='failed';receipt.errorCode=/^[a-z0-9_]+$/.test(e.message)?e.message:'unexpected_failure';
++  receipt.failureMeaning='本次未完成；保留目标已有值及原成功读取时间，不将旧值标成刚更新。核对回执后才能重试。';process.exitCode=1;
++}finally{
++  receipt.finishedAt=new Date().toISOString();await save();await unlink(lockPath);
++  console.log(JSON.stringify(receipt,null,2));
++}
+diff --git a/src/sync-real-once.mjs b/src/sync-real-once.mjs
+new file mode 100644
+index 0000000..19b688a
+--- /dev/null
++++ b/src/sync-real-once.mjs
+@@ -0,0 +1,88 @@
++// Manual, allowlisted read of the 16 imported TEST items. Original Tasks are
++// never modified. No background synchronization or source work-hour writes.
++import {spawnSync} from 'node:child_process';
++import {readFile,writeFile,mkdir,open,unlink} from 'node:fs/promises';
++import {join} from 'node:path';
++import {fileURLToPath} from 'node:url';
++import {aggregate} from './aggregate.mjs';
++import {projectReal} from './real-projection.mjs';
++const root=fileURLToPath(new URL('../',import.meta.url));
++const scope=JSON.parse(await readFile(join(root,'input/target-scope.json'),'utf8'));
++const imports=Object.values(JSON.parse(await readFile(join(root,'input/real-import-map.json'),'utf8')));
++if(imports.length!==16||imports.some(x=>x.status!=='verified')||new Set(imports.map(x=>x.targetId)).size!==16)throw Error('import_scope_invalid');
++const lark=join(root,'.tooling/node_modules/.bin/lark-cli');
++const runId='REAL-'+new Date().toISOString().replace(/[:.]/g,'-');
++const dir=join(root,'evidence',runId);await mkdir(dir,{recursive:true});
++const lockPath=join(root,'input/sync.lock');const lock=await open(lockPath,'wx');await lock.close();
++const receipt={runId,status:'running',reads:[],writes:[],scopeCount:16};
++const save=()=>writeFile(join(dir,'receipt.json'),JSON.stringify(receipt,null,2));await save();
++function call(cmd,args){
++ const p=spawnSync(cmd,args,{cwd:root,encoding:'utf8',timeout:45000,maxBuffer:3_000_000});
++ let v;try{v=JSON.parse(p.stdout);}catch{throw Error('invalid_response');}
++ if(p.status!==0||v.error||v.ok===false)throw Error('request_failed');return v;
++}
++const targetArgs=['--base-token',scope.baseToken,'--table-id',scope.tableId,'--as','user'];
++async function target(name){
++ const file=join(dir,name+'.ndjson');const meta=call(lark,['base','+record-list',...targetArgs,'--output',file]);
++ if(meta.has_more!==false||meta.records_count>200)throw Error('target_pagination_or_scope_limit');
++ return (await readFile(file,'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse);
++}
++try{
++ const projectAuth=call('meegle',['auth','status','--format','json']);
++ if(projectAuth.authenticated!==true||projectAuth.host!=='project.feishu.cn')throw Error('identity_or_host_mismatch');
++ const who=call('meegle',['user','me','--format','json']),auth=call(lark,['auth','status']);
++ if(who.user_key!==scope.sourcePersonId||auth.brand!=='feishu'||auth.identities?.user?.openId!==scope.larkUserOpenId||auth.identities.user.status!=='ready')throw Error('identity_mismatch');
++ const snapshots=[];const needsReview=new Set();let failedItems=0,unregisteredItems=0,missingDetailItems=0;
++ for(const item of imports){
++  let response;
++  try{response=call('meegle',['workitem','get','--project-key',scope.sourceProjectKey,'--work-item-id',item.targetId,'--fields','_all','--page-size','100','--format','json']);}
++  catch{failedItems++;needsReview.add(item.targetId);receipt.reads.push({targetId:item.targetId,status:'request_failed',readAt:new Date().toISOString()});await save();continue;}
++  const a=response.work_item_attribute,f=response.work_item_fields;
++  if(a?.work_item_id!==item.targetId||a?.owned_project?.key!==scope.sourceProjectKey||a?.work_item_type?.key!==scope.sourceType||!f.some(x=>x.key==='field_8cc591'&&x.value===`REAL-UAT-20261016 | ${item.sourceUrl}`))throw Error('source_scope_mismatch');
++  const readAt=new Date().toISOString();
++  const raw=f.find(x=>x.key==='field_f34a5f');
++  if(!raw)missingDetailItems++;
++  // This count means needs entry OR verification. Missing compound fields
++  // remain aggregation coverage gaps; they are never coerced to zero rows.
++  if(!raw||raw.value===null||Array.isArray(raw.value)&&raw.value.length===0)needsReview.add(item.targetId);
++  await writeFile(join(dir,item.targetId+'.json'),JSON.stringify(response,null,2));
++  snapshots.push({response,readAt,sourceHint:item.targetId,complete:response.pagination?.has_more===false});
++  receipt.reads.push({targetId:item.targetId,status:'ok',readAt});await save();
++ }
++ if(!snapshots.length)throw Error('all_sources_failed');
++ const coverage=failedItems?[{source:'real-test-scope',status:'request_failed',failedItems}]:[];
++ const outputs=['week','month'].map(mode=>aggregate(snapshots,{mode,coverage,registrationPolicy:'source_locator'}));
++ for(const out of outputs){
++  for(const e of out.errors){let id=e.source;try{id??=JSON.parse(e.sourceId).workItemId;}catch{}if(imports.some(i=>i.targetId===id))needsReview.add(id);}
++  for(const p of out.pending)needsReview.add(p.row.source.workItemId);
++ }
++ unregisteredItems=needsReview.size;
++ await writeFile(join(dir,'aggregates.json'),JSON.stringify(outputs,null,2));
++ const aliasPath=join(root,'input/real-person-aliases.json');let aliases={};try{aliases=JSON.parse(await readFile(aliasPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
++ for(const id of [...new Set(outputs.flatMap(o=>o.cells.map(c=>c.person.id)))].sort())if(!aliases[id]){const n=Object.keys(aliases).length+1;aliases[id]={id:`real-person-${String(n).padStart(2,'0')}`,name:`体验登记人${String(n).padStart(2,'0')}`};}
++ await writeFile(aliasPath,JSON.stringify(aliases,null,2));
++ const readAt=snapshots.map(x=>x.readAt).sort().at(-1);
++ const desired=projectReal(outputs,{aliases,allowedPersonIds:[scope.sourcePersonId],runId,readAt,totalItems:imports.length,unregisteredItems,failedItems,missingDetailItems});
++ await writeFile(join(dir,'projected-rows.json'),JSON.stringify(desired,null,2));
++ const fields=call(lark,['base','+field-list',...targetArgs]).data.fields;
++ if(desired.some(row=>Object.keys(row).some(k=>!fields.some(f=>f.name===k&&['text','number'].includes(f.type)))))throw Error('schema_mismatch');
++ const ownedPath=join(root,'input/real-target-records.json');let owned={};try{owned=JSON.parse(await readFile(ownedPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
++ const before=(await target('target-before')).filter(r=>r['数据集']==='real');
++ const seen=new Set();for(const r of before){if(seen.has(r['汇总键'])||owned[r['汇总键']]!==r.record_id)throw Error('unowned_or_duplicate_target');seen.add(r['汇总键']);}
++ const updates=[...desired];
++ // Never delete an absent aggregate or turn stale data into zero. Prior cells
++ // not represented by this run remain explicit stale history, outside totals.
++ for(const old of before)if(!desired.some(r=>r['汇总键']===old['汇总键']))updates.push({'汇总键':old['汇总键'],'记录类型':'stale','刷新结果':'stale','覆盖缺口':'本次未取得该单元格的有效来源；保留上次值供核对，不计入本次小计'});
++ for(const row of updates){
++  const recordId=owned[row['汇总键']];const args=['base','+record-upsert',...targetArgs,'--json',JSON.stringify(row)];if(recordId)args.push('--record-id',recordId);
++  const result=call(lark,args);await writeFile(join(dir,`write-${receipt.writes.length+1}.json`),JSON.stringify(result,null,2));
++  const ids=result.data?.record?.record_id_list??result.data?.record_id_list;
++  const id=recordId??(ids?.length===1?ids[0]:null);if(!id)throw Error('unknown_write_receipt');
++  owned[row['汇总键']]=id;await writeFile(ownedPath,JSON.stringify(owned,null,2));
++  receipt.writes.push({key:row['汇总键'],recordId:id,operation:recordId?'update':'create'});await save();
++ }
++ const after=(await target('target-after')).filter(r=>r['数据集']==='real');
++ if(!desired.every(r=>{const a=after.filter(x=>x['汇总键']===r['汇总键']);return a.length===1&&Object.entries(r).every(([k,v])=>a[0][k]===v);}))throw Error('target_readback_mismatch');
++ receipt.status='passed';receipt.targetUpdateVerified=true;receipt.actualRows=outputs[0].rowsRead;receipt.needsEntryOrVerification=unregisteredItems;receipt.missingDetailItems=missingDetailItems;receipt.failedItems=failedItems;receipt.targetDatasetRecords=after.length;receipt.sourceReadAt=readAt;
++}catch(e){receipt.status='failed';receipt.error=/^[a-z_]+$/.test(e.message)?e.message:'unexpected_failure';process.exitCode=1;}
++finally{receipt.finishedAt=new Date().toISOString();await save();await unlink(lockPath);console.log(JSON.stringify(receipt,null,2));}
+diff --git a/src/target-projection.mjs b/src/target-projection.mjs
+new file mode 100644
+index 0000000..2d56444
+--- /dev/null
++++ b/src/target-projection.mjs
+@@ -0,0 +1,50 @@
++import { createHash } from 'node:crypto';
++
++const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
++const localDate = ms => new Date(ms + 8 * 3600000).toISOString().slice(0, 10);
++export function projectRows(outputs, scope, runId, updatedAt) {
++  if (outputs.length !== 2 || new Set(outputs.map(x => x.mode)).size !== 2) throw Error('missing_period_mode');
++  const rows = outputs.flatMap(out => {
++    if (!['week', 'month'].includes(out.mode) || out.unit !== 'hour' || out.timeZone !== 'Asia/Shanghai' ||
++        out.errors.length || out.pending.length || out.cells.length !== 1 || out.rowsRead !== 1) throw Error('source_not_ready');
++    const c = out.cells[0];
++    if (c.kind !== 'actual' || c.hours === null || !/^(0|[1-9]\d*)(\.\d+)?$/.test(c.hours) ||
++        c.person.id !== scope.sourcePersonId || c.rows.length !== 1) throw Error('unexpected_source_cell');
++    const r = c.rows[0];
++    if (r.person.id !== scope.sourcePersonId || r.source.workItemId !== scope.sourceItemId ||
++        r.source.type !== scope.sourceType || r.source.space !== scope.sourceProjectKey ||
++        r.registrationId !== scope.sourceRegistrationId || r.ownership.projectRef !== null ||
++        r.ownership.label !== '非项目' || !r.note.includes('合成')) throw Error('source_scope_mismatch');
++    const hours = Number(c.hours);
++    if (!Number.isFinite(hours) || hours < 0 || Math.abs(hours) > Number.MAX_SAFE_INTEGER || String(hours)!==c.hours) throw Error('unsafe_hours');
++    const fingerprint = digest({source:r.source,person:r.person.id,start:r.startInclusive,end:r.endExclusive,hours:r.hours,version:r.version,registration:r.registrationId});
++    return {
++      '汇总键':`actual|${scope.aliasId}|${out.mode}|${c.period.key}`,
++      '数据集':'sample','记录类型':'aggregate','待登记事项数':0,'来源事项数':1,
++      '人员':scope.aliasName,'人员键':scope.aliasId,'口径':'actual','周期类型':out.mode,
++      '周期':c.period.label,'周期开始':localDate(c.period.startInclusive),'周期结束不含':localDate(c.period.endExclusive),
++      '实际小时':hours,'来源行数':c.rows.length,'非项目事项数':c.nonProjectItemCount,
++      '范围说明':'已覆盖来源小计，不代表全部投入；合成测试登记，不代表员工真实劳动量',
++      '覆盖缺口':out.coverageGaps.map(g => `${g.source}: ${g.status}${Number.isInteger(g.total) ? ` (${g.total}条)` : ''}`).join('；') || '仅覆盖已授权测试样本',
++      '来源摘要':`T02合成测试登记；非项目；原发生期${localDate(r.startInclusive)}—${localDate(r.endInclusive)}；原小时${r.hours}；非逐日实测`,
++      '来源版本':String(r.version),'来源指纹':fingerprint,'读取时间':r.readAt,
++      '更新时间':updatedAt,'运行标识':runId,'刷新结果':'success_partial',
++    };
++  });
++  if (new Set(rows.map(r=>r['来源指纹'])).size !== 1) throw Error('week_month_source_mismatch');
++  return rows;
++}
++
++export function planWrites(desired, existing, ownedRecordIds = []) {
++  const desiredKeys = new Set(desired.map(r=>r['汇总键']));
++  if (desiredKeys.size !== desired.length) throw Error('duplicate_desired_key');
++  const seen = new Map();
++  for (const r of existing) {
++    const key = r['汇总键'];
++    if (!desiredKeys.has(key)) throw Error('unexpected_target_key');
++    if (!r.record_id || seen.has(key)) throw Error('duplicate_target_key');
++    if (!ownedRecordIds.includes(r.record_id)) throw Error('target_record_not_owned');
++    seen.set(key,r.record_id);
++  }
++  return desired.map(fields=>({recordId:seen.get(fields['汇总键'])??null,fields}));
++}
+diff --git a/tests/human-entry.test.mjs b/tests/human-entry.test.mjs
+new file mode 100644
+index 0000000..0b143ba
+--- /dev/null
++++ b/tests/human-entry.test.mjs
+@@ -0,0 +1,21 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {aggregate,F} from '../src/aggregate.mjs';
++import {projectReal} from '../src/real-projection.mjs';
++const ts=s=>({timestamp:Date.parse(s),iso_time:s});
++function row(id='A',hours='8',registration){return [
++ {key:'group_uuid',value:id},{key:F.person,value:{key:'private-user',name:'Private name'}},
++ {key:F.period,value:{start_time:ts('2026-09-14T00:00:00+08:00'),end_time:ts('2026-09-20T23:59:59+08:00')}},
++ {key:F.hours,value:hours},...(registration===undefined?[]:[{key:F.registration,value:registration}])];}
++function snap(rows=[row()],item='private-item'){return {readAt:'2026-10-16T08:00:00Z',complete:true,response:{pagination:{has_more:false},work_item_attribute:{work_item_id:item,work_item_name:'Private source',owned_project:{key:'private-space'},work_item_type:{key:'test-type'}},work_item_fields:[{key:F.parent,value:rows},{key:'updated_at',value:ts('2026-10-16T07:00:00Z')}]}};}
++const agg=(s,extra={})=>aggregate(s,{registrationPolicy:'source_locator',...extra});
++test('strict baseline still requires a registration ID',()=>{assert.equal(aggregate([snap()]).cells.length,0);assert.ok(aggregate([snap()]).errors.length);});
++test('human registration can omit the technical ID without source mutation',()=>{const s=snap(),before=JSON.stringify(s),out=agg([s]);assert.equal(out.cells[0].hours,'8');assert.equal(out.cells[0].rows[0].registrationDerived,true);assert.equal(JSON.stringify(s),before);});
++test('different repeat multiplicity remains one 8-hour human row',()=>{const a=snap(),b=snap([row(),row()]);assert.equal(agg([a,b]).cells[0].hours,'8');assert.equal(agg([b,a]).cells[0].hours,'8');});
++test('distinct native rows must not collapse just because values match',()=>{assert.equal(agg([snap([row('A'),row('B')])]).cells[0].hours,'16');});
++test('missing native row ID remains invalid',()=>{const s=snap();s.response.work_item_fields[0].value[0].shift();assert.equal(agg([s]).cells.length,0);assert.ok(agg([s]).errors.length);});
++test('explicit duplicate registration across sources still needs review',()=>{const out=agg([snap([row('A','8','same-id')],'one'),snap([row('B','8','same-id')],'two')]);assert.equal(out.crossSourceCandidates.length,1);assert.equal(out.crossSourceCandidates[0].registration,'same-id');});
++test('empty real scope is null and never inherits sample hours',()=>{const outputs=['week','month'].map(mode=>agg([snap([])],{mode}));const r=projectReal(outputs,{allowedPersonIds:['private-user'],aliases:{},runId:'real-1',readAt:'2026-10-16T08:00:00Z',totalItems:16,unregisteredItems:16,failedItems:0});assert.equal(r.length,1);assert.equal(r[0]['数据集'],'real');assert.equal(r[0]['实际小时'],null);assert.equal(r[0]['人员'],null);assert.equal(r[0]['周期'],null);assert.equal(r[0]['待登记事项数'],16);assert.equal(r[0]['刷新结果'],'success_no_records');});
++test('real numeric zero is preserved separately from missing records and identity stays private',()=>{const outputs=['week','month'].map(mode=>agg([snap([row('A','0')])],{mode}));const r=projectReal(outputs,{allowedPersonIds:['private-user'],aliases:{'private-user':{id:'person-01',name:'体验登记人01'}},runId:'real-1',readAt:'2026-10-16T08:00:00Z',totalItems:16,unregisteredItems:15,failedItems:0});assert.equal(r[0]['实际小时'],0);assert.equal(r[0]['数据集'],'real');assert.doesNotMatch(JSON.stringify(r),/private-|Private name|Private source/);});
++
++test('a stable alias does not authorize another person for display',()=>{const outputs=['week','month'].map(mode=>agg([snap()],{mode}));assert.throws(()=>projectReal(outputs,{allowedPersonIds:['another-user'],aliases:{'private-user':{id:'person-01',name:'体验登记人01'}}}),/person_outside_display_scope/);});
+diff --git a/tests/target-projection.test.mjs b/tests/target-projection.test.mjs
+new file mode 100644
+index 0000000..20bc53e
+--- /dev/null
++++ b/tests/target-projection.test.mjs
+@@ -0,0 +1,35 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { projectRows, planWrites } from '../src/target-projection.mjs';
++const scope={sourcePersonId:'private-person',sourceItemId:'private-item',sourceType:'private-type',sourceProjectKey:'private-space',sourceRegistrationId:'private-registration',aliasId:'test-t02',aliasName:'T02测试人员'};
++function outputs(hours='8'){
++  const row={source:{workItemId:scope.sourceItemId,type:scope.sourceType,space:scope.sourceProjectKey,rowId:'private-row'},person:{id:scope.sourcePersonId},registrationId:scope.sourceRegistrationId,ownership:{projectRef:null,label:'非项目'},note:'合成测试',version:1,readAt:'2026-10-16T06:00:00Z',startInclusive:1789315200000,endInclusive:1789919999999,endExclusive:1789920000000,hours};
++  return ['week','month'].map(mode=>({mode,unit:'hour',timeZone:'Asia/Shanghai',rowsRead:1,errors:[],pending:[],coverageGaps:[{source:'project-source',status:'no_records',total:0}],cells:[{person:row.person,kind:'actual',hours,rows:[structuredClone(row)],nonProjectItemCount:1,period:{key:mode==='week'?'2026-09-14':'2026-09',label:mode==='week'?'2026-09-14—2026-09-20':'2026-09',startInclusive:1789315200000,endExclusive:1789920000000}}]}));
++}
++const project=o=>projectRows(o,scope,'run-1','2026-10-16T06:01:00Z');
++test('projection hides source identities and keeps weekly/monthly actual values separate',()=>{
++  const r=project(outputs());assert.equal(r.length,2);assert.deepEqual(r.map(x=>x['实际小时']),[8,8]);assert.equal(r[0]['非项目事项数'],1);assert.doesNotMatch(JSON.stringify(r),/private-/);assert.match(r[0]['覆盖缺口'],/no_records/);assert.match(r[0]['范围说明'],/不代表全部/);
++});
++test('second run updates the same two records instead of creating duplicates',()=>{
++  const rows=project(outputs());const first=planWrites(rows,[]);assert.ok(first.every(x=>!x.recordId));
++  const existing=rows.map((x,i)=>({...x,record_id:'rec'+i}));
++  const second=planWrites(rows,existing,['rec0','rec1']);assert.deepEqual(second.map(x=>x.recordId),['rec0','rec1']);
++});
++test('duplicate, unowned or unrelated target records stop writes',()=>{
++  const rows=project(outputs()),r={...rows[0],record_id:'rec0'};
++  assert.throws(()=>planWrites(rows,[r,r],['rec0']),/duplicate_target/);
++  assert.throws(()=>planWrites(rows,[r],[]),/not_owned/);
++  assert.throws(()=>planWrites(rows,[{record_id:'other','汇总键':'unrelated'}],['other']),/unexpected_target/);
++});
++test('wrong person and unverified source ownership are rejected before projection',()=>{
++  const o=outputs();o[0].cells[0].person={id:'another-person'};assert.throws(()=>project(o),/unexpected_source/);
++  const p=outputs();p[0].cells[0].rows[0].ownership.projectRef='guessed-project';assert.throws(()=>project(p),/scope_mismatch/);
++});
++test('missing or pending results cannot replace known values with zero',()=>{
++  const o=outputs();o[0].cells=[];assert.throws(()=>project(o),/source_not_ready/);
++  const p=outputs();p[0].pending=[{reason:'cross_week_unallocated'}];assert.throws(()=>project(p),/source_not_ready/);
++  assert.equal(project(outputs('0'))[0]['实际小时'],0);
++});
++test('week and month from differing source versions cannot be mixed',()=>{
++  const o=outputs();o[1].cells[0].rows[0].version=2;assert.throws(()=>project(o),/source_mismatch/);
++});
