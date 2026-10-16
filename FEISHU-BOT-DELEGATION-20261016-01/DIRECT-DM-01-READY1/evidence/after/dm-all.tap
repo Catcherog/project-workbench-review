@@ -1,0 +1,419 @@
+TAP version 13
+# Subtest: offline accepted preview, verified human envelope, one summary and readback
+ok 1 - offline accepted preview, verified human envelope, one summary and readback
+  ---
+  duration_ms: 7.782875
+  type: 'test'
+  ...
+# Subtest: rejection is read back and never permits summary
+ok 2 - rejection is read back and never permits summary
+  ---
+  duration_ms: 5.681792
+  type: 'test'
+  ...
+# Subtest: identity, exact body, current policy and readback failures stay quarantined
+    # Subtest: wrongActor
+    ok 1 - wrongActor
+      ---
+      duration_ms: 7.8495
+      type: 'test'
+      ...
+    # Subtest: botCannotConfirm
+    ok 2 - botCannotConfirm
+      ---
+      duration_ms: 6.608709
+      type: 'test'
+      ...
+    # Subtest: wrongChat
+    ok 3 - wrongChat
+      ---
+      duration_ms: 8.144625
+      type: 'test'
+      ...
+    # Subtest: wrongApp
+    ok 4 - wrongApp
+      ---
+      duration_ms: 4.802125
+      type: 'test'
+      ...
+    # Subtest: wrongCode
+    ok 5 - wrongCode
+      ---
+      duration_ms: 47.493417
+      type: 'test'
+      ...
+    # Subtest: bareAgreement
+    ok 6 - bareAgreement
+      ---
+      duration_ms: 9.793833
+      type: 'test'
+      ...
+    # Subtest: quoteApproval
+    ok 7 - quoteApproval
+      ---
+      duration_ms: 5.310083
+      type: 'test'
+      ...
+    # Subtest: unthreaded
+    ok 8 - unthreaded
+      ---
+      duration_ms: 47.933625
+      type: 'test'
+      ...
+    # Subtest: expired
+    ok 9 - expired
+      ---
+      duration_ms: 8.263542
+      type: 'test'
+      ...
+    # Subtest: permissionRevoked
+    ok 10 - permissionRevoked
+      ---
+      duration_ms: 2.942708
+      type: 'test'
+      ...
+    # Subtest: changedVersion
+    ok 11 - changedVersion
+      ---
+      duration_ms: 7.252084
+      type: 'test'
+      ...
+    # Subtest: changedPreview
+    ok 12 - changedPreview
+      ---
+      duration_ms: 6.568375
+      type: 'test'
+      ...
+    # Subtest: deleted
+    ok 13 - deleted
+      ---
+      duration_ms: 3.528833
+      type: 'test'
+      ...
+    # Subtest: absentTimestamp
+    ok 14 - absentTimestamp
+      ---
+      duration_ms: 2.758875
+      type: 'test'
+      ...
+    # Subtest: malformedTimestamp
+    ok 15 - malformedTimestamp
+      ---
+      duration_ms: 11.125917
+      type: 'test'
+      ...
+    1..15
+ok 3 - identity, exact body, current policy and readback failures stay quarantined
+  ---
+  duration_ms: 185.565291
+  type: 'test'
+  ...
+# Subtest: lost send result remains reserved after restart, with no blind retry
+ok 4 - lost send result remains reserved after restart, with no blind retry
+  ---
+  duration_ms: 4.118667
+  type: 'test'
+  ...
+# Subtest: worker offline and verification timeout cannot fall through to business
+ok 5 - worker offline and verification timeout cannot fall through to business
+  ---
+  duration_ms: 22.164375
+  type: 'test'
+  ...
+# Subtest: simultaneous repeated confirmation consumes the request once
+ok 6 - simultaneous repeated confirmation consumes the request once
+  ---
+  duration_ms: 7.177375
+  type: 'test'
+  ...
+# Subtest: stop while readback is pending prevents authorization, including unknown stop
+ok 7 - stop while readback is pending prevents authorization, including unknown stop
+  ---
+  duration_ms: 3.666958
+  type: 'test'
+  ...
+# Subtest: late replies and outputs stay excluded, ordinary future traffic is allowed
+not ok 8 - late replies and outputs stay excluded, ordinary future traffic is allowed
+  ---
+  duration_ms: 3.875917
+  type: 'test'
+  location: '/FIX1_ROOT/dm/tests/direct-dm.test.mjs:61:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///FIX1_ROOT/dm/tests/direct-dm.test.mjs:64:10)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: readback failure is distinct from delivery and keeps the result excluded
+ok 9 - readback failure is distinct from delivery and keeps the result excluded
+  ---
+  duration_ms: 4.358958
+  type: 'test'
+  ...
+# Subtest: missing approvals and reused manifest cannot arm a send
+ok 10 - missing approvals and reused manifest cannot arm a send
+  ---
+  duration_ms: 2.581417
+  type: 'test'
+  ...
+# Subtest: ledger loss or corruption fails closed instead of silently recreating
+ok 11 - ledger loss or corruption fails closed instead of silently recreating
+  ---
+  duration_ms: 2.459209
+  type: 'test'
+  ...
+# Subtest: DM-B01 persistent boundary holds arbitrary future input without using words or expiry
+ok 12 - DM-B01 persistent boundary holds arbitrary future input without using words or expiry
+  ---
+  duration_ms: 6.487584
+  type: 'test'
+  ...
+# Subtest: DM-B02 final root/parent variants work without a preceding hold or passive-chat match
+ok 13 - DM-B02 final root/parent variants work without a preceding hold or passive-chat match
+  ---
+  duration_ms: 7.162292
+  type: 'test'
+  ...
+# Subtest: DM-B02 quarantined reference chains propagate beyond outbound effects
+ok 14 - DM-B02 quarantined reference chains propagate beyond outbound effects
+  ---
+  duration_ms: 10.433083
+  type: 'test'
+  ...
+# Subtest: DM-B02 reader preserves authoritative parent/root fields even if shortcut omits them
+ok 15 - DM-B02 reader preserves authoritative parent/root fields even if shortcut omits them
+  ---
+  duration_ms: 6.964167
+  type: 'test'
+  ...
+# Subtest: DM-B02 readback failure cannot produce a partially trusted source batch
+ok 16 - DM-B02 readback failure cannot produce a partially trusted source batch
+  ---
+  duration_ms: 8.272083
+  type: 'test'
+  ...
+# Subtest: inconsistent trusted identity fields never authorize a human confirmation
+ok 17 - inconsistent trusted identity fields never authorize a human confirmation
+  ---
+  duration_ms: 47.706
+  type: 'test'
+  ...
+# Subtest: DM-B03 uncertain owner inspection keeps the live intent and denies another send
+ok 18 - DM-B03 uncertain owner inspection keeps the live intent and denies another send
+  ---
+  duration_ms: 10.072417
+  type: 'test'
+  ...
+# Subtest: DM-B03 actual owner death recovers unknown once, preserving the intent and denying late mutation
+ok 19 - DM-B03 actual owner death recovers unknown once, preserving the intent and denying late mutation
+  ---
+  duration_ms: 58.71825
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55163；SQLite：/TEMP_ROOT/fix1-full-service-pxDotA/store/workbench.sqlite
+# Subtest: complete candidate service boots without isolation when never activated
+ok 20 - complete candidate service boots without isolation when never activated
+  ---
+  duration_ms: 149.521209
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55166；SQLite：/TEMP_ROOT/fix1-full-service-PY4rVY/store/workbench.sqlite
+# Subtest: full host routes event, polling, discovery and final storage through durable isolation
+ok 21 - full host routes event, polling, discovery and final storage through durable isolation
+  ---
+  duration_ms: 51.860542
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55168；SQLite：/TEMP_ROOT/fix1-full-service-WYvI1W/store/workbench.sqlite
+# Subtest: full host blocks legacy leaked source before input, budget retry or automatic receipt
+ok 22 - full host blocks legacy leaked source before input, budget retry or automatic receipt
+  ---
+  duration_ms: 34.725625
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55169；SQLite：/TEMP_ROOT/fix1-full-service-pXLFWJ/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:55170；SQLite：/TEMP_ROOT/fix1-full-service-pXLFWJ/store/workbench.sqlite
+# Subtest: full service restores passive isolation without the temporary configuration
+ok 23 - full service restores passive isolation without the temporary configuration
+  ---
+  duration_ms: 39.509875
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55171；SQLite：/TEMP_ROOT/fix1-full-service-gknMD0/store/workbench.sqlite
+# Subtest: full service refuses a redirect to another empty ledger
+ok 24 - full service refuses a redirect to another empty ledger
+  ---
+  duration_ms: 31.257833
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55175；SQLite：/TEMP_ROOT/fix1-full-service-0RG2fi/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:55177；SQLite：/TEMP_ROOT/fix1-full-service-0RG2fi/store/workbench.sqlite
+# Subtest: full service fails closed on lost ledger and retains history after restoring the file
+ok 25 - full service fails closed on lost ledger and retains history after restoring the file
+  ---
+  duration_ms: 38.273542
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55178；SQLite：/TEMP_ROOT/fix1-full-service-BUmHn4/store/workbench.sqlite
+# 本地工作台 v2 已就绪：http://127.0.0.1:55180；SQLite：/TEMP_ROOT/fix1-full-service-BUmHn4/store/workbench.sqlite
+# Subtest: full service fails closed on corrupt ledger without creating an empty replacement
+ok 26 - full service fails closed on corrupt ledger without creating an empty replacement
+  ---
+  duration_ms: 39.936334
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55181；SQLite：/TEMP_ROOT/fix1-full-service-3GDPEQ/store/workbench.sqlite
+# Subtest: same path with a different empty ledger is rejected by persistent ledger identity
+ok 27 - same path with a different empty ledger is rejected by persistent ledger identity
+  ---
+  duration_ms: 31.380584
+  type: 'test'
+  ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55183；SQLite：/TEMP_ROOT/fix1-full-service-o9jRxL/store/workbench.sqlite
+# Subtest: missing sidecar or missing database registration cannot silently disable isolation
+    # Subtest: sidecar
+# 本地工作台 v2 已就绪：http://127.0.0.1:55185；SQLite：/TEMP_ROOT/fix1-full-service-GVSqcS/store/workbench.sqlite
+    ok 1 - sidecar
+      ---
+      duration_ms: 28.293667
+      type: 'test'
+      ...
+    # Subtest: setting
+    ok 2 - setting
+      ---
+      duration_ms: 28.856625
+      type: 'test'
+      ...
+# 本地工作台 v2 已就绪：http://127.0.0.1:55187；SQLite：/TEMP_ROOT/fix1-full-service-S2mO77/store/workbench.sqlite
+    1..2
+ok 28 - missing sidecar or missing database registration cannot silently disable isolation
+  ---
+  duration_ms: 57.470833
+  type: 'test'
+  ...
+# Subtest: old full host refuses the latched data version before starting consumers
+# 本地工作台 v2 已就绪：http://127.0.0.1:55189；SQLite：/TEMP_ROOT/fix1-full-service-kefooI/store/workbench.sqlite
+ok 29 - old full host refuses the latched data version before starting consumers
+  ---
+  duration_ms: 28.524084
+  type: 'test'
+  ...
+# Subtest: a second active consumer cannot take over or rewrite a live sending intent
+ok 30 - a second active consumer cannot take over or rewrite a live sending intent
+  ---
+  duration_ms: 29.298209
+  type: 'test'
+  ...
+# Subtest: actual event bridge excludes preview, reply and output before business read/write
+ok 31 - actual event bridge excludes preview, reply and output before business read/write
+  ---
+  duration_ms: 76.527334
+  type: 'test'
+  ...
+# Subtest: actual private and mention readers exclude test data but retain normal messages
+ok 32 - actual private and mention readers exclude test data but retain normal messages
+  ---
+  duration_ms: 5.279
+  type: 'test'
+  ...
+# Subtest: actual group discovery blocks copied test triggers and messages
+ok 33 - actual group discovery blocks copied test triggers and messages
+  ---
+  duration_ms: 47.959333
+  type: 'test'
+  ...
+# Subtest: actual monitor final barrier catches a reader that omitted early filtering
+ok 34 - actual monitor final barrier catches a reader that omitted early filtering
+  ---
+  duration_ms: 23.239041
+  type: 'test'
+  ...
+# Subtest: actual final storage barrier blocks injected test sources atomically
+ok 35 - actual final storage barrier blocks injected test sources atomically
+  ---
+  duration_ms: 18.096292
+  type: 'test'
+  ...
+# Subtest: actual input and automatic receipt paths stop before model or send
+ok 36 - actual input and automatic receipt paths stop before model or send
+  ---
+  duration_ms: 3.684666
+  type: 'test'
+  ...
+# Subtest: CONTROL: late direct reply to preview is quarantined
+ok 37 - CONTROL: late direct reply to preview is quarantined
+  ---
+  duration_ms: 6.930959
+  type: 'test'
+  ...
+# Subtest: B01: late unthreaded test response must not fall through to business
+ok 38 - B01: late unthreaded test response must not fall through to business
+  ---
+  duration_ms: 5.581
+  type: 'test'
+  ...
+# Subtest: CONTROL: raw root-only late reply is recognized
+ok 39 - CONTROL: raw root-only late reply is recognized
+  ---
+  duration_ms: 6.13
+  type: 'test'
+  ...
+# Subtest: B02a: final source barrier must preserve a known root-only reference
+ok 40 - B02a: final source barrier must preserve a known root-only reference
+  ---
+  duration_ms: 8.9565
+  type: 'test'
+  ...
+# Subtest: CONTROL: source barrier recognizes direct parent
+ok 41 - CONTROL: source barrier recognizes direct parent
+  ---
+  duration_ms: 6.058334
+  type: 'test'
+  ...
+# Subtest: B02b: reply to a quarantined reply remains in the quarantine chain
+ok 42 - B02b: reply to a quarantined reply remains in the quarantine chain
+  ---
+  duration_ms: 7.155375
+  type: 'test'
+  ...
+# Subtest: CONTROL: original request marker remains quarantined after stop
+ok 43 - CONTROL: original request marker remains quarantined after stop
+  ---
+  duration_ms: 47.546166
+  type: 'test'
+  ...
+# Subtest: DM-B03a: interrupted pre-send intent should be reported unknown after reopen
+ok 44 - DM-B03a: interrupted pre-send intent should be reported unknown after reopen
+  ---
+  duration_ms: 10.32075
+  type: 'test'
+  ...
+# Subtest: CONTROL: unresolved pre-send intent is not blindly retried after reopen
+ok 45 - CONTROL: unresolved pre-send intent is not blindly retried after reopen
+  ---
+  duration_ms: 5.661542
+  type: 'test'
+  ...
+1..45
+# tests 62
+# suites 0
+# pass 61
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 619.313084

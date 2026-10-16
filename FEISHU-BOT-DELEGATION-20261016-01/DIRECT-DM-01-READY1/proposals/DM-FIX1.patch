@@ -1,0 +1,328 @@
+--- a/scripts/direct-dm-isolation.mjs
++++ b/scripts/direct-dm-isolation.mjs
+@@ -1,8 +1,8 @@
+ // Candidate only. No transport, event consumer, model, or automatic sender.
+ import {DatabaseSync} from 'node:sqlite';
+-import {existsSync, mkdirSync, chmodSync} from 'node:fs';
++import {existsSync, mkdirSync, chmodSync, realpathSync} from 'node:fs';
+ import {dirname} from 'node:path';
+-import {createHash} from 'node:crypto';
++import {createHash,randomUUID} from 'node:crypto';
+ 
+ const sha = text => createHash('sha256').update(text).digest('hex');
+ const fail = message => Object.assign(Error(message), {status: 409});
+@@ -12,6 +12,15 @@
+  CREATE TABLE messages(id TEXT PRIMARY KEY, request_id TEXT NOT NULL, stage TEXT NOT NULL, payload TEXT NOT NULL);
+  CREATE TABLE effects(request_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(request_id,kind));
+ `;
++const recoverySchema=`
++ CREATE TABLE IF NOT EXISTS isolation_meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);
++ CREATE TABLE IF NOT EXISTS execution_owners(id TEXT PRIMARY KEY,pid INTEGER NOT NULL,state TEXT NOT NULL);
++ CREATE TABLE IF NOT EXISTS isolation_events(n INTEGER PRIMARY KEY,request_id TEXT,event TEXT NOT NULL,payload TEXT NOT NULL);
++`;
++export function inspectOwnerPid(pid){
++ if(!Number.isInteger(pid)||pid<1)return 'unknown';
++ try{process.kill(pid,0);return 'alive';}catch(e){return e.code==='ESRCH'?'dead':'unknown';}
++}
+ export function createIsolationLedger(file) {
+   if(existsSync(file))throw fail('ISOLATION_LEDGER_ALREADY_EXISTS');
+   mkdirSync(dirname(file),{recursive:true,mode:0o700});
+@@ -32,13 +41,36 @@
+     createdAt:Number(m.create_time||m.rawCreateTime||m.createdAt),content:typeof content==='string'?content:'',deleted:!!m.deleted};
+ }
+ export class DirectDmIsolation {
+-  constructor(file,{clock=()=>Date.now()}={}) {
++  constructor(file,{clock=()=>Date.now(),inspectPid=inspectOwnerPid,activate}={}) {
+     // Never recreate a missing/corrupt ledger: that would lose late-message exclusions.
+     if(!existsSync(file))throw fail('ISOLATION_LEDGER_MISSING');
+-    this.db=new DatabaseSync(file); this.clock=clock;this.closed=false;
+-    this.db.exec('PRAGMA busy_timeout=1000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;');
+-    if(this.db.prepare('PRAGMA integrity_check').get().integrity_check!=='ok')throw fail('ISOLATION_LEDGER_CORRUPT');
+-    this.db.prepare('SELECT id FROM requests LIMIT 1').get();
++    this.file=realpathSync(file);this.db=new DatabaseSync(this.file);this.clock=clock;this.closed=false;this.inspectPid=inspectPid;this.activate=activate;
++    try{
++      this.db.exec('PRAGMA busy_timeout=1000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;');
++      if(this.db.prepare('PRAGMA integrity_check').get().integrity_check!=='ok')throw fail('ISOLATION_LEDGER_CORRUPT');
++      this.db.prepare('SELECT id FROM requests LIMIT 1').get();
++      this.db.exec(recoverySchema);
++      if(!this.db.prepare('PRAGMA table_info(effects)').all().some(r=>r.name==='owner_id'))this.db.exec('ALTER TABLE effects ADD COLUMN owner_id TEXT');
++      this.db.prepare('INSERT OR IGNORE INTO isolation_meta VALUES(?,?)').run('ledger_id',randomUUID());
++      this.ledgerId=this.db.prepare('SELECT v FROM isolation_meta WHERE k=?').get('ledger_id').v;
++      this.ownerId=randomUUID();this.db.prepare('INSERT INTO execution_owners VALUES(?,?,?)').run(this.ownerId,process.pid,'active');
++      this.recoverInterrupted();
++    }catch(e){this.db.close();this.closed=true;throw e;}
++  }
++  event(id,event,payload){this.db.prepare('INSERT INTO isolation_events(request_id,event,payload) VALUES(?,?,?)').run(id,event,JSON.stringify(payload));}
++  recoverInterrupted(){
++    this.transaction(()=>{
++      for(const effect of this.db.prepare("SELECT * FROM effects WHERE state='SENDING'").all()){
++        const owner=effect.owner_id&&this.db.prepare('SELECT * FROM execution_owners WHERE id=?').get(effect.owner_id);
++        const observed=owner?.state==='closed'?'closed':owner?this.inspectPid(owner.pid):'unknown';
++        // Opening a second consumer never steals an active or unverifiable owner.
++        if(!['closed','dead'].includes(observed))continue;
++        const request=this.request(effect.request_id),prior=request.state;
++        this.db.prepare("UPDATE effects SET state='DELIVERY_UNKNOWN' WHERE request_id=? AND kind=? AND state='SENDING'").run(effect.request_id,effect.kind);
++        if(['PREVIEW_PENDING','DELIVERY_PENDING'].includes(prior))this.db.prepare("UPDATE requests SET state='DELIVERY_UNKNOWN' WHERE id=?").run(effect.request_id);
++        this.event(effect.request_id,'RECOVERED_DELIVERY_UNKNOWN',{kind:effect.kind,priorRequestState:prior,priorEffectState:'SENDING',originalOwner:effect.owner_id,ownerObservation:observed,at:this.clock(),payloadHash:sha(effect.payload)});
++      }
++    });
+   }
+   transaction(fn) {
+     if(this.closed)throw fail('ISOLATION_CLOSED');
+@@ -55,9 +87,13 @@
+     if(m.summary!==SUMMARY||m.resourceVersion!=='v1'||m.purpose!=='synthetic-test-only'||!(/^[a-f0-9]{24,64}$/).test(m.nonce)||m.summaryHash!==sha(m.summary)||m.previewHash!==sha(m.preview)||!m.preview.includes(m.summary)||!m.preview.includes(m.id)||!m.preview.includes(m.nonce))throw fail('MANIFEST_CONTENT_INVALID');
+     if(m.participantChatId===m.ownerChatId||m.participantId===m.ownerId)throw fail('MANIFEST_PARTICIPANTS_INVALID');
+     // Callers are trusted local setup only. Message fields never create requests or gates.
++    // A bound service latches its durable startup requirement before any request.
++    // A crash between activation and INSERT leaves isolation enabled, never unguarded.
++    this.activate?.(this,m.id);
+     this.transaction(()=>{
+       if(this.db.prepare('SELECT 1 FROM requests WHERE id=?').get(m.id))throw fail('REQUEST_REUSE_DENIED');
+       this.db.prepare('INSERT INTO requests VALUES(?,?,?)').run(m.id,JSON.stringify(m),'PREPARED');
++      this.event(m.id,'CONVERSATION_BOUNDARY_REGISTERED',{scope:m.scope,ownerId:m.ownerId,chatIds:[m.participantChatId,m.ownerChatId],since:m.issuedAt,expiresAutomatically:false});
+     });
+   }
+   request(id) {
+@@ -67,13 +103,17 @@
+   }
+   activeScope(identity,m) {
+     const actual=identity.scope||[identity.tenantKey,identity.appId].join('/');
+-    return actual===m.scope&&identity.userId===m.ownerId;
++    return actual===m.scope&&identity.userId===m.ownerId&&(!identity.appId||identity.appId===m.appId)&&(!identity.tenantKey||identity.tenantKey===m.tenantKey);
+   }
+   classify(identity,raw) {
+     if(this.closed)throw fail('ISOLATION_CLOSED');
+     const e=normalizeDmMessage(raw);
+     const old=e.id&&this.db.prepare('SELECT * FROM messages WHERE id=?').get(e.id);
+     if(old)return {requestId:old.request_id,reason:'known_message',e};
++    for(const reference of [e.parentId,e.rootId].filter(Boolean)){
++      const known=this.db.prepare('SELECT request_id FROM messages WHERE id=?').get(reference);
++      if(known)return {requestId:known.request_id,reason:'quarantined_reference_chain',e};
++    }
+     for(const row of this.db.prepare('SELECT * FROM requests').all()) {
+       const m=JSON.parse(row.manifest);
+       const effects=this.db.prepare('SELECT payload FROM effects WHERE request_id=?').all(m.id).map(r=>JSON.parse(r.payload));
+@@ -82,11 +122,12 @@
+       // This also holds copied/wrong-actor input without granting it access to a worker.
+       if(known.includes(e.id)||known.includes(e.parentId)||known.includes(e.rootId)||e.content.includes(m.id))return {requestId:m.id,reason:'request_link',e};
+       const tuple=this.activeScope(identity,m)&&[m.participantChatId,m.ownerChatId].includes(e.chatId);
+-      const expectedSender=e.chatId===m.participantChatId?[m.botId,m.participantId]:[m.botId,m.ownerId];
+-      if(tuple&&expectedSender.includes(e.senderId)) {
++      if(tuple) {
+         if(sha(e.content)===m.previewHash||sha(e.content)===m.summaryHash)return {requestId:m.id,reason:'outbound_bytes',e};
+-        // The historical window remains effective on delayed polling after expiry/stop.
+-        if(e.createdAt>=m.issuedAt&&e.createdAt<m.expiresAt)return {requestId:m.id,reason:'bounded_session',e};
++        // Admission expires after five minutes; isolation does not. New input in
++        // these two explicitly reserved bot chats is held, including ordinary
++        // business input. Other chats and pre-boundary history are unaffected.
++        if(!Number.isFinite(e.createdAt)||e.createdAt>=m.issuedAt)return {requestId:m.id,reason:'persistent_conversation_boundary',e};
+       }
+     }
+     return null;
+@@ -100,10 +141,11 @@
+     return true; // Synchronous durable barrier. No worker availability dependency.
+   }
+   sourceHeld(source) {
+-    const p=source.personalMessage||source.caseChat||{};
++    const p=source.personalMessage||source.caseChat||{},raw=p.raw||{};
+     return this.hold({identity:{scope:p.scope,userId:p.accountId},channel:'source_barrier',message:{
+-      message_id:p.messageId||source.inputEnvelope?.messageId,chat_id:p.chatId,sender_id:p.senderId,
+-      create_time:p.rawCreateTime,parent_id:p.parentId||source.inputEnvelope?.replyTo,content:source.excerpt||''}});
++      message_id:p.messageId||raw.message_id||source.inputEnvelope?.messageId,chat_id:p.chatId||raw.chat_id,sender_id:p.senderId||raw.sender_id,
++      create_time:p.rawCreateTime||raw.create_time,parent_id:p.parentId||p.parent_id||raw.parent_id||raw.parentId||source.inputEnvelope?.replyTo,
++      root_id:p.rootId||p.root_id||raw.root_id||raw.rootId||source.inputEnvelope?.rootId,content:source.excerpt||''}});
+   }
+   assertNoSources(sources=[]) {
+     for(const source of sources)if(this.sourceHeld(source))throw fail('TEST_SOURCE_BLOCKED_BEFORE_SAVE');
+@@ -120,7 +162,7 @@
+       if(kind==='preview'&&r.state!=='PREPARED'||kind==='summary'&&r.state!=='CONFIRMED')throw fail('EFFECT_STATE_DENIED');
+       if(this.db.prepare('SELECT 1 FROM effects WHERE request_id=? AND kind=?').get(id,kind))throw fail('EFFECT_ALREADY_RESERVED');
+       const payload={text:kind==='preview'?m.preview:m.summary,recipient:kind==='preview'?m.participantId:m.ownerId,chatId:kind==='preview'?m.participantChatId:m.ownerChatId,appId:m.appId};
+-      this.db.prepare('INSERT INTO effects VALUES(?,?,?,?)').run(id,kind,'SENDING',JSON.stringify(payload));
++      this.db.prepare('INSERT INTO effects(request_id,kind,state,payload,owner_id) VALUES(?,?,?,?,?)').run(id,kind,'SENDING',JSON.stringify(payload),this.ownerId);
+       this.db.prepare('UPDATE requests SET state=? WHERE id=?').run(kind==='preview'?'PREVIEW_PENDING':'DELIVERY_PENDING',id);
+       return payload;
+     });
+@@ -128,7 +170,7 @@
+   recordEffect(id,kind,result) {
+     this.transaction(()=>{
+       const row=this.db.prepare('SELECT * FROM effects WHERE request_id=? AND kind=?').get(id,kind);
+-      if(!row||row.state!=='SENDING')throw fail('EFFECT_RECEIPT_STATE_DENIED');
++      if(!row||row.state!=='SENDING'||row.owner_id!==this.ownerId)throw fail('EFFECT_RECEIPT_STATE_DENIED');
+       const p=JSON.parse(row.payload),ok=typeof result.messageId==='string'&&!!result.messageId&&result.chatId===p.chatId;
+       const state=ok?'ACCEPTED':'DELIVERY_UNKNOWN';
+       this.db.prepare('UPDATE effects SET state=?,payload=? WHERE request_id=? AND kind=?').run(state,JSON.stringify({...p,...(ok?{messageId:result.messageId}:{}),platformResultKnown:ok}),id,kind);
+@@ -173,12 +215,15 @@
+     });
+   }
+   stop(id,{confirmed=true}={}) {
+-    this.request(id);this.db.prepare('UPDATE requests SET state=? WHERE id=?').run(confirmed?'STOPPED':'STOP_UNKNOWN',id);
+-    // Keep manifests, effects and message IDs permanently; ordinary future traffic is unblocked.
++    this.transaction(()=>{const prior=this.request(id).state,state=confirmed?'STOPPED':'STOP_UNKNOWN';
++      this.db.prepare('UPDATE requests SET state=? WHERE id=?').run(state,id);
++      this.event(id,'EXECUTION_STOP_RECORDED',{priorState:prior,state,confirmed,at:this.clock()});
++    });
++    // Stop new execution only. Passive conversation isolation and unknown facts remain.
+   }
+   status(id) {
+     const r=this.request(id);
+-    return {state:r.state,effects:this.db.prepare('SELECT kind,state FROM effects WHERE request_id=?').all(id),quarantined:this.db.prepare('SELECT COUNT(*) n FROM messages WHERE request_id=?').get(id).n};
+-  }
+-  close(){this.closed=true;this.db.close();}
+-}
++    return {state:r.state,effects:this.db.prepare('SELECT kind,state FROM effects WHERE request_id=?').all(id),quarantined:this.db.prepare('SELECT COUNT(*) n FROM messages WHERE request_id=?').get(id).n,passiveIsolation:true,recovery:this.db.prepare("SELECT event,payload FROM isolation_events WHERE request_id=? AND event='RECOVERED_DELIVERY_UNKNOWN'").all(id).map(x=>({...x,payload:JSON.parse(x.payload)}))};
++  }
++  close(){if(this.closed)return;this.db.prepare("UPDATE execution_owners SET state='closed' WHERE id=?").run(this.ownerId);this.closed=true;this.db.close();}
++}
+--- /dev/null
++++ b/scripts/direct-dm-activation.mjs
+@@ -0,0 +1,58 @@
++// Persistent startup binding. This module is loaded only by the candidate host.
++import {existsSync,readFileSync,realpathSync} from 'node:fs';
++import {join,resolve} from 'node:path';
++import {createHash} from 'node:crypto';
++import {DirectDmIsolation} from './direct-dm-isolation.mjs';
++import {durableWrite} from './local-store.mjs';
++
++export const activationKey='directDmIsolationRequired';
++export const activationFile=dir=>join(dir,'direct-dm-isolation-required.json');
++const hash=s=>createHash('sha256').update(s).digest('hex');
++const fail=message=>Object.assign(Error(message),{status:409});
++function readMarker(file){
++ try{return JSON.parse(readFileSync(file,'utf8'));}catch{throw fail('ISOLATION_PERSISTENT_MARKER_INVALID');}
++}
++function validateRegistration(value){
++ if(value?.version!==1||typeof value.ledgerPath!=='string'||!value.ledgerPath||typeof value.ledgerId!=='string'||!Array.isArray(value.requestHashes)||value.requestHashes.some(x=>!(/^[a-f0-9]{64}$/).test(x)))throw fail('ISOLATION_PERSISTENT_REGISTRATION_INVALID');
++}
++export function attachDirectDmIsolation({store,configuredFile,clock,inspectPid}={}){
++ const markerFile=activationFile(store.dir),marker=existsSync(markerFile)?readMarker(markerFile):null;
++ const saved=store.getSetting(activationKey),version=store.db.prepare('PRAGMA user_version').get().user_version;
++ const required=!!saved||!!marker||version===3;
++ if(required){
++  if(!saved||!marker||version!==3)throw fail('ISOLATION_PERSISTENT_REGISTRATION_MISSING');
++  validateRegistration(saved);validateRegistration(marker);
++  if(JSON.stringify(saved)!==JSON.stringify(marker))throw fail('ISOLATION_PERSISTENT_REGISTRATION_MISMATCH');
++ }
++ if(!required&&!configuredFile)return null; // A never-enabled installation is unchanged.
++ const requested=configuredFile?resolve(configuredFile):saved.ledgerPath;
++ if(!existsSync(requested))throw fail('ISOLATION_LEDGER_MISSING');
++ const canonical=realpathSync(requested);
++ if(required&&canonical!==saved.ledgerPath)throw fail('ISOLATION_LEDGER_REDIRECT_DENIED');
++ let gate;
++ const persist=(instance,requestId)=>{
++  const prior=store.getSetting(activationKey);
++  if(prior){
++   validateRegistration(prior);
++   if(prior.ledgerId!==instance.ledgerId||prior.ledgerPath!==instance.file)throw fail('ISOLATION_LEDGER_ID_CHANGED');
++   if(!existsSync(markerFile)||JSON.stringify(readMarker(markerFile))!==JSON.stringify(prior))throw fail('ISOLATION_PERSISTENT_REGISTRATION_MISMATCH');
++  }
++  const present=instance.db.prepare('SELECT id FROM requests').all().map(x=>hash(x.id));
++  const hashes=[...new Set([...(prior?.requestHashes||[]),...present,...(requestId?[hash(requestId)]:[])])].sort();
++  const record={version:1,ledgerPath:instance.file,ledgerId:instance.ledgerId,requestHashes:hashes};
++  // Commit the latch before requests/effects. A torn activation fails closed.
++  // Version 3 intentionally prevents the previous host (max version 2) from booting.
++  store.transaction(()=>{store.setSetting(activationKey,record);store.db.exec('PRAGMA user_version=3');});
++  durableWrite(markerFile,JSON.stringify(record));
++ };
++ try{
++  gate=new DirectDmIsolation(canonical,{clock,inspectPid,activate:persist});
++  if(required){
++   if(gate.ledgerId!==saved.ledgerId)throw fail('ISOLATION_LEDGER_ID_CHANGED');
++   const hashes=new Set(gate.db.prepare('SELECT id FROM requests').all().map(x=>hash(x.id)));
++   if(saved.requestHashes.some(x=>!hashes.has(x)))throw fail('ISOLATION_REGISTERED_REQUEST_MISSING');
++  }else if(gate.db.prepare('SELECT COUNT(*) n FROM requests').get().n)persist(gate);
++  Object.defineProperty(store,'directDmIsolation',{value:gate,writable:false,configurable:false});
++  return gate;
++ }catch(e){gate?.close();throw e;}
++}
+--- a/scripts/personal-message-reader.mjs
++++ b/scripts/personal-message-reader.mjs
+@@ -33,6 +33,7 @@
+           if(isolation?.hold({identity,message:{...row,...original,content:row.content},channel:'personal_'+channel}))continue;
+           const prior = messages.get(row.message_id);
+           messages.set(row.message_id, { ...row,display_time:row.create_time,create_time:original.create_time,update_time:original.update_time,
++            parent_id:original.parent_id||row.parent_id||'',root_id:original.root_id||row.root_id||'',chat_type:original.chat_type||row.chat_type||(channel==='private'?'p2p':''),
+             deleted:!!row.deleted||!!original.deleted,channels: [...new Set([...(prior?.channels || []), channel])] });
+         }
+         if (!data.has_more) break;
+--- a/scripts/agent-monitor.mjs
++++ b/scripts/agent-monitor.mjs
+@@ -199,7 +199,7 @@
+             const shared=next.sources.find(row=>{const m=row.personalMessage||row.caseChat;return m?.scope===identity.scope&&m.accountId===identity.userId&&m.messageId===message.message_id;});
+             const id = shared?.id || 'personal-message-' + hash([identity.scope, identity.userId, message.message_id]).slice(0, 28);
+             const old = next.sources.find(s => s.id === id), personalMessage = { messageId: message.message_id, chatId: message.chat_id,
+-              accountId: identity.userId, scope: identity.scope, senderId: sender, channels: message.channels, discovery:message.discovery, deleted: !!message.deleted, messageType: message.msg_type || 'unknown',rawCreateTime:message.create_time,rawUpdateTime:message.update_time||'',history:old?[...(old.personalMessage?.history||[]),{version:old.version,excerpt:old.excerpt,at:old.collectedAt}]:[] };
++              accountId: identity.userId, scope: identity.scope, senderId: sender, parentId:message.parent_id||'',rootId:message.root_id||'',chatType:message.chat_type||'', channels: message.channels, discovery:message.discovery, deleted: !!message.deleted, messageType: message.msg_type || 'unknown',rawCreateTime:message.create_time,rawUpdateTime:message.update_time||'',history:old?[...(old.personalMessage?.history||[]),{version:old.version,excerpt:old.excerpt,at:old.collectedAt}]:[] };
+             const title = (message.chat_name || message.chat_partner?.name || message.sender.name || '飞书消息').slice(0, 160);
+             const source = { ...(old || {}), id, title, projectIds: old?.projectIds || [], sourceIds: [], objectIds: old?.objectIds || [],
+               type: message.channels.includes('group-discovery') ? '飞书新群消息' : message.channels.includes('private') ? '飞书私聊' : '飞书@消息', excerpt: message.deleted ? '' : message.content,
+--- a/scripts/feishu-event-bridge.mjs
++++ b/scripts/feishu-event-bridge.mjs
+@@ -56,7 +56,7 @@
+    const senderId=verified.sender?.id||Object.values(m.sender||{}).find(v=>v===event.sender_id);if(!senderId||senderId!==event.sender_id)throw fail('推送发送人未通过原消息回读核对');
+    const parentId=verified.parent_id||verified.root_id||'';if(parentId||selfPrivate)reply={parentId,senderId};
+    const id='personal-message-'+hash([identity.scope,identity.userId,event.message_id]).slice(0,28),stamp=new Date(Number(verified.create_time)).toISOString();if(Date.parse(stamp)<Date.parse(control.startedAt))return;
+-   source={id,title:(m.chat_name||'飞书群新消息').slice(0,160),type:'飞书事件消息',excerpt:m.content,occurredAt:stamp,url:m.message_app_link||'https://applink.feishu.cn/client/chat/open?openChatId='+event.chat_id,personalMessage:{messageId:event.message_id,chatId:event.chat_id,scope:identity.scope,accountId:identity.userId,senderId:event.sender_id,channels:['group-discovery'],messageType:verified.msg_type,rawCreateTime:verified.create_time,rawUpdateTime:verified.update_time,deleted:false,history:[]}};
++   source={id,title:(m.chat_name||'飞书群新消息').slice(0,160),type:'飞书事件消息',excerpt:m.content,occurredAt:stamp,url:m.message_app_link||'https://applink.feishu.cn/client/chat/open?openChatId='+event.chat_id,personalMessage:{messageId:event.message_id,chatId:event.chat_id,scope:identity.scope,accountId:identity.userId,senderId:event.sender_id,parentId:verified.parent_id||event.parent_id||'',rootId:verified.root_id||event.root_id||'',chatType:verified.chat_type||event.chat_type||'',channels:['group-discovery'],messageType:verified.msg_type,rawCreateTime:verified.create_time,rawUpdateTime:verified.update_time,deleted:false,history:[]}};
+   }else if(key==='vc.note.generated_v1'){
+    if(!/^[A-Za-z0-9]{8,160}$/.test(event.note_token||''))throw fail('纪要事件没有有效文档标识');const stamp=new Date(Number(event.timestamp)).toISOString();if(Date.parse(stamp)<Date.parse(control.startedAt))return;
+    source={id:'risk-note-'+hash([identity.scope,identity.userId,event.note_token]).slice(0,32),title:'新生成的会议纪要',type:'飞书纪要事件',excerpt:'https://feishu.cn/docx/'+event.note_token,url:'https://feishu.cn/docx/'+event.note_token,occurredAt:stamp,riskEvent:{schemaVersion:1,eventId:event.event_id,eventType:key,scope:identity.scope,accountId:identity.userId}};
+--- a/scripts/local-store.mjs
++++ b/scripts/local-store.mjs
+@@ -44,7 +44,8 @@
+   }
+   async initialize(legacy) {
+     const version=this.db.prepare('PRAGMA user_version').get().user_version;
+-    if(version>2)throw fail('数据库版本高于此应用支持的版本，未修改原数据。');
++    if(version>3)throw fail('数据库版本高于此应用支持的版本，未修改原数据。');
++    if(version===3&&!this.getSetting('directDmIsolationRequired'))throw fail('ISOLATION_PERSISTENT_REGISTRATION_MISSING');
+     if(this.existed&&version<2) {
+       const file=path.join(this.dir,'backups','before-migration-'+Date.now()+'.sqlite');
+       mkdirSync(path.dirname(file),{recursive:true});
+@@ -56,7 +57,7 @@
+       this.db.exec('CREATE TABLE IF NOT EXISTS assistant_jobs (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL, payload TEXT NOT NULL, UNIQUE(workspace_id,request_id))');
+       this.assistantSessions = new AssistantSessions(this);
+       if(this.options.failMigration)throw fail('隔离测试：模拟迁移失败');
+-      this.db.exec('PRAGMA user_version=2; COMMIT');
++      this.db.exec('PRAGMA user_version='+Math.max(2,version)+'; COMMIT');
+     } catch(e){this.db.exec('ROLLBACK');throw e;}
+     if(!this.getSetting('initialized')) {
+       let oldStates=[];
+@@ -118,11 +119,13 @@
+   }
+ 
+   insert(s) {
++    if(this.db.prepare('PRAGMA user_version').get().user_version===3&&!this.directDmIsolation)throw fail('ISOLATION_REQUIRED_BEFORE_WRITE');
+     this.directDmIsolation?.assertNoSources(s.sources);
+     this.workspaceSummaries.delete(s.workspaceId);
+     this.db.prepare('INSERT INTO workspaces(id,revision,payload,updated_at) VALUES (?,?,?,?)').run(s.workspaceId,s.revision,JSON.stringify(s),now());
+   }
+   save(s,expected) {
++    if(this.db.prepare('PRAGMA user_version').get().user_version===3&&!this.directDmIsolation)throw fail('ISOLATION_REQUIRED_BEFORE_WRITE');
+     this.directDmIsolation?.assertNoSources(s.sources);
+     this.workspaceSummaries.delete(s.workspaceId);
+     const result=this.db.prepare('UPDATE workspaces SET revision=?,payload=?,updated_at=? WHERE id=? AND revision=?').run(s.revision,JSON.stringify(s),now(),s.workspaceId,expected);
+--- a/scripts/local-http.mjs
++++ b/scripts/local-http.mjs
+@@ -1,4 +1,4 @@
+-import {DirectDmIsolation} from './direct-dm-isolation.mjs';
++import {attachDirectDmIsolation} from './direct-dm-activation.mjs';
+ import {WorkbenchRules} from './workbench-rules.mjs';
+ import {WorkItems} from './work-items.mjs';
+ import {connectAssistantActions} from './assistant-actions-integration.mjs';
+@@ -58,10 +58,11 @@
+   const legacy=options.legacy!==undefined?options.legacy:process.env.PM_LEGACY_DB??(dataDir===production?findLegacy(root):null);
+   const token=randomUUID(),origin='http://127.0.0.1:'+port;
+   const store=new LocalStore(dataDir,{testMode,failMigration:options.failMigration});
+-  // The ledger path must be approved, pre-created and retained after the test.
+-  const directDmLedger=options.directDmLedger||process.env.PM_DIRECT_DM_ISOLATION_FILE;
+-  if(directDmLedger)store.directDmIsolation=new DirectDmIsolation(path.resolve(directDmLedger));
+-  await store.initialize(legacy);
++  // No consumers/timers start until the persistent isolation binding is checked.
++  try{
++    await store.initialize(legacy);
++    attachDirectDmIsolation({...options.directDmIsolationOptions,store,configuredFile:options.directDmLedger||process.env.PM_DIRECT_DM_ISOLATION_FILE});
++  }catch(e){store.directDmIsolation?.close();store.close();throw e;}
+   const workItems=new WorkItems({store,domain});
+   const runtimeSettings=new AIRuntimeSettings(store);
+   const aiUsage=new AIUsage(store);
