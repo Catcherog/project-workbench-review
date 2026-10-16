@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import os from 'node:os';import {join} from 'node:path';
+import {ProbeBroker} from '../src/broker.mjs';import {createWorkerAdapter} from '../src/worker-adapter.mjs';
+async function run(mode,{stop=false}={}){
+ const root=await fs.mkdtemp(join(os.tmpdir(),'fix1-wire-')),sent=[],events=new Map(),evidence=[];const now=Date.now();
+ const execute=createWorkerAdapter({binary:process.execPath,prefixArgs:[new URL('./fixtures/fake-codex.mjs',import.meta.url).pathname,'--fixture='+mode],executionKind:'offline-fixture',jobsRoot:join(root,'jobs'),timeoutMs:mode==='late'?35:5000,onEvidence:e=>evidence.push(e)});
+ const broker=new ProbeBroker({file:join(root,'broker.sqlite'),appId:'a',tenantId:'t',participants:[{id:'u',alias:'A'}],deadline:now+60000,taskTimeoutMs:5000,execute,verify:async id=>events.get(id),reply:async(t,text)=>{const x={messageId:'r'+sent.length,chatId:t.chatId,text};sent.push(x);return x;},readReply:async id=>sent.find(x=>x.messageId===id)});
+ const accept=async(text,id)=>{const e={appId:'a',tenantId:'t',senderId:'u',senderType:'user',chatId:'c',chatType:'p2p',messageId:id,text,createdAt:Date.now()};events.set(id,e);await broker.accept(e);};
+ try{await accept('联调开始','s');await broker.queue;await accept('计算合成样本','w');if(stop)await broker.stop();await broker.queue;const row=broker.db.prepare("SELECT * FROM messages WHERE id='w'").get();return {row,sent,evidence};}finally{await broker.close();await fs.rm(root,{recursive:true,force:true});}
+}
+test('AP03 broker -> production process manager -> fake executable -> validated projection -> fake reply/readback',async()=>{const r=await run('ok');assert.equal(r.row.status,'readback_verified');assert.equal(r.sent.length,2);assert.match(r.sent[1].text,/7\/14/);assert.equal(r.evidence[0].executionKind,'offline-fixture');assert.equal(r.evidence[0].terminationConfirmed,true);assert.ok(r.evidence[0].launchFingerprint);});
+for(const mode of ['failed','extra','wrong-marker','no-complete','clarify','late'])test('offline wiring rejects '+mode,async()=>{const r=await run(mode);assert.equal(r.row.status,'model_failed');assert.equal(r.sent.length,1);});
+test('stopped offline wiring cannot emit a late reply',async()=>{const r=await run('late',{stop:true});assert.equal(r.sent.length,1);assert.notEqual(r.row.status,'readback_verified');});

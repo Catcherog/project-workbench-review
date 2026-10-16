@@ -1,0 +1,203 @@
+TAP version 13
+# Subtest: offline accepted preview, verified human envelope, one summary and readback
+ok 1 - offline accepted preview, verified human envelope, one summary and readback
+  ---
+  duration_ms: 7.881958
+  type: 'test'
+  ...
+# Subtest: rejection is read back and never permits summary
+ok 2 - rejection is read back and never permits summary
+  ---
+  duration_ms: 4.422417
+  type: 'test'
+  ...
+# Subtest: identity, exact body, current policy and readback failures stay quarantined
+    # Subtest: wrongActor
+    ok 1 - wrongActor
+      ---
+      duration_ms: 5.834791
+      type: 'test'
+      ...
+    # Subtest: botCannotConfirm
+    ok 2 - botCannotConfirm
+      ---
+      duration_ms: 9.428375
+      type: 'test'
+      ...
+    # Subtest: wrongChat
+    ok 3 - wrongChat
+      ---
+      duration_ms: 2.683
+      type: 'test'
+      ...
+    # Subtest: wrongApp
+    ok 4 - wrongApp
+      ---
+      duration_ms: 6.261709
+      type: 'test'
+      ...
+    # Subtest: wrongCode
+    ok 5 - wrongCode
+      ---
+      duration_ms: 3.400209
+      type: 'test'
+      ...
+    # Subtest: bareAgreement
+    ok 6 - bareAgreement
+      ---
+      duration_ms: 2.538417
+      type: 'test'
+      ...
+    # Subtest: quoteApproval
+    ok 7 - quoteApproval
+      ---
+      duration_ms: 2.845667
+      type: 'test'
+      ...
+    # Subtest: unthreaded
+    ok 8 - unthreaded
+      ---
+      duration_ms: 5.574875
+      type: 'test'
+      ...
+    # Subtest: expired
+    ok 9 - expired
+      ---
+      duration_ms: 5.63175
+      type: 'test'
+      ...
+    # Subtest: permissionRevoked
+    ok 10 - permissionRevoked
+      ---
+      duration_ms: 3.880792
+      type: 'test'
+      ...
+    # Subtest: changedVersion
+    ok 11 - changedVersion
+      ---
+      duration_ms: 12.403125
+      type: 'test'
+      ...
+    # Subtest: changedPreview
+    ok 12 - changedPreview
+      ---
+      duration_ms: 5.422708
+      type: 'test'
+      ...
+    # Subtest: deleted
+    ok 13 - deleted
+      ---
+      duration_ms: 5.867209
+      type: 'test'
+      ...
+    # Subtest: absentTimestamp
+    ok 14 - absentTimestamp
+      ---
+      duration_ms: 8.481709
+      type: 'test'
+      ...
+    # Subtest: malformedTimestamp
+    ok 15 - malformedTimestamp
+      ---
+      duration_ms: 2.433875
+      type: 'test'
+      ...
+    1..15
+ok 3 - identity, exact body, current policy and readback failures stay quarantined
+  ---
+  duration_ms: 86.272541
+  type: 'test'
+  ...
+# Subtest: lost send result remains reserved after restart, with no blind retry
+ok 4 - lost send result remains reserved after restart, with no blind retry
+  ---
+  duration_ms: 3.7995
+  type: 'test'
+  ...
+# Subtest: worker offline and verification timeout cannot fall through to business
+ok 5 - worker offline and verification timeout cannot fall through to business
+  ---
+  duration_ms: 23.978417
+  type: 'test'
+  ...
+# Subtest: simultaneous repeated confirmation consumes the request once
+ok 6 - simultaneous repeated confirmation consumes the request once
+  ---
+  duration_ms: 2.94875
+  type: 'test'
+  ...
+# Subtest: stop while readback is pending prevents authorization, including unknown stop
+ok 7 - stop while readback is pending prevents authorization, including unknown stop
+  ---
+  duration_ms: 5.924875
+  type: 'test'
+  ...
+# Subtest: late replies and outputs stay excluded, ordinary future traffic is allowed
+ok 8 - late replies and outputs stay excluded, ordinary future traffic is allowed
+  ---
+  duration_ms: 4.472542
+  type: 'test'
+  ...
+# Subtest: readback failure is distinct from delivery and keeps the result excluded
+ok 9 - readback failure is distinct from delivery and keeps the result excluded
+  ---
+  duration_ms: 2.64675
+  type: 'test'
+  ...
+# Subtest: missing approvals and reused manifest cannot arm a send
+ok 10 - missing approvals and reused manifest cannot arm a send
+  ---
+  duration_ms: 1.585667
+  type: 'test'
+  ...
+# Subtest: ledger loss or corruption fails closed instead of silently recreating
+ok 11 - ledger loss or corruption fails closed instead of silently recreating
+  ---
+  duration_ms: 1.8275
+  type: 'test'
+  ...
+# Subtest: actual event bridge excludes preview, reply and output before business read/write
+ok 12 - actual event bridge excludes preview, reply and output before business read/write
+  ---
+  duration_ms: 35.992292
+  type: 'test'
+  ...
+# Subtest: actual private and mention readers exclude test data but retain normal messages
+ok 13 - actual private and mention readers exclude test data but retain normal messages
+  ---
+  duration_ms: 10.095375
+  type: 'test'
+  ...
+# Subtest: actual group discovery blocks copied test triggers and messages
+ok 14 - actual group discovery blocks copied test triggers and messages
+  ---
+  duration_ms: 9.155416
+  type: 'test'
+  ...
+# Subtest: actual monitor final barrier catches a reader that omitted early filtering
+ok 15 - actual monitor final barrier catches a reader that omitted early filtering
+  ---
+  duration_ms: 17.730541
+  type: 'test'
+  ...
+# Subtest: actual final storage barrier blocks injected test sources atomically
+ok 16 - actual final storage barrier blocks injected test sources atomically
+  ---
+  duration_ms: 22.887792
+  type: 'test'
+  ...
+# Subtest: actual input and automatic receipt paths stop before model or send
+ok 17 - actual input and automatic receipt paths stop before model or send
+  ---
+  duration_ms: 9.645292
+  type: 'test'
+  ...
+1..17
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 183.938125

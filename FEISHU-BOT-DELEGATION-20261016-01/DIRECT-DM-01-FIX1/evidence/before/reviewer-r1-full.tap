@@ -1,0 +1,99 @@
+TAP version 13
+# Subtest: GPT CONTROL: valid signed replay before expiry returns existing verified result
+ok 1 - GPT CONTROL: valid signed replay before expiry returns existing verified result
+  ---
+  duration_ms: 416.4905
+  type: 'test'
+  ...
+# Subtest: GPT CONTROL: expired but never-dispatched authorization may become EXPIRED
+ok 2 - GPT CONTROL: expired but never-dispatched authorization may become EXPIRED
+  ---
+  duration_ms: 257.698875
+  type: 'test'
+  ...
+# Subtest: GPT R1-B01: expiry replay must preserve LOCAL_DELIVERY_VERIFIED
+not ok 3 - GPT R1-B01: expiry replay must preserve LOCAL_DELIVERY_VERIFIED
+  ---
+  duration_ms: 388.011583
+  type: 'test'
+  location: '/FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:22:68'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'EXPIRED'
+    - 'LOCAL_DELIVERY_VERIFIED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'LOCAL_DELIVERY_VERIFIED'
+  actual: 'EXPIRED'
+  operator: 'strictEqual'
+  stack: |-
+    file:///FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:25:106
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async run (file:///FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:11:3)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: GPT R1-B01: expiry replay must preserve DELIVERY_UNKNOWN
+not ok 4 - GPT R1-B01: expiry replay must preserve DELIVERY_UNKNOWN
+  ---
+  duration_ms: 461.783541
+  type: 'test'
+  location: '/FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:22:68'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'EXPIRED'
+    - 'DELIVERY_UNKNOWN'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'DELIVERY_UNKNOWN'
+  actual: 'EXPIRED'
+  operator: 'strictEqual'
+  stack: |-
+    file:///FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:25:106
+    async run (file:///FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:11:3)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: GPT R1-B01: subsequent permission revocation must not erase a verified delivery fact
+not ok 5 - GPT R1-B01: subsequent permission revocation must not erase a verified delivery fact
+  ---
+  duration_ms: 385.690209
+  type: 'test'
+  location: '/FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:27:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'REVOKED'
+    - 'LOCAL_DELIVERY_VERIFIED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'LOCAL_DELIVERY_VERIFIED'
+  actual: 'REVOKED'
+  operator: 'strictEqual'
+  stack: |-
+    file:///FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:28:102
+    process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    async run (file:///FIX1_ROOT/r1/tests/reviewer-retention-full.test.mjs:11:3)
+    async Test.run (node:internal/test_runner/test:1409:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 2
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1949.013542
