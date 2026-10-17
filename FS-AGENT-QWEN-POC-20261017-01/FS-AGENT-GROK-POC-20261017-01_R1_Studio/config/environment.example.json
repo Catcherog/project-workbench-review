@@ -1,0 +1,54 @@
+{
+  "template_only": true,
+  "runtime_loader_implemented": true,
+  "task_id": "FS-AGENT-GROK-POC-20261017-01",
+  "round": "R1",
+  "service": {
+    "mode": "existing_login",
+    "user": "REPLACE_WITH_LOCAL_USER",
+    "root_directory": "/Users/REPLACE_WITH_LOCAL_USER/.local/share/local-qwen-feishu/poc",
+    "python_executable": "/Users/REPLACE_WITH_LOCAL_USER/Documents/ChatGPT/多agent系统/local-qwen3.8/feishu-bridge/.venv/bin/python",
+    "sqlite_path": "/Users/REPLACE_WITH_LOCAL_USER/.local/share/local-qwen-feishu/poc/state/gateway.sqlite3",
+    "task_root": "/Users/REPLACE_WITH_LOCAL_USER/.local/share/local-qwen-feishu/poc/tasks"
+  },
+  "feishu": {
+    "event_transport": "existing_bridge",
+    "app_id": "cli_REPLACE_WITH_EXISTING_APP_ID",
+    "tenant_key": null,
+    "bot_open_id": null,
+    "app_secret_reference": "/Users/REPLACE_WITH_LOCAL_USER/.local/share/local-qwen-feishu/secrets/app_secret",
+    "allowed_open_ids": [],
+    "required_test_user_count": 2,
+    "allowed_department_ids": [],
+    "allowed_test_chat_ids": [],
+    "owner_notification_open_id": null,
+    "department_match": null,
+    "exclusive_test_consumer_confirmed": false
+  },
+  "limits": {
+    "global_concurrency": 1,
+    "per_user_concurrency": 1,
+    "queue_timeout_seconds": 600,
+    "execution_timeout_seconds": 120,
+    "message_ttl_seconds": 86400
+  },
+  "features": {
+    "routes": [
+      "doc",
+      "progress"
+    ],
+    "synthetic_data_only": true,
+    "memory_enabled": false,
+    "subagents_enabled": false,
+    "search_enabled": false,
+    "personal_connectors_enabled": false,
+    "provider_fallback_enabled": false
+  },
+  "provider": {
+    "kind": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "max_tokens": 1024
+  }
+}
