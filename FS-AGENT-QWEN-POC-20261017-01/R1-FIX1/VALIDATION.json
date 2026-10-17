@@ -1,11 +1,11 @@
 {
   "round": "R1-FIX1",
-  "status": "deployed_waiting_for_user_synthetic_p2",
-  "observed_at": "2026-10-17T16:27:17.041668+08:00",
+  "status": "studio_single_user_p2_recovered_doc_passed_live_progress_passed",
+  "observed_at": "2026-10-17T17:47:52.089091+08:00",
   "offline": {
-    "poc_passed": 118,
+    "poc_passed": 127,
     "original_bridge_passed": 8,
-    "total_passed": 126,
+    "total_passed": 135,
     "skipped": 0,
     "upstream_warnings": 2,
     "real_model_calls": 0,
@@ -51,7 +51,14 @@
     "provider_pause_after": [],
     "model_server_pid_unchanged": true,
     "models_downloaded_or_changed": false,
-    "permissions_changed": false
+    "permissions_changed": false,
+    "original_bridge_restarted_after_content_v2_fix": true,
+    "final_tasks": {
+      "completed": 2
+    },
+    "final_deliveries": {
+      "sent": 5
+    }
   },
   "provider": {
     "kind": "local_qwen_api",
@@ -62,30 +69,113 @@
     "original_p1_pin_matches_live_read_only_fingerprint": true
   },
   "real_p2": {
-    "doc": "waiting_for_user_single_doc_sample",
-    "progress": "not_run",
-    "client_text_visible": null,
-    "client_markdown_visible": null,
-    "user_acceptance": null,
-    "new_poc_tasks": 0,
-    "real_model_request_delta_since_deploy": 0,
-    "model_counter_method": "Ollama server log endpoint counts; compare inode and bounded before/after interval. No prompts or responses exported."
+    "doc": {
+      "status": "passed_recovered_original_message",
+      "ingress_method": "Original websocket event arrived but was rejected by pre-fix parser; after the fix, authenticated Feishu API retrieved the unique original synthetic message. One-shot maintenance ingestion ran while the original bridge was stopped; original bridge then executed and delivered it. No second /doc input was requested.",
+      "message_identity_preserved": true,
+      "original_create_time_preserved": true,
+      "absolute_24h_expiry_preserved": true,
+      "duplicate_recovery_ingest_rejected": true,
+      "no_additional_socket_or_worker": true,
+      "tasks_completed": 1,
+      "attempts": 1,
+      "model_request_increment": 1,
+      "elapsed_seconds": 5.276027832995169,
+      "deliveries": {
+        "queue_ack_text": 1,
+        "result_text": 1,
+        "markdown_file": 1,
+        "all_sent_with_receipts": true,
+        "all_read_back_from_feishu_api": true,
+        "same_original_private_chat": true
+      },
+      "artifact": {
+        "bytes": 301,
+        "sha256": "3730f91da0b5101492f7d95c3ee5304baf079c23591e6ee62b1101525dd01bfe",
+        "markdown_template_valid": true,
+        "private_mode": true
+      },
+      "user_acceptance": {
+        "source": "explicit user reply in executing chat",
+        "text_visible": true,
+        "markdown_visible": true
+      }
+    },
+    "progress": {
+      "status": "passed_live_original_websocket",
+      "inbound_message_type": "post",
+      "identical_content_v2_present": true,
+      "normalization": "ok",
+      "accepted": true,
+      "tasks_completed": 1,
+      "attempts": 1,
+      "execution_source": "python:synthetic-progress-v1",
+      "output": {
+        "total": 5,
+        "completed": 3,
+        "in_progress": 2,
+        "blocked": 0,
+        "completion_percent": 60
+      },
+      "output_assertion": true,
+      "model_request_increment": 0,
+      "sent_and_api_readback_matches": true,
+      "same_original_private_chat": true,
+      "client_visibility_separately_confirmed": false
+    },
+    "request_counter_evidence": {
+      "method": "Same Ollama process and same server log inode; compare endpoint counts across the actual task windows. Only totals exported.",
+      "before_doc": {
+        "/v1/chat/completions": 8,
+        "/api/chat": 27,
+        "/api/generate": 7
+      },
+      "after_doc": {
+        "/v1/chat/completions": 9,
+        "/api/chat": 27,
+        "/api/generate": 7
+      },
+      "after_progress": {
+        "/v1/chat/completions": 9,
+        "/api/chat": 27,
+        "/api/generate": 7
+      },
+      "doc_deltas": {
+        "/v1/chat/completions": 1,
+        "/api/chat": 0,
+        "/api/generate": 0
+      },
+      "progress_deltas": {
+        "/v1/chat/completions": 0,
+        "/api/chat": 0,
+        "/api/generate": 0
+      }
+    },
+    "final_state": {
+      "completed_tasks": 2,
+      "sent_outbox_records": 5,
+      "failed_or_unknown_tasks": 0,
+      "failed_or_unknown_deliveries": 0,
+      "provider_paused": false,
+      "consumer_count": 1
+    }
   },
   "studio_changes": [
     "The no-PoC optional-installation test uses -I -S because -I alone still loads the real editable installation.",
-    "Bridge diagnostics record only allowlisted node types and fixed normalization error codes; arbitrary node values, message bodies and identities are not copied."
+    "Bridge diagnostics record only allowlisted node types and fixed normalization error codes; arbitrary node values, message bodies and identities are not copied.",
+    "Actual Studio post includes identical content/content_v2. Accept only the mirrored validated text/at paragraphs; differing v2, unknown fields/tags and locale wrappers still reject. Added 9 focused cases; all post integration fixtures now match the dual representation."
   ],
   "patch_check": {
     "applies_to_local_prechange_copy": true,
     "all_15_final_files_sha256_match_after_apply": true
   },
   "pending": [
-    "real /doc sample ingress and one Qwen inference",
-    "Feishu text and Markdown attachment visible to user",
-    "real /progress sample output and zero model request delta",
-    "P3/P4 group, second user, two lanes and real recovery remain out of this round",
-    "menu callback approval not rechecked and not a prerequisite",
-    "GPT independent audit after fixed commit readback"
+    "GPT independent audit after this fixed commit is read back and returned",
+    "P3/P4 group, second user, two lanes and real recovery beyond this one scoped recovery remain out of this round",
+    "menu callback approval not rechecked; no new approval or permission request",
+    "Richer or divergent content_v2 representations intentionally remain rejected",
+    "Doc original message recovery was verified; a second fresh /doc submission was intentionally not requested",
+    "Progress server delivery and exact content verified; no separate client-visibility confirmation for progress"
   ],
   "privacy": {
     "raw_chat_bodies_exported": false,
@@ -93,5 +183,21 @@
     "exact_personal_ids_exported": false,
     "private_databases_exported": false,
     "screenshots_exported": false
+  },
+  "live_failure": {
+    "observed_at": "2026-10-17T17:38:57+08:00",
+    "entry_rejection": "UNSUPPORTED_POST_STRUCTURE",
+    "node_types": [
+      "text"
+    ],
+    "top_field_types": {
+      "title": "str",
+      "content": "list",
+      "content_v2": "list"
+    },
+    "content_and_content_v2_identical": true,
+    "queued_tasks": 0,
+    "model_requests": 0,
+    "root_cause": "candidate rejected the documented content_v2 sibling before enqueue"
   }
 }

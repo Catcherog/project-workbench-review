@@ -19,6 +19,11 @@ def post(text, number, user="ou_a", *, nodes=None):
     message["content"] = json.dumps({"title": "", "content": [
         nodes if nodes is not None else [{"tag": "text", "text": text}]
     ]})
+    # Match the actual Studio client: received post contains both equivalent
+    # paragraph representations, including on ordinary plain-text input.
+    body = json.loads(message["content"])
+    body["content_v2"] = copy.deepcopy(body["content"])
+    message["content"] = json.dumps(body)
     return payload
 
 

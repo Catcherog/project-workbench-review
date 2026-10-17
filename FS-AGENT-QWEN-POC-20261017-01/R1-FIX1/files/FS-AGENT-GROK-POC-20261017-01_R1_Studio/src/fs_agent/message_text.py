@@ -115,8 +115,10 @@ def _at(node, mentions, bot_open_id):
 def normalize_message(message, *, bot_open_id: str = "", max_chars: int = 2000) -> NormalizedMessage:
     """Return text plus verified bot-addressing evidence, without changing input.
 
-    Only received ``message.content`` is read; ``content_v2`` and send-style
-    locale wrappers are unsupported here. A post mention must be an at node
+    Only received ``message.content`` is read. A nested ``content_v2`` mirror is
+    accepted only when it exactly matches the validated ``content`` paragraphs;
+    differing representations and send-style locale wrappers are rejected.
+    A post mention must be an at node
     bound to event ``mentions`` by placeholder or open_id. Plain text needs an
     exact event placeholder token. Display names and bare IDs cannot authorize
     a group message. Only bound bot mentions become spaces; others stay tokens.
@@ -168,7 +170,7 @@ def normalize_message(message, *, bot_open_id: str = "", max_chars: int = 2000) 
 
         return NormalizedMessage(_TOKEN.sub(replace, text), mentioned)
 
-    if set(content) - {"title", "content"} or not isinstance(content.get("content"), list):
+    if set(content) - {"title", "content", "content_v2"} or not isinstance(content.get("content"), list):
         raise MessageTextError("UNSUPPORTED_POST_STRUCTURE")
     title = _string(content.get("title", ""))
     paragraphs = content["content"]
@@ -208,4 +210,9 @@ def normalize_message(message, *, bot_open_id: str = "", max_chars: int = 2000) 
     text = "\n".join(lines)
     if len(text) > max_chars:
         raise MessageTextError("INPUT_TOO_LONG")
+    # Current Feishu clients include the documented v2 representation even for
+    # plain text posts. Do not ignore a richer/different representation that
+    # could contain unsupported nodes or expose a different command.
+    if "content_v2" in content and content["content_v2"] != paragraphs:
+        raise MessageTextError("POST_REPRESENTATION_MISMATCH")
     return NormalizedMessage(text, mentioned)

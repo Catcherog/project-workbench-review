@@ -169,3 +169,33 @@ def test_only_text_and_post_are_supported_and_empty_text_remains_a_caller_decisi
         normalize(message({"text": "/doc sample"}, "image"))
     assert normalize(message({"text": "  \n"}, "text")).text == "  \n"
     assert normalize(post()).text == ""
+
+
+def test_received_post_accepts_identical_content_v2_without_mutation():
+    nodes = [[{"tag": "at", "user_id": "@_user_1"}, text_node(" /doc sample", style=[])]]
+    msg = message({"title": "", "content": nodes, "content_v2": copy.deepcopy(nodes)},
+                  mentions=[mention()])
+    before = copy.deepcopy(msg)
+    assert normalize(msg) == NormalizedMessage("  /doc sample", True)
+    assert msg == before
+
+
+@pytest.mark.parametrize("alternative", [None, {}, [], [[text_node("/progress sample")]],
+    [[{"tag": "md", "text": "/doc sample"}]], [[{"tag": "img", "image_key": "synthetic"}]],
+    [[{"tag": "text", "text": "/doc sample", "href": "https://example.invalid"}]]])
+def test_content_v2_must_not_hide_different_or_unsupported_nodes(alternative):
+    msg = message({"title": "", "content": [[text_node("/doc sample")]], "content_v2": alternative})
+    with pytest.raises(MessageTextError, match="POST_REPRESENTATION_MISMATCH"):
+        normalize(msg)
+
+
+def test_v2_does_not_relax_primary_structure_and_unknown_field_checks():
+    for body in [
+        {"title": "", "content_v2": [[text_node("/doc sample")]]},
+        {"title": "", "content": [], "content_v2": [], "unknown": "/doc sample"},
+    ]:
+        with pytest.raises(MessageTextError, match="UNSUPPORTED_POST_STRUCTURE"):
+            normalize(message(body))
+    both = [[{"tag": "md", "text": "/doc sample"}]]
+    with pytest.raises(MessageTextError, match="UNSUPPORTED_POST_TAG"):
+        normalize(message({"content": both, "content_v2": copy.deepcopy(both)}))
