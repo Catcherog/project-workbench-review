@@ -1,0 +1,91 @@
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_post_flow.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_post_flow.py
+@@ -166,7 +166,9 @@
+ b.db.close()
+ print("standalone-text-ok; unsupported-post-rejected")
+ '''
+-    result = subprocess.run([sys.executable, "-I", "-c", code, str(bridge_path),
++    # -I alone still loads editable packages from this service environment.
++    # -S models the intended no-PoC installation without altering the real venv.
++    result = subprocess.run([sys.executable, "-I", "-S", "-c", code, str(bridge_path),
+                              str(tmp_path / "standalone"), json.dumps(event("合成文字", 1))],
+                             capture_output=True, text=True, timeout=15, check=True)
+     assert result.stdout.strip() == "standalone-text-ok; unsupported-post-rejected"
+--- a/local-qwen3.8/feishu-bridge/bridge.py
++++ b/local-qwen3.8/feishu-bridge/bridge.py
+@@ -41,6 +41,40 @@
+         if exc.code == 'INPUT_TOO_LONG':
+             return '/input-too-long'
+         raise
++
++
++def incoming_metadata(message, *, bot_open_id=''):
++    """Record only fixed structure labels and parser codes, never content/IDs."""
++    from fs_agent.message_text import MAX_CONTENT_BYTES, MessageTextError, normalize_message
++    result = {}
++    try:
++        normalize_message(message, bot_open_id=bot_open_id, max_chars=6000)
++        result['normalization'] = 'ok'
++    except MessageTextError as exc:
++        result['normalization'] = exc.code
++    raw = message.get('content')
++    if message.get('message_type') != 'post' or not isinstance(raw, str) or len(raw) > MAX_CONTENT_BYTES:
++        return result
++    try:
++        content = json.loads(raw)
++    except (ValueError, RecursionError):
++        return result
++    if not isinstance(content, dict):
++        return result
++    paragraphs = content.get('content')
++    if not isinstance(paragraphs, list):
++        result['post_structure'] = 'locale_wrapper' if any(k in content for k in ('zh_cn', 'en_us', 'ja_jp')) else 'other'
++        return result
++    result['post_structure'] = 'paragraphs'
++    known_tags = {'text', 'at', 'a', 'img', 'media', 'emotion', 'code_block', 'md', 'hr'}
++    tags = set()
++    for paragraph in paragraphs[:256]:
++        if isinstance(paragraph, list):
++            for node in paragraph[:1024]:
++                tag = node.get('tag') if isinstance(node, dict) else None
++                tags.add(tag if isinstance(tag, str) and tag in known_tags else 'other')
++    result['post_node_types'] = sorted(tags)
++    return result
+ 
+ 
+ def atomic_json(path, value):
+@@ -306,6 +340,8 @@
+                       'sender_allowed':bridge.user_allowed(s.get('sender_id', {}).get('open_id')),
+                       'tenant_present':bool(h.get('tenant_key')), 'chat_type':m.get('chat_type'),
+                       'message_type':m.get('message_type')}
++        if bridge.poc is not None:
++            diagnostic.update(incoming_metadata(m, bot_open_id=bridge.poc.config.bot_open_id))
+         try:
+             diagnostic['accepted'] = bridge.ingest(payload)
+         except Exception as exc:
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_ingress_metadata.py
+@@ -0,0 +1,23 @@
++"""Diagnostics reveal structure and fixed error codes, not received values."""
++import json
++
++from test_embedded import bridge_module
++
++
++def test_post_metadata_contains_no_body_identity_or_unknown_tag_value():
++    marker = 'SYNTHETIC_PRIVATE_VALUE'
++    message = {'message_type': 'post', 'message_id': marker,
++               'content': json.dumps({'title': marker, 'content': [[
++                   {'tag': 'text', 'text': marker}, {'tag': marker, 'text': marker}]]})}
++    result = bridge_module.incoming_metadata(message)
++    assert result == {'normalization': 'UNSUPPORTED_POST_TAG',
++                      'post_structure': 'paragraphs', 'post_node_types': ['other', 'text']}
++    assert marker not in json.dumps(result)
++
++
++def test_supported_post_and_invalid_json_metadata():
++    result = bridge_module.incoming_metadata({'message_type': 'post',
++        'content': json.dumps({'title': '', 'content': [[{'tag': 'text', 'text': '/doc sample'}]]})})
++    assert result == {'normalization': 'ok', 'post_structure': 'paragraphs', 'post_node_types': ['text']}
++    assert bridge_module.incoming_metadata({'message_type': 'post', 'content': '{invalid'}) == {
++        'normalization': 'INVALID_JSON'}

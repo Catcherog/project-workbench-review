@@ -1,0 +1,97 @@
+{
+  "round": "R1-FIX1",
+  "status": "deployed_waiting_for_user_synthetic_p2",
+  "observed_at": "2026-10-17T16:27:17.041668+08:00",
+  "offline": {
+    "poc_passed": 118,
+    "original_bridge_passed": 8,
+    "total_passed": 126,
+    "skipped": 0,
+    "upstream_warnings": 2,
+    "real_model_calls": 0,
+    "real_feishu_sends": 0,
+    "python": "3.12.13",
+    "lark_oapi": "1.7.5",
+    "sqlite": "3.50.4",
+    "pytest": "8.4.2",
+    "interpreter": "original bridge .venv/bin/python",
+    "test_runner": "pytest imported from existing project .venv; no production dependency changes",
+    "test_files": [
+      "test_embedded.py",
+      "test_gateway.py",
+      "test_qwen_code_assist.py",
+      "test_message_text.py",
+      "test_post_flow.py",
+      "test_code_progress_recovery.py",
+      "test_qwen_runtime_only.py",
+      "test_ingress_metadata.py",
+      "test_bridge.py"
+    ]
+  },
+  "environment": {
+    "editable_install_points_to_original_source": true,
+    "non_root_service_account_guard": "passed on actual configured account",
+    "private_service_directory_guard": "passed",
+    "poc_allowlist_count": 2,
+    "ordinary_access_mode": "all_private_users",
+    "configured_group_count": 0,
+    "global_concurrency": 1
+  },
+  "deployment": {
+    "original_bridge_restarted": true,
+    "consumer_count_before": 1,
+    "consumer_count_after": 1,
+    "both_instance_locks_held": true,
+    "connection": "connected after restart",
+    "poc_tasks_before": {},
+    "ordinary_tasks_before": {
+      "done": 7
+    },
+    "provider_pause_before": [],
+    "provider_pause_after": [],
+    "model_server_pid_unchanged": true,
+    "models_downloaded_or_changed": false,
+    "permissions_changed": false
+  },
+  "provider": {
+    "kind": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5",
+    "original_p1_pin_matches_live_read_only_fingerprint": true
+  },
+  "real_p2": {
+    "doc": "waiting_for_user_single_doc_sample",
+    "progress": "not_run",
+    "client_text_visible": null,
+    "client_markdown_visible": null,
+    "user_acceptance": null,
+    "new_poc_tasks": 0,
+    "real_model_request_delta_since_deploy": 0,
+    "model_counter_method": "Ollama server log endpoint counts; compare inode and bounded before/after interval. No prompts or responses exported."
+  },
+  "studio_changes": [
+    "The no-PoC optional-installation test uses -I -S because -I alone still loads the real editable installation.",
+    "Bridge diagnostics record only allowlisted node types and fixed normalization error codes; arbitrary node values, message bodies and identities are not copied."
+  ],
+  "patch_check": {
+    "applies_to_local_prechange_copy": true,
+    "all_15_final_files_sha256_match_after_apply": true
+  },
+  "pending": [
+    "real /doc sample ingress and one Qwen inference",
+    "Feishu text and Markdown attachment visible to user",
+    "real /progress sample output and zero model request delta",
+    "P3/P4 group, second user, two lanes and real recovery remain out of this round",
+    "menu callback approval not rechecked and not a prerequisite",
+    "GPT independent audit after fixed commit readback"
+  ],
+  "privacy": {
+    "raw_chat_bodies_exported": false,
+    "secrets_exported": false,
+    "exact_personal_ids_exported": false,
+    "private_databases_exported": false,
+    "screenshots_exported": false
+  }
+}

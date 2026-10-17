@@ -1,0 +1,1162 @@
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/cli.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/cli.py
+@@ -17,7 +17,7 @@
+ from .config import BoundaryError, Config
+ from .feishu import Feishu
+ from .gateway import Gateway
+-from .provider import GrokCliProvider, atomic_json
++from .provider import atomic_json
+ from .qwen_provider import LocalQwenProvider
+ from .store import Store
+ 
+@@ -42,10 +42,9 @@
+         pwd.getpwnam(name or "_fsagent")
+     except KeyError:
+         missing.append("DEDICATED_SERVICE_USER")
+-    grok = data.get("grok", {})
+     is_qwen = data.get("provider", {}).get("kind") == "local_qwen_api"
+-    if not is_qwen and (not grok.get("executable") or not Path(grok["executable"]).is_file()):
+-        missing.append("DEDICATED_GROK_INSTALL")
++    if not is_qwen:
++        missing.append("QWEN_RUNTIME_REQUIRED")
+     for section, keys in {
+         "feishu": ["app_id", "tenant_key", "bot_open_id", "allowed_open_ids", "allowed_department_ids",
+                     "department_match", "owner_notification_open_id", "exclusive_test_consumer_confirmed"],
+@@ -53,9 +52,7 @@
+         for key in keys:
+             if not data.get(section, {}).get(key):
+                 missing.append(f"{section}.{key}")
+-    for section, key in (("grok", "dedicated_credential_reference"), ("feishu", "app_secret_reference")):
+-        if is_qwen and section == "grok":
+-            continue
++    for section, key in (("feishu", "app_secret_reference"),):
+         value = data.get(section, {}).get(key)
+         if not value or not Path(value).is_file():
+             missing.append(f"{section}.{key}")
+@@ -80,10 +77,14 @@
+         return doctor(args.config)
+     try:
+         config = Config.load(args.config, provider_setup=args.command in ("probe", "login", "p1", "configure"))
++        # Historical Grok files are retained for reference only. Reject their
++        # configuration before credentials, processes or clients are touched.
++        if config.provider_kind != "local_qwen_api":
++            raise BoundaryError("QWEN_RUNTIME_REQUIRED")
+         if args.command == "serve" and config.event_transport == "existing_bridge":
+             raise BoundaryError("EXISTING_BRIDGE_REQUIRED")
+         config.check_service()
+-        provider = LocalQwenProvider(config) if config.provider_kind == "local_qwen_api" else GrokCliProvider(config)
++        provider = LocalQwenProvider(config)
+         with instance_lock(config.root):
+             store = Store(config.db)
+             try:
+@@ -91,9 +92,7 @@
+                     from .setup import configure
+                     configure(config, args.config)
+                 elif args.command == "login":
+-                    if config.provider_kind == "local_qwen_api":
+-                        raise BoundaryError("LOCAL_QWEN_NO_LOGIN_REQUIRED")
+-                    provider.device_login()
++                    raise BoundaryError("LOCAL_QWEN_NO_LOGIN_REQUIRED")
+                 elif args.command == "probe":
+                     receipt = provider.fingerprint()
+                     atomic_json(config.root / "state" / "provider-probe.json", receipt)
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/embedded.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/embedded.py
+@@ -9,6 +9,7 @@
+ from .config import BoundaryError, Config
+ from .feishu import Feishu
+ from .gateway import Gateway
++from .message_text import MessageTextError, normalize_message
+ from .provider import atomic_json
+ from .qwen_provider import LocalQwenProvider
+ from .store import Store, scope_of
+@@ -27,7 +28,8 @@
+         config = Config.load(path)
+         config.check_service()
+         config.check_feishu()
+-        if (config.app_id != app_id or config.event_transport != "existing_bridge"
++        if (config.provider_kind != "local_qwen_api"
++                or config.app_id != app_id or config.event_transport != "existing_bridge"
+                 or config.runtime_mode != "existing_login" or config.concurrency != 1):
+             raise BoundaryError("EXISTING_BRIDGE_CONFIG_INVALID")
+         lock = (config.root / "state" / "instance.lock").open("a+")
+@@ -79,22 +81,27 @@
+             if h["event_type"] != "im.message.receive_v1":
+                 return False, False
+             message, sender = e["message"], e["sender"]
+-            if message["message_type"] != "text":
+-                return False, False
+-            text = json.loads(message["content"])["text"]
+-            if not isinstance(text, str):
+-                return False, False
+-            for mention in message.get("mentions", []):
+-                if mention.get("id", {}).get("open_id") == self.config.bot_open_id:
+-                    text = text.replace(mention["key"], "")
+-            parts = text.strip().split(maxsplit=1)
+-            command = parts[0] if parts else ""
+             row = {"app": h["app_id"], "tenant": h["tenant_key"],
+                    "user": sender["sender_id"]["open_id"], "chat": message["chat_id"]}
+             if self.store.rows("SELECT 1 FROM inbox WHERE app=? AND tenant=? AND message_id=?",
+                                (row["app"], row["tenant"], message["message_id"])):
+-                # An old PoC event cannot become a general chat after /chat or expiry.
++                # Receipt identity wins even if a replay changes body/type or
++                # arrives after /chat. Never reclassify it into ordinary chat.
+                 return True, False
++            if message["message_type"] not in ("text", "post"):
++                return False, False
++            try:
++                # Classification is local and read-only. The original event goes
++                # to Gateway so identity, time and mention evidence stay intact.
++                text = normalize_message(message, bot_open_id=self.config.bot_open_id,
++                                         max_chars=6000).text
++            except MessageTextError as exc:
++                # Let the bridge retain its existing fixed too-long notice. It
++                # never submits this body to a model. Unsafe structures are
++                # consumed here, preventing ordinary-chat fallback.
++                return (False, False) if exc.code == "INPUT_TOO_LONG" else (True, False)
++            parts = text.strip().split(maxsplit=1)
++            command = parts[0] if parts else ""
+             if row["user"] not in self.config.users:
+                 return command in COMMANDS, False
+             if command not in COMMANDS and self._mode(row) != "poc":
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/gateway.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/gateway.py
+@@ -11,9 +11,11 @@
+ 
+ from .config import BoundaryError, Config
+ from .feishu import SendRejected, SendUnknown
++from .message_text import normalize_message
+ from .provider import group_alive, process_identity, stop_group
+-from .qwen_provider import api_request_unknown, discard_payload
+-from .store import Store
++from .qwen_provider import (api_request_unknown, build_doc_prompt, discard_payload,
++                            synthetic_progress_result)
++from .store import CODE_PROGRESS_MODEL, Store
+ 
+ FIXTURES = {
+     "doc": "合成资料：项目 Aurora 测试版；目标为验证离线文档流程；阶段一已完成接口草稿，阶段二正在补齐测试；无真实人员与业务信息。请整理为简洁中文摘要。",
+@@ -50,20 +52,16 @@
+                 if sender["sender_type"] != "user" or sender.get("tenant_key") != self.config.tenant_key:
+                     return False
+                 user = sender["sender_id"]["open_id"]
+-                if user not in self.config.users or message["message_type"] != "text":
++                if user not in self.config.users or message["message_type"] not in ("text", "post"):
+                     return False
+                 chat, chat_type = message["chat_id"], message["chat_type"]
+                 if chat_type not in ("p2p", "group") or (chat_type == "group" and chat not in self.config.chats):
+                     return False
+-                content = json.loads(message["content"])["text"]
+-                if not isinstance(content, str) or len(content) > 2000:
+-                    return False
+-                mentions = [m for m in message.get("mentions", []) if m.get("id", {}).get("open_id") == self.config.bot_open_id]
+-                if chat_type == "group" and not mentions:
+-                    return False
+-                for mention in mentions:
+-                    content = content.replace(mention["key"], "")
+-                row.update(user=user, chat=chat, chat_type=chat_type, kind="message", body=content.strip(),
++                normalized = normalize_message(message, bot_open_id=self.config.bot_open_id,
++                                               max_chars=2000)
++                if chat_type == "group" and not normalized.bot_mentioned:
++                    return False
++                row.update(user=user, chat=chat, chat_type=chat_type, kind="message", body=normalized.text.strip(),
+                            message_id=message["message_id"], source_time=int(message["create_time"]) / 1000)
+             elif header["event_type"] == "card.action.trigger":
+                 user = event["operator"]["open_id"]
+@@ -148,13 +146,17 @@
+                 history.pop(0)
+             expires = min([task["expires"]] + [r["expires"] for r in history])
+             prompt = FIXTURES[task["route"]]
+-            context = json.dumps([{k: r[k] for k in ("role", "body")} for r in history], ensure_ascii=False)
+-            full_prompt = "只处理以下合成文本。不调用工具，不决定权限、路由、路径或发送对象。\n历史合成上下文：" + context + "\n当前合成资料：" + prompt
+             def started(pgid, identity):
+                 self.store.execute("UPDATE tasks SET pgid=?,process_identity=? WHERE id=? AND run_id=? AND state='running'",
+                                    (pgid, identity, task["id"], task["run_id"]))
+-            result = self.provider.complete(full_prompt, run_id=task["run_id"],
+-                                            timeout=min(120, expires - self.store.clock()), on_start=started)
++            if task["route"] == "progress":
++                # These fixed counts require no language inference. Keep the
++                # same task, permission, expiry and delivery contracts.
++                result = synthetic_progress_result()
++            else:
++                full_prompt = build_doc_prompt(prompt, history)
++                result = self.provider.complete(full_prompt, run_id=task["run_id"],
++                                                timeout=min(120, expires - self.store.clock()), on_start=started)
+             if expires <= self.store.clock():
+                 raise BoundaryError("CONTENT_EXPIRED")
+             artifact = None
+@@ -257,7 +259,10 @@
+                 owned = identity.split()[:2] == [str(os.getuid()), str(pgid)]
+                 if not (owned and identity == task["process_identity"] and stop_group(pgid)):
+                     unknown_runs.add(task["run_id"])
+-            if self.config.provider_kind == "local_qwen_api" and task["run_id"] not in known_api_runs:
++            code_progress = (task["route"] == "progress" and task["model"] == CODE_PROGRESS_MODEL
++                             and not pgid and not task["process_identity"])
++            if (self.config.provider_kind == "local_qwen_api" and not code_progress
++                    and task["run_id"] not in known_api_runs):
+                 unknown_runs.add(task["run_id"])
+         with self.store.tx() as c:
+             for run_id in unknown_runs:
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/message_text.py
+@@ -0,0 +1,211 @@
++"""Strict, side-effect-free normalization of Feishu *received* text/post bodies.
++
++Receive post content is a JSON string containing ``title`` and two-dimensional
++``content`` paragraphs. This command ingress intentionally accepts only text
++and bound at nodes. It does not render Markdown, decode HTML, choose a locale,
++or discard unsupported elements to expose a command hidden behind them.
++
++Sources: https://open.feishu.cn/document/server-docs/im-v1/message-content-description/message_content
++https://open.feishu.cn/document/server-docs/im-v1/message/events/receive
++https://github.com/larksuite/node-sdk/blob/b188be60134d409b61259546bcf69c731d2b0b7c/channel/normalize/converters/post.ts
++https://github.com/larksuite/node-sdk/blob/b188be60134d409b61259546bcf69c731d2b0b7c/channel/normalize/utils.ts
++"""
++from __future__ import annotations
++
++import json
++import re
++from dataclasses import dataclass
++
++
++MAX_CONTENT_BYTES = 65536
++MAX_PARAGRAPHS = 256
++MAX_NODES = 1024
++MAX_MENTIONS = 64
++_KEY = re.compile(r"@_user_[0-9]{1,6}|@_all")
++_TOKEN = re.compile(r"(?<![A-Za-z0-9_@])(?:@_user_[0-9]{1,6}|@_all)(?![A-Za-z0-9_])")
++_OPEN_ID = re.compile(r"ou_[A-Za-z0-9_]{1,128}")
++_STYLES = {"bold", "italic", "underline", "lineThrough", "strikethrough", "codeInline", "code"}
++
++
++class MessageTextError(ValueError):
++    """A content-free error code; safe to record without logging message data."""
++
++    def __init__(self, code: str):
++        self.code = code
++        super().__init__(code)
++
++
++@dataclass(frozen=True)
++class NormalizedMessage:
++    text: str
++    bot_mentioned: bool
++
++
++def _object(pairs):
++    result = {}
++    for key, value in pairs:
++        if key in result:
++            raise MessageTextError("INVALID_JSON")
++        result[key] = value
++    return result
++
++
++def _no_constant(_):
++    raise MessageTextError("INVALID_JSON")
++
++
++def _string(value):
++    if not isinstance(value, str):
++        raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++    # Preserve Unicode and line breaks; never silently remove control bytes or
++    # convert lookalike characters into ASCII commands.
++    if any((ord(c) < 32 and c not in "\t\r\n") or 0xD800 <= ord(c) <= 0xDFFF for c in value):
++        raise MessageTextError("INVALID_TEXT")
++    return value
++
++
++def _style(node):
++    styles = node.get("style", [])
++    if not isinstance(styles, list) or len(styles) > len(_STYLES):
++        raise MessageTextError("UNSUPPORTED_TEXT_STYLE")
++    if any(not isinstance(style, str) or style not in _STYLES for style in styles):
++        raise MessageTextError("UNSUPPORTED_TEXT_STYLE")
++
++
++def _mentions(message):
++    raw = message.get("mentions", [])
++    if not isinstance(raw, list) or len(raw) > MAX_MENTIONS:
++        raise MessageTextError("INVALID_MENTIONS")
++    result = {}
++    for item in raw:
++        if not isinstance(item, dict):
++            raise MessageTextError("INVALID_MENTIONS")
++        key, identity = item.get("key"), item.get("id", {})
++        if (not isinstance(key, str) or not _KEY.fullmatch(key) or key in result
++                or not isinstance(identity, dict)):
++            raise MessageTextError("INVALID_MENTIONS")
++        open_id = identity.get("open_id", "")
++        if not isinstance(open_id, str) or (open_id and not _OPEN_ID.fullmatch(open_id)):
++            raise MessageTextError("INVALID_MENTIONS")
++        # @all never counts as a direct mention of this bot, regardless of ID.
++        result[key] = "" if key == "@_all" else open_id
++    return result
++
++
++def _at(node, mentions, bot_open_id):
++    if set(node) - {"tag", "user_id", "user_name", "style"}:
++        raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++    _style(node)
++    if "user_name" in node:
++        _string(node["user_name"])
++    target = _string(node.get("user_id"))
++    if target in ("all", "all_members", "@_all"):
++        return "@all", False
++    if target in mentions:
++        open_id, literal = mentions[target], target
++    elif _OPEN_ID.fullmatch(target) and target in mentions.values():
++        open_id, literal = target, "@" + target
++    else:
++        raise MessageTextError("UNBOUND_MENTION")
++    is_bot = bool(bot_open_id and open_id == bot_open_id)
++    # A separating space prevents /d + @bot + oc from becoming /doc.
++    return (" " if is_bot else literal), is_bot
++
++
++def normalize_message(message, *, bot_open_id: str = "", max_chars: int = 2000) -> NormalizedMessage:
++    """Return text plus verified bot-addressing evidence, without changing input.
++
++    Only received ``message.content`` is read; ``content_v2`` and send-style
++    locale wrappers are unsupported here. A post mention must be an at node
++    bound to event ``mentions`` by placeholder or open_id. Plain text needs an
++    exact event placeholder token. Display names and bare IDs cannot authorize
++    a group message. Only bound bot mentions become spaces; others stay tokens.
++
++    Outer whitespace is preserved for the existing callers to handle. The
++    length limit applies before bot-token removal for text, and to reconstructed
++    text for post. The caller still owns sender/app/tenant/chat authorization,
++    message IDs, original timestamps, deduplication, and absolute expiry.
++    """
++    if type(max_chars) is not int or max_chars <= 0:
++        raise ValueError("max_chars must be a positive integer")
++    if not isinstance(bot_open_id, str) or (bot_open_id and not _OPEN_ID.fullmatch(bot_open_id)):
++        raise ValueError("bot_open_id must be empty or a configured open_id")
++    if not isinstance(message, dict):
++        raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++    kind, raw = message.get("message_type"), message.get("content")
++    if kind not in ("text", "post"):
++        raise MessageTextError("UNSUPPORTED_MESSAGE_TYPE")
++    if not isinstance(raw, str):
++        raise MessageTextError("INVALID_JSON")
++    if len(raw) > MAX_CONTENT_BYTES:
++        raise MessageTextError("INPUT_TOO_LONG")
++    try:
++        if len(raw.encode("utf-8")) > MAX_CONTENT_BYTES:
++            raise MessageTextError("INPUT_TOO_LONG")
++        content = json.loads(raw, object_pairs_hook=_object, parse_constant=_no_constant)
++    except MessageTextError:
++        raise
++    except (ValueError, UnicodeError, RecursionError):
++        raise MessageTextError("INVALID_JSON") from None
++    if not isinstance(content, dict):
++        raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++    mentions = _mentions(message)
++    mentioned = False
++
++    if kind == "text":
++        if set(content) != {"text"}:
++            raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++        text = _string(content["text"])
++        if len(text) > max_chars:
++            raise MessageTextError("INPUT_TOO_LONG")
++
++        def replace(match):
++            nonlocal mentioned
++            if bot_open_id and mentions.get(match[0]) == bot_open_id:
++                mentioned = True
++                return " "
++            return match[0]
++
++        return NormalizedMessage(_TOKEN.sub(replace, text), mentioned)
++
++    if set(content) - {"title", "content"} or not isinstance(content.get("content"), list):
++        raise MessageTextError("UNSUPPORTED_POST_STRUCTURE")
++    title = _string(content.get("title", ""))
++    paragraphs = content["content"]
++    if len(paragraphs) > MAX_PARAGRAPHS:
++        raise MessageTextError("STRUCTURE_TOO_LARGE")
++    lines, count = [], 0
++    if title:
++        lines.append(title)
++    for paragraph in paragraphs:
++        if not isinstance(paragraph, list):
++            raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++        count += len(paragraph)
++        if count > MAX_NODES:
++            raise MessageTextError("STRUCTURE_TOO_LARGE")
++        fragments = []
++        for node in paragraph:
++            if not isinstance(node, dict):
++                raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++            if node.get("tag") == "text":
++                if set(node) - {"tag", "text", "style", "un_escape"}:
++                    raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++                _style(node)
++                if "un_escape" in node and type(node["un_escape"]) is not bool:
++                    raise MessageTextError("INVALID_CONTENT_STRUCTURE")
++                # style (including code/codeInline) changes display only. Keep
++                # text literally; do not HTML-unescape even if un_escape is set.
++                fragments.append(_string(node.get("text")))
++            elif node.get("tag") == "at":
++                fragment, is_bot = _at(node, mentions, bot_open_id)
++                fragments.append(fragment)
++                mentioned = mentioned or is_bot
++            else:
++                # Reject the WHOLE post: never delete an image/link/unknown node
++                # and join the surrounding text into an executable command.
++                raise MessageTextError("UNSUPPORTED_POST_TAG")
++        lines.append("".join(fragments))
++    text = "\n".join(lines)
++    if len(text) > max_chars:
++        raise MessageTextError("INPUT_TOO_LONG")
++    return NormalizedMessage(text, mentioned)
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/qwen_provider.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/qwen_provider.py
+@@ -11,6 +11,41 @@
+ from .config import BoundaryError, Config
+ from .local_api import LocalQwenClient
+ from .provider import ProcessRunner, Result, atomic_json
++from .store import CODE_PROGRESS_MODEL
++
++
++def build_doc_prompt(source: str, history: list[dict]) -> str:
++    """Project only document content; the gateway owns scope and absolute TTL checks."""
++    if not isinstance(source, str) or not source.strip() or len(source) > 2000:
++        raise BoundaryError("DOC_INPUT_INVALID")
++    if not isinstance(history, list) or len(history) > 8:
++        raise BoundaryError("DOC_CONTEXT_INVALID")
++    context = []
++    for item in history:
++        if (not isinstance(item, dict) or item.get("role") not in ("user", "assistant")
++                or not isinstance(item.get("body"), str)):
++            raise BoundaryError("DOC_CONTEXT_INVALID")
++        context.append({"role": item["role"], "body": item["body"]})
++    if sum(len(item["body"]) for item in context) > 20000:
++        raise BoundaryError("DOC_CONTEXT_LIMIT")
++    # Tools, routing, destinations and the Markdown template remain code-owned.
++    # JSON preserves quoted/newline content without copying task or identity metadata.
++    prompt = "用中文概括当前合成资料；历史仅参考，不新增事实。\n" + json.dumps(
++        {"history": context, "source": source}, ensure_ascii=False, separators=(",", ":"))
++    if len(prompt) > 30000:
++        raise BoundaryError("PROMPT_INVALID")
++    return prompt
++
++
++def synthetic_progress_result() -> Result:
++    """Render the existing fixed sample without contacting or claiming a model."""
++    started = time.monotonic()
++    project = "Aurora"
++    total, completed, in_progress, blocked = 5, 3, 2, 0
++    completion_percent = completed * 100 // total
++    text = (f"合成项目 {project}：总计 {total} 项，已完成 {completed} 项，"
++            f"进行中 {in_progress} 项，阻塞 {blocked} 项，完成率 {completion_percent}%。")
++    return Result(text, CODE_PROGRESS_MODEL, time.monotonic() - started)
+ 
+ 
+ def api_request_unknown(directory: Path) -> bool:
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
+@@ -7,6 +7,8 @@
+ import uuid
+ from contextlib import contextmanager
+ from pathlib import Path
++
++CODE_PROGRESS_MODEL = "python:synthetic-progress-v1"
+ 
+ SCHEMA = """
+ CREATE TABLE IF NOT EXISTS inbox (
+@@ -175,9 +177,14 @@
+                 if (row["tenant"], row["app"], row["user"]) in busy:
+                     continue
+                 run_id = uuid.uuid4().hex
+-                c.execute("UPDATE tasks SET state='running',run_id=?,attempts=attempts+1 WHERE id=?", (run_id, row["id"]))
++                # Persist execution kind in the same transaction as claiming.
++                # Legacy progress runs lack this marker and remain conservative
++                # on recovery; route alone never proves no API was dispatched.
++                execution_model = CODE_PROGRESS_MODEL if row["route"] == "progress" else None
++                c.execute("UPDATE tasks SET state='running',run_id=?,model=?,attempts=attempts+1 WHERE id=?",
++                          (run_id, execution_model, row["id"]))
+                 result = dict(row)
+-                result.update(run_id=run_id, state="running")
++                result.update(run_id=run_id, state="running", model=execution_model)
+                 return result
+         return None
+ 
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_code_progress_recovery.py
+@@ -0,0 +1,35 @@
++"""A durable execution marker distinguishes new code work from old API work."""
++from dataclasses import replace
++
++import pytest
++
++from fs_agent.store import CODE_PROGRESS_MODEL
++from test_gateway import event, rig
++
++
++@pytest.mark.parametrize("kind,expected", [
++    ("code", "interrupted"), ("legacy_api", "stop_unknown"),
++    ("inconsistent_marker", "stop_unknown"),
++])
++def test_recovery_only_exempts_explicit_code_execution(rig, kind, expected):
++    gateway, store, _, provider, _ = rig
++    gateway.config = replace(gateway.config, provider_kind="local_qwen_api", concurrency=1)
++    assert gateway.ingest(event("/progress sample")) and gateway.receive_one()
++    task = store.claim(1)
++    assert task["model"] == CODE_PROGRESS_MODEL
++    if kind == "legacy_api":
++        store.execute("UPDATE tasks SET model=NULL WHERE id=?", (task["id"],))
++    elif kind == "inconsistent_marker":
++        store.execute("UPDATE tasks SET process_identity='unverified' WHERE id=?", (task["id"],))
++    gateway.recover()
++    assert store.rows("SELECT state FROM tasks WHERE id=?", (task["id"],)) == [{"state": expected}]
++    assert provider.prompts == []
++    assert gateway.ingest(event("/doc sample", number=2, user="ou_b")) and gateway.receive_one()
++    following = store.claim(1)
++    if kind == "code":
++        assert following and following["user"] == "ou_b"
++        store.finish(following, "failed", "SYNTHETIC_TEST_END")
++        assert store.retry(task, task["id"])
++    else:
++        assert following is None
++        assert not store.retry(task, task["id"])
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_embedded.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_embedded.py
+@@ -3,7 +3,6 @@
+ import json
+ import os
+ import time
+-from dataclasses import replace
+ from pathlib import Path
+ from types import SimpleNamespace
+ 
+@@ -57,10 +56,15 @@
+     root = tmp_path / "poc"
+     for name in ("state", "tasks", "artifacts"):
+         (root/name).mkdir(parents=True)
+-    config = replace(Config.load(PROJECT/"config/environment.example.json", provider_setup=True),
+-                     root=root, app_id="cli_test", tenant_key="tenant", users=("ou_a", "ou_b"),
+-                     owner="ou_a", bot_open_id="ou_bot", departments=("od_test",),
+-                     department_match="any_exact", exclusive_consumer=True)
++    # Integration uses a synthetic config, independent of a redacted macOS
++    # username in the deployment template. The real account guard has its own test.
++    config = Config(service_user="synthetic_test_user", root=root,
++                    executable=root/"unused", credential_file=root/"unused-key",
++                    app_secret_file=root/"unused-secret", app_id="cli_test", tenant_key="tenant",
++                    users=("ou_a", "ou_b"), owner="ou_a", bot_open_id="ou_bot",
++                    departments=("od_test",), chats=(), department_match="any_exact",
++                    exclusive_consumer=True, concurrency=1, provider_kind="local_qwen_api",
++                    event_transport="existing_bridge", runtime_mode="existing_login")
+     calls, replies = [], []
+     api, provider = FakeApi(), FakeProvider(calls)
+     gateway = Gateway(config, Store(config.db), api, provider)
+@@ -104,7 +108,7 @@
+     assert b.ingest(event("ordinary synthetic question", 2, "ou_outsider"))
+     assert b.ingest(event("/progress sample", 3, "ou_b"))
+     drain(b)
+-    assert calls == ["poc", "general"] and len(provider.prompts) == 1
++    assert calls == ["general"] and len(provider.prompts) == 0
+     assert len(replies) == 1 and replies[0][0] == "om_2"
+     assert b.poc.store.rows("SELECT user FROM tasks") == [{"user":"ou_b"}]
+ 
+@@ -134,7 +138,9 @@
+     assert b.ingest(event("sample", 2))
+     assert b.poc.store.rows("SELECT expires FROM bridge_mode")[0]["expires"] == expires
+     drain(b)
+-    assert len(provider.prompts) == 1
++    assert len(provider.prompts) == 0
++    assert b.poc.store.rows("SELECT state,model FROM tasks") == [
++        {"state": "completed", "model": "python:synthetic-progress-v1"}]
+ 
+ 
+ def test_inbox_and_mode_transaction_roll_back_together(rig):
+@@ -161,6 +167,7 @@
+     assert not b.ingest(event("/doc sample", 3, "ou_outsider"))
+ 
+ 
++@pytest.mark.skipif(os.getuid() == 0, reason="service account checks require a non-root execution user")
+ def test_approved_login_mode_keeps_private_paths_and_secret_reference(tmp_path, monkeypatch):
+     account = SimpleNamespace(pw_uid=os.getuid(), pw_dir=str(tmp_path))
+     monkeypatch.setattr("fs_agent.config.pwd.getpwnam", lambda _: account)
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_gateway.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_gateway.py
+@@ -71,8 +71,8 @@
+             "event": {"sender": {"sender_type": "user", "tenant_key": "tenant_test", "sender_id": {"open_id": user}},
+                       "message": {"message_id": f"om{number}", "chat_id": chat, "chat_type": "group" if group else "p2p",
+                                   "message_type": "text", "create_time": "1800000000000",
+-                                  "content": json.dumps({"text": ("@_bot " if group and mentioned else "") + text}),
+-                                  "mentions": [{"key": "@_bot", "id": {"open_id": "ou_bot"}}] if mentioned else []}}}
++                                  "content": json.dumps({"text": ("@_user_1 " if group and mentioned else "") + text}),
++                                  "mentions": [{"key": "@_user_1", "id": {"open_id": "ou_bot"}}] if mentioned else []}}}
+ 
+ 
+ def run_one(g, s, payload=None):
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_message_text.py
+@@ -0,0 +1,171 @@
++"""Synthetic-only receive-event content and command-boundary regressions."""
++import copy
++import json
++
++import pytest
++
++from fs_agent.message_text import (
++    MAX_CONTENT_BYTES, MAX_MENTIONS, MAX_NODES, MAX_PARAGRAPHS,
++    MessageTextError, NormalizedMessage, normalize_message,
++)
++
++
++BOT = "ou_synthetic_bot"
++
++
++def text_node(value, **kw):
++    return {"tag": "text", "text": value, **kw}
++
++
++def mention(key="@_user_1", open_id=BOT, **kw):
++    return {"key": key, "id": {"open_id": open_id}, **kw}
++
++
++def message(value, kind="post", mentions=None):
++    out = {"message_type": kind, "content": json.dumps(value, ensure_ascii=False),
++           "message_id": "om_synthetic", "create_time": "1792224000000"}
++    if mentions is not None:
++        out["mentions"] = mentions
++    return out
++
++
++def post(*paragraphs, title="", mentions=None):
++    return message({"title": title, "content": list(paragraphs)}, mentions=mentions)
++
++
++def normalize(value, **kw):
++    return normalize_message(value, bot_open_id=BOT, **kw)
++
++
++def test_received_post_extracts_split_text_and_code_style():
++    msg = post([text_node("/doc", style=["codeInline"]), text_node(" sample", style=["code", "bold"])])
++    assert normalize(msg) == NormalizedMessage("/doc sample", False)
++
++
++def test_title_paragraphs_blank_lines_and_literal_unicode_are_preserved():
++    msg = post([text_node("第一行\nsecond\tline")], [], [text_node("日本語 ／doc &amp; &#47;doc")], title="上下文")
++    assert normalize(msg).text == "上下文\n第一行\nsecond\tline\n\n日本語 ／doc &amp; &#47;doc"
++    assert normalize(post([text_node("&#47;doc sample", un_escape=True)])).text == "&#47;doc sample"
++
++
++@pytest.mark.parametrize("target", ["@_user_1", BOT])
++def test_post_bot_at_requires_structural_node_and_event_id_binding(target):
++    msg = post([{"tag": "at", "user_id": target, "user_name": "任意显示名称"}, text_node("/doc sample")],
++               mentions=[mention(name="显示名称也不参与判断")])
++    result = normalize(msg)
++    assert result.bot_mentioned and result.text.strip() == "/doc sample"
++    assert normalize_message(msg).bot_mentioned is False
++
++
++def test_metadata_only_or_typed_display_name_does_not_authorize_a_post():
++    for value in ("/doc sample", "@机器人 /doc sample", "@_user_1 /doc sample", BOT + " /doc sample"):
++        assert not normalize(post([text_node(value)], mentions=[mention()])).bot_mentioned
++
++
++def test_other_at_and_all_are_not_removed_or_promoted_to_commands():
++    other = post([{"tag": "at", "user_id": "@_user_2", "user_name": "/doc"}, text_node(" sample")],
++                 mentions=[mention("@_user_2", "ou_other", name="/doc")])
++    assert normalize(other) == NormalizedMessage("@_user_2 sample", False)
++    assert normalize(post([{"tag": "at", "user_id": "all"}, text_node(" /doc sample")],
++                          mentions=[mention("@_all")])) == NormalizedMessage("@all /doc sample", False)
++
++
++def test_bot_removal_cannot_join_fragments_into_command():
++    result = normalize(post([text_node("/d"), {"tag": "at", "user_id": "@_user_1"}, text_node("oc sample")],
++                            mentions=[mention()]))
++    assert result.text == "/d oc sample" and result.bot_mentioned
++
++
++@pytest.mark.parametrize("tag", ["a", "img", "media", "emotion", "code_block", "md", "hr", "unknown"])
++def test_non_text_tags_reject_whole_post_even_between_command_fragments(tag):
++    for nodes in ([{"tag": tag, "text": "/doc sample"}],
++                  [text_node("/d"), {"tag": tag, "text": "ignored"}, text_node("oc sample")],
++                  [{"tag": tag}, text_node("/doc sample")]):
++        with pytest.raises(MessageTextError, match="UNSUPPORTED_POST_TAG"):
++            normalize(post(nodes))
++
++
++def test_plain_text_exact_mention_tokens_and_other_mentions():
++    result = normalize(message({"text": "@_user_1 /doc sample @_user_2"}, "text",
++                               [mention(), mention("@_user_2", "ou_other")]))
++    assert result == NormalizedMessage("  /doc sample @_user_2", True)
++    assert normalize(message({"text": "@_user_1 /doc sample"}, "text")).bot_mentioned is False
++    assert normalize(message({"text": "/doc sample"}, "text", [mention()])).bot_mentioned is False
++
++
++@pytest.mark.parametrize("value", ["@_user_10 /doc sample", "x@_user_1 /doc sample", "@_user_1x /doc sample", "/d@_user_1oc sample"])
++def test_plain_text_token_prefixes_are_never_partially_stripped(value):
++    assert normalize(message({"text": value}, "text", [mention()])) == NormalizedMessage(value, False)
++
++
++@pytest.mark.parametrize("target,mentions", [(BOT, None), (BOT, [mention(open_id="ou_other")]),
++                                           ("@_user_1", [mention("@_user_2")])])
++def test_post_unbound_bot_target_is_rejected(target, mentions):
++    with pytest.raises(MessageTextError, match="UNBOUND_MENTION"):
++        normalize(post([{"tag": "at", "user_id": target}, text_node("/doc sample")], mentions=mentions))
++
++
++@pytest.mark.parametrize("mentions", ["bad", [None], [{"key": "/doc", "id": {"open_id": BOT}}],
++                                     [mention(), mention(open_id="ou_other")],
++                                     [{"key": "@_user_1", "id": None}],
++                                     [{"key": "@_user_1", "id": {"open_id": 7}}]])
++def test_malformed_or_forged_mentions_are_rejected(mentions):
++    with pytest.raises(MessageTextError, match="INVALID_MENTIONS"):
++        normalize(message({"text": "/doc sample"}, "text", mentions))
++
++
++@pytest.mark.parametrize("body", [{}, {"content": None}, {"content": [None]}, {"content": [[None]]},
++                                  {"content": [[{"tag": "text", "text": 1}]]},
++                                  {"content": [[text_node("/doc sample", href="https://invalid.example")]]},
++                                  {"title": None, "content": []},
++                                  {"zh_cn": {"content": [[text_node("/doc sample")]]}},
++                                  {"zh_cn": {"content": [[text_node("/doc sample")]]},
++                                   "en_us": {"content": [[text_node("/progress sample")]]}}])
++def test_malformed_or_send_locale_shapes_are_rejected(body):
++    with pytest.raises(MessageTextError):
++        normalize(message(body))
++
++
++@pytest.mark.parametrize("raw", [None, "not-json", "[]", '"string"', '{"text":"a","text":"/doc sample"}',
++                                 '{"text":NaN}', '[' * 1500 + ']' * 1500])
++def test_invalid_json_is_bounded_and_never_leaks_body(raw):
++    with pytest.raises(MessageTextError) as caught:
++        normalize({"message_type": "text", "content": raw})
++    assert str(caught.value) == caught.value.code
++
++
++def test_limits_are_distinct_and_preserve_exact_boundary():
++    assert normalize(post([text_node("文" * 2000)])).text == "文" * 2000
++    for msg in (post([text_node("文" * 2001)]), message({"text": "x" * 6001}, "text")):
++        with pytest.raises(MessageTextError, match="INPUT_TOO_LONG"):
++            normalize(msg, max_chars=2000 if msg["message_type"] == "post" else 6000)
++    with pytest.raises(MessageTextError, match="INPUT_TOO_LONG"):
++        normalize({"message_type": "text", "content": " " * (MAX_CONTENT_BYTES + 1)})
++    for msg in (post(*([[]] * (MAX_PARAGRAPHS + 1))), post([text_node("")] * (MAX_NODES + 1))):
++        with pytest.raises(MessageTextError, match="STRUCTURE_TOO_LARGE"):
++            normalize(msg)
++    with pytest.raises(MessageTextError, match="INVALID_MENTIONS"):
++        normalize(post([], mentions=[mention(f"@_user_{n}") for n in range(MAX_MENTIONS + 1)]))
++
++
++@pytest.mark.parametrize("node", [text_node("a\u0000b"), text_node("\ud800"), text_node("x", style="code"),
++                                  text_node("x", style=["hidden"]), text_node("x", un_escape=1)])
++def test_invalid_text_and_style_are_rejected(node):
++    with pytest.raises(MessageTextError):
++        normalize(post([node]))
++
++
++def test_original_event_fields_and_mentions_remain_untouched():
++    payload = {"event": {"sender": {"sender_id": {"open_id": "ou_sender"}},
++                         "message": post([{"tag": "at", "user_id": "@_user_1"}, text_node(" /doc sample")],
++                                         mentions=[mention()])}}
++    before = copy.deepcopy(payload)
++    normalize(payload["event"]["message"])
++    assert payload == before
++
++
++def test_only_text_and_post_are_supported_and_empty_text_remains_a_caller_decision():
++    with pytest.raises(MessageTextError, match="UNSUPPORTED_MESSAGE_TYPE"):
++        normalize(message({"text": "/doc sample"}, "image"))
++    assert normalize(message({"text": "  \n"}, "text")).text == "  \n"
++    assert normalize(post()).text == ""
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_post_flow.py
+@@ -0,0 +1,182 @@
++"""Synthetic integration of the actual bridge, EmbeddedPoC and Gateway."""
++import copy
++import json
++import subprocess
++import sys
++import time
++from dataclasses import replace
++from pathlib import Path
++
++import pytest
++
++from test_embedded import PROJECT, drain, event, rig
++
++
++def post(text, number, user="ou_a", *, nodes=None):
++    payload = event(text, number, user)
++    message = payload["event"]["message"]
++    message["message_type"] = "post"
++    message["content"] = json.dumps({"title": "", "content": [
++        nodes if nodes is not None else [{"tag": "text", "text": text}]
++    ]})
++    return payload
++
++
++def test_post_doc_uses_real_ingress_once_and_fixed_markdown(rig):
++    bridge, api, provider, calls, _ = rig
++    payload = post("", 1, nodes=[
++        {"tag": "text", "text": "  /doc ", "style": ["codeInline"]},
++        {"tag": "text", "text": "sample  "},
++    ])
++    original = copy.deepcopy(payload)
++    assert bridge.ingest(payload)
++    assert payload == original
++    assert api.checks == 0 and calls == []
++    assert bridge.db.execute("SELECT COUNT(*) FROM inbox").fetchone()[0] == 0
++    assert len(bridge.poc.store.rows("SELECT * FROM inbox")) == 1
++    drain(bridge)
++    assert calls == ["poc"] and len(provider.prompts) == 1
++    tasks = bridge.poc.store.rows("SELECT state FROM tasks")
++    assert tasks == [{"state": "completed"}]
++    files = [row for row in api.sent if row["kind"] == "file"]
++    assert len(files) == 1
++    assert "## 整理结果\n\n合成整理结果" in Path(files[0]["artifact"]).read_text()
++
++
++def test_post_modes_and_replayed_messages_never_cross_stores(rig):
++    bridge, _, provider, calls, replies = rig
++    ordinary = post("普通合成问候", 1)
++    select = post(" /doc ", 2)
++    sample = post(" sample ", 3)
++    assert bridge.ingest(ordinary)
++    assert bridge.ingest(select)
++    expires = bridge.poc.store.rows("SELECT expires FROM bridge_mode")[0]["expires"]
++    assert bridge.ingest(sample)
++    assert bridge.poc.store.rows("SELECT expires FROM bridge_mode")[0]["expires"] == expires
++    assert bridge.ingest(post(" /chat ", 4))
++    assert bridge.ingest(post("回到普通聊天的合成问候", 5))
++    for original in (ordinary, select, sample):
++        replay = copy.deepcopy(original)
++        replay["header"]["event_id"] += "-platform-retry"
++        assert not bridge.ingest(replay)
++    # A body-changed replay remains the same receipt, even on the long-input path.
++    replay = copy.deepcopy(select)
++    replay["header"]["event_id"] += "-long-retry"
++    replay["event"]["message"]["content"] = json.dumps({"title": "", "content": [[
++        {"tag": "text", "text": "x" * 6001}]]})
++    assert not bridge.ingest(replay)
++    assert bridge.db.execute("SELECT COUNT(*) FROM inbox").fetchone()[0] == 2
++    drain(bridge)
++    assert len(provider.prompts) == 1 and calls.count("general") == 2
++    assert len(replies) == 2
++    assert bridge.poc.store.rows("SELECT mode FROM bridge_mode") == [{"mode": "chat"}]
++
++
++def test_post_poc_allowlist_and_existing_private_chat_scope_stay_separate(rig):
++    bridge, _, provider, calls, replies = rig
++    assert not bridge.ingest(post("/doc sample", 1, "ou_outsider"))
++    assert not bridge.ingest(post("/progress sample", 2, "ou_outsider"))
++    assert bridge.ingest(post("普通合成问题", 3, "ou_outsider"))
++    assert bridge.ingest(post("/progress sample", 4, "ou_b"))
++    drain(bridge)
++    assert calls == ["general"] and provider.prompts == []
++    assert len(replies) == 1 and replies[0][0] == "om_3"
++    assert bridge.poc.store.rows("SELECT user,state,model FROM tasks") == [{
++        "user": "ou_b", "state": "completed", "model": "python:synthetic-progress-v1"}]
++
++
++@pytest.mark.parametrize("case,accepted", [
++    ("valid", True), ("metadata_only", False), ("node_only", False),
++    ("wrong_bot", False), ("wrong_chat", False),
++])
++def test_group_post_requires_both_real_mention_signals_and_keeps_original_fields(rig, case, accepted):
++    bridge, _, _, calls, _ = rig
++    config = replace(bridge.poc.config, chats=("oc_synthetic_group",))
++    bridge.poc.config = bridge.poc.gateway.config = config
++    nodes = [{"tag": "at", "user_id": "@_user_1"}, {"tag": "text", "text": " /doc sample "}]
++    if case == "metadata_only":
++        nodes = [{"tag": "text", "text": "@_user_1 /doc sample"}]
++    payload = post("", 1, nodes=nodes)
++    message = payload["event"]["message"]
++    message.update(chat_type="group", chat_id="oc_wrong" if case == "wrong_chat" else "oc_synthetic_group")
++    message["create_time"] = str(int((time.time() - 30) * 1000))
++    message["mentions"] = [] if case == "node_only" else [{
++        "key": "@_user_1", "id": {"open_id": "ou_other" if case == "wrong_bot" else "ou_bot"}}]
++    original = copy.deepcopy(payload)
++    assert bridge.ingest(payload) is accepted
++    assert payload == original and calls == []
++    rows = bridge.poc.store.rows("SELECT app,tenant,user,chat,message_id,body,expires FROM inbox")
++    assert len(rows) == int(accepted)
++    assert bridge.db.execute("SELECT COUNT(*) FROM inbox").fetchone()[0] == 0
++    if accepted:
++        assert rows[0] == {"app": "cli_test", "tenant": "tenant", "user": "ou_a",
++                           "chat": "oc_synthetic_group", "message_id": "om_1", "body": "/doc sample",
++                           "expires": int(message["create_time"]) / 1000 + 86400}
++
++
++@pytest.mark.parametrize("tag", ["a", "img", "unknown"])
++@pytest.mark.parametrize("poc_mode", [False, True])
++def test_unsupported_post_never_falls_back_to_general_model(rig, tag, poc_mode):
++    bridge, _, _, calls, _ = rig
++    if poc_mode:
++        assert bridge.ingest(post("/doc", 1))
++        drain(bridge)
++    before = len(bridge.poc.store.rows("SELECT * FROM inbox"))
++    payload = post("", 2, nodes=[{"tag": "text", "text": "/d"},
++                                {"tag": tag, "text": "untrusted", "href": "https://example.invalid/"},
++                                {"tag": "text", "text": "oc sample"}])
++    assert not bridge.ingest(payload)
++    assert len(bridge.poc.store.rows("SELECT * FROM inbox")) == before
++    assert bridge.db.execute("SELECT COUNT(*) FROM inbox").fetchone()[0] == 0
++    drain(bridge)
++    assert calls == []
++
++
++def test_post_does_not_revive_expired_input_and_execution_rechecks_permission(rig):
++    bridge, api, provider, calls, _ = rig
++    stale = post("/doc sample", 1)
++    stale["event"]["message"]["create_time"] = str(int((time.time() - 86401) * 1000))
++    assert not bridge.ingest(stale)
++    assert not bridge.poc.store.rows("SELECT * FROM inbox")
++    assert bridge.ingest(post("/doc sample", 2))
++    gateway, store = bridge.poc.gateway, bridge.poc.store
++    assert gateway.receive_one()
++    api.authorized = lambda row: False
++    gateway.run_task(store.claim(1))
++    drain(bridge)
++    assert provider.prompts == [] and calls == [] and api.sent == []
++    assert store.rows("SELECT state FROM tasks") == [{"state": "failed"}]
++
++
++def test_original_bridge_works_without_optional_poc_package(tmp_path):
++    bridge_path = PROJECT.parent / "local-qwen3.8/feishu-bridge/bridge.py"
++    code = '''
++import importlib.util, json, sys
++assert importlib.util.find_spec("fs_agent") is None
++spec = importlib.util.spec_from_file_location("standalone_bridge", sys.argv[1])
++module = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(module)
++b = module.Bridge({"app_id":"cli_test", "access_mode":"all_private_users",
++                   "state_directory":sys.argv[2]}, lambda *args: None)
++payload = json.loads(sys.argv[3])
++assert b.ingest(payload)
++payload["event"]["message"].update(message_id="standalone-post", message_type="post",
++    content=json.dumps({"title":"", "content":[[{"tag":"text","text":"synthetic"}]]}))
++assert not b.ingest(payload)
++b.db.close()
++print("standalone-text-ok; unsupported-post-rejected")
++'''
++    # -I alone still loads editable packages from this service environment.
++    # -S models the intended no-PoC installation without altering the real venv.
++    result = subprocess.run([sys.executable, "-I", "-S", "-c", code, str(bridge_path),
++                             str(tmp_path / "standalone"), json.dumps(event("合成文字", 1))],
++                            capture_output=True, text=True, timeout=15, check=True)
++    assert result.stdout.strip() == "standalone-text-ok; unsupported-post-rejected"
++
++
++def test_ordinary_text_input_limit_keeps_local_notice_without_inference(rig):
++    bridge, _, _, calls, replies = rig
++    assert bridge.ingest(event("x" * 6001, 1, "ou_outsider"))
++    assert bridge.db.execute("SELECT text FROM inbox").fetchone()[0] == "/input-too-long"
++    drain(bridge)
++    assert calls == [] and len(replies) == 1 and "6000" in replies[0][1]
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_qwen_code_assist.py
+@@ -0,0 +1,58 @@
++"""Pure preparation/rendering checks; no socket, model or Feishu calls."""
++import copy
++import json
++
++import pytest
++
++from fs_agent.config import BoundaryError
++from fs_agent.qwen_provider import build_doc_prompt, synthetic_progress_result
++
++
++def test_doc_prompt_keeps_content_without_identity_metadata_or_input_mutation():
++    source = '合成项目 Aurora：阶段一已完成接口草稿；阶段二正在补齐测试。'
++    history = [{"role": "user", "body": '合成资料含 "引号" 和\n换行',
++                "expires": 1800086400, "scope": "synthetic-private-scope"},
++               {"role": "assistant", "body": "上次合成整理结果", "task_id": "synthetic-task"}]
++    original = copy.deepcopy(history)
++    prompt = build_doc_prompt(source, history)
++    payload = json.loads(prompt.split("\n", 1)[1])
++    assert payload == {"history": [{"role": "user", "body": history[0]["body"]},
++                                  {"role": "assistant", "body": history[1]["body"]}],
++                       "source": source}
++    assert "synthetic-private-scope" not in prompt and "synthetic-task" not in prompt
++    assert "1800086400" not in prompt
++    assert history == original
++
++
++@pytest.mark.parametrize("source,history,error", [
++    ("", [], "DOC_INPUT_INVALID"),
++    ("x" * 2001, [], "DOC_INPUT_INVALID"),
++    ("synthetic", [{"role": "system", "body": "untrusted instruction"}], "DOC_CONTEXT_INVALID"),
++    ("synthetic", [{"role": "assistant", "body": {"text": "synthetic"}}], "DOC_CONTEXT_INVALID"),
++    ("synthetic", [{"role": "user", "body": "x"}] * 9, "DOC_CONTEXT_INVALID"),
++    ("synthetic", [{"role": "user", "body": "x" * 20001}], "DOC_CONTEXT_LIMIT"),
++    ("synthetic", [{"role": "user", "body": '"' * 15000}], "PROMPT_INVALID"),
++])
++def test_doc_input_limits_fail_without_truncation(source, history, error):
++    with pytest.raises(BoundaryError, match=error):
++        build_doc_prompt(source, history)
++
++
++def test_doc_context_at_existing_limit_is_preserved():
++    history = [{"role": "assistant", "body": "合" * 2500} for _ in range(8)]
++    prompt = build_doc_prompt("当前合成资料", history)
++    payload = json.loads(prompt.split("\n", 1)[1])
++    assert payload["history"] == history
++    assert len(prompt) <= 30000
++
++
++def test_progress_keeps_fixed_sample_and_identifies_code_source(monkeypatch):
++    def forbidden(*args, **kwargs):
++        raise AssertionError("pure progress rendering must not access the provider or network")
++    monkeypatch.setattr("fs_agent.qwen_provider.LocalQwenProvider.pin", forbidden)
++    monkeypatch.setattr("fs_agent.qwen_provider.LocalQwenProvider.complete", forbidden)
++    monkeypatch.setattr("fs_agent.qwen_provider.LocalQwenClient.request", forbidden)
++    result = synthetic_progress_result()
++    assert result.text == "合成项目 Aurora：总计 5 项，已完成 3 项，进行中 2 项，阻塞 0 项，完成率 60%。"
++    assert result.model == "python:synthetic-progress-v1"
++    assert result.elapsed >= 0
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_qwen_runtime_only.py
+@@ -0,0 +1,19 @@
++"""Legacy runtime configuration cannot touch credentials or execute a provider."""
++import json
++from types import SimpleNamespace
++
++import pytest
++
++from fs_agent import cli
++
++
++@pytest.mark.parametrize("command", ["p1", "serve", "login"])
++def test_non_qwen_runtime_is_rejected_before_execution(monkeypatch, capsys, command):
++    def forbidden(*args, **kwargs):
++        raise AssertionError("old provider configuration must not touch runtime services")
++    config = SimpleNamespace(provider_kind="grok_cli", check_service=forbidden)
++    monkeypatch.setattr(cli.Config, "load", lambda *args, **kwargs: config)
++    monkeypatch.setattr(cli, "LocalQwenProvider", forbidden)
++    monkeypatch.setattr("sys.argv", ["fs-agent", command, "--config", "synthetic-only.json"])
++    assert cli.main() == 2
++    assert json.loads(capsys.readouterr().err) == {"error": "QWEN_RUNTIME_REQUIRED"}
+--- a/local-qwen3.8/feishu-bridge/bridge.py
++++ b/local-qwen3.8/feishu-bridge/bridge.py
+@@ -1,4 +1,4 @@
+-"""Feishu private text chat -> local Ollama. No model tools or system prompt."""
++"""Feishu private text/post chat -> local Qwen. No model tools or system prompt."""
+ from __future__ import annotations
+ 
+ import argparse
+@@ -18,6 +18,63 @@
+ MODEL = 'qwen3.8:27b-bartowski-q8_0'
+ OLLAMA = 'http://127.0.0.1:11434'
+ TTL = 86400
++
++
++def incoming_text(message, *, bot_open_id=''):
++    """Reuse the PoC parser when installed; preserve text-only standalone use."""
++    try:
++        from fs_agent.message_text import MessageTextError, normalize_message
++    except ModuleNotFoundError as exc:
++        if exc.name not in ('fs_agent', 'fs_agent.message_text'):
++            raise
++        # The original bridge can still run without the optional PoC package.
++        # Do not invent a permissive post parser when that package is absent.
++        if message.get('message_type') != 'text':
++            raise ValueError('POST_NORMALIZER_UNAVAILABLE')
++        text = json.loads(message['content'])['text']
++        if not isinstance(text, str):
++            raise ValueError('INVALID_MESSAGE_TEXT')
++        return text.strip()
++    try:
++        return normalize_message(message, bot_open_id=bot_open_id, max_chars=6000).text
++    except MessageTextError as exc:
++        if exc.code == 'INPUT_TOO_LONG':
++            return '/input-too-long'
++        raise
++
++
++def incoming_metadata(message, *, bot_open_id=''):
++    """Record only fixed structure labels and parser codes, never content/IDs."""
++    from fs_agent.message_text import MAX_CONTENT_BYTES, MessageTextError, normalize_message
++    result = {}
++    try:
++        normalize_message(message, bot_open_id=bot_open_id, max_chars=6000)
++        result['normalization'] = 'ok'
++    except MessageTextError as exc:
++        result['normalization'] = exc.code
++    raw = message.get('content')
++    if message.get('message_type') != 'post' or not isinstance(raw, str) or len(raw) > MAX_CONTENT_BYTES:
++        return result
++    try:
++        content = json.loads(raw)
++    except (ValueError, RecursionError):
++        return result
++    if not isinstance(content, dict):
++        return result
++    paragraphs = content.get('content')
++    if not isinstance(paragraphs, list):
++        result['post_structure'] = 'locale_wrapper' if any(k in content for k in ('zh_cn', 'en_us', 'ja_jp')) else 'other'
++        return result
++    result['post_structure'] = 'paragraphs'
++    known_tags = {'text', 'at', 'a', 'img', 'media', 'emotion', 'code_block', 'md', 'hr'}
++    tags = set()
++    for paragraph in paragraphs[:256]:
++        if isinstance(paragraph, list):
++            for node in paragraph[:1024]:
++                tag = node.get('tag') if isinstance(node, dict) else None
++                tags.add(tag if isinstance(tag, str) and tag in known_tags else 'other')
++    result['post_node_types'] = sorted(tags)
++    return result
+ 
+ 
+ def atomic_json(path, value):
+@@ -111,16 +168,14 @@
+         if (header.get('app_id') != self.config['app_id'] or
+                 header.get('event_type') != 'im.message.receive_v1' or
+                 sender.get('sender_type') != 'user' or not self.user_allowed(user) or
+-                message.get('chat_type') != 'p2p' or message.get('message_type') != 'text'):
++                message.get('chat_type') != 'p2p' or message.get('message_type') not in ('text', 'post')):
+             return False
+         tenant = header.get('tenant_key')
+         if not tenant or sender.get('tenant_key', tenant) != tenant:
+             return False
+         try:
+-            text = json.loads(message['content'])['text']
+-            if not isinstance(text, str):
+-                return False
+-            text = text.strip()
++            bot_open_id = self.poc.config.bot_open_id if self.poc is not None else ''
++            text = incoming_text(message, bot_open_id=bot_open_id).strip()
+             created = int(message['create_time'])/1000
+             mid, chat = message['message_id'], message['chat_id']
+         except (KeyError, TypeError, ValueError):
+@@ -285,6 +340,8 @@
+                       'sender_allowed':bridge.user_allowed(s.get('sender_id', {}).get('open_id')),
+                       'tenant_present':bool(h.get('tenant_key')), 'chat_type':m.get('chat_type'),
+                       'message_type':m.get('message_type')}
++        if bridge.poc is not None:
++            diagnostic.update(incoming_metadata(m, bot_open_id=bridge.poc.config.bot_open_id))
+         try:
+             diagnostic['accepted'] = bridge.ingest(payload)
+         except Exception as exc:
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_ingress_metadata.py
+@@ -0,0 +1,23 @@
++"""Diagnostics reveal structure and fixed error codes, not received values."""
++import json
++
++from test_embedded import bridge_module
++
++
++def test_post_metadata_contains_no_body_identity_or_unknown_tag_value():
++    marker = 'SYNTHETIC_PRIVATE_VALUE'
++    message = {'message_type': 'post', 'message_id': marker,
++               'content': json.dumps({'title': marker, 'content': [[
++                   {'tag': 'text', 'text': marker}, {'tag': marker, 'text': marker}]]})}
++    result = bridge_module.incoming_metadata(message)
++    assert result == {'normalization': 'UNSUPPORTED_POST_TAG',
++                      'post_structure': 'paragraphs', 'post_node_types': ['other', 'text']}
++    assert marker not in json.dumps(result)
++
++
++def test_supported_post_and_invalid_json_metadata():
++    result = bridge_module.incoming_metadata({'message_type': 'post',
++        'content': json.dumps({'title': '', 'content': [[{'tag': 'text', 'text': '/doc sample'}]]})})
++    assert result == {'normalization': 'ok', 'post_structure': 'paragraphs', 'post_node_types': ['text']}
++    assert bridge_module.incoming_metadata({'message_type': 'post', 'content': '{invalid'}) == {
++        'normalization': 'INVALID_JSON'}
