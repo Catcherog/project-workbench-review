@@ -94,6 +94,9 @@ def test_I02_exact_target_revision_idempotency_and_readback(rig):
     assert result["receipt"]["target_id"]=="B"
     assert g.logic.mount(row,d["id"])["receipt"]==result["receipt"]
     assert len(port.writes)==1
+    g.logic.handle(row,"挂载")
+    assert any("https://synthetic.invalid/object" in (r["body"] or "") for r in s.rows("SELECT body FROM outbox"))
+    assert len(port.writes)==1
     # Another draft, same name but different immutable ID; changed revision must fail.
     row,d=prepared(g,s,2);succeed(g,s,rig[3])
     g.logic.select_target(row,d["id"],"A");g.logic.adopt(row,d["id"])
@@ -143,6 +146,8 @@ def test_I04_unread_attachment_records_limit_instead_of_not_tested(rig):
     sources=json.loads(g.logic.current(row)["sources"])
     assert len(sources)==2 and sources[-1]["read_status"]=="failed"
     assert "已提供" in sources[-1]["limitation"]
+    assert sources[-1]["version"] is None
+    assert "读取失败" in sources[-1]["version_reason"]
 
 def test_I05_cancel_before_write_and_late_model_result(rig):
     g,s,api,p,c=rig;row,d=prepared(g,s);task=s.claim()
@@ -285,3 +290,58 @@ def test_versions_of_one_event_are_not_reclassified_as_independent():
     value=analysis();value["assessment"]="V1与V2是独立事件。"
     corrected=apply_program_findings(value,[source])
     assert "同一事件" in corrected["assessment"] and "独立事件" not in corrected["assessment"]
+
+def test_durable_receipt_precedes_file_download_without_skipping_auth(rig):
+    from fs_agent.embedded import EmbeddedPoC
+    g,s,api,p,c=rig;embedded=EmbeddedPoC(g)
+    assert embedded.ingest(event("/doc logic test"))==(True,True)
+    embedded.step();drain(g);api.sent.clear()
+    s.set_meta("provider_pause","SYNTHETIC_HOLD")
+    def download(*args,**kwargs):
+        assert any(r["body"]=="已收到，正在核验权限与资料。" for r in api.sent)
+        return b"<p>synthetic data</p>"
+    api.read_file=download
+    payload=event(number=2);payload["event"]["message"].update(message_type="file",content=json.dumps({"file_key":"file_test","file_name":"test.html"}))
+    assert embedded.ingest(payload)==(True,True);embedded.step()
+    assert len(s.rows("SELECT * FROM tasks"))==1
+
+def test_early_receipt_still_requires_current_department_authorization(rig):
+    from fs_agent.embedded import EmbeddedPoC
+    g,s,api,p,c=rig;embedded=EmbeddedPoC(g)
+    assert embedded.ingest(event("/doc logic test synthetic"))==(True,True)
+    api.allowed=False;embedded.step()
+    assert api.sent==[] and not s.rows("SELECT * FROM logic_drafts") and not p.prompts
+
+def test_cancel_during_attachment_delivery_stops_message_publication(rig):
+    from fs_agent.feishu import SendRejected
+    g,s,row,d=ready(rig);api=rig[2];original=api.send
+    def send(entry,guard):
+        if entry["kind"]=="file":
+            assert guard()
+            assert g.ingest(event("/doc 放弃",number=2))
+            assert not guard()
+            raise SendRejected("DRAFT_SUPERSEDED")
+        return original(entry,guard)
+    api.send=send;drain(g)
+    assert not any(r["kind"]=="file" for r in api.sent)
+    assert g.logic.current(row)["state"]=="cancelled"
+
+def test_bad_business_config_only_disables_business_connection(rig):
+    from fs_agent.logic_service import LogicService, MissingBusiness
+    g,s,api,p,c=rig
+    (g.config.root/"config").mkdir()
+    (g.config.root/"config/document-business.json").write_text("not-json")
+    g.logic=LogicService(g)
+    assert isinstance(g.logic.business,MissingBusiness)
+    assert s.meta("business_error")=="BUSINESS_CONNECTION_UNAVAILABLE"
+    row,d=prepared(g,s);succeed(g,s,p)
+    assert g.logic.current(row)["state"]=="ready"
+
+
+def test_target_selection_invalidates_an_inflight_generation(rig):
+    g,s,api,p,c=rig;row,d=prepared(g,s);task=s.claim()
+    g.logic.business=Business()
+    g.logic.select_target(row,d["id"],"A")
+    g.run_task(task)
+    assert not p.prompts
+    assert s.rows("SELECT error FROM tasks WHERE id=?",(task["id"],))[0]["error"]=="LATE_RESULT_REJECTED"

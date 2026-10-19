@@ -23,6 +23,9 @@ CREATE INDEX IF NOT EXISTS logic_scope ON logic_drafts(scope,expires);
 CREATE TABLE IF NOT EXISTS logic_jobs (
  task_id TEXT PRIMARY KEY, draft_id TEXT NOT NULL, revision INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS logic_receipts (
+ inbox_seq INTEGER PRIMARY KEY, outbox_id TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS logic_writes (
  idem TEXT PRIMARY KEY, draft_id TEXT NOT NULL, revision INTEGER NOT NULL,
  target TEXT NOT NULL, content_hash TEXT NOT NULL, state TEXT NOT NULL, receipt TEXT
@@ -30,7 +33,7 @@ CREATE TABLE IF NOT EXISTS logic_writes (
 """
 HELP = ("逻辑整理：/doc logic 8d 内容，或 /doc logic test 内容。也可先选文种后发 TXT、Markdown、HTML 文件。"
         "直接回复可补充同一稿；/doc 阶段稿、/doc 暂停、/doc 继续、/doc 采用、/doc 放弃。"
-        "生成附件仅发本人。当前未连接业务挂载平台。")
+        "生成附件仅发本人。挂载需先选择可用目标，以实际回执为准。")
 
 class MissingBusiness:
     """Fail explicitly: no invented project, platform receipt, approval or remote URL."""
@@ -46,7 +49,14 @@ class MissingBusiness:
 class LogicService:
     def __init__(self, gateway, business=None):
         self.g, self.s = gateway, gateway.store
+        from .meegle_port import load_meegle_port
         self.business = business or MissingBusiness()
+        if business is None:
+            try:
+                self.business = load_meegle_port(gateway) or MissingBusiness()
+                self.s.set_meta("business_error", "")
+            except (BoundaryError, KeyError, TypeError, OSError, ValueError):
+                self.s.set_meta("business_error", "BUSINESS_CONNECTION_UNAVAILABLE")
         with self.s.lock:
             self.s.conn.executescript(SCHEMA)
 
@@ -64,13 +74,21 @@ class LogicService:
 
     def observe_ingress(self, conn, row, expires):
         """Called in the durable receipt transaction. Supersede before slow work returns."""
+        if not self.g.config.document_logic:
+            return
         body = row.get("body") or ""
         sel = conn.execute("SELECT route FROM selection WHERE scope=? AND expires>?", (scope_of(row), self.s.clock())).fetchone()
-        if body in ("/doc 采用", "/doc adopt", "/doc 挂载", "/doc mount", "/doc 对账") or body.startswith("/doc target "):
+        current = conn.execute("SELECT id FROM logic_drafts WHERE scope=? AND expires>? ORDER BY rowid DESC LIMIT 1", (scope_of(row), self.s.clock())).fetchone()
+        relevant = body.startswith("/doc logic") or row.get("kind") == "file" or (
+            current and sel and sel[0] == "doc" and (body.startswith("/doc ") or not body.startswith("/")))
+        if body in ("sample", "/doc sample") or not relevant:
             return
-        applies = body.startswith("/doc ") or row.get("kind") == "file" or (
-            sel and sel[0] == "doc" and not body.startswith("/"))
-        if not applies:
+        # Receipt is in the same transaction as inbox insertion. Delivery still performs
+        # the original live identity/department checks, before any document work.
+        seq = conn.execute("SELECT seq FROM inbox WHERE app=? AND tenant=? AND event_id=?", (row["app"], row["tenant"], row["event_id"])).fetchone()[0]
+        outbox = self.s.add_outbox(dict(row, expires=expires), text="已收到，正在核验权限与资料。", private=True, conn=conn)
+        conn.execute("INSERT INTO logic_receipts VALUES (?,?)", (seq, outbox))
+        if body in ("/doc 采用", "/doc adopt", "/doc 挂载", "/doc mount", "/doc 对账") or body.startswith("/doc target "):
             return
         state = "cancelled" if body in ("/doc 放弃", "/doc discard") else "paused" if body in ("/doc 暂停", "/doc pause") else "dirty"
         draft = conn.execute("SELECT id,state FROM logic_drafts WHERE scope=? AND expires>? AND state!='cancelled' ORDER BY rowid DESC LIMIT 1",
@@ -101,8 +119,8 @@ class LogicService:
         source = read_source(name, data, source_id=f"S{len(sources)+1:02d}",
                              origin=row.get("message_id"), formed_at=None)
         if limitation:
-            source.update(read_status="failed", limitation=limitation, segments=[])
-        if any(s["version"] == source["version"] and s["name"] == source["name"] for s in sources):
+            source.update(read_status="failed", limitation=limitation, segments=[], version=None, version_reason="文件读取失败，未获得内容指纹")
+        if source["version"] is not None and any(s["version"] == source["version"] and s["name"] == source["name"] for s in sources):
             return False
         if sum(len(p["original"]) for s in sources + [source] for p in s["segments"]) > 12000:
             raise BoundaryError("LOGIC_INPUT_LIMIT")
@@ -122,10 +140,14 @@ class LogicService:
         return True
 
     def queue(self, row, draft):
-        task_id = self.s.enqueue(row, "doc")
+        receipts = self.s.rows("SELECT outbox_id FROM logic_receipts WHERE inbox_seq=?", (row["seq"],))
+        task_id = self.s.enqueue(row, "doc", acknowledgement=not bool(receipts))
         self.s.execute("INSERT OR IGNORE INTO logic_jobs VALUES(?,?,?)", (task_id, draft["id"], draft["revision"]))
-        self.s.execute("UPDATE outbox SET body=? WHERE task_id=? AND kind='text' AND state='pending'",
-                       ("已收到，正在整理；完成后交付候选稿、来源和待确认项。", task_id))
+        if receipts:
+            self.s.execute("UPDATE outbox SET task_id=? WHERE id=?", (task_id, receipts[0]["outbox_id"]))
+        else:
+            self.s.execute("UPDATE outbox SET body=? WHERE task_id=? AND kind='text' AND state='pending'",
+                           ("已收到，正在整理；完成后交付候选稿、来源和待确认项。", task_id))
         return task_id
 
     def handle(self, row, argument, *, file=False):
@@ -150,11 +172,19 @@ class LogicService:
         elif argument in ("采用", "adopt"):
             self.adopt(row, draft["id"]); self.notify(row, "已记录采用当前文字；尚未挂载，不代表专业审核或节点完成。"); return
         elif argument.startswith("target "):
-            self.select_target(row, draft["id"], argument.split(maxsplit=1)[1]); self.notify(row, "已选择目标，保存时仍会核对修订。"); return
+            self.select_target(row, draft["id"], argument.split(maxsplit=1)[1])
+            current = self.get(row, draft["id"])
+            if current["state"] == "collecting" and current["sources"] != "[]":
+                self.queue(row, current)
+            self.notify(row, "已选择目标，保存时仍会核对修订。"); return
         elif argument == "对账":
             self.notify(row, self.reconcile_draft(row, draft["id"])); return
         elif argument in ("挂载", "mount"):
-            result = self.mount(row, draft["id"]); self.notify(row, result["message"]); return
+            result = self.mount(row, draft["id"])
+            message = result["message"]
+            if result.get("receipt"):
+                message += "\n查看已挂载的交付物：" + result["receipt"]["url"]
+            self.notify(row, message); return
         elif argument in ("继续", "resume", "阶段稿", "stage"):
             if draft["state"] == "cancelled":
                 raise BoundaryError("LOGIC_DRAFT_CANCELLED")
@@ -274,12 +304,16 @@ class LogicService:
 
     def select_target(self, row, draft_id, target_id):
         d = self.get(row, draft_id)
+        if d["state"] == "cancelled":
+            raise BoundaryError("LOGIC_DRAFT_CANCELLED")
         target = self.business.resolve(row, target_id)
         if not all(target.get(k) for k in ("id", "project_id", "node_id", "deliverable_id", "revision")):
             raise BoundaryError("TARGET_INCOMPLETE")
         encoded = json.dumps(target, sort_keys=True)
         if d["target"] != encoded:
-            self.s.execute("UPDATE logic_drafts SET target=?,accepted_hash=NULL WHERE id=?", (encoded, d["id"]))
+            state = "collecting" if d["target"] and d["state"] != "paused" else d["state"]
+            self.s.execute("UPDATE logic_drafts SET target=?,accepted_hash=NULL,revision=revision+1,state=? WHERE id=?",
+                           (encoded, state, d["id"]))
 
     def mount(self, row, draft_id):
         d = self.get(row, draft_id)
@@ -292,7 +326,10 @@ class LogicService:
         if old:
             receipt = json.loads(old[0]["receipt"]) if old[0]["receipt"] else None
             if old[0]["state"] == "committed":
-                return {"message": "已挂载，复用原回执；未改变专业审核状态。", "receipt": receipt}
+                current_receipt = self.business.reconcile(row, idem)
+                if current_receipt != receipt:
+                    return {"message": "原挂载回执已存在，但当前读回尚未确认；未重复写入。", "receipt": None}
+                return {"message": "已挂载并重新读回，复用原回执；未改变专业审核状态。", "receipt": receipt}
             # Never submit again after an ambiguous dispatch, even if reconcile is unavailable.
             receipt = self.business.reconcile(row, idem)
             if receipt:
@@ -354,5 +391,6 @@ class LogicService:
                     + ("曾提交挂载；实际结果保留，未知结果仍需对账，不删除历史。" if states else "尚未发起业务挂载。"))
 
     def cleanup(self):
+        self.s.execute("DELETE FROM logic_receipts WHERE inbox_seq IN (SELECT seq FROM inbox WHERE expires<=?)", (self.s.clock(),))
         self.s.execute("UPDATE logic_drafts SET sources='[]',answers='{}',analysis=NULL,review=NULL,rules=NULL,content=NULL,"
                        "content_hash=NULL,accepted_hash=NULL,target=NULL,state='expired' WHERE expires<=?", (self.s.clock(),))

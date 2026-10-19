@@ -195,7 +195,7 @@ def parse_json(text):
     return result
 
 def number_tokens(text):
-    text = re.sub(r"S[0-9]+:[0-9]+|8D|5Why", "", text)
+    text = re.sub(r"[SP][0-9]+:[0-9]+|8D|5Why", "", text)
     return set(re.findall(r"(?<![A-Za-z0-9])[-+]?\d+(?:\.\d+)?", text))
 
 def validate_analysis(value, sources, *, stage=False):
@@ -271,7 +271,7 @@ def render(sources, analysis, review, metadata, *, document_type, stage, busines
     lines = [f"# {title} · {heading}", "", "## 本次问题或决策", analysis["problem"], "",
              "## 已知事实与来源", "以下保留提交原句；记录转述不自动升级为实测。"]
     for s in sources:
-        lines += ["", f"### {s['id']} · {s['name']}", f"版本指纹：{s['version']}",
+        lines += ["", f"### {s['id']} · {s['name']}", f"版本指纹：{s['version'] or '未知（文件尚未读取）'}",
                   f"读取：{s['read_status']}；形成时间：{s['formed_at'] or '未提供'}", "资料身份：" + {"submitted":"工程师提交记录", "synthetic":"合成测试", "current_project":"当前项目授权记录", "teaching":"教学示例"}.get(s["provenance"], "外部记录")]
         if s["limitation"]: lines.append("读取限制：" + s["limitation"])
         for p in s["segments"]:

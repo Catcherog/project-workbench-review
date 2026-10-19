@@ -1,3 +1,15 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..0ce11db
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,6 @@
++__pycache__/
++*.pyc
++.pytest_cache/
++.venv/
++evidence/
++dist/
 diff --git a/bridge/bridge.py b/bridge/bridge.py
 index e7040bc..f83d493 100644
 --- a/bridge/bridge.py
@@ -16,6 +28,75 @@ index e7040bc..f83d493 100644
              worked = self.process_one() or worked
          return worked
  
+diff --git a/scripts/validate_content.py b/scripts/validate_content.py
+new file mode 100644
+index 0000000..421d7e4
+--- /dev/null
++++ b/scripts/validate_content.py
+@@ -0,0 +1,63 @@
++"""Synthetic content acceptance through the production LogicService and pinned Qwen."""
++import json, tempfile, time, sys
++from dataclasses import replace
++from pathlib import Path
++from fs_agent.config import Config
++from fs_agent.qwen_provider import LocalQwenProvider
++from fs_agent.store import Store
++from fs_agent.gateway import Gateway
++from fs_agent.doc_logic import load_rules, digest
++
++CASES = {
++"C01": ("test", "样机 S-A：主轴跳动 0.026→0.013 mm，输入端 0.007→0.010 mm，总噪声 55.1→51.4 dB，限值 ≤59 dB；约 3 Hz 声音幅度调制仍可辨。原稿称“各项改善、异响解决”。"),
++"C02": ("test", "返件平均 11.5 A，历史平均 15.2 A，均值判据 ≥16 A；处理后仅写“18 A 以上”。扭矩 1.1 N·m，清洗后 1.4 N·m，跑合再清洗后 ≥2.8 N·m，判据 ≥2.8 N·m；另记“静态功耗 37 mA”。"),
++"C03": ("8d", "已记录更换支架并重插线缆；同一样机本次连续运行 12 分钟未见中断。原稿称支架是唯一根因。"),
++"C04": ("8d", "三个独立小节：一次重校后恢复；测试板外部导线跨接后通信恢复；人为构造校验不一致复现报警，恢复参数后消失。均无历史形成记录。"),
++"C05": ("8d", "同一事件 V1 待补证、V2 提交专业审核，均无已批准记录。V2 图 A 正常、图 B 异常、图 C 本地复现，正文误把异常引为图 A。此输入只有图题信息，没有图片像素。"),
++"C06": ("8d", "已有观察：本次发现接点接触异常。两层有依据的原因：记录显示接点接触电阻偏高造成压降，压降使供电不足；两层各有对应测量记录。后续历史未知，模板强制五层；用户说先形成阶段报告。另有记录提及验证完成，但对应附件暂不可读。"),
++"C07": ("test", "合成样本 S-Z、V2，在室温静置条件下，电流实测 18 A；本次单项判据 ≥16 A，判据明确适用本样本。记录为同一次单项测量，无均值或全批结论。")
++}
++class LocalOnlyApi:
++    def authorized(self, row): return True
++    def send(self, *a): raise AssertionError("No Feishu sends from content validation")
++def main():
++    out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
++    actual = Config.load(Path.home()/".local/share/local-qwen-feishu/poc/config/environment.json")
++    provider = LocalQwenProvider(actual)
++    fingerprint = provider.pin()
++    fingerprint = {k:fingerprint[k] for k in ("provider","base_url","model","model_digest","server_version")}
++    statuses = []
++    selected = sys.argv[2:] or list(CASES)
++    for index,key in enumerate(selected):
++        kind,text = CASES[key]
++        with tempfile.TemporaryDirectory(prefix="logic-acceptance-") as temp:
++            root = Path(temp)
++            for directory in ("state","tasks","artifacts"): (root/directory).mkdir()
++            cfg=replace(actual, root=root, app_id="cli_synthetic",tenant_key="tenant_synthetic",
++                        users=("ou_A","ou_B"),owner="ou_A",chats=(),document_logic=True)
++            outputs=[]
++            class Recorder:
++                def complete(self,*a,**kw):
++                    result=provider.complete(*a,**kw);outputs.append(result.text);return result
++            store=Store(root/"state/gateway.sqlite3"); gateway=Gateway(cfg,store,LocalOnlyApi(),Recorder())
++            now = time.time()
++            row={"app":cfg.app_id,"tenant":cfg.tenant_key,"user":"ou_A","chat":"oc_synthetic","chat_type":"p2p",
++                 "event_id":key,"message_id":key,"kind":"message","body":"/doc logic "+kind+" "+text,
++                 "source_time":now}
++            store.put(row); gateway.receive_one()
++            d=gateway.logic.current(row)
++            if key=="C06":
++                store.execute("UPDATE logic_drafts SET stage=1 WHERE id=?",(d["id"],))
++            task=store.claim(1); gateway.run_task(task)
++            d=gateway.logic.current(row)
++            state=store.rows("SELECT state,error,model,elapsed FROM tasks WHERE id=?",(task["id"],))[0]
++            record={"case":key,"synthetic":True,"input":text,"document_type":kind,"runtime":fingerprint,
++                    "rules":load_rules()[1],"result":state,
++                    "analysis":json.loads(d["analysis"]) if d["analysis"] else None,
++                    "semantic_review":json.loads(d["review"]) if d["review"] else None, "synthetic_model_outputs":outputs}
++            (out/(key+".json")).write_text(json.dumps(record,ensure_ascii=False,indent=2))
++            if d["content"]: (out/(key+".md")).write_text(d["content"])
++            statuses.append({"case":key,**state}); print(json.dumps(statuses[-1]),flush=True)
++            gateway.stop(); store.close()
++    (out/"run-summary.json").write_text(json.dumps(statuses,ensure_ascii=False,indent=2))
++if __name__=="__main__": main()
 diff --git a/src/fs_agent/config.py b/src/fs_agent/config.py
 index ed351fd..7de880b 100644
 --- a/src/fs_agent/config.py
@@ -45,7 +126,7 @@ index ed351fd..7de880b 100644
          if obj.runtime_mode == "existing_login":
 diff --git a/src/fs_agent/doc_logic.py b/src/fs_agent/doc_logic.py
 new file mode 100644
-index 0000000..3ef91d1
+index 0000000..db8d321
 --- /dev/null
 +++ b/src/fs_agent/doc_logic.py
 @@ -0,0 +1,292 @@
@@ -246,7 +327,7 @@ index 0000000..3ef91d1
 +    return result
 +
 +def number_tokens(text):
-+    text = re.sub(r"S[0-9]+:[0-9]+|8D|5Why", "", text)
++    text = re.sub(r"[SP][0-9]+:[0-9]+|8D|5Why", "", text)
 +    return set(re.findall(r"(?<![A-Za-z0-9])[-+]?\d+(?:\.\d+)?", text))
 +
 +def validate_analysis(value, sources, *, stage=False):
@@ -322,7 +403,7 @@ index 0000000..3ef91d1
 +    lines = [f"# {title} · {heading}", "", "## 本次问题或决策", analysis["problem"], "",
 +             "## 已知事实与来源", "以下保留提交原句；记录转述不自动升级为实测。"]
 +    for s in sources:
-+        lines += ["", f"### {s['id']} · {s['name']}", f"版本指纹：{s['version']}",
++        lines += ["", f"### {s['id']} · {s['name']}", f"版本指纹：{s['version'] or '未知（文件尚未读取）'}",
 +                  f"读取：{s['read_status']}；形成时间：{s['formed_at'] or '未提供'}", "资料身份：" + {"submitted":"工程师提交记录", "synthetic":"合成测试", "current_project":"当前项目授权记录", "teaching":"教学示例"}.get(s["provenance"], "外部记录")]
 +        if s["limitation"]: lines.append("读取限制：" + s["limitation"])
 +        for p in s["segments"]:
@@ -342,7 +423,7 @@ index 0000000..3ef91d1
 +              f"规则版本：{metadata['version']}；加载指纹：{metadata['sha256']}"]
 +    return "\n".join(lines) + "\n"
 diff --git a/src/fs_agent/embedded.py b/src/fs_agent/embedded.py
-index 3d9003d..3723ad3 100644
+index 3d9003d..8a095f9 100644
 --- a/src/fs_agent/embedded.py
 +++ b/src/fs_agent/embedded.py
 @@ -88,6 +88,10 @@ class EmbeddedPoC:
@@ -356,7 +437,14 @@ index 3d9003d..3723ad3 100644
              if message["message_type"] not in ("text", "post"):
                  return False, False
              try:
-@@ -140,12 +144,18 @@ class EmbeddedPoC:
+@@ -135,17 +139,24 @@ class EmbeddedPoC:
+ 
+     def _step(self):
+         self.gateway.cleanup()
+-        worked = self.gateway.receive_one()
++        worked = self.gateway.deliver_one()
++        worked = self.gateway.receive_one() or worked
+         worked = self.gateway.deliver_one() or worked
          if not self.store.meta("provider_pause"):
              task = self.store.claim(1)
              if task:
@@ -417,7 +505,7 @@ index ef6cf5b..15f7262 100644
          if self.config.event_transport == "existing_bridge":
              # AM221D221 already has a live consumer. Integration must dispatch
 diff --git a/src/fs_agent/gateway.py b/src/fs_agent/gateway.py
-index 5924f0a..cf2c6cd 100644
+index 5924f0a..60f6b74 100644
 --- a/src/fs_agent/gateway.py
 +++ b/src/fs_agent/gateway.py
 @@ -16,6 +16,7 @@ from .provider import group_alive, process_identity, stop_group
@@ -585,7 +673,29 @@ index 5924f0a..cf2c6cd 100644
          except Exception:
              self.store.finish(task, "failed", "INTERNAL_ERROR")
  
-@@ -276,6 +319,7 @@ class Gateway:
+@@ -210,7 +253,20 @@ class Gateway:
+         if not self.store.execute("UPDATE outbox SET state='sending' WHERE id=? AND state='pending'", (row["id"],)):
+             return True
+         try:
+-            message_id = self.api.send(row, lambda: self.authorized(row))
++            checked_at = time.monotonic()
++            guard_calls = 0
++            is_receipt = bool(self.store.rows("SELECT 1 FROM logic_receipts WHERE outbox_id=?", (row["id"],)))
++            def delivery_guard():
++                nonlocal checked_at, guard_calls
++                guard_calls += 1
++                if row["expires"] <= self.store.clock() or (row["task_id"] and not is_receipt and not self.logic.valid_job({"id":row["task_id"]})):
++                    return False
++                # Reuse this delivery's just-completed identity check during local formatting.
++                # After a file upload, always refresh again as in the original transport contract.
++                if (row["kind"] == "file" and guard_calls > 1) or time.monotonic()-checked_at > 2:
++                    allowed = self.authorized(row); checked_at = time.monotonic(); return allowed
++                return True
++            message_id = self.api.send(row, delivery_guard)
+             with self.store.tx() as c:
+                 c.execute("UPDATE outbox SET state='sent',message_id=? WHERE id=?", (message_id, row["id"]))
+                 if row["nonce"]:
+@@ -276,6 +332,7 @@ class Gateway:
          self.cleanup()
  
      def cleanup(self):
@@ -595,10 +705,10 @@ index 5924f0a..cf2c6cd 100644
              if path.parent == self.config.root / "artifacts" and re.fullmatch(r"[a-f0-9]{32}\.md", path.name):
 diff --git a/src/fs_agent/logic_service.py b/src/fs_agent/logic_service.py
 new file mode 100644
-index 0000000..7a0768c
+index 0000000..dc60b47
 --- /dev/null
 +++ b/src/fs_agent/logic_service.py
-@@ -0,0 +1,358 @@
+@@ -0,0 +1,396 @@
 +"""Document state in the existing SQLite store. Business permissions stay server-owned."""
 +from __future__ import annotations
 +import json
@@ -624,6 +734,9 @@ index 0000000..7a0768c
 +CREATE TABLE IF NOT EXISTS logic_jobs (
 + task_id TEXT PRIMARY KEY, draft_id TEXT NOT NULL, revision INTEGER NOT NULL
 +);
++CREATE TABLE IF NOT EXISTS logic_receipts (
++ inbox_seq INTEGER PRIMARY KEY, outbox_id TEXT NOT NULL
++);
 +CREATE TABLE IF NOT EXISTS logic_writes (
 + idem TEXT PRIMARY KEY, draft_id TEXT NOT NULL, revision INTEGER NOT NULL,
 + target TEXT NOT NULL, content_hash TEXT NOT NULL, state TEXT NOT NULL, receipt TEXT
@@ -631,7 +744,7 @@ index 0000000..7a0768c
 +"""
 +HELP = ("逻辑整理：/doc logic 8d 内容，或 /doc logic test 内容。也可先选文种后发 TXT、Markdown、HTML 文件。"
 +        "直接回复可补充同一稿；/doc 阶段稿、/doc 暂停、/doc 继续、/doc 采用、/doc 放弃。"
-+        "生成附件仅发本人。当前未连接业务挂载平台。")
++        "生成附件仅发本人。挂载需先选择可用目标，以实际回执为准。")
 +
 +class MissingBusiness:
 +    """Fail explicitly: no invented project, platform receipt, approval or remote URL."""
@@ -647,7 +760,14 @@ index 0000000..7a0768c
 +class LogicService:
 +    def __init__(self, gateway, business=None):
 +        self.g, self.s = gateway, gateway.store
++        from .meegle_port import load_meegle_port
 +        self.business = business or MissingBusiness()
++        if business is None:
++            try:
++                self.business = load_meegle_port(gateway) or MissingBusiness()
++                self.s.set_meta("business_error", "")
++            except (BoundaryError, KeyError, TypeError, OSError, ValueError):
++                self.s.set_meta("business_error", "BUSINESS_CONNECTION_UNAVAILABLE")
 +        with self.s.lock:
 +            self.s.conn.executescript(SCHEMA)
 +
@@ -665,13 +785,21 @@ index 0000000..7a0768c
 +
 +    def observe_ingress(self, conn, row, expires):
 +        """Called in the durable receipt transaction. Supersede before slow work returns."""
++        if not self.g.config.document_logic:
++            return
 +        body = row.get("body") or ""
 +        sel = conn.execute("SELECT route FROM selection WHERE scope=? AND expires>?", (scope_of(row), self.s.clock())).fetchone()
-+        if body in ("/doc 采用", "/doc adopt", "/doc 挂载", "/doc mount", "/doc 对账") or body.startswith("/doc target "):
++        current = conn.execute("SELECT id FROM logic_drafts WHERE scope=? AND expires>? ORDER BY rowid DESC LIMIT 1", (scope_of(row), self.s.clock())).fetchone()
++        relevant = body.startswith("/doc logic") or row.get("kind") == "file" or (
++            current and sel and sel[0] == "doc" and (body.startswith("/doc ") or not body.startswith("/")))
++        if body in ("sample", "/doc sample") or not relevant:
 +            return
-+        applies = body.startswith("/doc ") or row.get("kind") == "file" or (
-+            sel and sel[0] == "doc" and not body.startswith("/"))
-+        if not applies:
++        # Receipt is in the same transaction as inbox insertion. Delivery still performs
++        # the original live identity/department checks, before any document work.
++        seq = conn.execute("SELECT seq FROM inbox WHERE app=? AND tenant=? AND event_id=?", (row["app"], row["tenant"], row["event_id"])).fetchone()[0]
++        outbox = self.s.add_outbox(dict(row, expires=expires), text="已收到，正在核验权限与资料。", private=True, conn=conn)
++        conn.execute("INSERT INTO logic_receipts VALUES (?,?)", (seq, outbox))
++        if body in ("/doc 采用", "/doc adopt", "/doc 挂载", "/doc mount", "/doc 对账") or body.startswith("/doc target "):
 +            return
 +        state = "cancelled" if body in ("/doc 放弃", "/doc discard") else "paused" if body in ("/doc 暂停", "/doc pause") else "dirty"
 +        draft = conn.execute("SELECT id,state FROM logic_drafts WHERE scope=? AND expires>? AND state!='cancelled' ORDER BY rowid DESC LIMIT 1",
@@ -702,8 +830,8 @@ index 0000000..7a0768c
 +        source = read_source(name, data, source_id=f"S{len(sources)+1:02d}",
 +                             origin=row.get("message_id"), formed_at=None)
 +        if limitation:
-+            source.update(read_status="failed", limitation=limitation, segments=[])
-+        if any(s["version"] == source["version"] and s["name"] == source["name"] for s in sources):
++            source.update(read_status="failed", limitation=limitation, segments=[], version=None, version_reason="文件读取失败，未获得内容指纹")
++        if source["version"] is not None and any(s["version"] == source["version"] and s["name"] == source["name"] for s in sources):
 +            return False
 +        if sum(len(p["original"]) for s in sources + [source] for p in s["segments"]) > 12000:
 +            raise BoundaryError("LOGIC_INPUT_LIMIT")
@@ -723,10 +851,14 @@ index 0000000..7a0768c
 +        return True
 +
 +    def queue(self, row, draft):
-+        task_id = self.s.enqueue(row, "doc")
++        receipts = self.s.rows("SELECT outbox_id FROM logic_receipts WHERE inbox_seq=?", (row["seq"],))
++        task_id = self.s.enqueue(row, "doc", acknowledgement=not bool(receipts))
 +        self.s.execute("INSERT OR IGNORE INTO logic_jobs VALUES(?,?,?)", (task_id, draft["id"], draft["revision"]))
-+        self.s.execute("UPDATE outbox SET body=? WHERE task_id=? AND kind='text' AND state='pending'",
-+                       ("已收到，正在整理；完成后交付候选稿、来源和待确认项。", task_id))
++        if receipts:
++            self.s.execute("UPDATE outbox SET task_id=? WHERE id=?", (task_id, receipts[0]["outbox_id"]))
++        else:
++            self.s.execute("UPDATE outbox SET body=? WHERE task_id=? AND kind='text' AND state='pending'",
++                           ("已收到，正在整理；完成后交付候选稿、来源和待确认项。", task_id))
 +        return task_id
 +
 +    def handle(self, row, argument, *, file=False):
@@ -751,11 +883,19 @@ index 0000000..7a0768c
 +        elif argument in ("采用", "adopt"):
 +            self.adopt(row, draft["id"]); self.notify(row, "已记录采用当前文字；尚未挂载，不代表专业审核或节点完成。"); return
 +        elif argument.startswith("target "):
-+            self.select_target(row, draft["id"], argument.split(maxsplit=1)[1]); self.notify(row, "已选择目标，保存时仍会核对修订。"); return
++            self.select_target(row, draft["id"], argument.split(maxsplit=1)[1])
++            current = self.get(row, draft["id"])
++            if current["state"] == "collecting" and current["sources"] != "[]":
++                self.queue(row, current)
++            self.notify(row, "已选择目标，保存时仍会核对修订。"); return
 +        elif argument == "对账":
 +            self.notify(row, self.reconcile_draft(row, draft["id"])); return
 +        elif argument in ("挂载", "mount"):
-+            result = self.mount(row, draft["id"]); self.notify(row, result["message"]); return
++            result = self.mount(row, draft["id"])
++            message = result["message"]
++            if result.get("receipt"):
++                message += "\n查看已挂载的交付物：" + result["receipt"]["url"]
++            self.notify(row, message); return
 +        elif argument in ("继续", "resume", "阶段稿", "stage"):
 +            if draft["state"] == "cancelled":
 +                raise BoundaryError("LOGIC_DRAFT_CANCELLED")
@@ -875,12 +1015,16 @@ index 0000000..7a0768c
 +
 +    def select_target(self, row, draft_id, target_id):
 +        d = self.get(row, draft_id)
++        if d["state"] == "cancelled":
++            raise BoundaryError("LOGIC_DRAFT_CANCELLED")
 +        target = self.business.resolve(row, target_id)
 +        if not all(target.get(k) for k in ("id", "project_id", "node_id", "deliverable_id", "revision")):
 +            raise BoundaryError("TARGET_INCOMPLETE")
 +        encoded = json.dumps(target, sort_keys=True)
 +        if d["target"] != encoded:
-+            self.s.execute("UPDATE logic_drafts SET target=?,accepted_hash=NULL WHERE id=?", (encoded, d["id"]))
++            state = "collecting" if d["target"] and d["state"] != "paused" else d["state"]
++            self.s.execute("UPDATE logic_drafts SET target=?,accepted_hash=NULL,revision=revision+1,state=? WHERE id=?",
++                           (encoded, state, d["id"]))
 +
 +    def mount(self, row, draft_id):
 +        d = self.get(row, draft_id)
@@ -893,7 +1037,10 @@ index 0000000..7a0768c
 +        if old:
 +            receipt = json.loads(old[0]["receipt"]) if old[0]["receipt"] else None
 +            if old[0]["state"] == "committed":
-+                return {"message": "已挂载，复用原回执；未改变专业审核状态。", "receipt": receipt}
++                current_receipt = self.business.reconcile(row, idem)
++                if current_receipt != receipt:
++                    return {"message": "原挂载回执已存在，但当前读回尚未确认；未重复写入。", "receipt": None}
++                return {"message": "已挂载并重新读回，复用原回执；未改变专业审核状态。", "receipt": receipt}
 +            # Never submit again after an ambiguous dispatch, even if reconcile is unavailable.
 +            receipt = self.business.reconcile(row, idem)
 +            if receipt:
@@ -955,8 +1102,250 @@ index 0000000..7a0768c
 +                    + ("曾提交挂载；实际结果保留，未知结果仍需对账，不删除历史。" if states else "尚未发起业务挂载。"))
 +
 +    def cleanup(self):
++        self.s.execute("DELETE FROM logic_receipts WHERE inbox_seq IN (SELECT seq FROM inbox WHERE expires<=?)", (self.s.clock(),))
 +        self.s.execute("UPDATE logic_drafts SET sources='[]',answers='{}',analysis=NULL,review=NULL,rules=NULL,content=NULL,"
 +                       "content_hash=NULL,accepted_hash=NULL,target=NULL,state='expired' WHERE expires<=?", (self.s.clock(),))
+diff --git a/src/fs_agent/meegle_port.py b/src/fs_agent/meegle_port.py
+new file mode 100644
+index 0000000..75f0fe4
+--- /dev/null
++++ b/src/fs_agent/meegle_port.py
+@@ -0,0 +1,235 @@
++"""Scoped Meegle CLI adapter. Exact targets are bound by the service, never by model text."""
++from __future__ import annotations
++import fcntl
++import hashlib
++import json
++import os
++import re
++import subprocess
++import tempfile
++from pathlib import Path
++from .config import BoundaryError
++from .doc_logic import digest, read_source, MAX_BYTES
++
++class MeeglePort:
++    def __init__(self, gateway, settings):
++        self.g, self.s, self.c = gateway, gateway.store, gateway.config
++        self.settings = settings
++        self.binary = Path(settings["executable"])
++        if (self.binary.is_symlink() or not self.binary.resolve().is_relative_to(self.c.root / "bin")
++                or digest(self.binary.read_bytes()) != settings["sha256"]):
++            raise BoundaryError("BUSINESS_EXECUTABLE_UNVERIFIED")
++        if settings["profile"] != "fs-doc-logic-r1" or settings["allowed_user"] != self.c.owner:
++            raise BoundaryError("BUSINESS_IDENTITY_BINDING_INVALID")
++        self.tmp = self.c.root / "state" / "business-tmp"
++        self.tmp.mkdir(mode=0o700, exist_ok=True)
++        if self.tmp.is_symlink():
++            raise BoundaryError("BUSINESS_DIRECTORY_INVALID")
++
++    def _run(self, args, *, params=None, json_result=True):
++        env = {k:v for k,v in os.environ.items() if not k.startswith("MEEGLE_")}
++        env.update(MEEGLE_HOST="project.feishu.cn", MEEGLE_TELEMETRY="disabled",
++                   MEEGLE_AI_HANDOFF="disabled", MEEGLE_NO_UPDATE_CHECK="1")
++        command = [str(self.binary), *args, "--profile", self.settings["profile"], "--format", "json"]
++        with tempfile.TemporaryDirectory(dir=self.tmp) as tmp:
++            if params is not None:
++                path = Path(tmp) / "params.json"
++                path.write_text(json.dumps(params, ensure_ascii=False)); path.chmod(0o600)
++                command += ["--params", "@" + str(path)]
++            try:
++                result = subprocess.run(command, env=env, capture_output=True, timeout=40)
++            except (OSError, subprocess.TimeoutExpired):
++                raise BoundaryError("BUSINESS_CALL_UNCERTAIN") from None
++        if result.returncode:
++            raise BoundaryError("BUSINESS_CALL_FAILED")
++        if not json_result:
++            return None
++        if len(result.stdout) > 4_000_000:
++            raise BoundaryError("BUSINESS_RESPONSE_LIMIT")
++        try:
++            value = json.loads(result.stdout)
++        except ValueError:
++            raise BoundaryError("BUSINESS_RESPONSE_INVALID") from None
++        if not isinstance(value, dict) or value.get("error"):
++            raise BoundaryError("BUSINESS_RESPONSE_INVALID")
++        return value
++
++    def _authorize(self, principal, alias):
++        # Local actor and target filter always precede a request to the project platform.
++        if (principal["user"] != self.settings["allowed_user"]
++                or alias not in self.settings["targets"] or not self.g.authorized(principal)):
++            raise BoundaryError("BUSINESS_SCOPE_DENIED")
++        identity = self._run(["user", "me"])
++        if identity.get("user_key") != self.settings["user_key"]:
++            raise BoundaryError("BUSINESS_IDENTITY_CHANGED")
++        return self.settings["targets"][alias]
++
++    @staticmethod
++    def _fields(data):
++        fields = data.get("work_item_fields")
++        if not isinstance(fields, list):
++            raise BoundaryError("BUSINESS_FIELDS_INVALID")
++        return {f["key"]:f.get("value") for f in fields if isinstance(f,dict) and "key" in f}
++
++    @staticmethod
++    def _files(raw):
++        if isinstance(raw, str):
++            try: raw = json.loads(raw)
++            except ValueError: raise BoundaryError("BUSINESS_FILES_INVALID") from None
++        if raw is None:
++            return None
++        if not isinstance(raw, list) or len(raw) > 50 or any(not isinstance(f,dict) for f in raw):
++            raise BoundaryError("BUSINESS_FILES_INVALID")
++        return raw
++
++    def _state(self, principal, alias):
++        b = self._authorize(principal, alias)
++        node = self._run(["workflow","get-node","--project-key",b["space"],
++                          "--work-item-id",b["project"],"--node-id-list",b["node"],"--need-sub-task"])
++        nodes = node.get("list", [])
++        if (len(nodes) != 1 or nodes[0].get("basic",{}).get("node_key") != b["node"]
++                or node.get("pagination",{}).get("has_more")):
++            raise BoundaryError("BUSINESS_NODE_UNVERIFIED")
++        members = [str(i) for group in nodes[0].get("sub_workitems",[]) for i in group.get("workitems",[])]
++        if b["deliverable"] not in members:
++            raise BoundaryError("BUSINESS_PARENT_CHANGED")
++        keys = [b["attachment_field"],b["approval_field"],b["node_field"],b["project_field"],
++                b["document_field"],b["delivery_mode_field"],"updated_at"]
++        item = self._run(["workitem","get","--project-key",b["space"],"--work-item-id",b["deliverable"],
++                          "--fields",",".join(keys)])
++        attr, fields = item.get("work_item_attribute",{}), self._fields(item)
++        if (str(attr.get("work_item_id")) != b["deliverable"]
++                or attr.get("owned_project",{}).get("key") != b["space"]
++                or attr.get("work_item_type",{}).get("key") != b["type"]
++                or str((fields.get(b["project_field"]) or {}).get("id")) != b["project"]
++                or fields.get(b["node_field"]) != b["node"]):
++            raise BoundaryError("BUSINESS_TARGET_CHANGED")
++        snapshot = {"id":attr["work_item_id"], "type":attr["work_item_type"]["key"],
++                    "name":attr.get("work_item_name"), "update_time":attr.get("update_time"),
++                    "status":attr.get("work_item_status"), "fields":fields,
++                    "node_status":nodes[0]["basic"].get("status")}
++        revision = digest(json.dumps(snapshot, ensure_ascii=False, sort_keys=True))
++        target = {"id":alias,"project_id":b["project"],"node_id":b["node"],"deliverable_id":b["deliverable"],
++                  "revision":revision,"business_status":attr.get("work_item_status"),
++                  "professional_review":fields.get(b["approval_field"]),
++                  "url":b["url"]}
++        return b, target, fields, self._files(fields.get(b["attachment_field"]))
++
++    def resolve(self, principal, target_id):
++        return self._state(principal, target_id)[1]
++
++    def _download(self, b, file, destination):
++        url = file.get("url") or file.get("file_url")
++        if not isinstance(url,str) or not url:
++            raise BoundaryError("BUSINESS_FILE_URL_MISSING")
++        self._run(["attachment","+download",url,"--project-key",b["space"],
++                   "--work-item-id",b["deliverable"],"--output",str(destination)], json_result=False)
++        if not destination.is_file() or destination.stat().st_size > MAX_BYTES:
++            raise BoundaryError("BUSINESS_FILE_LIMIT")
++        return destination.read_bytes()
++
++    def sources(self, principal, target):
++        b, current, _, files = self._state(principal, target["id"])
++        if current != target:
++            raise BoundaryError("TARGET_REVISION_CHANGED")
++        results=[]
++        for n,file in enumerate(files or [],1):
++            if n > 6:
++                raise BoundaryError("BUSINESS_SOURCE_LIMIT")
++            with tempfile.TemporaryDirectory(dir=self.tmp) as tmp:
++                try:
++                    size=int(file.get("size",0))
++                    if size <= 0 or size > MAX_BYTES: raise BoundaryError("BUSINESS_FILE_LIMIT")
++                    data=self._download(b,file,Path(tmp)/"attachment")
++                    src=read_source(file.get("name","unknown"),data,source_id=f"P{n:02d}",
++                                    origin=target["deliverable_id"],provenance="current_project")
++                except (BoundaryError,ValueError):
++                    src={"id":f"P{n:02d}","name":file.get("name","unknown"),"version":None,
++                         "formed_at":None,"origin":target["deliverable_id"],"provenance":"current_project",
++                         "segments":[],"read_status":"failed","limitation":"本项目已提供的关联附件暂不可读，未当作没有资料"}
++                results.append(src)
++        return results
++
++    def commit(self, principal, target, content, content_hash, idem, guard):
++        alias=target["id"]
++        b=self._authorize(principal,alias)
++        # Serialize this service's target writes. The platform API has no exposed CAS field;
++        # compare again immediately before update and verify exact bytes after it.
++        lockpath=self.c.root/"state"/("business-"+digest(alias)[:16]+".lock")
++        with lockpath.open("a") as lock:
++            fcntl.flock(lock,fcntl.LOCK_EX)
++            b,current,fields,files=self._state(principal,alias)
++            if current != target or not guard():
++                raise BoundaryError("TARGET_REVISION_CHANGED")
++            approval=fields.get(b["approval_field"])
++            if not isinstance(approval,dict) or approval.get("value") != b["unreviewed_value"]:
++                raise BoundaryError("BUSINESS_REVIEWED_CONTENT_PROTECTED")
++            if files is None:
++                # Missing is not silently interpreted as empty. Only the explicitly UI-verified
++                # initial empty slot at this exact fingerprint can be initialized.
++                if target["revision"] != b.get("verified_empty_revision"):
++                    raise BoundaryError("BUSINESS_ATTACHMENT_STATE_UNKNOWN")
++                files=[]
++            if len(files)>=50:
++                raise BoundaryError("BUSINESS_ATTACHMENT_LIMIT")
++            with tempfile.TemporaryDirectory(dir=self.tmp) as tmp:
++                path=Path(tmp)/f"logic-{idem[:16]}-{content_hash[:12]}.md"
++                path.write_text(content,encoding="utf-8");path.chmod(0o600)
++                if digest(path.read_bytes()) != content_hash:
++                    raise BoundaryError("BUSINESS_CONTENT_CHANGED")
++                upload=self._run(["attachment","+upload",str(path),"--resource-type","15",
++                                  "--project-key",b["space"],"--work-item-id",b["deliverable"],
++                                  "--field-key",b["attachment_field"],"--content-type","text/markdown"])
++                if not all(upload.get(k) for k in ("file_token","name","size","mime_type")):
++                    raise BoundaryError("BUSINESS_UPLOAD_UNCERTAIN")
++                self.s.execute("UPDATE logic_writes SET receipt=? WHERE idem=? AND state='unknown'",
++                               (json.dumps({"phase":"uploaded","upload":upload}),idem))
++                # Recheck after upload and immediately before changing the attachment field.
++                _,fresh,fresh_fields,fresh_files=self._state(principal,alias)
++                if fresh != target or not guard():
++                    raise BoundaryError("TARGET_REVISION_CHANGED")
++                previous=[]
++                for f in files:
++                    token=f.get("fileToken") or f.get("file_token")
++                    if not token or not all(k in f for k in ("name","type","size")):
++                        raise BoundaryError("BUSINESS_EXISTING_ATTACHMENT_UNVERIFIED")
++                    previous.append({"name":f["name"],"type":f["type"],"size":str(f["size"]),"fileToken":token})
++                new={"name":upload["name"],"type":upload["mime_type"],"size":str(upload["size"]),"fileToken":upload["file_token"]}
++                self._run(["workitem","update","--project-key",b["space"],"--work-item-id",b["deliverable"]],
++                          params={"fields":[{"field_key":b["attachment_field"],
++                                             "field_value":json.dumps(previous+[new],ensure_ascii=False)}]},json_result=False)
++                result=self.reconcile(principal,idem)
++                if result is None:
++                    raise BoundaryError("BUSINESS_WRITE_UNCERTAIN")
++                return result
++
++    def reconcile(self, principal, idem):
++        rows=self.s.rows("SELECT * FROM logic_writes WHERE idem=?",(idem,))
++        if len(rows)!=1: return None
++        write=rows[0];target=json.loads(write["target"]);b,current,_,files=self._state(principal,target["id"])
++        name=f"logic-{idem[:16]}-{write['content_hash'][:12]}.md"
++        matches=[f for f in (files or []) if f.get("name")==name]
++        if len(matches)!=1:
++            return None
++        file=matches[0]
++        saved=json.loads(write["receipt"]) if write["receipt"] else {}
++        upload=saved.get("upload",{})
++        token=file.get("fileToken") or file.get("file_token")
++        if not token: return None
++        if not file.get("url") and not file.get("file_url") and token==upload.get("file_token"):
++            file={**file,"file_url":upload.get("file_url")}
++        with tempfile.TemporaryDirectory(dir=self.tmp) as tmp:
++            if digest(self._download(b,file,Path(tmp)/"verify.md")) != write["content_hash"]:
++                raise BoundaryError("BUSINESS_READBACK_MISMATCH")
++        return {"target_id":target["id"],"content_hash":write["content_hash"],"object_id":token,"url":b["url"]}
++
++def load_meegle_port(gateway):
++    path=gateway.config.root/"config"/"document-business.json"
++    if not path.exists():
++        return None
++    stat=path.stat()
++    if path.is_symlink() or stat.st_uid!=os.getuid() or stat.st_mode & 0o077:
++        raise BoundaryError("BUSINESS_CONFIG_NOT_PRIVATE")
++    try:settings=json.loads(path.read_text())
++    except (OSError,ValueError):raise BoundaryError("BUSINESS_CONFIG_INVALID") from None
++    return MeeglePort(gateway,settings)
 diff --git a/src/fs_agent/skills/engineering-document-logic/SKILL.md b/src/fs_agent/skills/engineering-document-logic/SKILL.md
 new file mode 100644
 index 0000000..a4dabe9
@@ -1097,10 +1486,29 @@ index 0000000..65c764d
 +
 +
 diff --git a/src/fs_agent/store.py b/src/fs_agent/store.py
-index 5922571..a5d6e15 100644
+index 5922571..0853336 100644
 --- a/src/fs_agent/store.py
 +++ b/src/fs_agent/store.py
-@@ -193,18 +193,19 @@ class Store:
+@@ -150,7 +150,7 @@ class Store:
+             self.execute(sql, values)
+         return values[0]
+ 
+-    def enqueue(self, row, route):
++    def enqueue(self, row, route, *, acknowledgement=True):
+         task_id = uuid.uuid4().hex
+         with self.tx() as c:
+             old = c.execute("SELECT id FROM tasks WHERE seq=?", (row["seq"],)).fetchone()
+@@ -162,7 +162,8 @@ class Store:
+                       (task_id, row["seq"], row["app"], row["tenant"], row["user"], row["chat"], row["chat_type"],
+                        route, scope_of(row, route), row["received"], row["expires"], row["received"] + 600))
+             c.execute("UPDATE inbox SET state='handled' WHERE seq=?", (row["seq"],))
+-            self.add_outbox(row, text=f"合成任务已排队：{task_id} · /{route}", task_id=task_id, conn=c)
++            if acknowledgement:
++                self.add_outbox(row, text=f"合成任务已排队：{task_id} · /{route}", task_id=task_id, conn=c)
+         return task_id
+ 
+     def claim(self, limit=2):
+@@ -193,18 +194,19 @@ class Store:
                           "WHERE c.scope=? AND c.seq<? AND c.expires>? AND t.state='completed' "
                           "ORDER BY c.seq,c.role DESC", (task["scope"], task["seq"], self.clock()))
  
@@ -1127,10 +1535,10 @@ index 5922571..a5d6e15 100644
              if task["chat_type"] == "group":
 diff --git a/tests/test_doc_logic.py b/tests/test_doc_logic.py
 new file mode 100644
-index 0000000..443f628
+index 0000000..8e27dc2
 --- /dev/null
 +++ b/tests/test_doc_logic.py
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,347 @@
 +"""Targeted integration invariants. All identities, documents and business records are synthetic."""
 +import copy
 +import json
@@ -1227,6 +1635,9 @@ index 0000000..443f628
 +    assert result["receipt"]["target_id"]=="B"
 +    assert g.logic.mount(row,d["id"])["receipt"]==result["receipt"]
 +    assert len(port.writes)==1
++    g.logic.handle(row,"挂载")
++    assert any("https://synthetic.invalid/object" in (r["body"] or "") for r in s.rows("SELECT body FROM outbox"))
++    assert len(port.writes)==1
 +    # Another draft, same name but different immutable ID; changed revision must fail.
 +    row,d=prepared(g,s,2);succeed(g,s,rig[3])
 +    g.logic.select_target(row,d["id"],"A");g.logic.adopt(row,d["id"])
@@ -1276,6 +1687,8 @@ index 0000000..443f628
 +    sources=json.loads(g.logic.current(row)["sources"])
 +    assert len(sources)==2 and sources[-1]["read_status"]=="failed"
 +    assert "已提供" in sources[-1]["limitation"]
++    assert sources[-1]["version"] is None
++    assert "读取失败" in sources[-1]["version_reason"]
 +
 +def test_I05_cancel_before_write_and_late_model_result(rig):
 +    g,s,api,p,c=rig;row,d=prepared(g,s);task=s.claim()
@@ -1418,12 +1831,171 @@ index 0000000..443f628
 +    value=analysis();value["assessment"]="V1与V2是独立事件。"
 +    corrected=apply_program_findings(value,[source])
 +    assert "同一事件" in corrected["assessment"] and "独立事件" not in corrected["assessment"]
-
-diff --git a/config/environment.example.json b/config/environment.example.json
++
++def test_durable_receipt_precedes_file_download_without_skipping_auth(rig):
++    from fs_agent.embedded import EmbeddedPoC
++    g,s,api,p,c=rig;embedded=EmbeddedPoC(g)
++    assert embedded.ingest(event("/doc logic test"))==(True,True)
++    embedded.step();drain(g);api.sent.clear()
++    s.set_meta("provider_pause","SYNTHETIC_HOLD")
++    def download(*args,**kwargs):
++        assert any(r["body"]=="已收到，正在核验权限与资料。" for r in api.sent)
++        return b"<p>synthetic data</p>"
++    api.read_file=download
++    payload=event(number=2);payload["event"]["message"].update(message_type="file",content=json.dumps({"file_key":"file_test","file_name":"test.html"}))
++    assert embedded.ingest(payload)==(True,True);embedded.step()
++    assert len(s.rows("SELECT * FROM tasks"))==1
++
++def test_early_receipt_still_requires_current_department_authorization(rig):
++    from fs_agent.embedded import EmbeddedPoC
++    g,s,api,p,c=rig;embedded=EmbeddedPoC(g)
++    assert embedded.ingest(event("/doc logic test synthetic"))==(True,True)
++    api.allowed=False;embedded.step()
++    assert api.sent==[] and not s.rows("SELECT * FROM logic_drafts") and not p.prompts
++
++def test_cancel_during_attachment_delivery_stops_message_publication(rig):
++    from fs_agent.feishu import SendRejected
++    g,s,row,d=ready(rig);api=rig[2];original=api.send
++    def send(entry,guard):
++        if entry["kind"]=="file":
++            assert guard()
++            assert g.ingest(event("/doc 放弃",number=2))
++            assert not guard()
++            raise SendRejected("DRAFT_SUPERSEDED")
++        return original(entry,guard)
++    api.send=send;drain(g)
++    assert not any(r["kind"]=="file" for r in api.sent)
++    assert g.logic.current(row)["state"]=="cancelled"
++
++def test_bad_business_config_only_disables_business_connection(rig):
++    from fs_agent.logic_service import LogicService, MissingBusiness
++    g,s,api,p,c=rig
++    (g.config.root/"config").mkdir()
++    (g.config.root/"config/document-business.json").write_text("not-json")
++    g.logic=LogicService(g)
++    assert isinstance(g.logic.business,MissingBusiness)
++    assert s.meta("business_error")=="BUSINESS_CONNECTION_UNAVAILABLE"
++    row,d=prepared(g,s);succeed(g,s,p)
++    assert g.logic.current(row)["state"]=="ready"
++
++
++def test_target_selection_invalidates_an_inflight_generation(rig):
++    g,s,api,p,c=rig;row,d=prepared(g,s);task=s.claim()
++    g.logic.business=Business()
++    g.logic.select_target(row,d["id"],"A")
++    g.run_task(task)
++    assert not p.prompts
++    assert s.rows("SELECT error FROM tasks WHERE id=?",(task["id"],))[0]["error"]=="LATE_RESULT_REJECTED"
+diff --git a/tests/test_meegle_port.py b/tests/test_meegle_port.py
 new file mode 100644
+index 0000000..67afedd
+--- /dev/null
++++ b/tests/test_meegle_port.py
+@@ -0,0 +1,100 @@
++"""Synthetic Meegle contract tests; no network, credentials, or real project IDs."""
++import copy,json
++from pathlib import Path
++import pytest
++from fs_agent.doc_logic import digest
++from fs_agent.config import BoundaryError
++from fs_agent.meegle_port import MeeglePort
++from test_doc_logic import rig, ready
++from test_gateway import rig as base_rig
++
++def port_fixture(g):
++    binary=g.config.root/"bin"/"meegle"
++    binary.parent.mkdir();binary.write_bytes(b"synthetic-not-executable")
++    settings={"executable":str(binary),"sha256":digest(binary.read_bytes()),"profile":"fs-doc-logic-r1",
++              "allowed_user":"ou_a","user_key":"project-user-A","targets":{"report":{
++                  "space":"space-A","project":"100","node":"state-test","deliverable":"200","type":"deliverable",
++                  "attachment_field":"files","approval_field":"review","node_field":"node","project_field":"parent",
++                  "document_field":"doc","delivery_mode_field":"mode","unreviewed_value":"not_reviewed",
++                  "url":"https://project.invalid/report"}}}
++    port=MeeglePort(g,settings)
++    state={"files":None,"revision":"r1","review":"not_reviewed","updates":0,"uploads":0,"calls":[],"identity":"project-user-A","race":False,"links":[200],"data":{}}
++    def run(args, *, params=None, json_result=True):
++        state["calls"].append(args[:2])
++        if args[:2]==["user","me"]:return {"user_key":state["identity"]}
++        if args[:2]==["workflow","get-node"]:
++            return {"list":[{"basic":{"node_key":"state-test","status":"not_started"},
++                            "sub_workitems":[{"workitems":state["links"]}]}],"pagination":{"has_more":False}}
++        if args[:2]==["workitem","get"]:
++            fields={"review":{"value":state["review"],"label":"未审核"},"node":"state-test","parent":{"id":100},
++                    "doc":["existing-document"],"mode":{"value":"doc"}}
++            if state["files"] is not None:fields["files"]=state["files"]
++            return {"work_item_attribute":{"work_item_id":"200","work_item_type":{"key":"deliverable"},
++                    "work_item_name":"same-name","owned_project":{"key":"space-A"},"update_time":state["revision"],
++                    "work_item_status":{"key":"Not started","name":"未开始"}},
++                    "work_item_fields":[{"key":k,"value":v} for k,v in fields.items()]}
++        if args[:2]==["attachment","+upload"]:
++            state["uploads"]+=1;name=Path(args[2]).name;state["data"][name]=Path(args[2]).read_bytes()
++            if state["race"]:state["revision"]="external-edit"
++            return {"file_token":"token-"+name,"file_url":"https://files.invalid/"+name,
++                    "name":name,"size":len(state["data"][name]),"mime_type":"text/markdown"}
++        if args[:2]==["workitem","update"]:
++            assert [f["field_key"] for f in params["fields"]]==["files"]
++            state["files"]=json.loads(params["fields"][0]["field_value"])
++            for f in state["files"]:f["url"]="https://files.invalid/"+f["name"]
++            state["updates"]+=1;state["revision"]="r2";return None
++        if args[:2]==["attachment","+download"]:
++            name=args[2].split("/")[-1];Path(args[args.index("--output")+1]).write_bytes(state["data"][name]);return None
++        raise AssertionError(args)
++    port._run=run
++    return port,state,settings
++
++def bound(rig):
++    g,s,row,d=ready(rig);port,state,settings=port_fixture(g);g.logic.business=port
++    target=port.resolve(row,"report");settings["targets"]["report"]["verified_empty_revision"]=target["revision"]
++    g.logic.select_target(row,d["id"],"report");g.logic.adopt(row,d["id"])
++    return g,s,row,d,port,state,settings
++
++def test_exact_native_parent_upload_field_readback_and_idempotency(rig):
++    g,s,row,d,port,state,settings=bound(rig)
++    result=g.logic.mount(row,d["id"])
++    assert result["receipt"] and state["updates"]==1 and state["uploads"]==1
++    assert state["review"]=="not_reviewed"
++    assert g.logic.mount(row,d["id"])["receipt"]==result["receipt"]
++    assert state["updates"]==1
++
++def test_new_identity_is_rejected_before_project_reads(rig):
++    g,s,row,d,port,state,settings=bound(rig)
++    state["calls"].clear();state["identity"]="another-user"
++    with pytest.raises(BoundaryError,match="IDENTITY_CHANGED"):port.resolve(row,"report")
++    assert state["calls"]==[["user","me"]]
++    state["calls"].clear()
++    with pytest.raises(BoundaryError,match="SCOPE_DENIED"):port.resolve({**row,"user":"ou_b"},"report")
++    assert state["calls"]==[]
++
++def test_native_node_membership_is_authoritative(rig):
++    g,s,row,d,port,state,settings=bound(rig)
++    state["links"]=[201]
++    with pytest.raises(BoundaryError,match="PARENT_CHANGED"):port.resolve(row,"report")
++    assert state["updates"]==0
++
++def test_target_changed_during_upload_stops_field_mutation(rig):
++    g,s,row,d,port,state,settings=bound(rig);state["race"]=True
++    result=g.logic.mount(row,d["id"])
++    assert result["receipt"] is None and state["updates"]==0 and state["uploads"]==1
++
++def test_unobserved_empty_field_is_not_assumed_empty(rig):
++    g,s,row,d,port,state,settings=bound(rig)
++    settings["targets"]["report"].pop("verified_empty_revision")
++    result=g.logic.mount(row,d["id"])
++    assert result["receipt"] is None and state["updates"]==0 and state["uploads"]==0
++
++def test_missing_permission_and_old_approval_never_write(rig):
++    g,s,row,d,port,state,settings=bound(rig)
++    state["review"]="approved"
++    g.logic.select_target(row,d["id"],"report")
++    with pytest.raises(BoundaryError,match="NO_CURRENT_DRAFT"):
++        g.logic.adopt(row,d["id"])
++    with pytest.raises(BoundaryError,match="REVIEWED_CONTENT_PROTECTED"):
++        port.commit(row,port.resolve(row,"report"),d["content"],d["content_hash"],"synthetic-idem",lambda:True)
++    assert state["updates"]==0 and state["uploads"]==0
+
 --- /dev/null
 +++ b/config/environment.example.json
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,62 @@
 +{
 +  "template_only": true,
 +  "runtime_loader_implemented": true,
@@ -1481,5 +2053,8 @@ new file mode 100644
 +    "model": "qwen3.8:27b-bartowski-q8_0",
 +    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
 +    "max_tokens": 1024
++  },
++  "document_logic": {
++    "enabled": true
 +  }
 +}

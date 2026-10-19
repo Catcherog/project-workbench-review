@@ -139,7 +139,8 @@ class EmbeddedPoC:
 
     def _step(self):
         self.gateway.cleanup()
-        worked = self.gateway.receive_one()
+        worked = self.gateway.deliver_one()
+        worked = self.gateway.receive_one() or worked
         worked = self.gateway.deliver_one() or worked
         if not self.store.meta("provider_pause"):
             task = self.store.claim(1)

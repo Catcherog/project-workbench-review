@@ -253,7 +253,20 @@ class Gateway:
         if not self.store.execute("UPDATE outbox SET state='sending' WHERE id=? AND state='pending'", (row["id"],)):
             return True
         try:
-            message_id = self.api.send(row, lambda: self.authorized(row))
+            checked_at = time.monotonic()
+            guard_calls = 0
+            is_receipt = bool(self.store.rows("SELECT 1 FROM logic_receipts WHERE outbox_id=?", (row["id"],)))
+            def delivery_guard():
+                nonlocal checked_at, guard_calls
+                guard_calls += 1
+                if row["expires"] <= self.store.clock() or (row["task_id"] and not is_receipt and not self.logic.valid_job({"id":row["task_id"]})):
+                    return False
+                # Reuse this delivery's just-completed identity check during local formatting.
+                # After a file upload, always refresh again as in the original transport contract.
+                if (row["kind"] == "file" and guard_calls > 1) or time.monotonic()-checked_at > 2:
+                    allowed = self.authorized(row); checked_at = time.monotonic(); return allowed
+                return True
+            message_id = self.api.send(row, delivery_guard)
             with self.store.tx() as c:
                 c.execute("UPDATE outbox SET state='sent',message_id=? WHERE id=?", (message_id, row["id"]))
                 if row["nonce"]:

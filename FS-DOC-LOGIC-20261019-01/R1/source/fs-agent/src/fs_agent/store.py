@@ -150,7 +150,7 @@ class Store:
             self.execute(sql, values)
         return values[0]
 
-    def enqueue(self, row, route):
+    def enqueue(self, row, route, *, acknowledgement=True):
         task_id = uuid.uuid4().hex
         with self.tx() as c:
             old = c.execute("SELECT id FROM tasks WHERE seq=?", (row["seq"],)).fetchone()
@@ -162,7 +162,8 @@ class Store:
                       (task_id, row["seq"], row["app"], row["tenant"], row["user"], row["chat"], row["chat_type"],
                        route, scope_of(row, route), row["received"], row["expires"], row["received"] + 600))
             c.execute("UPDATE inbox SET state='handled' WHERE seq=?", (row["seq"],))
-            self.add_outbox(row, text=f"合成任务已排队：{task_id} · /{route}", task_id=task_id, conn=c)
+            if acknowledgement:
+                self.add_outbox(row, text=f"合成任务已排队：{task_id} · /{route}", task_id=task_id, conn=c)
         return task_id
 
     def claim(self, limit=2):
