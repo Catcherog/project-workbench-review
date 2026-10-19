@@ -1,0 +1,62 @@
+{
+  "case": "C06",
+  "synthetic": true,
+  "input": "已有观察：本次发现接点接触异常。两层有依据的原因：记录显示接点接触电阻偏高造成压降，压降使供电不足；两层各有对应测量记录。后续历史未知，模板强制五层；用户说先形成阶段报告。另有记录提及验证完成，但对应附件暂不可读。",
+  "document_type": "8d",
+  "actual_qwen": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "actual_model_calls": 2,
+  "actual_elapsed_seconds": 38.38345958298305,
+  "generation_code_sha256": "1354f2f5e376bbb5231f22b5793e3c2ce2917cf5706a1d222d3bc3d622ac53fa",
+  "rule_version": "doc-logic-r1.1",
+  "rule_sha256": "8e4ab5c890a13fea18d5dd8bae6c742f3317a0b5733e269a642ba21919b0a8cd",
+  "final_deterministic_replay_commit": "425517988bee847a133b333dc611705a67618683",
+  "final_implementation_sha256": "cd2706a3cceac50ef1c553db0ed4e5a2853ebcf6afb2c21d0384004e527959c6",
+  "candidate": {
+    "problem": "整理接点接触异常8D阶段稿，确认两层原因及验证状态。",
+    "assessment": "记录显示接点接触异常，接触电阻偏高致压降及供电不足，两层原因均有测量记录支持。后续历史未知，不强行填满五层。验证记录提及完成但附件暂不可读，无法确认具体结果，保留未知。",
+    "evidence": [
+      {
+        "ref": "S01:2",
+        "quote": "记录显示接点接触电阻偏高造成压降，压降使供电不足",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "接触电阻偏高导致压降及供电不足",
+        "reason": "基于提交记录的转述，有对应测量记录支持因果链。"
+      },
+      {
+        "ref": "S01:6",
+        "quote": "另有记录提及验证完成，但对应附件暂不可读",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "措施效果验证已完成",
+        "reason": "虽有完成记录，但附件不可读，无法核实具体验证数据，证据链存在缺口。"
+      }
+    ],
+    "changes": [
+      "保留两层有依据的原因，不补造第三至五层原因。",
+      "将验证状态标记为‘记录提及完成但附件不可读’，而非直接判定通过或失败。"
+    ],
+    "gaps": [
+      "验证附件暂不可读，无法确认措施效果的具体数据。",
+      "后续历史原因未知，当前仅能确认直接技术原因。"
+    ],
+    "questions": [],
+    "next": [
+      "获取可读的验证附件以核实效果。",
+      "若附件持续不可读，保留当前阶段稿并标记验证项为待确认。"
+    ]
+  },
+  "qwen_semantic_review": {
+    "ok": true,
+    "issues": []
+  },
+  "codex_targeted_review": "阶段稿、两层已知原因和验证完成记录保留；不补五层；注明附件不可读。",
+  "evidence_boundary": "real pinned Qwen generated these synthetic opinions; saved output rechecked/rendered using final deterministic code; not a real business document or Feishu entry test",
+  "artifact_sha256": "cb8a4ee9014a56141cb433e21a4933d3ba9b28dd6a9a92833d28ad613148d492"
+}

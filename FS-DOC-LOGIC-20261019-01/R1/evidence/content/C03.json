@@ -1,0 +1,68 @@
+{
+  "case": "C03",
+  "synthetic": true,
+  "input": "已记录更换支架并重插线缆；同一样机本次连续运行 12 分钟未见中断。原稿称支架是唯一根因。",
+  "document_type": "8d",
+  "actual_qwen": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "actual_model_calls": 2,
+  "actual_elapsed_seconds": 43.25205579097383,
+  "generation_code_sha256": "1354f2f5e376bbb5231f22b5793e3c2ce2917cf5706a1d222d3bc3d622ac53fa",
+  "rule_version": "doc-logic-r1.1",
+  "rule_sha256": "8e4ab5c890a13fea18d5dd8bae6c742f3317a0b5733e269a642ba21919b0a8cd",
+  "final_deterministic_replay_commit": "425517988bee847a133b333dc611705a67618683",
+  "final_implementation_sha256": "cd2706a3cceac50ef1c553db0ed4e5a2853ebcf6afb2c21d0384004e527959c6",
+  "candidate": {
+    "problem": "整理8D异常分析：确认更换支架及重插线缆后的运行状态，评估“支架是唯一根因”主张的证据边界。",
+    "assessment": "记录显示同一样机在更换支架并重插线缆后连续运行12分钟未见中断，支持该次运行恢复正常的结论。但原稿称“支架是唯一根因”缺乏单独对照证据，无法排除线缆重插的贡献或共同作用，故该因果主张证据不足。组合操作后的恢复不能归因于单一操作，也不证明历史形成原因。",
+    "evidence": [
+      {
+        "ref": "S01:2",
+        "quote": "同一样机本次连续运行 12 分钟未见中断。",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "该样机在本次操作后运行正常",
+        "reason": "基于提交记录，仅支持该次运行结果，不证明长期稳定性或唯一根因。"
+      },
+      {
+        "ref": "S01:3",
+        "quote": "原稿称支架是唯一根因。",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "支架是故障的唯一根本原因",
+        "reason": "缺少单独更换支架或单独重插线缆的对照记录，无法区分单一变量影响，证据不足以支持“唯一”定性。"
+      }
+    ],
+    "changes": [
+      "将“支架是唯一根因”从结论降级为待验证假设，因缺乏排除线缆影响的对照证据。",
+      "明确运行正常仅针对“本次连续12分钟”这一特定样本和条件，不泛化为整体可靠性。"
+    ],
+    "gaps": [
+      "缺少单独更换支架或单独重插线缆的对照试验记录，无法区分两项操作的具体贡献。",
+      "未提供故障发生前的详细日志或波形，无法验证历史形成机制。"
+    ],
+    "questions": [
+      {
+        "key": "control_test",
+        "ask": "是否有仅重插线缆未换支架，或仅换支架未重插线缆的对照记录？",
+        "impact": "用于区分支架与线缆对故障恢复的贡献，验证“唯一根因”主张。"
+      }
+    ],
+    "next": [
+      "建议由专业人员评估是否进行单变量对照试验以区分支架与线缆的影响。",
+      "保留当前“运行恢复”的有效结果，待补充对照证据后再更新根因结论。"
+    ]
+  },
+  "qwen_semantic_review": {
+    "ok": true,
+    "issues": []
+  },
+  "codex_targeted_review": "操作、样本和12分钟保留；唯一根因受限；未重问重插或时长。",
+  "evidence_boundary": "real pinned Qwen generated these synthetic opinions; saved output rechecked/rendered using final deterministic code; not a real business document or Feishu entry test",
+  "artifact_sha256": "86c76db5c5aee177a8d56d8cf984f76ffc25f7a1dc56ae81ce3a5124fe724da6"
+}

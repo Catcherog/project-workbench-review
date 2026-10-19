@@ -1,0 +1,86 @@
+{
+  "case": "C02",
+  "synthetic": true,
+  "input": "返件平均 11.5 A，历史平均 15.2 A，均值判据 ≥16 A；处理后仅写“18 A 以上”。扭矩 1.1 N·m，清洗后 1.4 N·m，跑合再清洗后 ≥2.8 N·m，判据 ≥2.8 N·m；另记“静态功耗 37 mA”。",
+  "document_type": "test",
+  "actual_qwen": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "actual_model_calls": 2,
+  "actual_elapsed_seconds": 50.24801745900186,
+  "generation_code_sha256": "e1e8be0f253a46d009d52c99774210d0fa44f41f3437647eefff70bf93109a43",
+  "rule_version": "doc-logic-r1.1",
+  "rule_sha256": "8e4ab5c890a13fea18d5dd8bae6c742f3317a0b5733e269a642ba21919b0a8cd",
+  "final_deterministic_replay_commit": "425517988bee847a133b333dc611705a67618683",
+  "final_implementation_sha256": "cd2706a3cceac50ef1c553db0ed4e5a2853ebcf6afb2c21d0384004e527959c6",
+  "candidate": {
+    "problem": "整理返件电流、扭矩及功耗记录，核对判据符合性与单位错误。",
+    "assessment": "电流记录11.5A低于16A判据，未达标；扭矩清洗后1.4N·m未达标，跑合后≥2.8N·m达标；功耗记录37mA存在单位错误，无法评估。原记录「处理后仅写“18 A 以上”。」：此处理后记录保留为有效数值范围；未给统计口径，不能据此确认满足均值判据。精确单值不能替代统计口径。",
+    "evidence": [
+      {
+        "ref": "S01:1",
+        "quote": "返件平均 11.5 A，历史平均 15.2 A，均值判据 ≥16 A",
+        "kind": "reported",
+        "relation": "反对",
+        "claim": "返件电流满足均值判据",
+        "reason": "记录值11.5A小于阈值16A，明确不达标。"
+      },
+      {
+        "ref": "S01:3",
+        "quote": "跑合再清洗后 ≥2.8 N·m，判据 ≥2.8 N·m",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "跑合后扭矩满足判据",
+        "reason": "记录值下限等于阈值，满足≥2.8N·m要求。"
+      },
+      {
+        "ref": "S01:4",
+        "quote": "静态功耗 37 mA",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "静态功耗符合标准",
+        "reason": "mA为电流单位，与功耗名称不匹配，物理量待澄清，无法判断。"
+      }
+    ],
+    "changes": [
+      "保留电流未达标结论，不泛称整体改善。",
+      "指出扭矩仅跑合后阶段达标，清洗后阶段未达标。",
+      "标记功耗记录单位错误，不补全电压或换算。",
+      "[S01:2] 原记录「处理后仅写“18 A 以上”。」：此处理后记录保留为有效数值范围；未给统计口径，不能据此确认满足均值判据。精确单值不能替代统计口径。",
+      "[S01:4] 原文「静态功耗 37 mA」：mA 是电流单位，与功耗／功率名称不匹配；原句保留，物理量待澄清，不补电压或换算功率。"
+    ],
+    "gaps": [
+      "电流记录未说明统计口径是否为均值及样本范围。",
+      "功耗记录物理量名称与单位不匹配，需澄清是电流还是功率。",
+      "处理后数值的统计口径及样本范围尚未明确；原记录中已明确的平均值不重复追问。",
+      "需核对该记录实际要表达的物理量及单位；不能先按功率寻找判据。"
+    ],
+    "questions": [
+      {
+        "key": "post_statistic",
+        "ask": "处理后记录采用什么统计口径，是否为均值？样本范围是什么？",
+        "impact": "影响能否与均值判据比较；保留已记录的数值范围，不要求另测一个精确单值。"
+      },
+      {
+        "key": "quantity_unit",
+        "ask": "原记录的物理量名称与 mA 单位，哪一项需要更正？",
+        "impact": "影响能否作为功率记录使用；不要求重复测量或补造换算条件。"
+      }
+    ],
+    "next": [
+      "澄清电流统计口径与样本范围。",
+      "确认功耗记录的物理量定义及正确单位。"
+    ]
+  },
+  "qwen_semantic_review": {
+    "ok": true,
+    "issues": []
+  },
+  "codex_targeted_review": "保留均值、区间、扭矩及单位；处理后统计口径未知；mA量纲矛盾明确；无清洗单独根因或电压补造。",
+  "evidence_boundary": "real pinned Qwen generated these synthetic opinions; saved output rechecked/rendered using final deterministic code; not a real business document or Feishu entry test",
+  "artifact_sha256": "8134c21d91403ea96a54331ca9822f9319863100aab5572ecb48a74cf35a340a"
+}

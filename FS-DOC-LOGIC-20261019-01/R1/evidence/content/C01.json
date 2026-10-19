@@ -1,0 +1,89 @@
+{
+  "case": "C01",
+  "synthetic": true,
+  "input": "样机 S-A：主轴跳动 0.026→0.013 mm，输入端 0.007→0.010 mm，总噪声 55.1→51.4 dB，限值 ≤59 dB；约 3 Hz 声音幅度调制仍可辨。原稿称“各项改善、异响解决”。",
+  "document_type": "test",
+  "actual_qwen": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "actual_model_calls": 2,
+  "actual_elapsed_seconds": 51.972827499965206,
+  "generation_code_sha256": "1354f2f5e376bbb5231f22b5793e3c2ce2917cf5706a1d222d3bc3d622ac53fa",
+  "rule_version": "doc-logic-r1.1",
+  "rule_sha256": "8e4ab5c890a13fea18d5dd8bae6c742f3317a0b5733e269a642ba21919b0a8cd",
+  "final_deterministic_replay_commit": "425517988bee847a133b333dc611705a67618683",
+  "final_implementation_sha256": "cd2706a3cceac50ef1c553db0ed4e5a2853ebcf6afb2c21d0384004e527959c6",
+  "candidate": {
+    "problem": "整理样机S-A测试记录，核对指标变化与结论范围，识别证据边界。",
+    "assessment": "记录显示主轴跳动与总噪声改善，但输入端跳动反向增大。原稿“各项改善”与数据冲突，仅支持部分指标达标。3Hz调制现象存在，未提供根因证据。",
+    "evidence": [
+      {
+        "ref": "S01:1",
+        "quote": "主轴跳动 0.026→0.013 mm",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "主轴跳动指标改善",
+        "reason": "数值减小，符合改善方向"
+      },
+      {
+        "ref": "S01:1",
+        "quote": "输入端 0.007→0.010 mm",
+        "kind": "reported",
+        "relation": "反对",
+        "claim": "各项指标均改善",
+        "reason": "数值增大，与“各项改善”主张冲突"
+      },
+      {
+        "ref": "S01:1",
+        "quote": "总噪声 55.1→51.4 dB，限值 ≤59 dB",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "总噪声达标且改善",
+        "reason": "处理后数值低于限值且较前减小"
+      },
+      {
+        "ref": "S01:2",
+        "quote": "约 3 Hz 声音幅度调制仍可辨",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "异响已解决",
+        "reason": "现象仍被观测到，未提供消除证据"
+      }
+    ],
+    "changes": [
+      "修正“各项改善”为“主轴跳动与总噪声改善，输入端跳动增大”",
+      "将“异响解决”限定为“3Hz调制现象仍可见，未确认消除”"
+    ],
+    "gaps": [
+      "输入端跳动增大的原因未说明",
+      "3Hz调制现象的根因及是否影响验收未明确"
+    ],
+    "questions": [
+      {
+        "key": "input_trend",
+        "ask": "输入端跳动增大的具体原因或后续处理计划？",
+        "impact": "影响对整体改善结论的完整性判断"
+      },
+      {
+        "key": "modulation_status",
+        "ask": "3Hz调制现象是否被视为未解决的缺陷？",
+        "impact": "决定测试结论是“通过”还是“有条件通过”"
+      }
+    ],
+    "next": [
+      "补充输入端跳动变化的技术解释",
+      "确认3Hz调制现象的验收标准及当前状态"
+    ]
+  },
+  "qwen_semantic_review": {
+    "ok": true,
+    "issues": []
+  },
+  "codex_targeted_review": "全部原值保留；指出输入端增大；总噪声与目标调制声分开；无转速替换。",
+  "evidence_boundary": "real pinned Qwen generated these synthetic opinions; saved output rechecked/rendered using final deterministic code; not a real business document or Feishu entry test",
+  "artifact_sha256": "2bdbe94dcfa18958bfe643a9d39672bde734abfe93e2397002f05c17467f94dd"
+}

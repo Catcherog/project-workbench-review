@@ -1,0 +1,77 @@
+{
+  "case": "C04",
+  "synthetic": true,
+  "input": "三个独立小节：一次重校后恢复；测试板外部导线跨接后通信恢复；人为构造校验不一致复现报警，恢复参数后消失。均无历史形成记录。",
+  "document_type": "8d",
+  "actual_qwen": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "actual_model_calls": 2,
+  "actual_elapsed_seconds": 47.50017991801724,
+  "generation_code_sha256": "1354f2f5e376bbb5231f22b5793e3c2ce2917cf5706a1d222d3bc3d622ac53fa",
+  "rule_version": "doc-logic-r1.1",
+  "rule_sha256": "8e4ab5c890a13fea18d5dd8bae6c742f3317a0b5733e269a642ba21919b0a8cd",
+  "final_deterministic_replay_commit": "425517988bee847a133b333dc611705a67618683",
+  "final_implementation_sha256": "cd2706a3cceac50ef1c553db0ed4e5a2853ebcf6afb2c21d0384004e527959c6",
+  "candidate": {
+    "problem": "整理三个独立小节的异常恢复记录，区分机制验证与现场历史，保留事实边界。",
+    "assessment": "记录显示三个独立操作后均观察到恢复。S01:3通过人为构造故障复现报警并恢复，支持当前校验机制有效；S01:1和S01:2仅记录恢复现象，无对照实验，不能推断单一根因。所有记录均为转述，非实测数据。",
+    "evidence": [
+      {
+        "ref": "S01:3",
+        "quote": "人为构造校验不一致复现报警，恢复参数后消失。",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "当前校验机制在构造条件下可复现并消除报警。",
+        "reason": "构造复现支持机制存在，但不证明现场历史成因。"
+      },
+      {
+        "ref": "S01:1",
+        "quote": "一次重校后恢复；",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "重校是恢复的唯一原因。",
+        "reason": "缺乏对照，无法排除其他因素，仅记录恢复现象。"
+      },
+      {
+        "ref": "S01:2",
+        "quote": "测试板外部导线跨接后通信恢复；",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "跨接导线是通信恢复的唯一原因。",
+        "reason": "独立小节，无历史形成记录，不能合并归因。"
+      }
+    ],
+    "changes": [
+      "将三个小节视为独立事件，不合并为组合措施。",
+      "明确S01:3为机制验证，S01:1/S01:2为现象记录。",
+      "标注所有来源为转述（reported），非实测。"
+    ],
+    "gaps": [
+      "缺乏S01:1和S01:2的对照实验或历史形成记录，无法确定唯一根因。",
+      "未提供具体数值或判据，无法进行定量评估。"
+    ],
+    "questions": [
+      {
+        "key": "root_cause",
+        "ask": "是否有S01:1或S01:2的独立对照记录以区分操作影响？",
+        "impact": "影响根因结论的强度，目前仅能确认恢复现象。"
+      }
+    ],
+    "next": [
+      "由专业人员决定是否需要补充对照试验以验证S01:1/S01:2的因果链。",
+      "保留当前阶段稿，待补充记录后更新根因分析。"
+    ]
+  },
+  "qwen_semantic_review": {
+    "ok": true,
+    "issues": []
+  },
+  "codex_targeted_review": "三个独立小节分开；保留重校、跨接与构造复现结果；不补历史、责任或焊接。",
+  "evidence_boundary": "real pinned Qwen generated these synthetic opinions; saved output rechecked/rendered using final deterministic code; not a real business document or Feishu entry test",
+  "artifact_sha256": "8423e3ead66b751584eb18f4fe803229a1f179fc6a637300ef085489e77317b3"
+}
