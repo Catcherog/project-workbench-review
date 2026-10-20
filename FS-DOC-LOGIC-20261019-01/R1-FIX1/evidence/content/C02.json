@@ -1,0 +1,155 @@
+{
+  "case": "C02",
+  "synthetic": true,
+  "input": "返件平均 11.5 A，历史平均 15.2 A，均值判据 ≥16 A；处理后仅写“18 A 以上”。扭矩 1.1 N·m，清洗后 1.4 N·m，跑合再清洗后 ≥2.8 N·m，判据 ≥2.8 N·m；另记“静态功耗 37 mA”。",
+  "document_type": "test",
+  "runtime": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "rules": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "1194fbf8a25c22975d4e83e27291bdd5447ecf0e031d7b72a7b75d789e656605",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    },
+    "question_state_sha256": "ab0b430033ff9400c25bd163270ed9a33354702a60b8e61288ed3572e3cf501c"
+  },
+  "result": {
+    "state": "completed",
+    "error": null,
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "elapsed": 55.88298016699264
+  },
+  "question_states": {
+    "Q5c96ae0abbc7e445": {
+      "key": "Q5c96ae0abbc7e445",
+      "subject": "本记录 / A / 处理后",
+      "refs": [
+        "S01:2"
+      ],
+      "gap": "statistic_scope",
+      "ask": "[S01:2] 处理后记录采用什么统计口径，是否为均值？样本范围是什么？",
+      "impact": "仅影响该记录与[S01:1]均值判据的比较。",
+      "status": "unanswered",
+      "answer": "",
+      "remaining": "[S01:2] 处理后记录采用什么统计口径，是否为均值？样本范围是什么？",
+      "citations": [],
+      "history": []
+    },
+    "Q4ca44c5224f4e433": {
+      "key": "Q4ca44c5224f4e433",
+      "subject": "静态功耗 37 mA",
+      "refs": [
+        "S01:4"
+      ],
+      "gap": "quantity_unit",
+      "ask": "[S01:4] 原记录的物理量名称与 mA 单位，哪一项需要更正？",
+      "impact": "mA 是电流单位；影响该记录物理量判断，不补造换算条件。",
+      "status": "unanswered",
+      "answer": "",
+      "remaining": "[S01:4] 原记录的物理量名称与 mA 单位，哪一项需要更正？",
+      "citations": [],
+      "history": []
+    }
+  },
+  "generation_metadata": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "1194fbf8a25c22975d4e83e27291bdd5447ecf0e031d7b72a7b75d789e656605",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    },
+    "question_state_sha256": "ab0b430033ff9400c25bd163270ed9a33354702a60b8e61288ed3572e3cf501c",
+    "workflow_sha256": "6bba88f0f32b4d241802d26cdd0bd145ccef9387282ad488b0b2026e6a230717",
+    "model": {
+      "name": "qwen3.8:27b-bartowski-q8_0",
+      "digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef"
+    },
+    "processed_source_ids": [
+      "S01"
+    ],
+    "answer_updates": {
+      "updates": []
+    },
+    "program_repairs": [],
+    "model_calls": 2
+  },
+  "analysis": {
+    "problem": "整理返件电流、扭矩及静态功耗记录，核对判据匹配性与单位量纲，明确统计口径缺口。",
+    "assessment": "扭矩在跑合再清洗后达到≥2.8 N·m判据，该阶段结果有效。返件平均11.5 A低于16 A判据，未达标。处理后记录仅显示“18 A以上”，因统计口径未知，无法确认是否满足均值判据。静态功耗记录存在量纲矛盾，mA为电流单位，与“功耗”名称不匹配，需更正。",
+    "evidence": [
+      {
+        "ref": "S01:3",
+        "quote": "跑合再清洗后 ≥2.8 N·m，判据 ≥2.8 N·m",
+        "kind": "observation",
+        "relation": "支持",
+        "claim": "跑合再清洗后扭矩达到判据",
+        "reason": "记录数值与判据一致，条件明确。"
+      },
+      {
+        "ref": "S01:2",
+        "quote": "处理后仅写“18 A 以上”",
+        "kind": "reported",
+        "relation": "不足",
+        "claim": "处理后电流满足均值判据",
+        "reason": "缺乏统计口径（是否为均值）及样本范围，无法与S01:1的均值判据直接比较。"
+      }
+    ],
+    "changes": [
+      "保留扭矩达标结论，明确适用条件为跑合再清洗后。",
+      "指出静态功耗37 mA存在量纲错误，mA为电流单位，不补造换算。",
+      "标记处理后电流记录为统计口径未知，不直接判定达标。"
+    ],
+    "gaps": [
+      "处理后电流记录的统计口径及样本范围未知，影响与均值判据的比较。",
+      "静态功耗记录的物理量名称或单位需更正，当前记录存在量纲矛盾。",
+      "[S01:2] 本记录 / A / 处理后：[S01:2] 处理后记录采用什么统计口径，是否为均值？样本范围是什么？ 影响：仅影响该记录与[S01:1]均值判据的比较。",
+      "[S01:4] 静态功耗 37 mA：[S01:4] 原记录的物理量名称与 mA 单位，哪一项需要更正？ 影响：mA 是电流单位；影响该记录物理量判断，不补造换算条件。"
+    ],
+    "questions": [
+      {
+        "key": "Q5c96ae0abbc7e445",
+        "ask": "[S01:2] 处理后记录采用什么统计口径，是否为均值？样本范围是什么？",
+        "impact": "仅影响该记录与[S01:1]均值判据的比较。",
+        "subject": "本记录 / A / 处理后",
+        "refs": [
+          "S01:2"
+        ],
+        "gap": "statistic_scope"
+      },
+      {
+        "key": "Q4ca44c5224f4e433",
+        "ask": "[S01:4] 原记录的物理量名称与 mA 单位，哪一项需要更正？",
+        "impact": "mA 是电流单位；影响该记录物理量判断，不补造换算条件。",
+        "subject": "静态功耗 37 mA",
+        "refs": [
+          "S01:4"
+        ],
+        "gap": "quantity_unit"
+      }
+    ],
+    "next": [
+      "确认处理后电流记录的统计口径是否为均值及样本范围。",
+      "更正静态功耗记录的物理量名称或单位，确保量纲一致。"
+    ]
+  },
+  "semantic_review": {
+    "ok": true,
+    "issues": []
+  },
+  "synthetic_model_outputs": [
+    "{\n  \"problem\": \"整理返件电流、扭矩及静态功耗记录，核对判据匹配性与单位量纲，明确统计口径缺口。\",\n  \"assessment\": \"扭矩在跑合再清洗后达到≥2.8 N·m判据，该阶段结果有效。返件平均11.5 A低于16 A判据，未达标。处理后记录仅显示“18 A以上”，因统计口径未知，无法确认是否满足均值判据。静态功耗记录存在量纲矛盾，mA为电流单位，与“功耗”名称不匹配，需更正。\",\n  \"evidence\": [\n    {\n      \"ref\": \"S01:3\",\n      \"quote\": \"跑合再清洗后 ≥2.8 N·m，判据 ≥2.8 N·m\",\n      \"kind\": \"observation\",\n      \"relation\": \"支持\",\n      \"claim\": \"跑合再清洗后扭矩达到判据\",\n      \"reason\": \"记录数值与判据一致，条件明确。\"\n    },\n    {\n      \"ref\": \"S01:2\",\n      \"quote\": \"处理后仅写“18 A 以上”\",\n      \"kind\": \"reported\",\n      \"relation\": \"不足\",\n      \"claim\": \"处理后电流满足均值判据\",\n      \"reason\": \"缺乏统计口径（是否为均值）及样本范围，无法与S01:1的均值判据直接比较。\"\n    }\n  ],\n  \"changes\": [\n    \"保留扭矩达标结论，明确适用条件为跑合再清洗后。\",\n    \"指出静态功耗37 mA存在量纲错误，mA为电流单位，不补造换算。\",\n    \"标记处理后电流记录为统计口径未知，不直接判定达标。\"\n  ],\n  \"gaps\": [\n    \"处理后电流记录的统计口径及样本范围未知，影响与均值判据的比较。\",\n    \"静态功耗记录的物理量名称或单位需更正，当前记录存在量纲矛盾。\"\n  ],\n  \"questions\": [],\n  \"next\": [\n    \"确认处理后电流记录的统计口径是否为均值及样本范围。\",\n    \"更正静态功耗记录的物理量名称或单位，确保量纲一致。\"\n  ]\n}",
+    "{\n\"ok\": true,\n\"issues\": []\n}"
+  ]
+}

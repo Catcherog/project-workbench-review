@@ -1,0 +1,79 @@
+{
+  "case": "C05",
+  "layer": "deterministic_replay_of_real_model_output",
+  "source_commit": "10a866b50188aabdd5862e122f1e0ca1c68cdd42",
+  "new_model_calls": 0,
+  "original_evidence": "evidence/content-verified/C05.json",
+  "generation_rules": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "1194fbf8a25c22975d4e83e27291bdd5447ecf0e031d7b72a7b75d789e656605",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    },
+    "question_state_sha256": "ab0b430033ff9400c25bd163270ed9a33354702a60b8e61288ed3572e3cf501c"
+  },
+  "final_rules": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "d869f05c9aea06cd4b1787f648447f6fec5f84fb3a9aeb4b8ebfd0e103b2df6e",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    },
+    "question_state_sha256": "ab0b430033ff9400c25bd163270ed9a33354702a60b8e61288ed3572e3cf501c",
+    "workflow_sha256": "6bba88f0f32b4d241802d26cdd0bd145ccef9387282ad488b0b2026e6a230717"
+  },
+  "analysis_changed": false,
+  "program_repairs": [],
+  "analysis": {
+    "problem": "整理V1/V2异常分析记录，核对图号引用错误及证据边界，区分提交状态与批准状态。",
+    "assessment": "V1待补证，V2已提交专业审核，两者均无已批准记录，不能视为已结案。V2存在图号引用错误：正文将异常现象误引为图A，实际图A正常、图B异常、图C为本地复现。由于输入仅含图题信息，无图片像素，本轮无法视觉核验图像内容，仅能依据文字记录确认引用不一致。V1与V2为同一事件下的不同版本或阶段，需分别保留其状态，不合并处理。",
+    "evidence": [
+      {
+        "ref": "S01:1",
+        "quote": "同一事件 V1 待补证、V2 提交专业审核，均无已批准记录。",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "V1和V2当前均无已批准记录，V2处于提交审核状态，本轮无法确认是否已批准。",
+        "reason": "记录明确显示状态为‘待补证’和‘提交专业审核’，且强调‘均无已批准记录’，直接支持本轮无法确认当前批准状态。"
+      },
+      {
+        "ref": "S01:2",
+        "quote": "V2 图 A 正常、图 B 异常、图 C 本地复现，正文误把异常引为图 A。",
+        "kind": "observation",
+        "relation": "支持",
+        "claim": "V2文档中存在图号引用错误，异常现象应对应图B而非图A。",
+        "reason": "记录明确指出了图A、B、C各自对应的状态（正常、异常、复现）以及正文的错误引用，支持存在引用不一致的事实。"
+      },
+      {
+        "ref": "S01:3",
+        "quote": "此输入只有图题信息，没有图片像素。",
+        "kind": "reported",
+        "relation": "支持",
+        "claim": "本轮无法独立进行图片视觉核验",
+        "reason": "此输入只有图题、没有图片像素，支持本轮读取能力的限制，不代表图片内容已被验证。"
+      }
+    ],
+    "changes": [
+      "修正V2中异常现象的图号引用，由图A更正为图B，以匹配记录中‘图B异常’的描述。",
+      "明确V1和V2的状态为‘无已批准记录’，避免将‘提交审核’或‘待补证’误读为已批准或已结案。"
+    ],
+    "gaps": [
+      "V1缺少补证材料，无法确认其最终结论，当前状态保持为待补证。",
+      "输入资料无图片像素，无法视觉核验图A、B、C的实际内容，仅能依据文字记录判断引用错误，存在视觉证据缺失的限制。"
+    ],
+    "questions": [],
+    "next": [
+      "请专业人员确认V2图B是否为正确的异常现象对应图，并更新文档引用。",
+      "跟进V1的补证进度，获取缺失证据以完成V1的验证闭环。"
+    ]
+  },
+  "semantic_review_origin": "existing real Qwen review; only source-backed deterministic normalization replayed",
+  "targeted_assertions_passed": true
+}

@@ -1,0 +1,48 @@
+{
+  "case": "C05",
+  "synthetic": true,
+  "input": "同一事件 V1 待补证、V2 提交专业审核，均无已批准记录。V2 图 A 正常、图 B 异常、图 C 本地复现，正文误把异常引为图 A。此输入只有图题信息，没有图片像素。",
+  "document_type": "8d",
+  "runtime": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "rules": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "71b64a640d44b1948068d0b45c62440a7cfb2163bb50a3d625cd8194ac3e4e97",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    }
+  },
+  "result": {
+    "state": "failed",
+    "error": "LOGIC_SEMANTIC_REVIEW",
+    "model": null,
+    "elapsed": null
+  },
+  "analysis": null,
+  "semantic_review": {
+    "ok": false,
+    "issues": [
+      {
+        "rule": "L04",
+        "detail": "提交身份不能推导为非实测；应写记录显示、本轮未独立复核。"
+      },
+      {
+        "rule": "L14",
+        "detail": "没有图片像素支持本轮无法视觉核验这一否定命题；relation须与claim和reason同向。"
+      }
+    ]
+  },
+  "synthetic_model_outputs": [
+    "{\n  \"problem\": \"整理V1/V2异常分析记录，核对图号引用错误及证据边界，区分待补证与审核状态。\",\n  \"assessment\": \"V1处于待补证状态，V2已提交专业审核，两者均无已批准记录，不能视为已结案。V2存在图号引用错误：正文将异常现象误引为图A，实际图A正常、图B异常、图C为本地复现。由于输入仅含图题信息，缺乏图片像素数据，无法进行视觉核验以确认图像内容是否与描述一致。当前判断基于记录转述，非实测确认。\",\n  \"evidence\": [\n    {\n      \"ref\": \"S01:2\",\n      \"quote\": \"V2 图 A 正常、图 B 异常、图 C 本地复现，正文误把异常引为图 A。\",\n      \"kind\": \"reported\",\n      \"relation\": \"支持\",\n      \"claim\": \"V2文档中存在图号引用错误，异常现象应对应图B而非图A。\",\n      \"reason\": \"记录明确指出了图A、B、C的状态及正文引用错误，属于对文档内容的转述。\"\n    },\n    {\n      \"ref\": \"S01:3\",\n      \"quote\": \"此输入只有图题信息，没有图片像素。\",\n      \"kind\": \"reported\",\n      \"relation\": \"不足\",\n      \"claim\": \"当前无法通过视觉手段核验图像内容与图题描述的一致性。\",\n      \"reason\": \"缺乏原始图像数据，仅凭文字描述无法排除图题本身错误或图像内容不符的可能性。\"\n    }\n  ],\n  \"changes\": [\n    \"修正V2中异常现象的图号引用，由图A更正为图B。\",\n    \"明确V1和V2均无已批准记录，状态分别为待补证和提交审核，不视为已批准。\",\n    \"标注因缺乏图片像素，无法进行视觉核验，保留该证据边界。\"\n  ],\n  \"gaps\": [\n    \"V1缺少具体待补证的证据内容，无法判断是否满足结案条件。\",\n    \"V2缺乏图片像素数据，无法验证图A/B/C的实际图像内容是否与图题描述一致。\"\n  ],\n  \"questions\": [],\n  \"next\": [\n    \"请专业人员提供V1待补证的具体证据清单。\",\n    \"请提供V2图A、B、C的原始图像文件以便进行视觉核验。\"\n  ]\n}",
+    "{\n  \"problem\": \"整理V1/V2异常分析记录，核对图号引用错误及证据边界，区分待补证与审核状态。\",\n  \"assessment\": \"记录显示V1待补证、V2提交专业审核，均无已批准记录，不能视为已结案。V2存在图号引用错误：记录指出正文误将异常引为图A，实际图A正常、图B异常、图C本地复现。由于输入仅含图题信息，缺乏图片像素，本轮无法视觉核验图像内容与描述的一致性。当前判断基于记录转述，非实测确认。\",\n  \"evidence\": [\n    {\n      \"ref\": \"S01:2\",\n      \"quote\": \"V2 图 A 正常、图 B 异常、图 C 本地复现，正文误把异常引为图 A。\",\n      \"kind\": \"reported\",\n      \"relation\": \"支持\",\n      \"claim\": \"V2文档中存在图号引用错误，异常现象应对应图B而非图A。\",\n      \"reason\": \"记录明确指出了图A、B、C的状态及正文引用错误，属于对文档内容的转述。\"\n    },\n    {\n      \"ref\": \"S01:3\",\n      \"quote\": \"此输入只有图题信息，没有图片像素。\",\n      \"kind\": \"reported\",\n      \"relation\": \"不足\",\n      \"claim\": \"本轮无法通过视觉手段核验图像内容与图题描述的一致性。\",\n      \"reason\": \"缺乏原始图像数据，仅凭文字描述无法排除图题本身错误或图像内容不符的可能性。\"\n    }\n  ],\n  \"changes\": [\n    \"修正V2中异常现象的图号引用，由图A更正为图B。\",\n    \"明确V1和V2均无已批准记录，状态分别为待补证和提交审核，不视为已批准。\",\n    \"标注因缺乏图片像素，本轮无法进行视觉核验，保留该证据边界。\"\n  ],\n  \"gaps\": [\n    \"V1缺少具体待补证的证据内容，无法判断是否满足结案条件。\",\n    \"V2缺乏图片像素数据，无法验证图A/B/C的实际图像内容是否与图题描述一致。\"\n  ],\n  \"questions\": [],\n  \"next\": [\n    \"请专业人员提供V1待补证的具体证据清单。\",\n    \"请提供V2图A、B、C的原始图像文件以便进行视觉核验。\"\n  ]\n}"
+  ]
+}

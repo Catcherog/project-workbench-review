@@ -1,0 +1,75 @@
+{
+  "case": "M02-3",
+  "layer": "deterministic_replay_of_real_model_output",
+  "source_commit": "10a866b50188aabdd5862e122f1e0ca1c68cdd42",
+  "new_model_calls": 0,
+  "original_evidence": "evidence/multiturn-final/M02-3.json",
+  "generation_rules": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "3e3475fd931418851b2e813c1d1c752a7ca4c3b95640bbd86bb0c3b6edf68a62",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    },
+    "question_state_sha256": "ab0b430033ff9400c25bd163270ed9a33354702a60b8e61288ed3572e3cf501c"
+  },
+  "final_rules": {
+    "version": "doc-logic-r1.2",
+    "sha256": "d31b182fe8b90bc318861ae1a19cc08335c78c336baaa67ef8feef40fe5bcf4d",
+    "implementation_sha256": "d869f05c9aea06cd4b1787f648447f6fec5f84fb3a9aeb4b8ebfd0e103b2df6e",
+    "source": "fs_agent/skills/engineering-document-logic",
+    "files": {
+      "SKILL.md": "875c55ed5c7db9f29ab33656c19135ab0800a687e2d53a572e99bf83b6458afa",
+      "references/rules.md": "98f4a57d217a7ad9894e0886a7703f43c5d4e525a4c512ad1447b9ec4588e1ae",
+      "references/workflow.md": "3ebab72e7c3cb1217fa3ef8fe475ab734a9a98e13c9da160b6092493aebe508d"
+    },
+    "question_state_sha256": "ab0b430033ff9400c25bd163270ed9a33354702a60b8e61288ed3572e3cf501c",
+    "workflow_sha256": "6bba88f0f32b4d241802d26cdd0bd145ccef9387282ad488b0b2026e6a230717"
+  },
+  "analysis_changed": true,
+  "program_repairs": [
+    {
+      "rule": "L16",
+      "before": "无。样本身份与适用判据均已明确，且范围限定为单样本单次记录，无其他影响当前判断的缺口。",
+      "after": "gaps=[]"
+    }
+  ],
+  "analysis": {
+    "problem": "确认电机A样本S-A的电流记录是否满足本次验收判据。",
+    "assessment": "记录显示电机A样本S-A电流为18 A。补答明确该次同条件单项判据为≥16 A，且仅针对该样本该次记录，不涉及均值或全批。18 A大于16 A，因此该样本在该条件下达到该项判据。此前关于样本身份和适用判据的缺口已解决，无冲突。",
+    "evidence": [
+      {
+        "ref": "S01:2",
+        "quote": "电机A：记录电流18 A；",
+        "kind": "observation",
+        "relation": "支持",
+        "claim": "电机A样本S-A本次电流记录值为18 A。",
+        "reason": "直接引用原始记录中的数值，作为判断的基础事实。"
+      },
+      {
+        "ref": "S03:1",
+        "quote": "电机A样本S-A本次同条件单项电流判据≥16 A；",
+        "kind": "criterion",
+        "relation": "支持",
+        "claim": "该电流记录适用的验收判据为≥16 A。",
+        "reason": "补答明确了针对该样本该次记录的具体判据，解决了判据缺失问题。"
+      }
+    ],
+    "changes": [
+      "将样本身份从未知更新为S-A，依据S02:1。",
+      "将适用判据从未知更新为≥16 A（单项、同条件），依据S03:1。",
+      "基于18 A > 16 A，得出该样本该次记录达标的结论。"
+    ],
+    "gaps": [],
+    "questions": [],
+    "next": [
+      "归档该测试记录，标记为通过。",
+      "若需扩展至全批或均值分析，需另行提供相应统计口径和样本数据。"
+    ]
+  },
+  "semantic_review_origin": "existing real Qwen review; only source-backed deterministic normalization replayed",
+  "targeted_assertions_passed": true
+}

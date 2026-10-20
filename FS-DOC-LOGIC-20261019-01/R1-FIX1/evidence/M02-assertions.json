@@ -1,0 +1,48 @@
+{
+  "layer": "real_Qwen_isolated_platform",
+  "checks": [
+    {
+      "turn": 1,
+      "states": [
+        "unanswered",
+        "unanswered"
+      ],
+      "question_count": 2,
+      "actual_gaps_field": [
+        "缺少样本编号，无法确认该记录对应的具体测试对象或批次。",
+        "缺少适用判据，无法判断18 A是否在允许范围内。",
+        "未明确统计口径，无法确定18 A是均值、最大值还是瞬时值。",
+        "[S01:2, S01:3] 电机A电流记录：请提供该电流记录对应的样本编号或唯一标识。 影响：无法确认记录归属，影响后续数据追溯和对比。",
+        "[S01:2, S01:3] 电机A电流指标：请提供该电流指标适用的验收判据（如上限、下限或标准值）。 影响：无法判断18 A是否满足验收要求，阻碍结论形成。"
+      ],
+      "assessment": "记录显示电机A电流为18 A。该数值为单点记录，未明确统计口径（如均值、峰值或瞬时值）及样本范围。由于缺乏适用的验收判据，无法判断该数值是否达标。当前仅能确认该次记录存在，不能推导为整体性能合格或不合格。"
+    },
+    {
+      "turn": 2,
+      "states": [
+        "resolved",
+        "unanswered"
+      ],
+      "question_count": 1,
+      "actual_gaps_field": [
+        "缺少电机A电流指标的适用验收判据，导致无法评估18 A是否合格。",
+        "[S01:2, S01:3] 电机A电流指标：请提供该电流指标适用的验收判据（如上限、下限或标准值）。 影响：无法判断18 A是否满足验收要求，阻碍结论形成。"
+      ],
+      "assessment": "记录显示电机A电流为18 A，样本编号确认为S-A。由于缺乏该电流指标适用的验收判据（如上限或标准值），无法判断18 A是否满足验收要求。当前仅能确认数据存在及归属，不能得出通过或失败的结论。"
+    },
+    {
+      "turn": 3,
+      "states": [
+        "resolved",
+        "resolved"
+      ],
+      "question_count": 0,
+      "actual_gaps_field": [
+        "无。样本身份与适用判据均已明确，且范围限定为单样本单次记录，无其他影响当前判断的缺口。"
+      ],
+      "assessment": "记录显示电机A样本S-A电流为18 A。补答明确该次同条件单项判据为≥16 A，且仅针对该样本该次记录，不涉及均值或全批。18 A大于16 A，因此该样本在该条件下达到该项判据。此前关于样本身份和适用判据的缺口已解决，无冲突。"
+    }
+  ],
+  "all_semantic_gap_assertions_passed": true,
+  "initial_serialization_issue": "Final gaps array contained an explicit no-gap sentence; b6db1ac normalizes it to empty. See final replay and real-entry final artifact."
+}
