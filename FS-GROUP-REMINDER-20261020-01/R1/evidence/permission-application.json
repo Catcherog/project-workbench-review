@@ -1,0 +1,35 @@
+{
+  "task": "FS-GROUP-REMINDER-20261020-01",
+  "requirement_version": "v1.0-exec",
+  "application_version": "1.0.11",
+  "observed_at": "2026-10-20T16:22:25.893125+08:00",
+  "layer": "real_developer_console_submission",
+  "status": "审核中",
+  "authorization": "User explicitly requested checking related permissions and submitting them together, with reasons covering future group questions and member reminders.",
+  "new_tenant_scopes": [
+    "im:chat.members:read",
+    "im:message.group_msg"
+  ],
+  "existing_tenant_capabilities_verified": [
+    "im:message.group_at_msg:readonly",
+    "im:message:send_as_bot",
+    "im:chat:read",
+    "im:message:readonly",
+    "im:message.p2p_msg:readonly"
+  ],
+  "release_note": "为原机器人补齐群内问答、定向提醒所需的两项应用权限：查看群成员；获取群组中所有消息。用于接收并回答成员询问、核对群内人员及真实@对象、读取并核验机器人提醒结果。当前为指定测试群受限验证，后续按群接入问答；继续复用原机器人、Qwen和唯一事件消费者。应用可用范围及原文档、项目权限保持，真实提醒仍须本人确认准确完整预览后发送。",
+  "submitted_reason": "[业务场景描述和必要性说明]\n用于现有机器人 原机器人 后续在指定工作群接收群成员的业务询问、提供答复，并向指定成员推送事项提醒和反馈要求。普通提醒无需先建立项目或交付物。为确保准确@到本人、避免误发以及发送超时后的重复提醒，需要实时核对群成员和平台消息结果。\n\n[功能描述]\n复用现有机器人、本机 Qwen 和唯一事件消费者。由本人在私聊提出提醒，系统补齐必要信息，展示准确群、人员及完整正文，本人确认该版本后才以机器人身份发送并返回可核对结果。后续群问答按指定群配置接收、处理与回复；当前普通群问答尚未开放，仅开展已有测试群的受限验证。运行会话24小时到期，提醒与文档草稿、普通聊天分别保存。\n\n[本次新增权限及单独申请理由]\n1. im:chat.members:read（查看群成员，应用身份）：读取目标群成员及机器人入群状态，用于核对提问者、被提醒人的唯一身份及在群状态，处理同名人员，构造真正的@，并在发送前复核成员仍在群内。\n2. im:message.group_msg（获取群组中所有消息，应用身份，敏感权限）：用于后续群内询问理解和必要上下文衔接；当前用于已发提醒的正文、真实@和发送结果读回核验。飞书群消息详情/群消息查询接口要求此权限，发送结果未知时需要先核实是否已发，不能直接重发。\n\n[范围和实施边界]\n第二项平台权限覆盖机器人所在群的全部用户消息，包含未@机器人的消息，特在此说明。程序按明确登记的群分别控制入站处理和提醒出站；当前群入站限制不变，后续问答按群接入。当前提醒核实仅针对指定群内该次发送的有限时间窗口，无关消息不入库、不交给模型。应用可用范围、原文档和项目写入权限保持。群@接收、机器人发送、查看群信息及私聊权限已具备，本次只申请上述两项缺项。",
+  "available_users_unchanged": true,
+  "available_user_count": 2,
+  "external_sharing_unchanged": true,
+  "new_roles": false,
+  "original_single_consumer_unchanged": true,
+  "runtime_group_ingress_changed": false,
+  "runtime_outbound_groups": 0,
+  "real_group_reminder_sent": false,
+  "admin_approval": "pending",
+  "group_question_feature": "future implementation; not enabled by this permission request",
+  "source_changed": false,
+  "rules_changed": false,
+  "official_reference": "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/get"
+}
