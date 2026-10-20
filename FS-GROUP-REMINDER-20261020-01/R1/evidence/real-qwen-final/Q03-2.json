@@ -1,0 +1,100 @@
+{
+  "case": "Q03",
+  "turn": 2,
+  "layer": "real_Qwen_with_isolated_platform",
+  "input": "改为现在提醒",
+  "runtime": {
+    "provider": "local_qwen_api",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model": "qwen3.8:27b-bartowski-q8_0",
+    "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+    "server_version": "0.40.5"
+  },
+  "rule_version": "group-reminder-r1.0",
+  "source_fingerprints": {
+    "reminder_feishu.py": "0de1a64472365737308b581f860e0817fb57e682e98483bea95422ecd6e095e4",
+    "reminder_content.py": "8dfc825e0055e07d0fd64e3bc4005c92f155b85f7744ec5637fe2e3395ce7cb4",
+    "reminder.py": "2b71a46306ef464df9f90f86b1bcb18689a25f1cedad8abb16715a6de4a9daf8"
+  },
+  "result": {
+    "state": "completed",
+    "error": null,
+    "model": "python:reminder-resolution",
+    "elapsed": 0.0
+  },
+  "reminder_state": "awaiting_confirmation",
+  "revision": 2,
+  "fields": {
+    "body": "交报告",
+    "delivery_mode": "immediate",
+    "group_query": "合成研发群",
+    "intent": "reminder",
+    "people_queries": [
+      "工程师甲"
+    ]
+  },
+  "payload": {
+    "body": "交报告",
+    "bot": {
+      "app_id": "cli_test",
+      "id": "ou_bot",
+      "name": "合成机器人"
+    },
+    "content": {
+      "zh_cn": {
+        "content": [
+          [
+            {
+              "tag": "at",
+              "user_id": "ou_engineer_a",
+              "user_name": "工程师甲"
+            }
+          ],
+          [
+            {
+              "tag": "text",
+              "text": "交报告"
+            }
+          ],
+          [
+            {
+              "tag": "text",
+              "text": "提醒编号 R-781638dd5f624a01"
+            }
+          ]
+        ],
+        "title": "事项提醒"
+      }
+    },
+    "delivery_mode": "immediate",
+    "group": {
+      "bot_member": true,
+      "id": "oc_reminder",
+      "mode": "group",
+      "name": "合成研发群",
+      "posting_policy": "all_members",
+      "tenant": "tenant_test"
+    },
+    "marker": "提醒编号 R-781638dd5f624a01",
+    "msg_type": "post",
+    "people": [
+      {
+        "id": "ou_engineer_a",
+        "name": "工程师甲"
+      }
+    ]
+  },
+  "private_outputs": [
+    {
+      "kind": "text",
+      "body": "已收到提醒资料，正在核对；完整预览确认前不会向群发送。"
+    },
+    {
+      "kind": "interactive",
+      "body": "{\"config\": {\"wide_screen_mode\": true}, \"header\": {\"title\": {\"tag\": \"plain_text\", \"content\": \"待确认的群提醒\"}}, \"elements\": [{\"tag\": \"div\", \"text\": {\"tag\": \"plain_text\", \"content\": \"发送身份：合成机器人\\n目标群：合成研发群（reminder）\\n将 @：工程师甲（neer_a）\\n发送时机：确认后立即发送\\n\\n完整群消息：\\n事项提醒\\n@工程师甲\\n交报告\\n提醒编号 R-781638dd5f624a01\\n\\n本版：R-781638dd5f624a01 / v2；有效至 2026-10-21 14:51\"}}, {\"tag\": \"action\", \"actions\": [{\"tag\": \"button\", \"text\": {\"tag\": \"plain_text\", \"content\": \"确认发送\"}, \"type\": \"primary\", \"value\": {\"flow\": \"reminder\", \"action\": \"confirm\", \"id\": \"781638dd5f624a01a1c1e2186b5a9511\", \"revision\": 2, \"hash\": \"fd1b1e30772272b88115f84d3e4b0e7f551a0fed33b6f17d682b321d17ef1427\", \"nonce\": \"3db860d2ee5b4f2bbc77e2ea9d17950c\"}}, {\"tag\": \"button\", \"text\": {\"tag\": \"plain_text\", \"content\": \"修改\"}, \"type\": \"default\", \"value\": {\"flow\": \"reminder\", \"action\": \"modify\", \"id\": \"781638dd5f624a01a1c1e2186b5a9511\", \"revision\": 2, \"hash\": \"fd1b1e30772272b88115f84d3e4b0e7f551a0fed33b6f17d682b321d17ef1427\", \"nonce\": \"3db860d2ee5b4f2bbc77e2ea9d17950c\"}}, {\"tag\": \"button\", \"text\": {\"tag\": \"plain_text\", \"content\": \"取消\"}, \"type\": \"default\", \"value\": {\"flow\": \"reminder\", \"action\": \"cancel\", \"id\": \"781638dd5f624a01a1c1e2186b5a9511\", \"revision\": 2, \"hash\": \"fd1b1e30772272b88115f84d3e4b0e7f551a0fed33b6f17d682b321d17ef1427\", \"nonce\": \"3db860d2ee5b4f2bbc77e2ea9d17950c\"}}]}, {\"tag\": \"note\", \"elements\": [{\"tag\": \"plain_text\", \"content\": \"也可回复：确认发送 R-781638dd5f624a01 v2。修改后须确认新预览；取消不会撤回已发送的消息。\"}]}]}"
+    }
+  ],
+  "model_io": [],
+  "group_sends": 0,
+  "context_rows": 0
+}
