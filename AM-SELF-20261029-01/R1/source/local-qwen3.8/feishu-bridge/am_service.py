@@ -72,11 +72,11 @@ class AmSelfService(BusinessCommands,UpdateCommands):
                 text=normalize_message(m,bot_open_id=config.bot_open_id,max_chars=6000).text.strip()
                 user=sender['sender_id']['open_id']
                 if text.startswith('/feedback '):
-                    match=re.fullmatch(r'/feedback ([a-f0-9]{32}) (收到|预计|协助|提交|非本人)[｜|](.{1,2000})',text)
+                    match=re.fullmatch(r'/feedback ([a-f0-9]{32}) (收到|处理中|预计|协助|提交|非本人)[｜|](.{1,2000})',text)
                     if not match or not m.get('parent_id'):return True,False
                     if m['chat_type']=='group' and not normalize_message(m,bot_open_id=config.bot_open_id,max_chars=6000).bot_mentioned:return True,False
                     occurrence=self.scheduler.occurrence(match[1]);saved=json.loads(occurrence['payload'])
-                    body={'value':{'feedback':match[1],'nonce':saved.get('feedback_nonce'),'action':{'收到':'received','预计':'eta','协助':'help','提交':'submitted','非本人':'not_mine'}[match[2]]},'source_message':m['parent_id'],'detail':match[3]}
+                    body={'value':{'feedback':match[1],'nonce':saved.get('feedback_nonce'),'action':{'收到':'received','处理中':'processing','预计':'eta','协助':'help','提交':'submitted','非本人':'not_mine'}[match[2]]},'source_message':m['parent_id'],'detail':match[3]}
                     row={'id':m['message_id'],'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],'chat_type':m['chat_type'],'created':int(m['create_time'])/1000,'kind':'card','body':canonical(body)}
                     row['expires']=min(row['created'],self.s.clock())+86400
                     if row['expires']<=self.s.clock() or row['created']>self.s.clock()+60:return True,False

@@ -1393,7 +1393,7 @@
 +        return {'verified':True,'message_id':message['message_id'],'sent_at':message['created_at']}
 --- baseline/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
 +++ final/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
-@@ -0,0 +1,133 @@
+@@ -0,0 +1,134 @@
 +"""Long-lived AM follow-up records, separate from inference and chat retention."""
 +import json
 +import uuid
@@ -1401,7 +1401,7 @@
 +from .project_catalog import canonical,digest
 +
 +STATES={'waiting','in_progress','blocked','submitted','closed','cancelled'}
-+FEEDBACK={'received','eta','help','submitted','not_mine'}
++FEEDBACK={'received','processing','eta','help','submitted','not_mine'}
 +
 +
 +class ActionItems:
@@ -1464,7 +1464,8 @@
 +            if item['version']!=expected:raise BoundaryError('ITEM_VERSION_CHANGED')
 +            if item['state'] in ('closed','cancelled'):raise BoundaryError('ITEM_TERMINAL')
 +            state=item['state'];paused=item['paused'];closed_by=None;close_evidence=None
-+            if action=='pause':paused=1
++            if action=='processing':state='in_progress'
++            elif action=='pause':paused=1
 +            elif action=='resume':paused=0
 +            elif action=='cancel':state='cancelled'
 +            elif action=='close':
@@ -1488,7 +1489,7 @@
 +            applied=item['version']==expected and item['state'] not in ('closed','cancelled')
 +            c.execute('INSERT INTO item_feedback VALUES(?,?,?,?,?,?,?,?,?)',(op,ident,expected,actor,kind,body,canonical(source),int(applied),self.s.clock()))
 +            if applied:
-+                state={'help':'blocked','submitted':'submitted'}.get(kind,item['state'])
++                state={'processing':'in_progress','help':'blocked','submitted':'submitted'}.get(kind,item['state'])
 +                # Received only records a response. ETA is not a committed deadline;
 +                # not_mine is a request for adjustment, never an automatic transfer.
 +                feedback=canonical({'kind':kind,'body':body,'actor':actor,'time':self.s.clock()})
@@ -1869,7 +1870,7 @@
 +    assert state['updates']==1 and state['review']=='not_reviewed'
 --- baseline/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_c.py
 +++ final/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_c.py
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,147 @@
 +import json
 +from concurrent.futures import ThreadPoolExecutor
 +from types import SimpleNamespace
@@ -2008,6 +2009,15 @@
 + assert result['archived_count']==1 and items.get(item['id'])['description']=='已归档'
 + with pytest.raises(BoundaryError,match='OPERATION_EXPIRED'):
 +  items.create('ou_owner','create',project_ref='project',description='提交报告',requirements='完整材料待核验',assignees=['ou_assignee'],source={'kind':'explicit_owner_request'})
++
++
++def test_C02_processing_requires_explicit_status_not_ack(rig):
++ s,items,port,item,sch,now=rig
++ ack=items.feedback('ou_assignee','ack-explicit',item['id'],1,'received','已看到',{})
++ assert ack['item']['state']=='waiting'
++ explicit=items.feedback('ou_assignee','processing-explicit',item['id'],2,'processing','已开始处理',{})
++ assert explicit['item']['state']=='in_progress'
++ assert items.change('ou_owner','pause-explicit',item['id'],3,'pause')['state']=='in_progress'
 --- baseline/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py
 +++ final/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py
 @@ -0,0 +1,83 @@
@@ -2568,7 +2578,7 @@
 +
 +LABELS={'waiting':'待反馈','in_progress':'处理中','blocked':'受阻','submitted':'已提交待核验','closed':'已关闭','cancelled':'已取消'}
 +ITEM_HELP=('跟进事项：\n/item 新增 项目编号｜事项描述｜准确群名｜负责人姓名（多人用、分隔）｜交付要求\n'
-+ '/item 查看 事项ID\n/item 暂停|恢复|取消 事项ID v版本\n/item 关闭 事项ID v版本｜核验依据\n/item 检查 事项ID v版本｜明天 09:00\n'
++ '/item 查看 事项ID\n/item 处理中|暂停|恢复|取消 事项ID v版本\n/item 关闭 事项ID v版本｜核验依据\n/item 检查 事项ID v版本｜明天 09:00\n'
 + '创建只纳入 AM 跟进，不发消息、不改正式台账。')
 +PLAN_HELP=('计划：\n/plan 一次 事项ID｜明天 09:00｜完整提醒正文\n'
 + '/plan 每天 事项ID｜09:00｜2026-11-30 18:00｜完整正文｜逐次确认（可明确选择固定规则）\n'
@@ -2711,12 +2721,12 @@
 +                self.card(row,object_id=row['id'],version=1,snapshot=snapshot,title='确认纳入 AM 跟进',
 +                          body=matches[0]['title']+'\n事项：'+parts[1]+'\n交付要求：'+parts[4]+'\n负责人：'+'、'.join(p['name'] for p in target['people'])+'\n不设未提供的截止时间；不自动发提醒。',actions=[('create','确认纳入跟进')],flow='item')
 +                return True,None
-+            m=re.fullmatch(r'/item (查看|暂停|恢复|取消|关闭|检查) ([a-f0-9]{32})(?: v(\d+))?',first)
++            m=re.fullmatch(r'/item (查看|处理中|暂停|恢复|取消|关闭|检查) ([a-f0-9]{32})(?: v(\d+))?',first)
 +            if not m:return True,ITEM_HELP
 +            item=self.items.get(m[2])
 +            if m[1]=='查看':return True,self.item_text(item)
 +            if not m[3]:raise BoundaryError('EXPECTED_VERSION_REQUIRED')
-+            action={'暂停':'pause','恢复':'resume','取消':'cancel','关闭':'close','检查':'check'}[m[1]]
++            action={'处理中':'processing','暂停':'pause','恢复':'resume','取消':'cancel','关闭':'close','检查':'check'}[m[1]]
 +            item=self.items.change(row['user'],row['id'],m[2],int(m[3]),action,evidence=parts[1] if len(parts)>1 and action=='close' else None,
 +                                   next_check=parse_time(parts[1],row['created']) if len(parts)>1 and action=='check' else None)
 +            return True,self.item_text(item)
@@ -3412,11 +3422,11 @@
 +                text=normalize_message(m,bot_open_id=config.bot_open_id,max_chars=6000).text.strip()
 +                user=sender['sender_id']['open_id']
 +                if text.startswith('/feedback '):
-+                    match=re.fullmatch(r'/feedback ([a-f0-9]{32}) (收到|预计|协助|提交|非本人)[｜|](.{1,2000})',text)
++                    match=re.fullmatch(r'/feedback ([a-f0-9]{32}) (收到|处理中|预计|协助|提交|非本人)[｜|](.{1,2000})',text)
 +                    if not match or not m.get('parent_id'):return True,False
 +                    if m['chat_type']=='group' and not normalize_message(m,bot_open_id=config.bot_open_id,max_chars=6000).bot_mentioned:return True,False
 +                    occurrence=self.scheduler.occurrence(match[1]);saved=json.loads(occurrence['payload'])
-+                    body={'value':{'feedback':match[1],'nonce':saved.get('feedback_nonce'),'action':{'收到':'received','预计':'eta','协助':'help','提交':'submitted','非本人':'not_mine'}[match[2]]},'source_message':m['parent_id'],'detail':match[3]}
++                    body={'value':{'feedback':match[1],'nonce':saved.get('feedback_nonce'),'action':{'收到':'received','处理中':'processing','预计':'eta','协助':'help','提交':'submitted','非本人':'not_mine'}[match[2]]},'source_message':m['parent_id'],'detail':match[3]}
 +                    row={'id':m['message_id'],'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],'chat_type':m['chat_type'],'created':int(m['create_time'])/1000,'kind':'card','body':canonical(body)}
 +                    row['expires']=min(row['created'],self.s.clock())+86400
 +                    if row['expires']<=self.s.clock() or row['created']>self.s.clock()+60:return True,False

@@ -136,3 +136,12 @@ def test_C08_terminal_cleanup_keeps_idempotency_tombstones(rig):
  assert result['archived_count']==1 and items.get(item['id'])['description']=='已归档'
  with pytest.raises(BoundaryError,match='OPERATION_EXPIRED'):
   items.create('ou_owner','create',project_ref='project',description='提交报告',requirements='完整材料待核验',assignees=['ou_assignee'],source={'kind':'explicit_owner_request'})
+
+
+def test_C02_processing_requires_explicit_status_not_ack(rig):
+ s,items,port,item,sch,now=rig
+ ack=items.feedback('ou_assignee','ack-explicit',item['id'],1,'received','已看到',{})
+ assert ack['item']['state']=='waiting'
+ explicit=items.feedback('ou_assignee','processing-explicit',item['id'],2,'processing','已开始处理',{})
+ assert explicit['item']['state']=='in_progress'
+ assert items.change('ou_owner','pause-explicit',item['id'],3,'pause')['state']=='in_progress'

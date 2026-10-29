@@ -12,7 +12,7 @@ from group_ledger import select_projects
 
 LABELS={'waiting':'待反馈','in_progress':'处理中','blocked':'受阻','submitted':'已提交待核验','closed':'已关闭','cancelled':'已取消'}
 ITEM_HELP=('跟进事项：\n/item 新增 项目编号｜事项描述｜准确群名｜负责人姓名（多人用、分隔）｜交付要求\n'
- '/item 查看 事项ID\n/item 暂停|恢复|取消 事项ID v版本\n/item 关闭 事项ID v版本｜核验依据\n/item 检查 事项ID v版本｜明天 09:00\n'
+ '/item 查看 事项ID\n/item 处理中|暂停|恢复|取消 事项ID v版本\n/item 关闭 事项ID v版本｜核验依据\n/item 检查 事项ID v版本｜明天 09:00\n'
  '创建只纳入 AM 跟进，不发消息、不改正式台账。')
 PLAN_HELP=('计划：\n/plan 一次 事项ID｜明天 09:00｜完整提醒正文\n'
  '/plan 每天 事项ID｜09:00｜2026-11-30 18:00｜完整正文｜逐次确认（可明确选择固定规则）\n'
@@ -155,12 +155,12 @@ class BusinessCommands:
                 self.card(row,object_id=row['id'],version=1,snapshot=snapshot,title='确认纳入 AM 跟进',
                           body=matches[0]['title']+'\n事项：'+parts[1]+'\n交付要求：'+parts[4]+'\n负责人：'+'、'.join(p['name'] for p in target['people'])+'\n不设未提供的截止时间；不自动发提醒。',actions=[('create','确认纳入跟进')],flow='item')
                 return True,None
-            m=re.fullmatch(r'/item (查看|暂停|恢复|取消|关闭|检查) ([a-f0-9]{32})(?: v(\d+))?',first)
+            m=re.fullmatch(r'/item (查看|处理中|暂停|恢复|取消|关闭|检查) ([a-f0-9]{32})(?: v(\d+))?',first)
             if not m:return True,ITEM_HELP
             item=self.items.get(m[2])
             if m[1]=='查看':return True,self.item_text(item)
             if not m[3]:raise BoundaryError('EXPECTED_VERSION_REQUIRED')
-            action={'暂停':'pause','恢复':'resume','取消':'cancel','关闭':'close','检查':'check'}[m[1]]
+            action={'处理中':'processing','暂停':'pause','恢复':'resume','取消':'cancel','关闭':'close','检查':'check'}[m[1]]
             item=self.items.change(row['user'],row['id'],m[2],int(m[3]),action,evidence=parts[1] if len(parts)>1 and action=='close' else None,
                                    next_check=parse_time(parts[1],row['created']) if len(parts)>1 and action=='check' else None)
             return True,self.item_text(item)

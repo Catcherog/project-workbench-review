@@ -5,7 +5,7 @@ from .config import BoundaryError
 from .project_catalog import canonical,digest
 
 STATES={'waiting','in_progress','blocked','submitted','closed','cancelled'}
-FEEDBACK={'received','eta','help','submitted','not_mine'}
+FEEDBACK={'received','processing','eta','help','submitted','not_mine'}
 
 
 class ActionItems:
@@ -68,7 +68,8 @@ class ActionItems:
             if item['version']!=expected:raise BoundaryError('ITEM_VERSION_CHANGED')
             if item['state'] in ('closed','cancelled'):raise BoundaryError('ITEM_TERMINAL')
             state=item['state'];paused=item['paused'];closed_by=None;close_evidence=None
-            if action=='pause':paused=1
+            if action=='processing':state='in_progress'
+            elif action=='pause':paused=1
             elif action=='resume':paused=0
             elif action=='cancel':state='cancelled'
             elif action=='close':
@@ -92,7 +93,7 @@ class ActionItems:
             applied=item['version']==expected and item['state'] not in ('closed','cancelled')
             c.execute('INSERT INTO item_feedback VALUES(?,?,?,?,?,?,?,?,?)',(op,ident,expected,actor,kind,body,canonical(source),int(applied),self.s.clock()))
             if applied:
-                state={'help':'blocked','submitted':'submitted'}.get(kind,item['state'])
+                state={'processing':'in_progress','help':'blocked','submitted':'submitted'}.get(kind,item['state'])
                 # Received only records a response. ETA is not a committed deadline;
                 # not_mine is a request for adjustment, never an automatic transfer.
                 feedback=canonical({'kind':kind,'body':body,'actor':actor,'time':self.s.clock()})
