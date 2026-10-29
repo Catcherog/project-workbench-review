@@ -1,0 +1,71 @@
+{
+  "kind": "real_pinned_local_qwen_synthetic_validation",
+  "model": "qwen3.8:27b-bartowski-q8_0",
+  "server_version": "0.40.5",
+  "model_pin_verified": true,
+  "real_platform_sends": 0,
+  "real_ledger_writes": 0,
+  "cases": [
+    {
+      "id": "Q1_identifier_explanation",
+      "status": "passed",
+      "elapsed_seconds": 27.48,
+      "details": {
+        "route": "general",
+        "real_calls": 1
+      }
+    },
+    {
+      "id": "Q2_ambiguous_candidates",
+      "status": "passed",
+      "elapsed_seconds": 7.62,
+      "details": {
+        "mode": "clarify",
+        "candidate_count": 2,
+        "real_calls": 2
+      }
+    },
+    {
+      "id": "Q3_subject_bound_facts_or_source_fallback",
+      "status": "passed",
+      "elapsed_seconds": 21.84,
+      "details": {
+        "grounding": "source_fallback",
+        "source_conditions_preserved": true,
+        "real_calls": 2,
+        "reply": "这次语言整理未通过依据核对，先提供台账原文：\n\n需求75:合成刹车A项目\n\n台账记录日期：2026.10.29\n\n项目进展（台账原文）：\n2026.10.29\nA项完成100台；B项尚未完成。\n要求：验证通过后才可验收。\n\n读取时间：2026.10.29 09:52\n来源：[CONFIGURED_SOURCE]\n以上为台账记录；计划、预计和待核实事项均保留原状态。"
+      }
+    },
+    {
+      "id": "Q4_reminder_revision",
+      "status": "passed",
+      "elapsed_seconds": 12.5,
+      "details": {
+        "fields": {
+          "intent": "reminder",
+          "group_query": "合成研发群",
+          "people_queries": [
+            "工程师甲"
+          ],
+          "body": "2026-10-29 18点前交报告",
+          "delivery_mode": "immediate"
+        },
+        "real_calls": 2,
+        "sent": false
+      }
+    },
+    {
+      "id": "Q5_document_analysis",
+      "status": "passed",
+      "elapsed_seconds": 46.52,
+      "details": {
+        "assessment": "记录显示合成样机A实测扭矩为8N.m，低于10N.m的验收要求。证据直接支持“未达到要求”的判断。原因尚未明确，因此不能宣布验证通过。本轮仅基于提交记录整理，未独立复核实测过程，但记录本身明确标注为“实测”。",
+        "evidence_count": 2,
+        "real_calls": 1,
+        "source_scope": "one synthetic text source"
+      }
+    }
+  ],
+  "provider_pause_after": null,
+  "passed": 5
+}
