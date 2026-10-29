@@ -125,13 +125,17 @@ def validate_grounded(value, sources, title):
         text = part["text"].strip()
         if re.search(r"https?://|<at\b", text, re.I):
             raise GroupAIError("UNTRUSTED_LINK_OR_MENTION")
-        # Lexical inclusion across a whole paragraph cannot establish who did
-        # what. Accept complete source clauses only, preserving subjects, units,
-        # negation and qualifiers. Any other prose uses a known-project fallback.
-        def clauses(value):
-            return [re.sub(r"\s+", "", part).strip() for part in re.split(r"[。；;\n]", value) if part.strip()]
-        allowed = {clause for original in evidence for clause in clauses(original)}
-        if any(clause not in allowed for clause in clauses(text)):
+        # A heading and a result can be on different lines. Even exact clause
+        # membership can incorrectly pair A's heading with B's result. Require
+        # one complete field, with every source unit and its internal ordering
+        # and whitespace intact. Anything less uses render_project's source
+        # fallback; no model self-check can substitute for this binding.
+        fields = {units[e]["field"] for e in part["evidence"]}
+        if len(fields) != 1:
+            raise GroupAIError("FACT_BINDING_UNVERIFIED")
+        field_name = next(iter(fields))
+        expected_ids = {ident for ident, unit in units.items() if unit["field"] == field_name}
+        if set(part["evidence"]) != expected_ids or text != sources[field_name].strip():
             raise GroupAIError("FACT_BINDING_UNVERIFIED")
         paragraphs.append(text)
         quotes.extend(evidence)

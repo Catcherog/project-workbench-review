@@ -174,3 +174,12 @@ def test_A11_existing_data_survives_repeated_migration(rig,tmp_path):
  assert g.reminders.get(row)['id']==old['id'] and g.reminders.get(row)['payload']==old['payload']
  assert s.rows('SELECT * FROM am_migrations') and s.rows('SELECT * FROM business_migrations')
  ledger.close()
+
+
+def test_A01_cross_line_headings_cannot_be_paired_with_another_result():
+ source={'progress':'A项\n尚未通过\nB项\n已通过'}
+ with pytest.raises(GroupAIError,match='FACT_BINDING_UNVERIFIED'):
+  validate_grounded({'paragraphs':[{'text':'A项；已通过','evidence':['s1','s4']}]},source,'合成项目')
+ validate_grounded({'paragraphs':[{'text':source['progress'],'evidence':['s1','s2','s3','s4']}]},source,'合成项目')
+ with pytest.raises(GroupAIError,match='FACT_BINDING_UNVERIFIED'):
+  validate_grounded({'paragraphs':[{'text':'A项\n已通过\nB项\n尚未通过','evidence':['s1','s2','s3','s4']}]},source,'合成项目')

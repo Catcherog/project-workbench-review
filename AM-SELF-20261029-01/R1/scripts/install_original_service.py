@@ -1,5 +1,5 @@
 """Install this tested checkout into the existing service, preserving one consumer."""
-import fcntl,json,sqlite3,subprocess,time,hashlib
+import fcntl,json,sqlite3,subprocess,time,hashlib,os
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[3];private=Path.home()/'.local/share/local-qwen-feishu';folder=private/'validation/am-self-20261029-r1'
 config_path=private/'config.json';before=json.loads(config_path.read_text());poc=json.loads(Path(before['poc_config']).read_text());pocroot=Path(poc['service']['root_directory'])
@@ -11,6 +11,10 @@ for path,sql in checks:
  if count:raise RuntimeError('ORIGINAL_SERVICE_HAS_ACTIVE_OR_UNKNOWN_MODEL_WORK')
 service=ROOT/'local-qwen3.8/feishu-bridge/service.sh'
 subprocess.run(['/bin/zsh',str(service),'stop'],check=True,capture_output=True)
+for _ in range(100):
+ if subprocess.run(['launchctl','print','gui/'+str(os.getuid())+'/local.qwen.feishu'],capture_output=True).returncode:break
+ time.sleep(.1)
+else:raise RuntimeError('ORIGINAL_SERVICE_STILL_REGISTERED')
 lock=(private/'state/instance.lock').open('a+')
 for _ in range(100):
  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);break

@@ -2106,7 +2106,7 @@
 + assert mapped['key']==original['key'] and mapped['identity_status']=='verified'
 --- baseline/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_a.py
 +++ final/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_a.py
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,185 @@
 +"""AM-SELF A acceptance: deterministic concurrency and code-owned boundaries."""
 +import json
 +import sys
@@ -2283,6 +2283,15 @@
 + assert g.reminders.get(row)['id']==old['id'] and g.reminders.get(row)['payload']==old['payload']
 + assert s.rows('SELECT * FROM am_migrations') and s.rows('SELECT * FROM business_migrations')
 + ledger.close()
++
++
++def test_A01_cross_line_headings_cannot_be_paired_with_another_result():
++ source={'progress':'A项\n尚未通过\nB项\n已通过'}
++ with pytest.raises(GroupAIError,match='FACT_BINDING_UNVERIFIED'):
++  validate_grounded({'paragraphs':[{'text':'A项；已通过','evidence':['s1','s4']}]},source,'合成项目')
++ validate_grounded({'paragraphs':[{'text':source['progress'],'evidence':['s1','s2','s3','s4']}]},source,'合成项目')
++ with pytest.raises(GroupAIError,match='FACT_BINDING_UNVERIFIED'):
++  validate_grounded({'paragraphs':[{'text':'A项\n已通过\nB项\n尚未通过','evidence':['s1','s2','s3','s4']}]},source,'合成项目')
 --- baseline/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_d.py
 +++ final/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_d.py
 @@ -0,0 +1,166 @@
@@ -3875,7 +3884,7 @@
  
  
  def strict_json(raw):
-@@ -121,21 +125,14 @@
+@@ -121,21 +125,18 @@
          text = part["text"].strip()
          if re.search(r"https?://|<at\b", text, re.I):
              raise GroupAIError("UNTRUSTED_LINK_OR_MENTION")
@@ -3894,18 +3903,22 @@
 -            raise GroupAIError("UNCERTAINTY_LOST")
 -        if re.search(r"不能替代|才可|才开展|前置|必须|条件", cited) and not re.search(r"不能|不得|需|必须|待|才|前提|条件|先", text):
 -            raise GroupAIError("CONDITION_LOST")
-+        # Lexical inclusion across a whole paragraph cannot establish who did
-+        # what. Accept complete source clauses only, preserving subjects, units,
-+        # negation and qualifiers. Any other prose uses a known-project fallback.
-+        def clauses(value):
-+            return [re.sub(r"\s+", "", part).strip() for part in re.split(r"[。；;\n]", value) if part.strip()]
-+        allowed = {clause for original in evidence for clause in clauses(original)}
-+        if any(clause not in allowed for clause in clauses(text)):
++        # A heading and a result can be on different lines. Even exact clause
++        # membership can incorrectly pair A's heading with B's result. Require
++        # one complete field, with every source unit and its internal ordering
++        # and whitespace intact. Anything less uses render_project's source
++        # fallback; no model self-check can substitute for this binding.
++        fields = {units[e]["field"] for e in part["evidence"]}
++        if len(fields) != 1:
++            raise GroupAIError("FACT_BINDING_UNVERIFIED")
++        field_name = next(iter(fields))
++        expected_ids = {ident for ident, unit in units.items() if unit["field"] == field_name}
++        if set(part["evidence"]) != expected_ids or text != sources[field_name].strip():
 +            raise GroupAIError("FACT_BINDING_UNVERIFIED")
          paragraphs.append(text)
          quotes.extend(evidence)
      if sum(map(len, paragraphs)) > 5000:
-@@ -206,8 +203,6 @@
+@@ -206,8 +207,6 @@
                    + json.dumps({"question": question, "recent_questions": [h["question"] for h in history],
                                  "previous_project_key": previous, "schema": INTENT_SCHEMA}, ensure_ascii=False))
          intent = validate_intent(strict_json(self.call("intent", prompt, deadline, schema=INTENT_SCHEMA, tokens=256)))
@@ -3914,7 +3927,7 @@
          self.last_route = intent["route"]
          self.status("intent_ready")
          return intent
-@@ -287,7 +282,7 @@
+@@ -287,7 +286,7 @@
          else:
              self.last_grounding = "source_fallback"
              self.status("completed", error=error)
@@ -3923,7 +3936,7 @@
              return Reply("这次语言整理未通过依据核对，先提供台账原文：\n\n" + raw, project["key"], "project")
          # Preserve unresolved requirements omitted from the generated evidence.
          # The model's wording remains the main response; uncovered constraints
-@@ -323,21 +318,53 @@
+@@ -323,21 +322,53 @@
          self.last_validation_error = None
          self.last_source_read_at = None
          self.last_source_revision = None

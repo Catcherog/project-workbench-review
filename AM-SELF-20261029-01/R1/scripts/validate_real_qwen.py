@@ -16,14 +16,24 @@ from group_ledger import parse_rows
 private=Path.home()/'.local/share/local-qwen-feishu';cfg=json.loads((private/'config.json').read_text());c=Config.load(Path(cfg['poc_config']))
 s=Store(c.db);provider=ModelCoordinator(LocalQwenProvider(c),s,c.root/'state');pin=provider.pin();out=ROOT/'AM-SELF-20261029-01/R1/evidence/real-qwen.json'
 report={'kind':'real_pinned_local_qwen_synthetic_validation','model':pin['model'],'server_version':pin['server_version'],'model_pin_verified':True,'real_platform_sends':0,'real_ledger_writes':0,'cases':[]}
+selected=sys.argv[1] if len(sys.argv)>1 else None
+if selected and out.exists():
+ report=json.loads(out.read_text())
+ report.setdefault('cumulative_real_calls',sum(c.get('details',{}).get('real_calls',0) for c in report['cases']))
 def save():out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
 def case(name,fn):
+ if selected and name!=selected:return
  start=time.monotonic()
  try:
   details=fn();result={'id':name,'status':'passed','elapsed_seconds':round(time.monotonic()-start,2),'details':details}
  except Exception as exc:
   result={'id':name,'status':'failed','elapsed_seconds':round(time.monotonic()-start,2),'error_type':type(exc).__name__,'error_code':str(exc)[:120]}
- report['cases'].append(result);save();print(json.dumps(result,ensure_ascii=False),flush=True)
+ if selected:
+  import hashlib
+  result['final_source_sha256']=hashlib.sha256((ROOT/'local-qwen3.8/feishu-bridge/group_ai.py').read_bytes()).hexdigest()
+  report['cumulative_real_calls']+=result.get('details',{}).get('real_calls',0)
+  report['cases']=[c for c in report['cases'] if c['id']!=name]
+ report['cases'].append(result);report['cases'].sort(key=lambda c:c['id']);save();print(json.dumps(result,ensure_ascii=False),flush=True)
 state=private/'validation/am-self-20261029-r1/model-validation';state.mkdir(exist_ok=True)
 ai=QwenGroupAssistant(provider,state,paused=lambda:bool(s.meta('provider_pause')),pause=lambda code:s.set_meta('provider_pause',code))
 def intent_case():
