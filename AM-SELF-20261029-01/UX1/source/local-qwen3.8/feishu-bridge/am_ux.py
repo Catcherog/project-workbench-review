@@ -201,6 +201,7 @@ class UxMixin:
         if at<=self.s.clock():raise BoundaryError('FUTURE_SEND_TIME_REQUIRED')
         kind='once' if once else 'workdays' if frequency=='workdays' else 'daily'
         rule={'at':at} if once else {'time':datetime.fromtimestamp(at,TZ).strftime('%H:%M'),'timezone':'Asia/Shanghai','calendar_version':self.scheduler.calendar.data.get('version'),'quiet_policy':'exact' if frequency=='exact_daily' else 'business_hours'}
+        rule['ux_literal_body']=True
         if not once:rule['start_at']=at
         next_at=at if once else self.scheduler.next_time(kind,rule,at-1)
         until=at+61 if once else card_time(values['until'])
@@ -231,7 +232,10 @@ class UxMixin:
             if item['version']!=v['item_version'] or item['paused'] or item['state'] in ('closed','cancelled'):raise BoundaryError('ITEM_VERSION_CHANGED')
         else:item=self.items.create(row['user'],op,project_ref=v['project'],description=v['values']['body'],requirements='',assignees=v['people_ids'],source={'project_title':v['title'],'target':v['target'],'preview':ident,'version':version})
         payload=normalized_payload(item['id'],v['target']['bot'],v['target']['group'],v['target']['people'],v['values']['body'])
-        p=self.scheduler.create(row['user'],op,item_id=item['id'],kind=v['kind'],rule=v['rule'],target={'kind':'group','payload':payload},template=v['values']['body'],policy=v['policy'],valid_until=v['until'],window_seconds=v['window'])
+        # The underlying scheduler supports templates. UX form text is literal,
+        # so escape template braces exactly once before entering that service.
+        literal_template=v['values']['body'].replace('{','{{').replace('}','}}')
+        p=self.scheduler.create(row['user'],op,item_id=item['id'],kind=v['kind'],rule=v['rule'],target={'kind':'group','payload':payload},template=literal_template,policy=v['policy'],valid_until=v['until'],window_seconds=v['window'])
         self.scheduler.approve_plan(row['user'],p['id'],p['version'],p['hash'])
         self.s.execute("UPDATE am_ux_drafts SET state='done',result=? WHERE id=?",(canonical({'plan':p['id'],'item':item['id']}),ident))
         return self.ux_plan_detail(row,p['id'])
@@ -242,7 +246,8 @@ class UxMixin:
         target=json.loads(p['target']);who='本人私聊' if target['kind']=='owner' else target['payload']['group']['name']
         names={'draft':'待确认','active':'已启用','paused':'已暂停','cancelled':'已取消','expired':'已到期'}
         next_text=datetime.fromtimestamp(p['next_at'],TZ).strftime('%Y-%m-%d %H:%M')+'（北京时间）' if math.isfinite(p['next_at']) else '无下一次触发'
-        text='计划状态：'+names.get(p['state'],p['state'])+'\n目标：'+who+'\n正文：'+p['template']+'\n下一次检查/发送：'+next_text
+        body=self.scheduler.render(p,self.items.get(p['item_id']))['body'] if json.loads(p['rule']).get('ux_literal_body') else p['template']
+        text='计划状态：'+names.get(p['state'],p['state'])+'\n目标：'+who+'\n正文：'+body+'\n下一次检查/发送：'+next_text
         actions=[]
         for o in self.s.rows('SELECT * FROM reminder_occurrences WHERE plan_id=? ORDER BY scheduled_at DESC LIMIT 5',(ident,)):
             text+='\n'+self.ux_occurrence_status(o)

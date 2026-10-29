@@ -233,3 +233,13 @@ def test_datetime_form_uses_explicit_business_timezone_not_client_reference():
     from fs_agent.card_ui import field
     assert card_time('2026-10-30 09:00 +0000')==card_time('2026-10-30 09:00 +0800')
     assert field('when','北京时间',kind='picker_datetime',default='2026-10-30 09:00 +0000')[-1]['initial_datetime']=='2026-10-30 09:00'
+
+@pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+    reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+    rows=ux[2].rows('SELECT * FROM reminder_plans')
+    assert len(rows)==1
+    plan=rows[0];item=ux[0].items.get(plan['item_id'])
+    assert ux[0].scheduler.render(plan,item)['body']==body
+    shown=json.loads(text(ux))
+    assert body in '\n'.join(e.get('text',{}).get('content','') for e in shown['body']['elements'])

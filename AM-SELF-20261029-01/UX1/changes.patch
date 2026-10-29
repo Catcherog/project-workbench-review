@@ -246,10 +246,10 @@ index 2c2b0e47..3074f0dd 100644
      feedback('ou_engineer_a','received','收到','ack')
 diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py
 new file mode 100644
-index 00000000..2fb6b83f
+index 00000000..1f892562
 --- /dev/null
 +++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,245 @@
 +"""UX1 full interactions through the real inbox/cards/store with synthetic ports."""
 +import copy
 +import io
@@ -485,6 +485,16 @@ index 00000000..2fb6b83f
 +    from fs_agent.card_ui import field
 +    assert card_time('2026-10-30 09:00 +0000')==card_time('2026-10-30 09:00 +0800')
 +    assert field('when','北京时间',kind='picker_datetime',default='2026-10-30 09:00 +0000')[-1]['initial_datetime']=='2026-10-30 09:00'
++
++@pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
++def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
++    reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
++    rows=ux[2].rows('SELECT * FROM reminder_plans')
++    assert len(rows)==1
++    plan=rows[0];item=ux[0].items.get(plan['item_id'])
++    assert ux[0].scheduler.render(plan,item)['body']==body
++    shown=json.loads(text(ux))
++    assert body in '\n'.join(e.get('text',{}).get('content','') for e in shown['body']['elements'])
 diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py
 new file mode 100644
 index 00000000..1d4018f0
@@ -525,10 +535,21 @@ index 00000000..1d4018f0
 +    assert not result['已具备'] and not result['缺少']
 +    assert result['需专业判断']
 diff --git a/local-qwen3.8/feishu-bridge/am_business.py b/local-qwen3.8/feishu-bridge/am_business.py
-index 724d7538..ad0ead5a 100644
+index 724d7538..27d825bf 100644
 --- a/local-qwen3.8/feishu-bridge/am_business.py
 +++ b/local-qwen3.8/feishu-bridge/am_business.py
-@@ -98,11 +98,19 @@ class BusinessCommands:
+@@ -52,8 +52,9 @@ class BusinessCommands:
+ 
+     def plan_card(self,row,p):
+         target=json.loads(p['target']);who='本人私聊' if target['kind']=='owner' else target['payload']['group']['name']+'；'+'、'.join(x['name'] for x in target['payload']['people'])
++        display_body=self.scheduler.render(p,self.items.get(p['item_id']))['body'] if json.loads(p['rule']).get('ux_literal_body') else p['template']
+         body=(f"计划 {p['id']} v{p['version']}\n目标：{who}\n类型：{p['kind']}\n北京时间规则：{p['rule']}\n"
+-              f"完整正文/模板：{p['template'] or '程序读取本人范围内变化、待办和未决项；每条附来源与时间'}\n允许变量：{p['allowed_variables']}\n"
++              f"完整正文/模板：{display_body or '程序读取本人范围内变化、待办和未决项；每条附来源与时间'}\n允许变量：{p['allowed_variables']}\n"
+               f"批准方式：{p['policy']}\n下一实际触发：{datetime.fromtimestamp(p['next_at'],TZ):%Y-%m-%d %H:%M}\n执行窗口：{p['window_seconds']}秒\n有效至：{datetime.fromtimestamp(p['valid_until'],TZ):%Y-%m-%d %H:%M}\n"
+               +('特殊时间策略：按明确时刻执行，含休息日。\n' if json.loads(p['rule']).get('quiet_policy')=='exact' else '普通提醒：按已核实工作日历执行；18点后和休息日顺延下一工作日09:00。\n' if json.loads(p['rule']).get('quiet_policy')=='business_hours' else '按所示一次时刻或本人简报规则执行。\n')+
+               '停止条件：事项暂停、关闭、取消；计划停用；权限或目标变化；批准失效。错过窗口不补发。\n'
+@@ -98,11 +99,19 @@ class BusinessCommands:
          if self.s.clock()>o['scheduled_at']+86400:raise BoundaryError('FEEDBACK_CARD_EXPIRED')
          self.ledger.port.guard(row['chat'],row['user'])
          action=value.get('action');detail=body.get('detail','')
@@ -548,6 +569,17 @@ index 724d7538..ad0ead5a 100644
          owner=self.owner_origin()
          if owner:self.notify(owner,('已记录反馈。' if result['applied'] else '收到迟到反馈，作为证据保留，未覆盖新状态。')+'\n'+self.item_text(result['item']))
          return None
+@@ -173,7 +182,9 @@ class BusinessCommands:
+             edit=re.fullmatch(r'/plan (修改正文|改目标) ([a-f0-9]{32}) v(\d+)',first)
+             if edit:
+                 if edit[1]=='修改正文' and len(parts)==2:
+-                    p=self.scheduler.revise(row['user'],row['id'],edit[2],int(edit[3]),template=parts[1])
++                    prior=self.scheduler.plan(edit[2]);body=parts[1]
++                    if json.loads(prior['rule']).get('ux_literal_body'):body=body.replace('{','{{').replace('}','}}')
++                    p=self.scheduler.revise(row['user'],row['id'],edit[2],int(edit[3]),template=body)
+                 elif edit[1]=='改目标' and len(parts)==3:
+                     old=self.scheduler.plan(edit[2]);fields={'group_query':parts[1],'people_queries':parts[2].split('、'),'body':old['template'],'delivery_mode':'immediate'}
+                     target,missing,options=self.g.reminders.resolve(fields,{})
 diff --git a/local-qwen3.8/feishu-bridge/am_service.py b/local-qwen3.8/feishu-bridge/am_service.py
 index fe2f7c10..705c467e 100644
 --- a/local-qwen3.8/feishu-bridge/am_service.py
@@ -720,10 +752,10 @@ index fe2f7c10..705c467e 100644
          return True
 diff --git a/local-qwen3.8/feishu-bridge/am_ux.py b/local-qwen3.8/feishu-bridge/am_ux.py
 new file mode 100644
-index 00000000..9decc73b
+index 00000000..ef7c3e7f
 --- /dev/null
 +++ b/local-qwen3.8/feishu-bridge/am_ux.py
-@@ -0,0 +1,506 @@
+@@ -0,0 +1,511 @@
 +"""UX1 navigation and forms over the original AM services and durable queue.
 +
 +Buttons carry only a nonce and a server-owned action key. Collection is bound at
@@ -927,6 +959,7 @@ index 00000000..9decc73b
 +        if at<=self.s.clock():raise BoundaryError('FUTURE_SEND_TIME_REQUIRED')
 +        kind='once' if once else 'workdays' if frequency=='workdays' else 'daily'
 +        rule={'at':at} if once else {'time':datetime.fromtimestamp(at,TZ).strftime('%H:%M'),'timezone':'Asia/Shanghai','calendar_version':self.scheduler.calendar.data.get('version'),'quiet_policy':'exact' if frequency=='exact_daily' else 'business_hours'}
++        rule['ux_literal_body']=True
 +        if not once:rule['start_at']=at
 +        next_at=at if once else self.scheduler.next_time(kind,rule,at-1)
 +        until=at+61 if once else card_time(values['until'])
@@ -957,7 +990,10 @@ index 00000000..9decc73b
 +            if item['version']!=v['item_version'] or item['paused'] or item['state'] in ('closed','cancelled'):raise BoundaryError('ITEM_VERSION_CHANGED')
 +        else:item=self.items.create(row['user'],op,project_ref=v['project'],description=v['values']['body'],requirements='',assignees=v['people_ids'],source={'project_title':v['title'],'target':v['target'],'preview':ident,'version':version})
 +        payload=normalized_payload(item['id'],v['target']['bot'],v['target']['group'],v['target']['people'],v['values']['body'])
-+        p=self.scheduler.create(row['user'],op,item_id=item['id'],kind=v['kind'],rule=v['rule'],target={'kind':'group','payload':payload},template=v['values']['body'],policy=v['policy'],valid_until=v['until'],window_seconds=v['window'])
++        # The underlying scheduler supports templates. UX form text is literal,
++        # so escape template braces exactly once before entering that service.
++        literal_template=v['values']['body'].replace('{','{{').replace('}','}}')
++        p=self.scheduler.create(row['user'],op,item_id=item['id'],kind=v['kind'],rule=v['rule'],target={'kind':'group','payload':payload},template=literal_template,policy=v['policy'],valid_until=v['until'],window_seconds=v['window'])
 +        self.scheduler.approve_plan(row['user'],p['id'],p['version'],p['hash'])
 +        self.s.execute("UPDATE am_ux_drafts SET state='done',result=? WHERE id=?",(canonical({'plan':p['id'],'item':item['id']}),ident))
 +        return self.ux_plan_detail(row,p['id'])
@@ -968,7 +1004,8 @@ index 00000000..9decc73b
 +        target=json.loads(p['target']);who='本人私聊' if target['kind']=='owner' else target['payload']['group']['name']
 +        names={'draft':'待确认','active':'已启用','paused':'已暂停','cancelled':'已取消','expired':'已到期'}
 +        next_text=datetime.fromtimestamp(p['next_at'],TZ).strftime('%Y-%m-%d %H:%M')+'（北京时间）' if math.isfinite(p['next_at']) else '无下一次触发'
-+        text='计划状态：'+names.get(p['state'],p['state'])+'\n目标：'+who+'\n正文：'+p['template']+'\n下一次检查/发送：'+next_text
++        body=self.scheduler.render(p,self.items.get(p['item_id']))['body'] if json.loads(p['rule']).get('ux_literal_body') else p['template']
++        text='计划状态：'+names.get(p['state'],p['state'])+'\n目标：'+who+'\n正文：'+body+'\n下一次检查/发送：'+next_text
 +        actions=[]
 +        for o in self.s.rows('SELECT * FROM reminder_occurrences WHERE plan_id=? ORDER BY scheduled_at DESC LIMIT 5',(ident,)):
 +            text+='\n'+self.ux_occurrence_status(o)

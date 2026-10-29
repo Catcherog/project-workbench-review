@@ -52,8 +52,9 @@ class BusinessCommands:
 
     def plan_card(self,row,p):
         target=json.loads(p['target']);who='本人私聊' if target['kind']=='owner' else target['payload']['group']['name']+'；'+'、'.join(x['name'] for x in target['payload']['people'])
+        display_body=self.scheduler.render(p,self.items.get(p['item_id']))['body'] if json.loads(p['rule']).get('ux_literal_body') else p['template']
         body=(f"计划 {p['id']} v{p['version']}\n目标：{who}\n类型：{p['kind']}\n北京时间规则：{p['rule']}\n"
-              f"完整正文/模板：{p['template'] or '程序读取本人范围内变化、待办和未决项；每条附来源与时间'}\n允许变量：{p['allowed_variables']}\n"
+              f"完整正文/模板：{display_body or '程序读取本人范围内变化、待办和未决项；每条附来源与时间'}\n允许变量：{p['allowed_variables']}\n"
               f"批准方式：{p['policy']}\n下一实际触发：{datetime.fromtimestamp(p['next_at'],TZ):%Y-%m-%d %H:%M}\n执行窗口：{p['window_seconds']}秒\n有效至：{datetime.fromtimestamp(p['valid_until'],TZ):%Y-%m-%d %H:%M}\n"
               +('特殊时间策略：按明确时刻执行，含休息日。\n' if json.loads(p['rule']).get('quiet_policy')=='exact' else '普通提醒：按已核实工作日历执行；18点后和休息日顺延下一工作日09:00。\n' if json.loads(p['rule']).get('quiet_policy')=='business_hours' else '按所示一次时刻或本人简报规则执行。\n')+
               '停止条件：事项暂停、关闭、取消；计划停用；权限或目标变化；批准失效。错过窗口不补发。\n'
@@ -181,7 +182,9 @@ class BusinessCommands:
             edit=re.fullmatch(r'/plan (修改正文|改目标) ([a-f0-9]{32}) v(\d+)',first)
             if edit:
                 if edit[1]=='修改正文' and len(parts)==2:
-                    p=self.scheduler.revise(row['user'],row['id'],edit[2],int(edit[3]),template=parts[1])
+                    prior=self.scheduler.plan(edit[2]);body=parts[1]
+                    if json.loads(prior['rule']).get('ux_literal_body'):body=body.replace('{','{{').replace('}','}}')
+                    p=self.scheduler.revise(row['user'],row['id'],edit[2],int(edit[3]),template=body)
                 elif edit[1]=='改目标' and len(parts)==3:
                     old=self.scheduler.plan(edit[2]);fields={'group_query':parts[1],'people_queries':parts[2].split('、'),'body':old['template'],'delivery_mode':'immediate'}
                     target,missing,options=self.g.reminders.resolve(fields,{})
