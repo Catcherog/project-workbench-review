@@ -1,0 +1,1061 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
+index 666c1698..50e80a3d 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
+@@ -27,6 +27,23 @@ class ActionItems:
+         CREATE TABLE IF NOT EXISTS business_migrations(version TEXT PRIMARY KEY);
+         INSERT OR IGNORE INTO business_migrations VALUES('C-items-1');
+         ''')
++        with store.tx() as c:
++            columns={r[1] for r in c.execute('PRAGMA table_info(action_items)')}
++            if 'decision_version' not in columns:
++                c.execute('ALTER TABLE action_items ADD COLUMN decision_version INTEGER NOT NULL DEFAULT 1')
++                for item in c.execute('SELECT * FROM action_items').fetchall():
++                    versions=set();decisions=[]
++                    for op in c.execute('SELECT actor,result FROM item_operations WHERE item_id=?',(item['id'],)).fetchall():
++                        result=json.loads(op['result'])
++                        if result.get('id')==item['id'] and op['actor'] in (item['owner'],item['verifier']):
++                            versions.add(result['version']);decisions.append(result['version'])
++                        elif result.get('applied') and result.get('item',{}).get('id')==item['id']:
++                            versions.add(result['item']['version'])
++                    # Only a complete journal proves the older card crossed no
++                    # owner decision. Incomplete legacy history fails closed.
++                    fence=max(decisions) if decisions and versions==set(range(1,item['version']+1)) else item['version']
++                    c.execute('UPDATE action_items SET decision_version=? WHERE id=?',(fence,item['id']))
++            c.execute("INSERT OR IGNORE INTO business_migrations VALUES('R1-FIX1-item-decisions-1')")
+ 
+     def get(self,ident,c=None):
+         rows=[dict(r) for r in c.execute('SELECT * FROM action_items WHERE id=?',(ident,))] if c else self.s.rows('SELECT * FROM action_items WHERE id=?',(ident,))
+@@ -54,7 +71,7 @@ class ActionItems:
+             replay=self.replay(c,op,request)
+             if replay:return replay
+             ident=uuid.uuid4().hex;now=self.s.clock()
+-            c.execute("INSERT INTO action_items VALUES(?,1,?,?,?,?,?,?,?,?,?,'Asia/Shanghai','waiting',0,NULL,?,NULL,NULL,?,?)",
++            c.execute("INSERT INTO action_items VALUES(?,1,?,?,?,?,?,?,?,?,?,'Asia/Shanghai','waiting',0,NULL,?,NULL,NULL,?,?,1)",
+                 (ident,actor,project_ref,description,requirements,canonical(list(dict.fromkeys(assignees))),verifier or actor,canonical(source),deadline,deadline_kind,next_check,now,now))
+             result=self.get(ident,c);self.log(c,op,ident,actor,request,result);return result
+ 
+@@ -78,7 +95,7 @@ class ActionItems:
+             elif action=='check':
+                 if not isinstance(next_check,(int,float)):raise BoundaryError('CHECK_TIME_REQUIRED')
+             else:raise BoundaryError('ITEM_ACTION_INVALID')
+-            c.execute('UPDATE action_items SET version=version+1,state=?,paused=?,next_check=?,closed_by=?,close_evidence=?,updated=? WHERE id=? AND version=?',
++            c.execute('UPDATE action_items SET decision_version=version+1,version=version+1,state=?,paused=?,next_check=?,closed_by=?,close_evidence=?,updated=? WHERE id=? AND version=?',
+                 (state,paused,next_check if action=='check' else item['next_check'],closed_by,close_evidence,self.s.clock(),ident,expected))
+             result=self.get(ident,c);self.log(c,op,ident,actor,request,result);return result
+ 
+@@ -90,19 +107,19 @@ class ActionItems:
+             if replay:return replay
+             item=self.get(ident,c)
+             if actor not in json.loads(item['assignees']):raise BoundaryError('NOT_ASSIGNEE')
+-            applied=item['version']==expected and item['state'] not in ('closed','cancelled')
++            applied=item['decision_version']<=expected<=item['version'] and not item['paused'] and item['state'] not in ('closed','cancelled')
+             c.execute('INSERT INTO item_feedback VALUES(?,?,?,?,?,?,?,?,?)',(op,ident,expected,actor,kind,body,canonical(source),int(applied),self.s.clock()))
+             if applied:
+                 state={'processing':'in_progress','help':'blocked','submitted':'submitted'}.get(kind,item['state'])
+                 # Received only records a response. ETA is not a committed deadline;
+                 # not_mine is a request for adjustment, never an automatic transfer.
+                 feedback=canonical({'kind':kind,'body':body,'actor':actor,'time':self.s.clock()})
+-                c.execute('UPDATE action_items SET version=version+1,state=?,latest_feedback=?,updated=? WHERE id=? AND version=?',(state,feedback,self.s.clock(),ident,expected))
++                c.execute('UPDATE action_items SET version=version+1,state=?,latest_feedback=?,updated=? WHERE id=? AND version=?',(state,feedback,self.s.clock(),ident,item['version']))
+             result={'applied':applied,'late_evidence':not applied,'item':self.get(ident,c)}
+             self.log(c,op,ident,actor,request,result);return result
+ 
+     def history(self,ident):
+-        return self.s.rows('SELECT actor,kind,body,applied,created FROM item_feedback WHERE item_id=? ORDER BY created',(ident,))
++        return self.s.rows('SELECT actor,kind,body,source,applied,created FROM item_feedback WHERE item_id=? ORDER BY created,rowid',(ident,))
+ 
+     def cleanup_preview(self,terminal_days=30):
+         if type(terminal_days) is not int or terminal_days<7:raise BoundaryError('RETENTION_TOO_SHORT')
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/logic_service.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/logic_service.py
+index 951ba781..898ab358 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/logic_service.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/logic_service.py
+@@ -73,6 +73,22 @@ class LogicService(PrecheckMixin):
+             columns={r[1] for r in c.execute("PRAGMA table_info(logic_drafts)")}
+             for name,kind in {"mode":"TEXT NOT NULL DEFAULT 'document'","analysis_basis":"TEXT","target_requirements":"TEXT"}.items():
+                 if name not in columns:c.execute("ALTER TABLE logic_drafts ADD COLUMN "+name+" "+kind)
++        self.migrate_precheck_hashes()
++
++    def migrate_precheck_hashes(self):
++        from .project_catalog import digest as basis_digest
++        with self.s.tx() as c:
++            if c.execute("SELECT 1 FROM meta WHERE key='R1-FIX1-precheck-hash-1'").fetchone():return
++            for d in c.execute("SELECT * FROM logic_drafts WHERE mode='precheck' AND content IS NOT NULL AND content_hash IS NOT NULL").fetchall():
++                if d['content_hash']==digest(d['content']):continue
++                if d['content_hash']==basis_digest(d['content']):
++                    # R1's byte check precedes upload. The precise legacy hash
++                    # mismatch plus absence of any external receipt proves this
++                    # specific attempt never reached upload; others stay unknown.
++                    c.execute("UPDATE logic_writes SET state='confirmed_not_sent',receipt=? WHERE draft_id=? AND content_hash=? AND state='unknown' AND receipt IS NULL",
++                              (json.dumps({'reason':'LEGACY_PREUPLOAD_HASH_MISMATCH'}),d['id'],d['content_hash']))
++                c.execute("UPDATE logic_drafts SET accepted_hash=NULL,analysis_basis=NULL,revision=revision+1,state=CASE WHEN state IN ('cancelled','expired','paused') THEN state ELSE 'collecting' END,error='LEGACY_PRECHECK_HASH_INVALID' WHERE id=?",(d['id'],))
++            c.execute("INSERT INTO meta(key,value) VALUES('R1-FIX1-precheck-hash-1','done')")
+ 
+     def current(self, row):
+         items = self.s.rows("SELECT * FROM logic_drafts WHERE scope=? AND expires>? ORDER BY rowid DESC LIMIT 1",
+@@ -368,7 +384,6 @@ class LogicService(PrecheckMixin):
+     def mount(self, row, draft_id):
+         d = self.get(row, draft_id)
+         if not d["target"]: raise BoundaryError("BUSINESS_TARGET_MISSING")
+-        self.validate_precheck_basis(row,d)
+         if d["state"] != "ready" or d["accepted_hash"] != d["content_hash"]:
+             raise BoundaryError("CONTENT_ADOPTION_REQUIRED")
+         target = json.loads(d["target"])
+@@ -376,6 +391,8 @@ class LogicService(PrecheckMixin):
+         old = self.s.rows("SELECT * FROM logic_writes WHERE idem=?", (idem,))
+         if old:
+             receipt = json.loads(old[0]["receipt"]) if old[0]["receipt"] else None
++            if old[0]['state']=='confirmed_not_sent':
++                return {'message':'本次挂载在上传前确定失败，未上传或挂载；请修正条件后重新生成并采用。','receipt':None}
+             if old[0]["state"] == "committed":
+                 current_receipt = self.business.reconcile(row, idem)
+                 if current_receipt != receipt:
+@@ -387,6 +404,7 @@ class LogicService(PrecheckMixin):
+                 self._receipt(idem, receipt, target, d["content_hash"])
+                 return {"message": "对账确认已挂载；未重复写入。", "receipt": receipt}
+             return {"message": "挂载结果待确认；保留候选稿，未再次写入。", "receipt": None}
++        self.validate_precheck_basis(row,d)
+         if self.business.resolve(row, target["id"]) != target:
+             raise BoundaryError("TARGET_REVISION_CHANGED")
+         fresh = self.get(row, draft_id)
+@@ -395,11 +413,16 @@ class LogicService(PrecheckMixin):
+         # Journal BEFORE dispatch; the port must enforce revision and idempotency atomically.
+         self.s.execute("INSERT INTO logic_writes VALUES(?,?,?,?,?,'unknown',NULL)",
+                        (idem, d["id"], d["revision"], json.dumps(target), d["content_hash"]))
++        from .meegle_port import BusinessNotStarted
+         try:
+             def guard():
+                 fresh = self.get(row, draft_id)
+                 return fresh["revision"] == d["revision"] and fresh["state"] == "ready" and fresh["accepted_hash"] == d["content_hash"]
+             receipt = self.business.commit(row, target, d["content"], d["content_hash"], idem, guard)
++        except BusinessNotStarted as exc:
++            self.s.execute("UPDATE logic_writes SET state='confirmed_not_sent',receipt=? WHERE idem=? AND state='unknown'",
++                           (json.dumps({'reason':str(exc)}),idem))
++            return {'message':'本次挂载在上传前确定失败，未上传或挂载：'+str(exc),'receipt':None}
+         except Exception:
+             return {"message": "挂载结果待确认；先对账，未盲目重试。", "receipt": None}
+         verified = self.business.reconcile(row, idem)
+@@ -416,7 +439,10 @@ class LogicService(PrecheckMixin):
+         if not writes:
+             return "本稿没有已发起的业务挂载。"
+         unknown = False
++        not_sent = False
+         for write in writes:
++            if write['state']=='confirmed_not_sent':
++                not_sent=True;continue
+             if write["state"] == "committed":
+                 continue
+             receipt = self.business.reconcile(row, write["idem"])
+@@ -424,7 +450,7 @@ class LogicService(PrecheckMixin):
+                 self._receipt(write["idem"], receipt, json.loads(write["target"]), write["content_hash"])
+             else:
+                 unknown = True
+-        return "仍有挂载结果待确认；未再次写入。" if unknown else "已对账确认原挂载结果；未删除历史或改变审核状态。"
++        return "仍有挂载结果待确认；未再次写入。" if unknown else "存在上传前确定失败的尝试，未上传或挂载；其余已确认结果保留。" if not_sent else "已对账确认原挂载结果；未删除历史或改变审核状态。"
+ 
+     def _receipt(self, idem, receipt, target, content_hash):
+         if (not isinstance(receipt, dict) or receipt.get("target_id") != target["id"]
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py
+index ae5e6d70..6dc3818a 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py
+@@ -11,6 +11,9 @@ from pathlib import Path
+ from .config import BoundaryError
+ from .doc_logic import digest, read_source, MAX_BYTES
+ 
++class BusinessNotStarted(BoundaryError):
++    """The adapter has proven that no external mutation was attempted."""
++
+ class MeeglePort:
+     def __init__(self, gateway, settings):
+         self.g, self.s, self.c = gateway, gateway.store, gateway.config
+@@ -157,6 +160,13 @@ class MeeglePort:
+         return results
+ 
+     def commit(self, principal, target, content, content_hash, idem, guard):
++        started=[False]
++        try:return self._commit(principal,target,content,content_hash,idem,guard,started)
++        except Exception as exc:
++            if not started[0]:raise BusinessNotStarted(str(exc)) from None
++            raise
++
++    def _commit(self, principal, target, content, content_hash, idem, guard, started):
+         alias=target["id"]
+         b=self._authorize(principal,alias)
+         # Serialize this service's target writes. The platform API has no exposed CAS field;
+@@ -183,6 +193,10 @@ class MeeglePort:
+                 path.write_text(content,encoding="utf-8");path.chmod(0o600)
+                 if digest(path.read_bytes()) != content_hash:
+                     raise BoundaryError("BUSINESS_CONTENT_CHANGED")
++                # From this boundary onward a missing receipt is ambiguous.
++                self.s.execute("UPDATE logic_writes SET receipt=? WHERE idem=? AND state='unknown'",
++                               (json.dumps({'phase':'upload_started'}),idem))
++                started[0]=True
+                 upload=self._run(["attachment","+upload",str(path),"--resource-type","15",
+                                   "--project-key",b["space"],"--work-item-id",b["deliverable"],
+                                   "--field-key",b["attachment_field"],"--content-type","text/markdown"])
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/precheck.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/precheck.py
+index d52cac5e..0a2c36c8 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/precheck.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/precheck.py
+@@ -4,9 +4,39 @@ import re
+ from pathlib import Path
+ from .config import BoundaryError
+ from .project_catalog import canonical,digest
++from .doc_logic import digest as content_digest
+ from .provider import Result
+ 
+ 
++def substantive_requirement(source,index,label):
++    """Use local structure, never a keyword alone, as evidence of supplied content."""
++    segments=source['segments'];p=segments[index];text=p['original'].strip()
++    headers={'序号','名称','版本','负责人','备注','内容','状态','文件','交付物','文件名称','交付物名称','附件名称','日期'}
++    def value(text):
++        clean=re.sub(r'^[\s#>*|\-\d.、）)]+','',text).strip(' \t\n:：|—-/')
++        return bool(clean) and clean not in headers and not re.fullmatch(r'(?:为空|空白|待补充?|尚未提供|未提供|无|待定|[-—/\s|]+)',clean)
++    remainder=text.split(label,1)[1].strip(' \t:：|')
++    if remainder and value(remainder):return [p['ref']]
++    # Table label/value pairs are bounded by the same row. A following section
++    # or a different row cannot supply content for an empty cell.
++    location=p.get('location','')
++    table=re.match(r'(.*/表格\d+/行\d+)/列\d+',location)
++    following=segments[index+1:]
++    if table:
++        for nxt in following:
++            if not nxt.get('location','').startswith(table[1]+'/列'):break
++            if value(nxt['original']):return [p['ref'],nxt['ref']]
++        return []
++    for nxt in following:
++        line=nxt['original'].strip()
++        if re.match(r'^(?:[-*•]\s*|\d+[.、)）]\s*)\S',line) and value(line):return [p['ref'],nxt['ref']]
++        if re.match(r'^[#]|^[^：:]{1,40}[：:]',line):break
++        # Plain following prose may be unrelated; retain it for professional
++        # judgment instead of attributing it to this heading by proximity.
++        if value(line):return None
++    return []
++
++
+ def inspect_materials(sources,requirements):
+     categories={'已具备':[],'缺少':[],'冲突':[],'需专业判断':[]}
+     segments=[p for source in sources for p in source['segments']]
+@@ -25,14 +55,21 @@ def inspect_materials(sources,requirements):
+             elif actual:categories['已具备'].append({'finding':rule['label']+'：文字值与本次明确要求一致；不代表该字段已获批准','refs':[p['ref'] for p,value in actual]})
+             else:categories['缺少' if complete else '需专业判断'].append({'finding':rule['label']+'：未找到可核对的明确字段值','refs':[]})
+             continue
+-        found=[p for p in segments if rule['text'] in p['original']]
++        positions=[(s,i,p) for s in sources for i,p in enumerate(s['segments']) if rule['text'] in p['original']]
++        found=[p for s,i,p in positions]
+         empty=[p for p in found if re.search(re.escape(rule['text'])+r'.{0,12}(?:为空|空白|待补|尚未提供)|(?:未提供|缺少)\s*'+re.escape(rule['text']),p['original'])]
+         if empty:
+             categories['缺少' if complete else '需专业判断'].append({'finding':rule['label']+'：材料明确记为空缺或待补，不能按字段标题认定内容具备','refs':[p['ref'] for p in empty]})
+             continue
+         if found:
+-            categories['已具备'].append({'finding':rule['label']+'：找到对应文字，含义与有效性仍需核验','refs':[p['ref'] for p in found]})
+-            if rule.get('kind')=='signoff':categories['需专业判断'].append({'finding':rule['label']+'：字段存在不证明签审有效','refs':[p['ref'] for p in found]})
++            evidence=[substantive_requirement(s,i,rule['text']) for s,i,p in positions]
++            substantive=[ref for refs in evidence if refs for ref in refs]
++            if substantive:
++                categories['已具备'].append({'finding':rule['label']+'：找到实质条目或字段值，含义与有效性仍需核验','refs':list(dict.fromkeys(substantive))})
++                if rule.get('kind')=='signoff':categories['需专业判断'].append({'finding':rule['label']+'：字段存在不证明签审有效','refs':substantive})
++            else:
++                label='缺少' if complete and all(refs==[] for refs in evidence) else '需专业判断'
++                categories[label].append({'finding':rule['label']+'：标题或标签存在，未确认对应实质内容','refs':[p['ref'] for p in found]})
+         else:categories['缺少' if complete else '需专业判断'].append({'finding':rule['label']+('：完整可读范围内未找到所要求文字' if complete else '：读取范围不完整，无法确认是否具备'),'refs':[]})
+     for p in segments:
+         text=p['original']
+@@ -86,7 +123,7 @@ class PrecheckMixin:
+         if fresh!=target:raise BoundaryError('TARGET_REVISION_CHANGED')
+         return {'mode':'precheck','document_type':d['document_type'],'target':fresh,'requirements':self.precheck_requirements(row,d),
+                 'materials':[{'id':s['id'],'version':s['version'],'read_status':s['read_status'],'parser':s.get('parser_name','text'),'parser_version':s.get('parser_version','legacy')} for s in sources],
+-                'rules':load_rules()[1],'model':{'name':self.g.config.api_model,'digest':self.g.config.api_model_digest,'used':False},'precheck_version':'am-precheck-1'}
++                'rules':load_rules()[1],'model':{'name':self.g.config.api_model,'digest':self.g.config.api_model_digest,'used':False},'precheck_version':'am-precheck-2'}
+ 
+     def run_precheck(self,task,d,sources,job):
+         basis=self.precheck_basis(task,d,sources);report=inspect_materials(sources,basis['requirements'])
+@@ -100,7 +137,7 @@ class PrecheckMixin:
+         content='\n'.join(lines)
+         with self.s.tx() as c:
+             n=c.execute("UPDATE logic_drafts SET state='ready',analysis=?,review=?,rules=?,content=?,content_hash=?,analysis_basis=?,error=NULL WHERE id=? AND revision=? AND state NOT IN ('paused','cancelled') AND expires>?",
+-                (canonical({'assessment':'预检已形成；不等于专业审核通过','questions':[],'categories':report}),canonical({'mode':'precheck'}),canonical(basis['rules']),content,digest(content),canonical(basis),d['id'],job['revision'],self.s.clock())).rowcount
++                (canonical({'assessment':'预检已形成；不等于专业审核通过','questions':[],'categories':report}),canonical({'mode':'precheck'}),canonical(basis['rules']),content,content_digest(content),canonical(basis),d['id'],job['revision'],self.s.clock())).rowcount
+             if not n:raise BoundaryError('LATE_RESULT_REJECTED')
+         return content,Result('目标资料预检已形成；请查看已具备、缺少、冲突和需专业判断。','python:target-precheck-v1',0),min(task['expires'],d['expires'])
+ 
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py
+index 4f929332..364fd165 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py
+@@ -67,9 +67,34 @@ class Scheduler:
+         CREATE TABLE IF NOT EXISTS scheduler_operations(id TEXT PRIMARY KEY,request_hash TEXT NOT NULL,result TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS am_subscriptions(id TEXT PRIMARY KEY,owner TEXT NOT NULL,plan_id TEXT UNIQUE NOT NULL,state TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS am_briefing_deliveries(subscription_id TEXT NOT NULL,event_id TEXT NOT NULL,occurrence_id TEXT NOT NULL,state TEXT NOT NULL,PRIMARY KEY(subscription_id,event_id));
++        CREATE TABLE IF NOT EXISTS am_briefing_delivery_attempts(subscription_id TEXT NOT NULL,event_id TEXT NOT NULL,occurrence_id TEXT NOT NULL,state TEXT NOT NULL,PRIMARY KEY(subscription_id,event_id,occurrence_id));
++        INSERT OR IGNORE INTO am_briefing_delivery_attempts SELECT * FROM am_briefing_deliveries;
+         INSERT OR IGNORE INTO business_migrations VALUES('C-scheduler-1');
++        INSERT OR IGNORE INTO business_migrations VALUES('R1-FIX1-deliveries-1');
+         ''')
+         self.s.execute("UPDATE reminder_occurrences SET state='unknown',error='RESTART_SEND_UNKNOWN',readback_state='pending' WHERE state='sending'")
++        with self.s.tx() as c:self.sync_deliveries(c)
++
++    def sync_deliveries(self,c):
++        # Retain every association. Only proven unsent attempts release an event;
++        # absence of an occurrence/receipt is never evidence of non-delivery.
++        rows=c.execute('SELECT d.*,o.state AS outcome,o.readback_state,o.deadline,o.attempts FROM am_briefing_deliveries d LEFT JOIN reminder_occurrences o ON o.id=d.occurrence_id').fetchall()
++        for r in rows:
++            state='pending'
++            if r['state']=='verified' or r['outcome']=='sent' and r['readback_state']=='verified':state='verified'
++            elif r['outcome'] in (None,'sending','unknown','sent'):state='unknown'
++            elif r['outcome']=='cancelled' or r['outcome'] in ('ready','awaiting_confirmation','confirmed_not_sent') and (r['deadline']<=self.s.clock() or r['attempts']>=3):state='not_sent'
++            c.execute('UPDATE am_briefing_deliveries SET state=? WHERE subscription_id=? AND event_id=?',(state,r['subscription_id'],r['event_id']))
++            c.execute('INSERT INTO am_briefing_delivery_attempts VALUES(?,?,?,?) ON CONFLICT(subscription_id,event_id,occurrence_id) DO UPDATE SET state=excluded.state',(r['subscription_id'],r['event_id'],r['occurrence_id'],state))
++
++    def blocked(self,c,o):
++        candidates=c.execute("SELECT * FROM reminder_occurrences WHERE id!=? AND (item_id=? OR plan_id=?) AND (state IN ('sending','unknown') OR state='sent' AND COALESCE(readback_state,'pending')!='verified')",(o['id'],o['item_id'],o['plan_id'])).fetchall()
++        payload=json.loads(o['payload'])
++        for other in candidates:
++            if other['plan_id']==o['plan_id']:return True
++            prior=json.loads(other['payload'])
++            if prior.get('target')==payload.get('target') and prior.get('body')==payload.get('body'):return True
++        return False
+ 
+     def plan(self,ident,c=None):
+         rows=[dict(r) for r in c.execute('SELECT * FROM reminder_plans WHERE id=?',(ident,))] if c else self.s.rows('SELECT * FROM reminder_plans WHERE id=?',(ident,))
+@@ -194,7 +219,7 @@ class Scheduler:
+                 if p['kind']=='briefing' and p['error']=='BRIEFING_SOURCE_UNAVAILABLE':continue
+                 item=self.items.get(p['item_id'],c) if p['item_id'] else None
+                 if item and (item['paused'] or item['state'] in ('closed','cancelled')):continue
+-                if c.execute("SELECT 1 FROM reminder_occurrences WHERE (item_id=? OR plan_id=?) AND (state IN ('sending','unknown') OR state='sent' AND readback_state!='verified')",(p['item_id'],p['id'])).fetchone():continue
++                if c.execute("SELECT 1 FROM reminder_occurrences WHERE (item_id=? OR plan_id=?) AND (state IN ('sending','unknown') OR state='sent' AND COALESCE(readback_state,'pending')!='verified')",(p['item_id'],p['id'])).fetchone():continue
+                 scheduled=p['next_at'];rule=json.loads(p['rule'])
+                 try:
+                     # Skip missed windows without producing a backlog. Only one
+@@ -212,6 +237,7 @@ class Scheduler:
+                 event_ids=[]
+                 if p['kind']=='briefing':
+                     if self.briefing is None:continue
++                    self.sync_deliveries(c)
+                     # Callback only reads AM snapshots; external source refresh is
+                     # completed outside this transaction by the normal worker.
+                     body,event_ids=self.briefing(p)
+@@ -227,7 +253,9 @@ class Scheduler:
+                 if n and p['kind']=='briefing':
+                     sub=c.execute('SELECT id FROM am_subscriptions WHERE plan_id=?',(p['id'],)).fetchone()
+                     if sub:
+-                        for event in event_ids:c.execute("INSERT OR IGNORE INTO am_briefing_deliveries VALUES(?,?,?,'pending')",(sub[0],event,ident))
++                        for event in event_ids:
++                            c.execute("INSERT INTO am_briefing_deliveries VALUES(?,?,?,'pending') ON CONFLICT(subscription_id,event_id) DO UPDATE SET occurrence_id=excluded.occurrence_id,state='pending' WHERE am_briefing_deliveries.state='not_sent'",(sub[0],event,ident))
++                            c.execute("INSERT OR IGNORE INTO am_briefing_delivery_attempts VALUES(?,?,?,'pending')",(sub[0],event,ident))
+                 changed=bool(n) or changed
+             if n and state=='awaiting_confirmation':self.notify('occurrence_preview',ident)
+         return changed
+@@ -261,28 +289,38 @@ class Scheduler:
+ 
+     def dispatch(self):
+         if not self.enabled():return False
+-        rows=self.s.rows("SELECT * FROM reminder_occurrences WHERE state IN ('ready','confirmed_not_sent') AND next_attempt<=? ORDER BY scheduled_at LIMIT 1",(self.s.clock(),))
+-        if not rows:return False
+-        o=rows[0]
++        rows=self.s.rows("SELECT * FROM reminder_occurrences WHERE state IN ('ready','confirmed_not_sent') AND next_attempt<=? ORDER BY scheduled_at,rowid",(self.s.clock(),))
++        try:
++            for o in rows:
++                if self.dispatch_one(o):return True
++            return False
++        finally:
++            with self.s.tx() as c:self.sync_deliveries(c)
++
++    def dispatch_one(self,o):
+         with self.s.tx() as c:
+             o=self.occurrence(o['id'],c);p=self.plan(o['plan_id'],c)
++            if o['state'] not in ('ready','confirmed_not_sent'):return False
+             if not self.current(c,o,p) or not self.approval_valid(c,o,p) or o['attempts']>=3:
+                 c.execute("UPDATE reminder_occurrences SET state='cancelled',error='CURRENT_STATE_OR_APPROVAL_CHANGED' WHERE id=? AND state IN ('ready','confirmed_not_sent')",(o['id'],));return True
++            if self.blocked(c,o):return False
+         payload=json.loads(o['payload'])
+         try:self.port.refresh(payload)
+         except Exception:
+             self.s.execute("UPDATE reminder_occurrences SET state='cancelled',error='PREFLIGHT_UNVERIFIED' WHERE id=? AND state IN ('ready','confirmed_not_sent')",(o['id'],));return True
+         with self.s.tx() as c:
+             fresh=self.occurrence(o['id'],c);p=self.plan(o['plan_id'],c)
++            if fresh['state'] not in ('ready','confirmed_not_sent'):return False
+             if not self.current(c,fresh,p) or not self.approval_valid(c,fresh,p):
+                 c.execute("UPDATE reminder_occurrences SET state='cancelled',error='PREFLIGHT_CHANGED' WHERE id=? AND state IN ('ready','confirmed_not_sent')",(o['id'],));return True
++            if self.blocked(c,fresh):return False
+             n=c.execute("UPDATE reminder_occurrences SET state='sending',attempts=attempts+1,send_started=? WHERE id=? AND state IN ('ready','confirmed_not_sent')",(self.s.clock(),o['id'])).rowcount
+             if not n:return False
+         def guard():
+             if not self.enabled():return False
+             with self.s.tx() as c:
+                 current=self.occurrence(o['id'],c);p=self.plan(o['plan_id'],c)
+-                return current['state']=='sending' and self.current(c,current,p) and self.approval_valid(c,current,p)
++                return current['state']=='sending' and self.current(c,current,p) and self.approval_valid(c,current,p) and not self.blocked(c,current)
+         try:
+             receipt=self.port.send(payload,o['request_key'],guard)
+             if not receipt.get('message_id'):raise SendUnknown('RECEIPT_MISSING')
+@@ -308,6 +346,7 @@ class Scheduler:
+             with self.s.tx() as c:
+                 c.execute("UPDATE reminder_occurrences SET state='sent',message_id=?,receipt=?,readback_state='verified',error=NULL WHERE id=? AND state IN ('sent','unknown')",(receipt['message_id'],canonical(receipt),ident))
+                 c.execute("UPDATE am_briefing_deliveries SET state='verified' WHERE occurrence_id=?",(ident,))
++                c.execute("UPDATE am_briefing_delivery_attempts SET state='verified' WHERE occurrence_id=?",(ident,))
+             return True
+         except Exception:
+             if o['reconcile_attempts']>=5:self.s.execute("UPDATE reminder_occurrences SET readback_state='needs_review' WHERE id=?",(ident,))
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_c.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_c.py
+index 0632707a..997c0e71 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_c.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_c.py
+@@ -42,14 +42,15 @@ def test_C01_C02_feedback_identity_versions_idempotency(rig):
+  a=items.feedback('ou_assignee','ack',item['id'],1,'received','',{})
+  assert a['item']['state']=='waiting'
+  assert items.feedback('ou_assignee','ack',item['id'],1,'received','',{})==a
++ items.change('ou_owner','reschedule',item['id'],2,'check',next_check=now[0]+3600)
+  late=items.feedback('ou_assignee','late',item['id'],1,'submitted','报告',{})
+  assert late['late_evidence'] and items.get(item['id'])['state']=='waiting'
+- b=items.feedback('ou_assignee','submit',item['id'],2,'submitted','报告',{})
++ b=items.feedback('ou_assignee','submit',item['id'],3,'submitted','报告',{})
+  assert b['item']['state']=='submitted'
+  c=items.feedback('ou_assignee','notmine',item['id'],3,'not_mine','请核对',{})
+  assert json.loads(c['item']['assignees'])==['ou_assignee'] and c['item']['state']=='submitted'
+- with pytest.raises(BoundaryError):items.change('ou_assignee','close',item['id'],4,'close',evidence='self reported')
+- done=items.change('ou_owner','close',item['id'],4,'close',evidence='已核对合成报告内容')
++ with pytest.raises(BoundaryError):items.change('ou_assignee','close',item['id'],5,'close',evidence='self reported')
++ done=items.change('ou_owner','close',item['id'],5,'close',evidence='已核对合成报告内容')
+  assert done['state']=='closed'
+ 
+ 
+@@ -112,7 +113,7 @@ def test_C09_briefing_unknown_restart_keeps_event_cursor(rig):
+  s.execute("INSERT INTO am_subscriptions VALUES('sub','ou_owner',?,'active')",(p['id'],))
+  now[0]+=3600;sch.scan();port.error=SendUnknown('lost');sch.dispatch()
+  o=s.rows('SELECT * FROM reminder_occurrences')[0]
+- assert s.rows('SELECT state FROM am_briefing_deliveries')[0]['state']=='pending'
++ assert s.rows('SELECT state FROM am_briefing_deliveries')[0]['state']=='unknown'
+  Scheduler(s,items,'ou_owner',port,enabled=lambda:True,briefing=sch.briefing)
+  assert not sch.scan() and not sch.dispatch() and len(port.calls)==1
+  port.found=True;sch.reconcile(o['id'],manual=True)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py
+new file mode 100644
+index 00000000..2c2b0e47
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py
+@@ -0,0 +1,379 @@
++"""F01–F08 assert correct behavior through real SQLite and synthetic ports only."""
++import copy
++import io
++import json
++import sys
++from contextlib import closing
++from pathlib import Path
++from datetime import datetime
++from types import SimpleNamespace
++import threading
++from concurrent.futures import ThreadPoolExecutor
++import pytest
++
++sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'local-qwen3.8/feishu-bridge'))
++from fs_agent.action_items import ActionItems
++from fs_agent.scheduler import Scheduler,TZ
++from fs_agent.store import Store
++from fs_agent.feishu import SendUnknown,SendRejected
++from fs_agent.doc_logic import digest,read_source
++from fs_agent.precheck import inspect_materials
++from fs_agent.config import BoundaryError
++from test_gateway import rig as base_rig,event,drain
++from test_reminder import rig as am_rig
++from test_doc_logic import rig as logic_rig,ready
++from test_meegle_port import port_fixture
++from test_am_self_c import Port as SendPort
++from test_group_ledger import Port as ReadPort,VALUES
++from group_ledger import GroupLedger
++from am_service import AmSelfService
++
++@pytest.fixture
++def service(am_rig,tmp_path):
++    g,s,api,model,clock,e=am_rig
++    port=ReadPort();port.authorize_user=lambda user:None
++    port.values=copy.deepcopy(VALUES[:2])+[['需求76:乙项目','','','跟进乙报告','乙项目处理中','AR2乙','']]
++    (tmp_path/'ledger').mkdir()
++    ledger=GroupLedger(tmp_path/'ledger',port,lambda *a:pytest.fail('no group sends'),clock=clock)
++    am=AmSelfService(g,ledger,flags={'query':True,'snapshots':True,'items':True,'scheduler':True,'progress_collection':True})
++    yield am,g,s,api,clock,port
++    ledger.close()
++
++def ask(rig,text,number,**metadata):
++    am,g,s,api,clock,port=rig
++    payload=event(text,number=number);payload['event']['message'].update(metadata,create_time=str(int(clock()*1000)))
++    assert am.ingest(payload)==(True,True)
++    assert am.step();drain(g)
++    return api.sent[-1]['body']
++
++def make_plan(sch,now,item,op,kind='once'):
++    rule={'at':now+60} if kind=='once' else {'time':'09:00','timezone':'Asia/Shanghai'}
++    p=sch.create(sch.owner,op,item_id=item,kind=kind,rule=rule,
++                 target={'kind':'group','payload':{'synthetic':True}},template='请提交报告。',policy='fixed_rule',valid_until=now+3*86400)
++    return sch.approve_plan(sch.owner,p['id'],p['version'],p['hash'])
++
++def test_F01_queued_duplicate_unknown_does_not_block_independent_item(tmp_path):
++    now=[datetime(2026,10,29,8,tzinfo=TZ).timestamp()]
++    with closing(Store(tmp_path/'state.db',lambda:now[0])) as s:
++        items=ActionItems(s,'ou_owner');port=SendPort();sch=Scheduler(s,items,'ou_owner',port,enabled=lambda:True)
++        def item(op):return items.create('ou_owner',op,project_ref='project',description='报告',requirements='核验',assignees=['ou_a'],source={})['id']
++        a,b=item('a'),item('b')
++        for op,ident in [('a1',a),('a2',a),('b1',b)]:make_plan(sch,now[0],ident,op)
++        now[0]+=60;sch.scan();queued=s.rows('SELECT * FROM reminder_occurrences ORDER BY rowid')
++        port.error=SendUnknown('lost');sch.dispatch();port.error=None
++        sch.dispatch()
++        assert port.calls==[queued[0]['request_key'],queued[2]['request_key']]
++        assert sch.occurrence(queued[1]['id'])['state']=='ready'
++        sch=Scheduler(s,items,'ou_owner',port,enabled=lambda:True)
++        assert not sch.dispatch()
++        now[0]+=61;sch.dispatch()
++        assert sch.occurrence(queued[1]['id'])['state']=='cancelled'
++        assert len(port.calls)==2
++
++def test_F02_same_card_continuous_multi_person_feedback_and_owner_fence(service):
++    am,g,s,api,clock,port=service
++    item=am.items.create(am.owner,'item',project_ref='p',description='交报告',requirements='核验材料',assignees=['ou_engineer_a','ou_engineer_b'],source={})
++    results=[]
++    for actor,op,kind,body in [('ou_engineer_a','ack','received','收到'),('ou_engineer_a','eta','eta','明天'),('ou_engineer_a','submit-a','submitted','https://synthetic.invalid/report-A'),('ou_engineer_b','submit-b','submitted','https://synthetic.invalid/report-B')]:
++        result=am.items.feedback(actor,op,item['id'],1,kind,body,{'message_id':'om_card','submission_message':op})
++        results.append(result)
++    assert all(r['applied'] for r in results)
++    assert results[0]['item']['state']=='waiting' and results[-1]['item']['state']=='submitted'
++    text=am.item_text(results[-1]['item'])
++    assert 'report-A' in text and 'report-B' in text and 'om_card' in text
++    assert am.items.feedback('ou_engineer_b','submit-b',item['id'],1,'submitted','https://synthetic.invalid/report-B',{'message_id':'om_card','submission_message':'submit-b'})==results[-1]
++    changed=am.items.change(am.owner,'pause',item['id'],results[-1]['item']['version'],'pause')
++    late=am.items.feedback('ou_engineer_a','late',item['id'],1,'help','迟到协助',{})
++    assert not late['applied'] and late['item']['version']==changed['version']
++    assert '迟到协助' in am.item_text(late['item'])
++
++def test_F03_private_reference_overrides_recent_focus(service):
++    ask(service,'/project 需求75',1)
++    first_reply='om_'+service[2].rows('SELECT id FROM outbox ORDER BY rowid DESC LIMIT 1')[0]['id']
++    ask(service,'/project 需求76',2)
++    result=ask(service,'那谁负责？',3,parent_id='om1')
++    assert 'AR1测试甲' in result and 'AR2乙' not in result
++    result=ask(service,'那谁负责？',4,parent_id=first_reply)
++    assert 'AR1测试甲' in result and 'AR2乙' not in result
++    result=ask(service,'那谁负责？',5,parent_id='om_missing')
++    assert '需求76' not in result and '确认' in result
++
++def briefing_plan(service):
++    am,g,s,api,clock,port=service
++    clock.now=datetime(2026,10,29,8,tzinfo=TZ).timestamp()
++    row={'user':am.owner};am.projects(row)
++    port.values[1][4]='自报新变化：报告A待核验';am.projects(row)
++    p=am.scheduler.create(am.owner,'briefing',item_id=None,kind='briefing',rule={'time':'09:00','timezone':'Asia/Shanghai'},target={'kind':'owner','user':am.owner,'chat':'oc_dm'},template='',policy='owner_subscription',valid_until=clock()+3*86400)
++    am.scheduler.approve_plan(am.owner,p['id'],1,p['hash'])
++    s.execute("INSERT INTO am_subscriptions VALUES('sub',?,?,'active')",(am.owner,p['id']))
++    transport=SendPort();am.scheduler.port=transport;am.scheduler.notify=lambda *a:None
++    clock.now+=3600;am.scheduler.scan()
++    return p,transport
++
++@pytest.mark.parametrize('outcome',['preflight_expiry','rejected_exhausted','unknown','verified'])
++def test_F04_next_briefing_body_and_attempt_association(service,outcome):
++    am,g,s,api,clock,port=service;p,transport=briefing_plan(service)
++    first=s.rows('SELECT * FROM reminder_occurrences')[0]
++    if outcome=='preflight_expiry':transport.before=lambda:setattr(clock,'now',clock()+61)
++    elif outcome=='rejected_exhausted':transport.error=SendRejected('definitely not sent')
++    elif outcome=='unknown':transport.error=SendUnknown('lost')
++    else:transport.found=True
++    am.scheduler.dispatch()
++    if outcome=='rejected_exhausted':
++        for _ in range(3):clock.now+=10;am.scheduler.dispatch()
++    transport.before=lambda:None;transport.error=None
++    clock.now=datetime(2026,10,30,9,tzinfo=TZ).timestamp();am.scheduler.scan()
++    occurrences=s.rows('SELECT * FROM reminder_occurrences ORDER BY rowid')
++    if outcome=='unknown':
++        assert len(occurrences)==1 and len(transport.calls)==1
++    elif outcome=='verified':
++        assert '报告A待核验' not in json.loads(occurrences[-1]['payload'])['body']
++    else:
++        assert len(occurrences)==2
++        assert '报告A待核验' in json.loads(occurrences[-1]['payload'])['body']
++        delivery=s.rows('SELECT * FROM am_briefing_deliveries')[0]
++        assert delivery['occurrence_id']==occurrences[-1]['id']
++        attempts=s.rows('SELECT * FROM am_briefing_delivery_attempts ORDER BY rowid')
++        assert [a['state'] for a in attempts]==['not_sent','pending']
++        assert am.scheduler.occurrence(first['id'])['state']=='cancelled'
++        transport.found=True;am.scheduler.dispatch()
++        assert s.rows('SELECT state FROM am_briefing_deliveries')[0]['state']=='verified'
++
++def test_F05_briefing_uses_same_current_set_as_todo(service):
++    ask(service,'/todo',1)
++    service[-1].values=service[-1].values[:2]
++    assert '跟进乙报告' not in ask(service,'/todo',2)
++    assert '跟进乙报告' not in ask(service,'/briefing',3)
++    assert service[0].ledger.db.execute('SELECT count(*) FROM project_snapshots').fetchone()[0]==2
++
++def prechecked(logic_rig):
++    g,s,row,d=ready(logic_rig);port,state,settings=port_fixture(g);g.logic.business=port
++    state['files']=[{'name':'original.md','type':'text/markdown','size':'8','fileToken':'original-token','url':'https://files.invalid/original.md'}]
++    state['data']['original.md']=b'original'
++    d=g.logic.start_precheck(row,'report','test');g.logic.set_precheck_requirements(row,'交付物清单')
++    source=read_source('report.txt','交付物清单：\n1. 测试报告A'.encode(),source_id='S1',origin='synthetic')
++    sources=[source]+port.sources(row,json.loads(d['target']))
++    s.execute('UPDATE logic_drafts SET sources=? WHERE id=?',(json.dumps(sources),d['id']))
++    d=g.logic.get(row,d['id']);g.logic.run_precheck(dict(row,id='synthetic-task',run_id='run'),d,sources,{'revision':d['revision']})
++    return g,s,row,g.logic.get(row,d['id']),port,state,settings
++
++def test_F06_precheck_adopt_actual_adapter_mount_and_readback(logic_rig):
++    g,s,row,d,port,state,settings=prechecked(logic_rig)
++    assert d['content_hash']==digest(d['content'].encode())
++    g.logic.adopt(row,d['id']);result=g.logic.mount(row,d['id'])
++    assert result['receipt']['previous_tokens']==['original-token']
++    assert state['uploads']==state['updates']==1 and len(state['files'])==2
++    assert state['review']=='not_reviewed'
++    assert g.logic.mount(row,d['id'])['receipt']==result['receipt']
++    assert state['uploads']==1
++
++@pytest.mark.parametrize('kind',['text','post','whitespace'])
++@pytest.mark.parametrize('correction',[False,True])
++def test_F07_source_adapter_raw_content_preserved(service,kind,correction):
++    am,g,s,api,clock,port=service
++    q='/update 需求75：报告预计明天提交'
++    if correction:
++        ask(service,q,99)
++        r=s.rows('SELECT * FROM progress_collections')[0]
++        q=f"/update 更正 {r['id']} v{r['version']}：报告预计后天提交"
++    content={'text':q} if kind=='text' else {'text':' \n'+q+'\n '} if kind=='whitespace' else {'title':'','content':[[{'tag':'text','text':q}]]}
++    ask(service,q,1,message_type='post' if kind=='post' else 'text',content=json.dumps(content))
++    collection=s.rows('SELECT * FROM progress_collections ORDER BY rowid DESC LIMIT 1')[0]
++    source=json.loads(collection['source'])
++    remote={'content':json.dumps(content),'deleted':False,'sender_id':am.owner,'sender_type':'user','chat_id':'oc_dm','msg_type':'post' if kind=='post' else 'text'}
++    g.reminders.port.read=lambda mid:remote
++    assert am.updates.port.source_current(source)
++    remote['content']=json.dumps({'text':'changed'})
++    assert not am.updates.port.source_current(source)
++    remote['content']=json.dumps(content);remote['deleted']=True
++    assert not am.updates.port.source_current(source)
++    assert am.flags['ledger_write'] is False
++
++@pytest.mark.parametrize('shape',['text','docx','table','positive','partial'])
++def test_F08_empty_heading_and_table_are_not_substantive(shape):
++    text='交付物清单：\n   '
++    if shape=='positive':text='交付物清单：\n1. 测试报告A'
++    if shape in ('docx','table'):
++        from docx import Document
++        doc=Document()
++        if shape=='docx':doc.add_heading('交付物清单',1)
++        else:
++            table=doc.add_table(rows=1,cols=2);table.cell(0,0).text='交付物清单'
++        buf=io.BytesIO();doc.save(buf);source=read_source('report.docx',buf.getvalue(),source_id='S1',origin='synthetic')
++    else:source=read_source('report.txt',text.encode(),source_id='S1',origin='synthetic')
++    if shape=='partial':source.update(read_status='partial',limitation='部分内容不可读')
++    report=inspect_materials([source],{'checks':[{'id':'1','label':'交付物清单','text':'交付物清单','kind':'presence'}]})
++    if shape=='positive':assert report['已具备'] and not report['缺少']
++    elif shape=='partial':assert not report['已具备'] and not report['缺少'] and report['需专业判断']
++    else:assert not report['已具备'] and report['缺少']
++
++
++@pytest.mark.parametrize('phase',['claim','guard'])
++def test_F01_blocker_added_during_preflight_or_before_send(service,phase):
++    am,g,s,api,clock,read=service
++    item=am.items.create(am.owner,'race-item',project_ref='p',description='报告',requirements='核验',assignees=['ou_a'],source={})
++    for op in ('first','second'):make_plan(am.scheduler,clock(),item['id'],op)
++    transport=SendPort();am.scheduler.port=transport;am.scheduler.notify=lambda *a:None
++    clock.now+=60;am.scheduler.scan();a,b=s.rows('SELECT * FROM reminder_occurrences ORDER BY rowid')
++    def block():s.execute("UPDATE reminder_occurrences SET state='sent',readback_state=NULL WHERE id=?",(b['id'],))
++    if phase=='claim':transport.before=block
++    else:
++        original=transport.send
++        def send(payload,key,guard):block();return original(payload,key,guard)
++        transport.send=send
++    am.scheduler.dispatch()
++    assert not transport.calls
++    assert am.scheduler.occurrence(a['id'])['request_key']==a['request_key']
++    assert am.scheduler.occurrence(a['id'])['deadline']==a['deadline']
++
++
++def test_F01_concurrent_claims_same_followup_have_one_external_call(service):
++    am,g,s,api,clock,read=service
++    item=am.items.create(am.owner,'race-item',project_ref='p',description='报告',requirements='核验',assignees=['ou_a'],source={})
++    for op in ('first','second'):make_plan(am.scheduler,clock(),item['id'],op)
++    transport=SendPort();am.scheduler.port=transport;am.scheduler.notify=lambda *a:None
++    clock.now+=60;am.scheduler.scan();occurrences=s.rows('SELECT * FROM reminder_occurrences ORDER BY rowid')
++    barrier=threading.Barrier(2);transport.before=lambda:barrier.wait(3);transport.error=SendUnknown('lost')
++    with ThreadPoolExecutor(2) as pool:list(pool.map(am.scheduler.dispatch_one,occurrences))
++    assert len(transport.calls)==1
++
++
++def test_F02_actual_feedback_binding_and_closed_old_card(service):
++    am,g,s,api,clock,read=service
++    item=am.items.create(am.owner,'bound-item',project_ref='p',description='报告',requirements='核验',assignees=['ou_engineer_a','ou_engineer_b'],source={})
++    p=make_plan(am.scheduler,clock(),item['id'],'bound-plan')
++    # An actual BusinessPort card is prepared from the existing synthetic target.
++    from fs_agent.reminder_content import normalized_payload
++    target=normalized_payload(item['id'],g.reminders.port.bot_info,g.reminders.port.group_info,g.reminders.port.people,'报告')
++    s.execute('UPDATE reminder_plans SET target=? WHERE id=?',(json.dumps({'kind':'group','payload':target}),p['id']))
++    clock.now+=60;am.scheduler.scan();o=s.rows('SELECT * FROM reminder_occurrences')[0]
++    s.execute("UPDATE reminder_occurrences SET state='sent',message_id='om_card',readback_state='verified' WHERE id=?",(o['id'],))
++    nonce=json.loads(o['payload'])['feedback_nonce']
++    def feedback(actor,kind,detail,ident):
++        row={'id':ident,'user':actor,'chat':'oc_reminder'}
++        body={'value':{'feedback':o['id'],'nonce':nonce,'action':kind},'source_message':'om_card','detail':detail}
++        am.handle_feedback(row,body)
++    feedback('ou_engineer_a','received','收到','ack')
++    feedback('ou_engineer_a','submitted','材料A','a')
++    feedback('ou_engineer_b','submitted','材料B','b')
++    feedback('ou_engineer_b','submitted','材料B','retry')
++    assert len(am.items.history(item['id']))==3 and all(h['applied'] for h in am.items.history(item['id']))
++    current=am.items.get(item['id']);am.items.change(am.owner,'close-bound',item['id'],current['version'],'close',evidence='合成材料人工核验')
++    feedback('ou_engineer_a','submitted','迟到材料','late')
++    assert am.items.get(item['id'])['state']=='closed' and not am.items.history(item['id'])[-1]['applied']
++
++
++def test_F03_thread_identity_expiry_and_ttl_cleanup(service):
++    am,g,s,api,clock,read=service
++    ask(service,'/project 需求75',1,thread_id='thread-a')
++    ask(service,'/project 需求76',2,thread_id='thread-b')
++    assert 'AR1测试甲' in ask(service,'那谁负责？',3,thread_id='thread-a')
++    assert 'AR2乙' in ask(service,'那谁负责？',4,thread_id='thread-b')
++    assert '确认' in ask(service,'那谁负责？',5,thread_id='thread-b',parent_id='om1')
++    ask(service,'/project 需求76',6)
++    s.execute("INSERT INTO am_query_refs VALUES('om_other',?,? ,?)",(json.dumps(['tenant_test','cli_test','oc_dm','ou_other'],separators=(',',':')),s.rows("SELECT project_ref FROM am_query_refs WHERE message_id='om1'")[0]['project_ref'],clock()+100))
++    assert '确认' in ask(service,'那谁负责？',7,parent_id='om_other')
++    clock.now+=86401
++    assert '确认' in ask(service,'那谁负责？',8,parent_id='om6')
++    assert not s.rows("SELECT * FROM am_source_meta WHERE id='om6'")
++    assert not s.rows("SELECT * FROM am_query_refs WHERE message_id='om6'")
++
++
++def test_F06_local_failure_is_definite_but_upload_failure_stays_unknown(logic_rig):
++    g,s,row,d,port,state,settings=prechecked(logic_rig)
++    g.logic.adopt(row,d['id'])
++    s.execute('UPDATE logic_drafts SET content=? WHERE id=?',(d['content']+'\n未采用的变更',d['id']))
++    result=g.logic.mount(row,d['id'])
++    assert '确定失败' in result['message'] and 'BUSINESS_CONTENT_CHANGED' in result['message'] and state['uploads']==0
++    assert s.rows('SELECT state FROM logic_writes')[-1]['state']=='confirmed_not_sent'
++    assert '确定失败' in g.logic.mount(row,d['id'])['message']
++    assert '确定失败' in g.logic.reconcile_draft(row,d['id'])
++    s.execute('UPDATE logic_drafts SET content=?,revision=revision+1 WHERE id=?',(d['content'],d['id']))
++    run=port._run
++    def lose(args,**kwargs):
++        if args[:2]==['attachment','+upload']:
++            run(args,**kwargs);raise TimeoutError('response lost')
++        return run(args,**kwargs)
++    port._run=lose
++    assert '待确认' in g.logic.mount(row,d['id'])['message']
++    assert state['uploads']==1 and state['updates']==0
++    assert s.rows('SELECT state FROM logic_writes ORDER BY rowid')[-1]['state']=='unknown'
++
++
++def test_F06_legacy_hash_migration_invalidates_adoption_preserves_external_unknown(logic_rig):
++    from fs_agent.project_catalog import digest as structured_digest
++    from fs_agent.logic_service import LogicService
++    g,s,row,d,port,state,settings=prechecked(logic_rig)
++    wrong=structured_digest(d['content'])
++    s.execute("UPDATE logic_drafts SET content_hash=?,accepted_hash=? WHERE id=?",(wrong,wrong,d['id']))
++    for ident,receipt in [('local',None),('external',json.dumps({'phase':'uploaded','upload':{'file_token':'synthetic'}}))]:
++        s.execute("INSERT INTO logic_writes VALUES(?,?,?,?,?,'unknown',?)",(ident,d['id'],d['revision'],d['target'],wrong,receipt))
++    s.execute("DELETE FROM meta WHERE key='R1-FIX1-precheck-hash-1'")
++    g.logic=LogicService(g,business=port)
++    changed=g.logic.get(row,d['id'])
++    assert changed['state']=='collecting' and changed['accepted_hash'] is None and changed['content_hash']==wrong
++    assert s.rows("SELECT state FROM logic_writes WHERE idem='local'")[0]['state']=='confirmed_not_sent'
++    assert s.rows("SELECT state FROM logic_writes WHERE idem='external'")[0]['state']=='unknown'
++    g.logic=LogicService(g,business=port)
++    assert g.logic.get(row,d['id'])['revision']==changed['revision']
++    assert state['uploads']==state['updates']==0
++
++
++def test_F07_legacy_unproven_fingerprint_cannot_authorize_source(service):
++    from fs_agent.project_catalog import digest as structured_digest
++    am,g,s,api,clock,read=service
++    remote={'deleted':False,'content':{'text':'normalized'}}
++    g.reminders.port.read=lambda _:remote
++    assert not am.updates.port.source_current({'message_id':'om_legacy','content_fingerprint':structured_digest(remote['content'])})
++
++
++def test_F02_legacy_item_migration_preserves_decision_fence_and_history(service):
++    am,g,s,api,clock,read=service
++    item=am.items.create(am.owner,'migrate-item',project_ref='p',description='报告',requirements='原要求',assignees=['ou_a'],source={})
++    am.items.feedback('ou_a','migrate-ack',item['id'],1,'received','收到',{})
++    s.execute('ALTER TABLE action_items DROP COLUMN decision_version')
++    migrated=ActionItems(s,am.owner)
++    assert migrated.get(item['id'])['decision_version']==1
++    assert migrated.feedback('ou_a','migrate-submit',item['id'],1,'submitted','材料A',{})['applied']
++    current=migrated.get(item['id']);migrated.change(am.owner,'migrate-check',item['id'],current['version'],'check',next_check=clock()+60)
++    decided=migrated.get(item['id'])
++    s.execute('ALTER TABLE action_items DROP COLUMN decision_version')
++    migrated=ActionItems(s,am.owner)
++    assert migrated.get(item['id'])['decision_version']==decided['version']
++    assert not migrated.feedback('ou_a','migrate-late',item['id'],1,'submitted','迟到材料',{})['applied']
++    counts={t:s.rows('SELECT count(*) AS n FROM '+t)[0]['n'] for t in ('action_items','item_feedback','item_operations')}
++    ActionItems(s,am.owner)
++    assert counts=={t:s.rows('SELECT count(*) AS n FROM '+t)[0]['n'] for t in counts}
++
++
++@pytest.mark.parametrize('outcome',['cancelled','unknown','sent'])
++def test_F04_legacy_pending_migration_retains_attempt_identity(service,outcome):
++    am,g,s,api,clock,read=service;p,transport=briefing_plan(service)
++    o=s.rows('SELECT * FROM reminder_occurrences')[0]
++    s.execute('UPDATE reminder_occurrences SET state=?,readback_state=? WHERE id=?',(outcome,'verified' if outcome=='sent' else None,o['id']))
++    s.execute('DROP TABLE am_briefing_delivery_attempts')
++    sch=Scheduler(s,am.items,am.owner,transport,enabled=lambda:True,briefing=am.briefing_payload)
++    expected={'cancelled':'not_sent','unknown':'unknown','sent':'verified'}[outcome]
++    assert s.rows('SELECT * FROM am_briefing_delivery_attempts')[0]['state']==expected
++    assert s.rows('SELECT * FROM am_briefing_deliveries')[0]['occurrence_id']==o['id']
++    assert sch.occurrence(o['id'])['request_key']==o['request_key']
++    Scheduler(s,am.items,am.owner,transport,enabled=lambda:True,briefing=am.briefing_payload)
++    assert len(s.rows('SELECT * FROM am_briefing_delivery_attempts'))==1
++
++
++@pytest.mark.parametrize('shape',['table','docx-list','markdown-empty','other-heading'])
++def test_F08_structural_positive_and_empty_controls(shape):
++    if shape in ('table','docx-list'):
++        from docx import Document
++        doc=Document()
++        if shape=='table':
++            table=doc.add_table(rows=1,cols=2);table.cell(0,0).text='交付物清单';table.cell(0,1).text='测试报告A'
++        else:
++            doc.add_heading('交付物清单',1);doc.add_paragraph('1. 测试报告A')
++        buf=io.BytesIO();doc.save(buf);source=read_source('report.docx',buf.getvalue(),source_id='S1',origin='synthetic')
++    else:
++        text='| 交付物清单 |   |\n| --- | --- |' if shape=='markdown-empty' else '交付物清单：\n版本：v1'
++        source=read_source('report.md',text.encode(),source_id='S1',origin='synthetic')
++    report=inspect_materials([source],{'checks':[{'id':'1','label':'交付物清单','text':'交付物清单'}]})
++    if shape in ('table','docx-list'):assert report['已具备'] and not report['缺少']
++    else:assert not report['已具备']
+diff --git a/local-qwen3.8/feishu-bridge/am_business.py b/local-qwen3.8/feishu-bridge/am_business.py
+index 205b8619..724d7538 100644
+--- a/local-qwen3.8/feishu-bridge/am_business.py
++++ b/local-qwen3.8/feishu-bridge/am_business.py
+@@ -64,9 +64,10 @@ class BusinessCommands:
+ 
+     def item_text(self,item):
+         history=self.items.history(item['id'])
++        details='\n'.join(f"{h['actor']}｜{h['kind']}｜{'有效反馈' if h['applied'] else '迟到留证'}｜{datetime.fromtimestamp(h['created'],TZ).isoformat()}\n内容/材料：{h['body'] or '未补充'}\n来源：{h['source']}" for h in history)
+         return (f"事项 {item['id']} v{item['version']}\n{item['description']}\n交付要求：{item['requirements'] or '待确认'}\n"
+                 f"状态：{LABELS[item['state']]}；执行控制：{'暂停' if item['paused'] else '继续'}\n日期：{item['deadline'] or '未设'}（{item['deadline_kind']}）\n"
+-                f"最新反馈：{item['latest_feedback'] or '暂无'}\n反馈记录数：{len(history)}\n核验关闭依据：{item['close_evidence'] or '尚未核验关闭'}\n仅影响 AM 跟进，不改变正式项目状态。")
++                f"最新反馈：{item['latest_feedback'] or '暂无'}\n反馈记录数：{len(history)}\n{details}\n核验关闭依据：{item['close_evidence'] or '尚未核验关闭'}\n仅影响 AM 跟进，不改变正式项目状态。")
+ 
+     def handle_business_card(self,row,c,action):
+         if row['user']!=self.owner:raise BoundaryError('OWNER_ONLY')
+@@ -108,11 +109,13 @@ class BusinessCommands:
+ 
+     def briefing_payload(self,plan):
+         sub=self.s.rows('SELECT id FROM am_subscriptions WHERE plan_id=?',(plan['id'],))
+-        seen={r['event_id'] for r in self.s.rows('SELECT event_id FROM am_briefing_deliveries WHERE subscription_id=?',(sub[0]['id'],))} if sub else set()
++        deliveries=self.s.rows('SELECT event_id,state FROM am_briefing_deliveries WHERE subscription_id=?',(sub[0]['id'],)) if sub else []
++        seen={r['event_id'] for r in deliveries if r['state']!='not_sent'}
+         events=[c for c in self.ledger.catalog.changes() if c['id'] not in seen]
+         parts=['本人项目变化简报（记录变化，不代表验收通过）']
+         for c in events:parts.append(c['title']+'｜'+c['field']+'｜记录读取于'+datetime.fromtimestamp(c['read_at'],TZ).isoformat()+'\n原值：'+c['before_value']+'\n现值：'+c['after_value'])
+-        if not events:parts.append('本次没有尚未投递的变化。')
++        if not events:parts.append('本次没有可新投递的变化。')
++        if any(r['state'] in ('pending','unknown') for r in deliveries):parts.append('另有变化仍待投递或对账；尚未视为已确认投递。')
+         parts+=['来源：'+self.ledger.port.source_url if hasattr(self.ledger.port,'source_url') else '来源：固定 TH2 项目台账','查询时间：'+datetime.fromtimestamp(self.s.clock(),TZ).isoformat()]
+         return '\n\n'.join(parts),[c['id'] for c in events]
+ 
+diff --git a/local-qwen3.8/feishu-bridge/am_service.py b/local-qwen3.8/feishu-bridge/am_service.py
+index 0fd48cec..fe2f7c10 100644
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -30,6 +30,7 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+               chat_type TEXT NOT NULL,created REAL NOT NULL,expires REAL NOT NULL,body TEXT NOT NULL,
+               kind TEXT NOT NULL,state TEXT NOT NULL,error TEXT);
+             CREATE TABLE IF NOT EXISTS am_source_meta(id TEXT PRIMARY KEY,metadata TEXT NOT NULL);
++            CREATE TABLE IF NOT EXISTS am_query_refs(message_id TEXT PRIMARY KEY,scope TEXT NOT NULL,project_ref TEXT NOT NULL,expires REAL NOT NULL);
+             CREATE TABLE IF NOT EXISTS am_sessions(
+               scope TEXT PRIMARY KEY,focus TEXT,pending TEXT,version INTEGER NOT NULL,expires REAL NOT NULL);
+             CREATE TABLE IF NOT EXISTS am_notifications(
+@@ -46,7 +47,20 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+         gateway.am_self=self
+ 
+     def scope(self,row):
+-        return canonical([row['tenant'],row['app'],row['chat'],row['user']])
++        keys=[row['tenant'],row['app'],row['chat'],row['user']]
++        thread=row.get('thread') or self.source_meta(row).get('thread')
++        return canonical(keys+[thread] if thread else keys)
++
++    def source_meta(self,row):
++        rows=self.s.rows('SELECT metadata FROM am_source_meta WHERE id=?',(row.get('id'),))
++        return json.loads(rows[0]['metadata']) if rows else {}
++
++    def message_meta(self,message):
++        # normalize_message has validated the format before this is called. The
++        # fingerprint covers the original content, not the stripped route text.
++        content=json.loads(message['content']) if isinstance(message['content'],str) else message['content']
++        return {'thread':message.get('thread_id'),'parent':message.get('parent_id'),'root':message.get('root_id'),
++                'message_type':message['message_type'],'content_fingerprint':digest(content),'fingerprint_kind':'raw-content-v1'}
+ 
+     def wants(self,text):
+         if text.strip() in ('/am','/menu','/help','/status'):return True
+@@ -58,6 +72,7 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+ 
+     def ingest(self,payload):
+         try:
++            meta=None
+             h,e=payload['header'],payload['event'];config=self.g.config
+             if h['app_id']!=config.app_id or h['tenant_key']!=config.tenant_key:return False,False
+             if h['event_type']=='card.action.trigger':
+@@ -70,6 +85,7 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+                 m,sender=e['message'],e['sender']
+                 if sender['sender_type']!='user' or m['message_type'] not in ('text','post'):return False,False
+                 text=normalize_message(m,bot_open_id=config.bot_open_id,max_chars=6000).text.strip()
++                meta=self.message_meta(m)
+                 user=sender['sender_id']['open_id']
+                 if text.startswith('/feedback '):
+                     match=re.fullmatch(r'/feedback ([a-f0-9]{32}) (收到|处理中|预计|协助|提交|非本人)[｜|](.{1,2000})',text)
+@@ -89,7 +105,6 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+                     row={'id':m['message_id'],'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],'chat_type':'group','created':int(m['create_time'])/1000,'kind':'update','body':text}
+                     row['expires']=min(row['created'],self.s.clock())+86400
+                     if row['expires']<=self.s.clock() or row['created']>self.s.clock()+60:return True,False
+-                    meta={'thread':m.get('thread_id'),'parent':m.get('parent_id'),'root':m.get('root_id'),'content_fingerprint':digest(json.loads(m['content']))}
+                     with self.s.tx() as c:
+                         if c.execute("SELECT count(*) FROM am_inbox WHERE state='received'").fetchone()[0]>=32:raise BoundaryError('AM_QUEUE_FULL')
+                         n=c.execute("INSERT OR IGNORE INTO am_inbox VALUES(?,?,?,?,?,?,?,?,?,?,'received',NULL)",tuple(row[k] for k in ('id','app','tenant','user','chat','chat_type','created','expires','body','kind'))).rowcount
+@@ -97,7 +112,7 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+                     return True,bool(n)
+                 if m['chat_type']!='p2p':return False,False
+                 if not self.wants(text):
+-                    session={'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id']}
++                    session={'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],'thread':meta.get('thread')}
+                     pending=self.s.rows('SELECT 1 FROM am_sessions WHERE scope=? AND pending IS NOT NULL AND expires>?',(self.scope(session),self.s.clock()))
+                     if not pending or choice_number(text) is None:return False,False
+                 if user!=self.owner:return True,False
+@@ -110,6 +125,7 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+                 if c.execute('SELECT 1 FROM am_inbox WHERE id=?',(row['id'],)).fetchone():return True,False
+                 if c.execute("SELECT count(*) FROM am_inbox WHERE state='received'").fetchone()[0]>=32:raise BoundaryError('AM_QUEUE_FULL')
+                 c.execute("INSERT INTO am_inbox VALUES(?,?,?,?,?,?,?,?,?,?,'received',NULL)",tuple(row[k] for k in ('id','app','tenant','user','chat','chat_type','created','expires','body','kind')))
++                if meta:c.execute('INSERT INTO am_source_meta VALUES(?,?)',(row['id'],canonical(meta)))
+             return True,True
+         except (KeyError,TypeError,ValueError):return False,False
+ 
+@@ -117,6 +133,8 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+         if conn is None:
+             with self.s.tx() as c:return self.notify(row,text,card=card,kind=kind,object_id=object_id,version=version,hash=hash,conn=c)
+         out=self.s.add_outbox(row,text=text,card=card,private=True,conn=conn)
++        if kind=='status' and text and conn.execute('SELECT 1 FROM am_query_refs WHERE message_id=? AND expires>?',(row['id'],self.s.clock())).fetchone():
++            kind='query';object_id=row['id']
+         conn.execute('INSERT INTO am_notifications VALUES(?,?,?,?,?)',(out,kind,object_id,version,hash))
+         return out
+ 
+@@ -140,6 +158,8 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+ 
+     def delivered(self,c,row,message_id):
+         c.execute('UPDATE am_cards SET message_id=? WHERE outbox_id=?',(message_id,row['id']))
++        ref=c.execute("SELECT q.* FROM am_notifications n JOIN am_query_refs q ON q.message_id=n.object_id WHERE n.outbox_id=? AND n.kind='query' AND q.expires>?",(row['id'],self.s.clock())).fetchone()
++        if ref:c.execute('INSERT OR IGNORE INTO am_query_refs VALUES(?,?,?,?)',(message_id,ref['scope'],ref['project_ref'],ref['expires']))
+ 
+     def validate_card(self,row):
+         body=json.loads(row['body']);value=body['value']
+@@ -170,6 +190,15 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+ 
+     def query(self,row):
+         q=row['body'];projects=self.projects(row);scope=self.scope(row)
++        meta=self.source_meta(row);reference=meta.get('parent') or meta.get('root')
++        if reference:
++            refs=self.s.rows('SELECT project_ref FROM am_query_refs WHERE message_id=? AND scope=? AND expires>?',(reference,scope,self.s.clock()))
++            matches=[p for p in projects if refs and p['key']==refs[0]['project_ref'] and p.get('identity_status')=='verified']
++            if len(matches)!=1:return '引用消息无法在当前身份和话题内确认有效项目，请明确项目编号或名称。'
++            requested=identifiers(q)
++            if requested and requested!=identifiers(matches[0]['title']):return '引用项目与本条编号不一致，请确认要查询的项目。'
++            self.save_session(row,matches[0]['key'],None)
++            return render_project(matches[0],fields_for(q),self.s.clock())
+         session=self.s.rows('SELECT * FROM am_sessions WHERE scope=? AND expires>?',(scope,self.s.clock()))
+         session=session[0] if session else None
+         previous=session['focus'] if session else None
+@@ -196,24 +225,27 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+         return '请选择本次候选序号：\n'+'\n'.join(f'{i}. '+p['title'] for i,p in enumerate(matches[:5],1))
+ 
+     def save_session(self,row,focus,pending):
+-        self.s.execute('INSERT INTO am_sessions VALUES(?,?,?,1,?) ON CONFLICT(scope) DO UPDATE SET focus=excluded.focus,pending=excluded.pending,version=am_sessions.version+1,expires=MIN(am_sessions.expires,excluded.expires)',
+-                       (self.scope(row),focus,canonical(pending) if pending else None,row['expires']))
++        scope=self.scope(row)
++        with self.s.tx() as c:
++            c.execute('INSERT INTO am_sessions VALUES(?,?,?,1,?) ON CONFLICT(scope) DO UPDATE SET focus=excluded.focus,pending=excluded.pending,version=am_sessions.version+1,expires=MIN(am_sessions.expires,excluded.expires)',
++                      (scope,focus,canonical(pending) if pending else None,row['expires']))
++            if focus:c.execute('INSERT OR IGNORE INTO am_query_refs VALUES(?,?,?,?)',(row['id'],scope,focus,row['expires']))
+ 
+     def briefing(self,row,*,changes_only=False):
+-        self.projects(row)
++        projects=self.projects(row)
+         changes=self.ledger.catalog.changes()
+         lines=['变化查询：记录文字变化不代表正式批准或验收改变。']
+         if not changes:lines+=['暂无可比较的新变化；首次完整读取只建立基线。']
+         for c in changes:
+             stamp=datetime.fromtimestamp(c['read_at'],ZoneInfo('Asia/Shanghai'))
+             lines += [f"{c['title']}｜{c['field']}｜{stamp.year}.{stamp.month}.{stamp.day} {stamp:%H:%M}\n原值：{c['before_value'] or '未记录'}\n现值：{c['after_value']}\n事件：{c['id'][:12]}"]
+-        if not changes_only:lines += [self.todos(row,reload=False)]
++        if not changes_only:lines += [self.todos(row,projects=projects)]
+         lines+=['来源：'+SOURCE+'?sheet='+SHEET,'主动查询不会改变订阅的投递记录。']
+         text='\n\n'.join(lines)
+         return text if len(text)<10000 else text[:9500]+'\n本次仅显示前部变化；完整记录仍保存在 AM。'
+ 
+-    def todos(self,row,*,reload=True,uncertain=False):
+-        projects=self.projects(row) if reload else [dict(json.loads(r['body']),key=r['project_id']) for r in self.ledger.db.execute('SELECT * FROM project_snapshots')]
++    def todos(self,row,*,projects=None,uncertain=False):
++        if projects is None:projects=self.projects(row)
+         lines=['需要你推动的协调、确认和验收事项；不是要求你亲自完成所有专业工作。']
+         today=datetime.fromtimestamp(row.get('created',self.s.clock()),ZoneInfo('Asia/Shanghai'))
+         today_terms={f'{today.year}.{today.month}.{today.day}',f'{today.year}-{today.month:02d}-{today.day:02d}'}
+@@ -285,6 +317,8 @@ class AmSelfService(BusinessCommands,UpdateCommands):
+     def step(self):
+         self.s.execute("UPDATE am_inbox SET body='',state=CASE WHEN state='received' THEN 'expired' ELSE state END WHERE expires<=?",(self.s.clock(),))
+         self.s.execute('DELETE FROM am_sessions WHERE expires<=?',(self.s.clock(),))
++        self.s.execute('DELETE FROM am_query_refs WHERE expires<=?',(self.s.clock(),))
++        self.s.execute('DELETE FROM am_source_meta WHERE id IN (SELECT id FROM am_inbox WHERE expires<=?)',(self.s.clock(),))
+         self.s.execute("UPDATE am_cards SET snapshot='{}' WHERE expires<=?",(self.s.clock(),))
+         rows=self.s.rows("SELECT * FROM am_inbox WHERE state='received' AND expires>? ORDER BY created LIMIT 1",(self.s.clock(),))
+         if not rows:
+diff --git a/local-qwen3.8/feishu-bridge/am_updates.py b/local-qwen3.8/feishu-bridge/am_updates.py
+index 3412358e..a882930d 100644
+--- a/local-qwen3.8/feishu-bridge/am_updates.py
++++ b/local-qwen3.8/feishu-bridge/am_updates.py
+@@ -9,6 +9,13 @@ from sheets_write_port import SheetsWritePort
+ 
+ 
+ class UpdateCommands:
++    def collection_source(self,row):
++        source={'message_id':row['id'],'reporter':row['user'],'chat':row['chat'],'created':row['created']}
++        source.update(self.source_meta(row))
++        # Legacy rows without the validated original fingerprint require a new
++        # source confirmation. Never reconstruct it from normalized route text.
++        return source
++
+     def init_updates(self,*,metadata_reader=None,execution_policy=None):
+         self.updates=LedgerChanges(self.s,self.owner,SheetsWritePort(self.g,self.ledger,metadata_reader=metadata_reader,execution_policy=execution_policy),enabled=lambda:self.flags['ledger_write'])
+ 
+@@ -56,9 +63,7 @@ class UpdateCommands:
+         if not self.flags['progress_collection']:raise BoundaryError('PROGRESS_COLLECTION_NOT_ENABLED')
+         correction=re.fullmatch(r'/update 更正 ([a-f0-9]{32}) v(\d+)[：:](.+)',q,re.S)
+         if correction:
+-            source={'message_id':row['id'],'reporter':row['user'],'chat':row['chat'],'created':row['created'],'content_fingerprint':digest({'text':q}),'corrects_collection':correction[1]}
+-            meta=self.s.rows('SELECT metadata FROM am_source_meta WHERE id=?',(row['id'],))
+-            if meta:source.update(json.loads(meta[0]['metadata']))
++            source=dict(self.collection_source(row),corrects_collection=correction[1])
+             r=self.updates.invalidate_source(row['user'],correction[1],int(correction[2]),correction=correction[3],correction_source=source)
+             if row['user']==self.owner and row['chat_type']=='p2p':return True,self.update_card(row,self.updates.propose(r['id']))
+             return True,'更正已记录，旧的未执行批准失效；已写回内容不会自动回滚。请核对后回复 /update 核对 '+r['id']+' v'+str(r['version'])
+@@ -86,9 +91,7 @@ class UpdateCommands:
+         else:projects=self.projects(row)
+         matches=select_projects(match[1],projects)
+         if len(matches)!=1 or matches[0]['identity_status']!='verified':raise BoundaryError('PROJECT_IDENTITY_UNVERIFIED')
+-        source={'message_id':row['id'],'reporter':row['user'],'chat':row['chat'],'created':row['created'],'content_fingerprint':digest({'text':q})}
+-        meta=self.s.rows('SELECT metadata FROM am_source_meta WHERE id=?',(row['id'],))
+-        if meta:source.update(json.loads(meta[0]['metadata']))
++        source=self.collection_source(row)
+         r=self.updates.collect(row['user'],row['id'],matches[0]['key'],match[2],source,row['created'])
+         if row['user']!=self.owner or row['chat_type']=='group':
+             facts=json.loads(r['facts'])
+diff --git a/local-qwen3.8/feishu-bridge/sheets_write_port.py b/local-qwen3.8/feishu-bridge/sheets_write_port.py
+index 14da09a8..4cb4f986 100644
+--- a/local-qwen3.8/feishu-bridge/sheets_write_port.py
++++ b/local-qwen3.8/feishu-bridge/sheets_write_port.py
+@@ -75,11 +75,12 @@ class SheetsWritePort:
+                     write_limitation=None if controlled else 'CONTROLLED_EDIT_WINDOW_REQUIRED',metadata_identity='existing_pinned_read_profile',write_identity='original_bot')
+     def source_current(self,source):
+         mid=source.get('message_id')
+-        if not mid:return False
++        if not mid or source.get('fingerprint_kind')!='raw-content-v1':return False
+         try:
+             m=self.g.reminders.port.read(mid)
+             content=json.loads(m['content']) if isinstance(m['content'],str) else m['content']
+             if m['deleted']:return False
++            if m.get('sender_id')!=source.get('reporter') or m.get('sender_type')!='user' or m.get('chat_id')!=source.get('chat') or m.get('msg_type')!=source.get('message_type'):return False
+             return digest(content)==source.get('content_fingerprint')
+         except Exception:return False
+     def write_cell(self,snapshot,field,value,key):
