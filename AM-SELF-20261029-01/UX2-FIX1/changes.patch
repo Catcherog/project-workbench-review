@@ -1,0 +1,1007 @@
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/action_items.py
+@@ -23,6 +23,8 @@
+         CREATE TABLE IF NOT EXISTS item_feedback(
+           id TEXT PRIMARY KEY,item_id TEXT NOT NULL,item_version INTEGER NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,
+           body TEXT NOT NULL,source TEXT NOT NULL,applied INTEGER NOT NULL,created REAL NOT NULL);
++        CREATE TABLE IF NOT EXISTS feedback_heads(stream TEXT PRIMARY KEY,generation INTEGER NOT NULL,request_hash TEXT NOT NULL,operation_id TEXT NOT NULL);
++        CREATE TABLE IF NOT EXISTS feedback_claims(submission_key TEXT PRIMARY KEY,stream TEXT NOT NULL,request_hash TEXT NOT NULL,operation_id TEXT NOT NULL);
+         CREATE TABLE IF NOT EXISTS business_tombstones(kind TEXT NOT NULL,id TEXT NOT NULL,request_hash TEXT,closed REAL,PRIMARY KEY(kind,id));
+         CREATE TABLE IF NOT EXISTS business_migrations(version TEXT PRIMARY KEY);
+         INSERT OR IGNORE INTO business_migrations VALUES('C-items-1');
+@@ -99,10 +101,42 @@
+                 (state,paused,next_check if action=='check' else item['next_check'],closed_by,close_evidence,self.s.clock(),ident,expected))
+             result=self.get(ident,c);self.log(c,op,ident,actor,request,result);return result
+ 
+-    def feedback(self,actor,op,ident,expected,kind,body,source):
++    def claim_feedback(self,c,actor,ident,request,submission_key):
++        # A stream belongs to one person on one occurrence, never the global
++        # item version. Claim and business mutation commit in the same tx.
++        stream=digest([ident,source_occurrence:=request['source']['occurrence'],actor])
++        fingerprint=digest(request)
++        old=c.execute('SELECT * FROM feedback_claims WHERE submission_key=?',(submission_key,)).fetchone()
++        if old:
++            if old['stream']!=stream or old['request_hash']!=fingerprint:raise BoundaryError('OPERATION_ID_REUSED')
++            return old['operation_id']
++        head=c.execute('SELECT * FROM feedback_heads WHERE stream=?',(stream,)).fetchone()
++        if not head:
++            # Adopt the last legacy claim for this person/occurrence. Upgrading
++            # must not turn an immediate repeat into a new feedback event.
++            for previous in c.execute('SELECT * FROM item_feedback WHERE item_id=? AND actor=? ORDER BY rowid DESC',(ident,actor)).fetchall():
++                if json.loads(previous['source']).get('occurrence')!=source_occurrence:continue
++                operation=c.execute('SELECT request_hash FROM item_operations WHERE id=?',(previous['id'],)).fetchone()
++                if operation:
++                    c.execute('INSERT INTO feedback_heads VALUES(?,0,?,?)',(stream,operation['request_hash'],previous['id']))
++                    head=c.execute('SELECT * FROM feedback_heads WHERE stream=?',(stream,)).fetchone()
++                break
++        if head and head['request_hash']==fingerprint:op=head['operation_id']
++        else:
++            generation=head['generation']+1 if head else 1
++            op='feedback/'+digest([stream,generation,fingerprint])
++            c.execute('INSERT INTO feedback_heads VALUES(?,?,?,?) ON CONFLICT(stream) DO UPDATE SET generation=excluded.generation,request_hash=excluded.request_hash,operation_id=excluded.operation_id',(stream,generation,fingerprint,op))
++        c.execute('INSERT INTO feedback_claims VALUES(?,?,?,?)',(submission_key,stream,fingerprint,op))
++        return op
++
++    def feedback(self,actor,op,ident,expected,kind,body,source,*,submission_key=None):
+         if kind not in FEEDBACK or len(body)>4000:raise BoundaryError('FEEDBACK_INVALID')
+         request={'id':ident,'expected':expected,'kind':kind,'body':body,'source':source}
+         with self.s.tx() as c:
++            if submission_key:
++                item=self.get(ident,c)
++                if actor not in json.loads(item['assignees']):raise BoundaryError('NOT_ASSIGNEE')
++                op=self.claim_feedback(c,actor,ident,request,submission_key)
+             replay=self.replay(c,op,request)
+             if replay:return replay
+             item=self.get(ident,c)
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/feishu.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/feishu.py
+@@ -150,7 +150,9 @@
+         if not guard():raise SendRejected('DELIVERY_AUTH_OR_TTL')
+         try:response=self.client.im.v1.message.patch(request)
+         except Exception:raise SendUnknown('UPDATE_RECEIPT_UNKNOWN') from None
+-        if not response.success():classify_send_failure(response,'UPDATE')
++        if not response.success():
++            if self.navigation_target_unavailable(row['update_message_id'],row):raise SendRejected('UPDATE_TARGET_DELETED')
++            classify_send_failure(response,'UPDATE')
+         return row['update_message_id']
+ 
+     def verify_card(self,message_id,row):
+@@ -169,6 +171,22 @@
+             return card_readback_matches(actual,expected)
+         except Exception:return False
+ 
++    def navigation_target_unavailable(self,message_id,row):
++        """Only a positively identified deleted bot message permits recreation.
++
++        Not-found, permission, timeout, malformed and temporary rejection are
++        not proof. This method is only consulted for rejected navigation PATCH.
++        """
++        from lark_oapi.api.im.v1 import GetMessageRequest
++        if not self.authorized(row):return False
++        try:
++            response=self.client.im.v1.message.get(GetMessageRequest.builder().message_id(message_id).build())
++            if not response.success() or not response.data or len(response.data.items or [])!=1:return False
++            message=response.data.items[0];sender=message.sender
++            return bool(message.message_id==message_id and message.chat_id==row['chat'] and message.deleted
++                        and sender.sender_type in ('app','bot') and (sender.open_bot_id or sender.id) in (self.config.bot_open_id,self.config.app_id))
++        except Exception:return False
++
+     def read_file(self, row, file_key, guard, *, limit):
+         if not guard():
+             raise BoundaryError("FILE_AUTH_DENIED")
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/gateway.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/gateway.py
+@@ -253,14 +253,19 @@
+         return True
+ 
+     def deliver_one(self):
++        from . import request_timing as timing
+         rows = self.store.rows("SELECT * FROM outbox WHERE state='pending' AND expires>? ORDER BY created,rowid LIMIT 1", (self.store.clock(),))
+         if not rows:
+             return False
+         row = rows[0]
+         am = getattr(self,"am_self",None)
++        event=timing.origin(self.store,row['id']) if am is not None else None
++        if am is not None:timing.add(self.store,event,'outbox_wait',self.store.clock()-row['created'])
+         def delivery_authorized():
+-            special=am.authorized_notification(row) if am is not None else None
+-            return self.authorized(row) if special is None else special
++            if am is None:return self.authorized(row)
++            with timing.measure(self.store,event,'authorization_delivery'):
++                special=am.authorized_notification(row)
++                return self.authorized(row) if special is None else special
+         if am is not None and am.valid_notification(row) is False:
+             self.store.execute("UPDATE outbox SET state='rejected',error='AM_CARD_EXPIRED' WHERE id=?",(row["id"],));return True
+         reminder_delivery = self.reminders.valid_notification(row)
+@@ -294,16 +299,26 @@
+                     allowed = delivery_authorized(); checked_at = time.monotonic(); return allowed
+                 return True
+             view_delivery=am.view_delivery(row) if am is not None else None
+-            if view_delivery and view_delivery['target_message']:
+-                row=dict(row,update_message_id=view_delivery['target_message'])
+-                message_id=self.api.update_card(row,delivery_guard)
+-            else:message_id = self.api.send(row, delivery_guard)
++            with timing.measure(self.store,event,'publish') if am is not None else __import__('contextlib').nullcontext():
++                if view_delivery and view_delivery['target_message']:
++                    row=dict(row,update_message_id=view_delivery['target_message'])
++                    message_id=self.api.update_card(row,delivery_guard)
++                else:message_id = self.api.send(row, delivery_guard)
++            if event:
++                self.store.execute('UPDATE am_request_timings SET actionable=COALESCE(actionable,?) WHERE event_id=?',(self.store.clock(),event))
+             with self.store.tx() as c:
+                 c.execute("UPDATE outbox SET state='sent',message_id=? WHERE id=?", (message_id, row["id"]))
+                 self.reminders.delivered(c,row,message_id)
+                 if am is not None:am.delivered(c,row,message_id)
+                 if row["nonce"]:
+                     c.execute("UPDATE menus SET message_id=? WHERE nonce=?", (message_id, row["nonce"]))
++            if view_delivery and event:
++                # Readback is separate from first actionable publication; a
++                # failed verification never changes sent into "not sent".
++                with timing.measure(self.store,event,'readback'):
++                    try:verified=self.api.verify_card(message_id,row)
++                    except Exception:verified=False
++                self.store.execute('UPDATE am_request_timings SET finished=?,readback_verified=? WHERE event_id=?',(self.store.clock(),int(verified),event))
+         except SendRejected as exc:
+             self.store.execute("UPDATE outbox SET state='rejected',error=? WHERE id=?", (str(exc), row["id"]))
+         except (SendUnknown, Exception):
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/request_timing.py
+@@ -0,0 +1,41 @@
++"""Small body-free request timings; durations are monotonic, anchors are UTC.
++
++No monitoring service or model call. Stored beside the original inbox and
++expired with it. Missing evidence stays missing rather than becoming zero.
++"""
++import json
++import time
++from contextlib import contextmanager
++
++
++def initialize(store):
++    with store.lock:
++        store.conn.executescript('''
++        CREATE TABLE IF NOT EXISTS am_request_timings(
++          event_id TEXT PRIMARY KEY,received REAL NOT NULL,accepted REAL NOT NULL,
++          started REAL,processed REAL,actionable REAL,finished REAL,readback_verified INTEGER,
++          model_busy INTEGER NOT NULL,stages TEXT NOT NULL);
++        CREATE TABLE IF NOT EXISTS am_outbox_events(outbox_id TEXT PRIMARY KEY,event_id TEXT NOT NULL);
++        ''')
++
++
++def add(store,event,name,seconds):
++    if not event:return
++    with store.tx() as c:
++        old=c.execute('SELECT stages FROM am_request_timings WHERE event_id=?',(event,)).fetchone()
++        if not old:return
++        stages=json.loads(old['stages']);part=stages.setdefault(name,{'seconds':0,'calls':0})
++        part['seconds']+=max(0,seconds);part['calls']+=1
++        c.execute('UPDATE am_request_timings SET stages=? WHERE event_id=?',(json.dumps(stages),event))
++
++
++@contextmanager
++def measure(store,event,name):
++    start=time.monotonic()
++    try:yield
++    finally:add(store,event,name,time.monotonic()-start)
++
++
++def origin(store,outbox_id):
++    rows=store.rows('SELECT event_id FROM am_outbox_events WHERE outbox_id=?',(outbox_id,))
++    return rows[0]['event_id'] if rows else None
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2.py
+@@ -238,12 +238,13 @@
+     ident=json.loads(latest(ux)['snapshot'])['interaction_id']
+     verify=api.verify_card;api.verify_card=lambda *a:False
+     n=len(api.sent);request(ux,'/menu',2)
+-    assert len(api.sent)==n
++    # FIX1 adds one separate status card. It must not republish the unknown view.
++    assert len(api.sent)==n+1 and '核对页面状态' in text(ux)
+     api.verify_card=verify
+     assert ux[0].reconcile_view(ident)
+     api.update_card=original
+     request(ux,'/menu',3)
+-    assert sum(x.get('operation')=='create' for x in api.sent)==1
++    assert sum(x.get('operation')=='create' for x in api.sent)==2
+     assert latest(ux)['message_id']==home['message_id']
+ 
+ 
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2_fix1.py
+@@ -0,0 +1,259 @@
++"""UX2-FIX1: synthetic inputs through the real inbox, cards and business loop."""
++import json
++from datetime import datetime, timedelta
++import pytest
++from test_am_ux1 import ux, service, am_rig, base_rig, request, click, latest, text
++from test_am_ux2 import confirm_plan
++from test_gateway import drain
++from fs_agent.scheduler import TZ
++from fs_agent.feishu import SendRejected, SendUnknown
++from fs_agent.presentation import visible_metrics
++from group_ai import QwenGroupAssistant
++from test_group_ai import Provider
++from group_ledger import parse_rows, render_project
++
++
++def occurrence(ux):
++    p = confirm_plan(ux, ['0', '1'])
++    am, g, s, api, clock, _ = ux
++    clock.now = p['next_at']; am.scheduler.scan()
++    o = s.rows('SELECT * FROM reminder_occurrences')[0]
++    s.execute("UPDATE reminder_occurrences SET state='sent',message_id='om_feedback',readback_state='verified' WHERE id=?", (o['id'],))
++    return o
++
++
++def feedback(ux, o, event_id, kind='help', detail='治具未到，需要协助', actor='ou_engineer_a', eta=None):
++    am, g, s, api, clock, _ = ux
++    values = {'kind': kind, 'detail': detail}
++    if eta is not None: values['eta'] = eta
++    e = {'header': {'app_id': g.config.app_id, 'tenant_key': g.config.tenant_key,
++                    'event_id': event_id, 'event_type': 'card.action.trigger'},
++         'event': {'operator': {'open_id': actor},
++                   'context': {'open_chat_id': 'oc_reminder', 'open_message_id': 'om_feedback'},
++                   'action': {'value': {'flow': 'am_self', 'feedback': o['id'],
++                                        'nonce': json.loads(o['payload'])['feedback_nonce'], 'action': 'feedback_form'},
++                              'form_value': values}}}
++    accepted = am.ingest(e)
++    if accepted[1]: am.step(); drain(g)
++    return s.rows('SELECT * FROM am_inbox WHERE id=?', (event_id,))[0]
++
++
++def test_F01_new_round_same_text_and_replay(ux):
++    o = occurrence(ux); am, g, s, api, clock, _ = ux; n = len(api.sent)
++    feedback(ux, o, 'A1'); clock.now += 60
++    feedback(ux, o, 'B', 'submitted', '已上传报告初稿'); clock.now += 60
++    feedback(ux, o, 'A2')
++    assert [h['kind'] for h in am.items.history(o['item_id'])] == ['help', 'submitted', 'help']
++    assert am.items.get(o['item_id'])['state'] == 'blocked'
++    assert len(api.sent) == n + 6
++    feedback(ux, o, 'A2'); feedback(ux, o, 'A2-doubleclick')
++    # An old event replay still belongs to the original operation, even after A-B-A.
++    feedback(ux, o, 'A1')
++    assert len(api.sent) == n + 6
++    feedback(ux, o, 'second-person', actor='ou_engineer_b')
++    feedback(ux, o, 'A2-after-other-person')
++    assert len(am.items.history(o['item_id'])) == 4 and len(api.sent) == n + 8
++    assert am.items.get(o['item_id'])['decision_version'] == 1
++
++
++@pytest.mark.parametrize('progress', ['上述计划已取消，新的测试日期另行确定。',
++    '排期以评审后的通知为准。', '昨日公布的安排不再适用。'])
++def test_F02_schedule_preserves_cross_field_dependency(ux, tmp_path, progress):
++    ux[-1].values[1][2] = '计划2026-11-06完成测试。'
++    ux[-1].values[1][4] = progress
++    provider = Provider([]); ai = QwenGroupAssistant(provider, tmp_path / 'ai')
++    r = ai.reply('需求75什么时候完成测试？', [], None, lambda: parse_rows(ux[-1].values))
++    assert progress in r.text or ('原文' in r.text and '2026-11-06' not in r.text)
++    assert not provider.calls
++    request(ux, '/project 需求75什么时候完成测试？', 1)
++    assert progress in text(ux) or ('原文' in text(ux) and '2026-11-06' not in text(ux))
++
++
++def test_F02_global_people_condition_is_not_omitted(ux):
++    roles = '\n'.join(f'职责{n}：AR{n}合成人员，负责本项目第{n}类资料核对，不代表专业验收。' for n in range(100, 108))
++    condition = '本表所有职责须经项目经理确认后生效。'
++    ux[-1].values[1][5] = roles + condition
++    request(ux, '/project 需求75谁负责', 1)
++    assert condition in text(ux) or ('原文' in text(ux) and 'AR100' not in text(ux))
++
++
++@pytest.mark.parametrize('entry', ['menu', '/briefing', '/changes'])
++def test_F03_actual_entry_and_long_snapshot(ux, entry):
++    request(ux, '/menu', 1); click(ux, 'projects')
++    tail = '终末限定：只有合成型号可用，尚未验收。'
++    complete = ('完整合成记录，前提仍有效。\n' * 900) + tail
++    ux[-1].values[1][4] = complete
++    if entry == 'menu':
++        request(ux, '/menu', 2); click(ux, 'more'); click(ux, 'briefing')
++    else: request(ux, entry, 2)
++    snap = json.loads(latest(ux)['snapshot'])
++    assert 'briefing_snapshot' in snap['data']
++    assert len(snap['envelope']['summary']) < 400
++    assert any(a.get('section') == 'changes' for a in snap['actions'].values())
++    assert any(a.get('section') == 'todos' for a in snap['actions'].values()) == (entry != '/changes')
++    assert not ux[2].rows('SELECT * FROM am_briefing_deliveries')
++    click(ux, 'briefing_detail', overrides={'section': 'changes'})
++    pieces = []
++    for _ in range(30):
++        snap = json.loads(latest(ux)['snapshot']); pieces.append(snap['envelope']['summary'])
++        nxt = next((a for a in snap['actions'].values() if a['page'] == 'long_content' and a['offset'] > snap['data'].get('_long_index', 0)), None)
++        if not nxt: break
++        click(ux, 'long_content', overrides={'offset': nxt['offset']})
++    assert tail in ''.join(pieces) and ''.join(pieces).count('完整合成记录') == 900
++    assert not ux[2].rows('SELECT * FROM am_briefing_deliveries')
++
++
++def test_F04_definitely_deleted_navigation_is_rebuilt_once(ux):
++    request(ux, '/menu', 1); am, g, s, api, clock, _ = ux; old = latest(ux)['message_id']
++    del api.messages[old]; original = api.update_card
++    def deleted(row, guard):
++        if row['update_message_id'] == old: raise SendRejected('UPDATE_TARGET_DELETED')
++        return original(row, guard)
++    api.update_card = deleted
++    api.navigation_target_unavailable = lambda mid, row: mid == old
++    request(ux, '/menu', 2); request(ux, '/menu', 3); request(ux, '/menu', 4)
++    assert latest(ux)['message_id'] and latest(ux)['message_id'] != old
++    assert sum(x['operation'] == 'create' for x in api.sent) == 2
++    assert s.rows("SELECT * FROM outbox WHERE state='rejected'")
++
++
++@pytest.mark.parametrize('mode', ['applied', 'not_applied', 'create_unknown'])
++def test_F04_unknown_has_one_status_and_no_blind_republish(ux, mode):
++    am, g, s, api, clock, _ = ux
++    if mode != 'create_unknown': request(ux, '/menu', 1)
++    original_send, original_update = api.send, api.update_card
++    attempted = []
++    def fail(row, guard):
++        attempted.append(row['id'])
++        if mode == 'applied': original_update(row, guard)
++        raise SendUnknown('SYNTHETIC_TIMEOUT')
++    if mode == 'create_unknown':
++        api.send = fail; request(ux, '/menu', 1); api.send = original_send
++    else:
++        api.update_card = fail; click(ux, 'projects'); api.update_card = original_update
++    unknown = s.rows("SELECT * FROM outbox WHERE state='unknown'")[0]
++    request(ux, '/menu', 2); request(ux, '/menu', 3)
++    if mode == 'applied':
++        assert s.rows('SELECT state FROM outbox WHERE id=?', (unknown['id'],))[0]['state'] == 'sent'
++        assert sum(x['operation'] == 'create' for x in api.sent) == 1
++    else:
++        assert '核对' in text(ux) and '不确定' in text(ux)
++        assert sum(x['operation'] == 'create' for x in api.sent) == (1 if mode == 'create_unknown' else 2)
++        assert len(attempted) == 1
++        assert s.rows('SELECT state FROM outbox WHERE id=?', (unknown['id'],))[0]['state'] == 'unknown'
++        assert any(a['page'] == 'reconcile_navigation' for a in json.loads(latest(ux)['snapshot'])['actions'].values())
++
++
++@pytest.mark.parametrize('question,fields', [('进展和负责人分别是什么', ['项目进展','人员与职责']),
++    ('进展和日期', ['项目进展','关键日期']), ('进展、日期、待办和负责人', ['项目进展','关键日期','待办','人员与职责']),
++    ('谁负责', ['人员与职责'])])
++def test_F05_explicit_fields_private_group_and_quote(ux, tmp_path, question, fields):
++    values = ux[-1].values
++    values[1][2:6] = ['预计11月测试。', '跟进报告。', '测试中，尚未验收。', 'AR1测试甲']
++    provider = Provider([]); ai = QwenGroupAssistant(provider, tmp_path / 'ai')
++    result = ai.reply('需求75的'+question, [], None, lambda: parse_rows(values))
++    assert all(f in result.text for f in fields) and not provider.calls
++    if len(fields) == 1: assert '项目进展' not in result.text
++    request(ux, '/project 需求75的'+question, 1)
++    assert all(f in text(ux) for f in fields)
++    request(ux, '进展和负责人分别是什么', 2, parent_id=latest(ux)['message_id'])
++    assert '测试中，尚未验收。' in text(ux) and 'AR1测试甲' in text(ux)
++
++
++def test_F06_missing_eta_is_private_and_preserves_input(ux):
++    o = occurrence(ux); am, g, s, api, clock, _ = ux; n = len(api.sent)
++    result = feedback(ux, o, 'eta-missing', 'eta', '有效说明需要保留')
++    assert result['state'] == 'failed' and not am.items.history(o['item_id'])
++    assert len(api.sent) == n + 1 and api.sent[-1]['user'] == 'ou_engineer_a'
++    assert api.sent[-1]['chat_type'] == 'p2p' and '日期' in text(ux)
++    correction = s.rows("SELECT * FROM am_cards WHERE flow='feedback_correction' ORDER BY rowid DESC LIMIT 1")[0]
++    assert '有效说明需要保留' in correction['snapshot']
++    g.reminders.port.read_card = lambda mid: {'chat_id':'oc_engineer_dm','sender_id':g.config.bot_open_id,'deleted':False}
++    when = (datetime.fromtimestamp(clock(), TZ)+timedelta(days=1)).strftime('%Y-%m-%d %H:%M +0800')
++    # Correction submit goes through the private card callback; shared card unchanged.
++    e = {'header': {'app_id': g.config.app_id,'tenant_key': g.config.tenant_key,'event_id': 'eta-corrected','event_type':'card.action.trigger'},
++         'event': {'operator': {'open_id':'ou_engineer_a'},'context': {'open_chat_id':'oc_engineer_dm','open_message_id':correction['message_id']},
++                   'action': {'value': {'flow':'am_self','nonce':correction['nonce'],'action':'submit'},'form_value': {'kind':'eta','eta':when,'detail':'有效说明需要保留'}}}}
++    assert am.ingest(e) == (True, True); am.step(); drain(g)
++    assert len(am.items.history(o['item_id'])) == 1
++    assert len(api.sent) == n + 3
++    e['header']['event_id'] = 'eta-corrected-doubleclick'
++    assert am.ingest(e) == (True, True); am.step(); drain(g)
++    assert len(api.sent) == n + 3
++    feedback(ux, o, 'other-engineer', actor='ou_engineer_b')
++    assert len(am.items.history(o['item_id'])) == 2
++
++
++def test_F07_project_actions_preserve_search_position(ux):
++    request(ux, '/menu', 1); click(ux, 'projects'); click(ux, 'search', form={'query':'需求75'})
++    origin = json.loads(latest(ux)['snapshot'])['data']['origin']
++    click(ux, 'project'); click(ux, 'project_actions'); click(ux, 'project'); click(ux, 'projects')
++    snap = json.loads(latest(ux)['snapshot'])
++    assert snap['fields']['query']['default'] == '需求75' and snap['data']['origin'] == origin
++
++
++def test_F01_legacy_claim_and_atomic_retry(ux, monkeypatch):
++    o=occurrence(ux);am,g,s,api,clock,_=ux
++    feedback(ux,o,'legacy-first');n=len(api.sent)
++    # Simulate the additive migration with a pre-existing UX2 operation journal.
++    s.execute('DELETE FROM feedback_heads');s.execute('DELETE FROM feedback_claims')
++    feedback(ux,o,'legacy-doubleclick')
++    assert len(am.items.history(o['item_id']))==1 and len(api.sent)==n
++    original=am.items.log
++    def crash(*args,**kwargs):raise RuntimeError('SYNTHETIC_CRASH_BEFORE_COMMIT')
++    monkeypatch.setattr(am.items,'log',crash)
++    feedback(ux,o,'interrupted','submitted','材料初稿')
++    assert len(am.items.history(o['item_id']))==1
++    assert len(s.rows('SELECT * FROM feedback_claims'))==1
++    assert '尚未确认' in text(ux) and len(api.sent)==n+1
++    monkeypatch.setattr(am.items,'log',original)
++    feedback(ux,o,'retry-after-interruption','submitted','材料初稿')
++    assert len(am.items.history(o['item_id']))==2 and len(api.sent)==n+3
++
++
++def test_F04_temporary_rejection_cannot_rebuild(ux):
++    request(ux,'/menu',1);am,g,s,api,clock,_=ux;mid=latest(ux)['message_id']
++    api.update_card=lambda *a: (_ for _ in ()).throw(SendRejected('TEMPORARY_DENIAL'))
++    api.navigation_target_unavailable=lambda *a:False
++    request(ux,'/menu',2);request(ux,'/menu',3)
++    assert sum(x['operation']=='create' for x in api.sent)==2 and '被拒绝' in text(ux)
++    assert s.rows('SELECT message_id FROM am_interactions WHERE kind=?',('navigation',))[0]['message_id']==mid
++
++
++def test_F04_recovery_button_restores_only_after_exact_readback(ux):
++    request(ux,'/menu',1);am,g,s,api,clock,_=ux;original=api.update_card
++    api.update_card=lambda *a: (_ for _ in ()).throw(SendUnknown('SYNTHETIC_TIMEOUT'))
++    click(ux,'projects');api.update_card=original
++    unknown=s.rows("SELECT * FROM outbox WHERE state='unknown'")[0]
++    delivery=s.rows('SELECT * FROM am_view_outputs WHERE outbox_id=?',(unknown['id'],))[0]
++    request(ux,'/menu',2);click(ux,'reconcile_navigation')
++    assert s.rows('SELECT state FROM outbox WHERE id=?',(unknown['id'],))[0]['state']=='unknown'
++    api.messages[delivery['target_message']]=unknown['body']
++    click(ux,'reconcile_navigation')
++    assert '我的工作' in text(ux) and latest(ux)['message_id']==delivery['target_message']
++    assert s.rows('SELECT state FROM outbox WHERE id=?',(unknown['id'],))[0]['state']=='sent'
++    assert sum(x['operation']=='create' for x in api.sent)==2
++
++
++def test_F06_unauthorized_actor_gets_no_private_prompt(ux):
++    o=occurrence(ux);n=len(ux[3].sent)
++    result=feedback(ux,o,'not-assigned','eta','私人内容',actor='ou_other')
++    assert result['error']=='NOT_ASSIGNEE' and len(ux[3].sent)==n
++    assert not ux[0].items.history(o['item_id'])
++
++
++def test_request_timings_separate_read_render_and_readback(ux, monkeypatch):
++    import time,threading
++    am,g,s,api,clock,port=ux
++    reader=port.read
++    def slow_read():time.sleep(.012);return reader()
++    monkeypatch.setattr(port,'read',slow_read)
++    g.provider.lock=threading.Lock();g.provider.lock.acquire()
++    try:
++        request(ux,'需求75谁负责',1)
++    finally:g.provider.lock.release()
++    r=s.rows('SELECT * FROM am_request_timings WHERE event_id=?',('om1',))[0];stages=json.loads(r['stages'])
++    assert r['model_busy']==1 and r['readback_verified']==1 and r['actionable'] is not None and r['finished'] is not None
++    assert stages['source_read']['seconds']>=.012 and stages['source_read']['calls']==1
++    assert all(k in stages for k in ('authorization','authorization_delivery','rendering','publish','readback'))
++    assert not g.provider.prompts
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2_fix1_experience.py
+@@ -0,0 +1,88 @@
++"""Scenario walkthrough using only rendered button labels, synthetic ports.
++
++This is an agent cognitive walkthrough, not a human blind usability study.
++"""
++import json,os
++from pathlib import Path
++import pytest
++from test_am_ux1 import ux,service,am_rig,base_rig,request,latest,text
++from test_gateway import drain
++from fs_agent.presentation import visible_metrics
++
++
++def nodes(value):
++    if isinstance(value,dict):
++        yield value
++        for v in value.values():yield from nodes(v)
++    elif isinstance(value,list):
++        for v in value:yield from nodes(v)
++
++
++class Walk:
++    def __init__(self,rig):self.rig=rig;self.steps=[]
++    def see(self,action):
++        card=json.loads(text(self.rig));items=list(nodes(card))
++        self.steps.append({'action':action,'title':card['header']['title']['content'],
++            'visible_text':[x['content'] for x in items if x.get('tag') in ('plain_text','markdown') and 'content' in x],
++            'buttons':[x['text']['content'] for x in items if x.get('tag')=='button'],
++            'metrics':visible_metrics(card)})
++    def press(self,label,form=None):
++        am,g,s,api,clock,_=self.rig
++        buttons=[b for b in nodes(json.loads(text(self.rig))) if b.get('tag')=='button' and b['text']['content']==label]
++        assert len(buttons)==1,(label,self.steps[-1]['buttons'])
++        c=latest(self.rig);ident='experience-'+str(len(self.steps))
++        e={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':ident,'event_type':'card.action.trigger'},
++           'event':{'operator':{'open_id':am.owner},'context':{'open_chat_id':'oc_dm','open_message_id':c['message_id']},
++                    'action':{'value':buttons[0]['behaviors'][0]['value'],'form_value':form}}}
++        assert am.ingest(e)==(True,True);assert am.step();drain(g)
++        assert s.rows('SELECT state FROM am_inbox WHERE id=?',(ident,))[0]['state']=='done'
++        self.see(label)
++    def save(self,name,**result):
++        folder=os.environ.get('AM_FIX1_UX_EVIDENCE')
++        if folder:
++            p=Path(folder);p.mkdir(parents=True,exist_ok=True)
++            (p/(name+'.json')).write_text(json.dumps({'layer':'synthetic_label_driven_cognitive_walkthrough','human_blind_test':False,'steps':self.steps,**result},ensure_ascii=False,indent=2)+'\n')
++
++
++def test_novice_can_ask_without_command(ux):
++    request(ux,'需求75谁负责',1);walk=Walk(ux);walk.see('直接输入自然语言问题')
++    assert 'AR1测试甲' in text(ux) and '实际收货' not in text(ux)
++    walk.save('natural-query',completed=True,input_actions=1,limitation='首屏没有提示可直接用自然语言查询；知道能提问时一次输入可完成。')
++
++
++def test_novice_search_people_and_return(ux):
++    request(ux,'/menu',1);walk=Walk(ux);walk.see('常驻菜单打开我的工作')
++    walk.press('项目');walk.press('搜索',{'query':'需求75'})
++    target=next(x for x in walk.steps[-1]['buttons'] if x.startswith('需求75'))
++    walk.press(target);walk.press('查看栏目');walk.press('人员与职责')
++    assert 'AR1测试甲' in text(ux)
++    walk.press('返回概览');walk.press('项目操作');walk.press('返回项目');walk.press('返回项目列表')
++    assert json.loads(latest(ux)['snapshot'])['fields']['query']['default']=='需求75'
++    walk.save('search-people-return',completed=True,clicks_to_people_from_home=5,return_context_preserved=True,
++              limitation='需先理解“查看栏目”，查询负责人有五次按钮动作；不如直接问便捷。')
++
++
++def test_novice_briefing_details_and_todos(ux):
++    request(ux,'/menu',1);walk=Walk(ux);walk.see('常驻菜单打开我的工作')
++    walk.press('更多');walk.press('变化简报');walk.press('完整变化');walk.press('返回简报');walk.press('候选待办')
++    assert '跟进' in text(ux)
++    walk.save('briefing-details',completed=True,clicks_to_summary_from_home=2,clicks_to_full_changes_from_home=3,
++              limitation='“候选待办”需要理解它与已创建 AM 跟进事项的区别。')
++
++
++def test_novice_todo_pagination(ux):
++    ux[-1].values += [[f'需求{n}:合成项目{n}','','',f'跟进报告{n}','处理中','合成人员',''] for n in range(80,88)]
++    request(ux,'/menu',1);walk=Walk(ux);walk.see('常驻菜单打开我的工作')
++    walk.press('查看全部待办');first=text(ux);walk.press('下一页')
++    assert text(ux)!=first and len([b for b in walk.steps[-1]['buttons'] if '查看台账候选' in b])<=3
++    walk.press('上一页');walk.save('todos',completed=True,page_size=3,limitation='零个 AM 事项不等于没有台账候选，首次进入仍可能困惑。')
++
++
++def test_navigation_delivery_revocation_is_not_cached(ux,monkeypatch):
++    reader=ux[-1].read
++    def revoke():
++        result=reader();ux[3].allowed=False;return result
++    monkeypatch.setattr(ux[-1],'read',revoke)
++    request(ux,'需求75谁负责',1)
++    assert not ux[3].sent
++    assert ux[2].rows('SELECT state,error FROM outbox')[0]=={'state':'rejected','error':'DELIVERY_AUTH_OR_TTL'}
+--- a/local-qwen3.8/feishu-bridge/am_business.py
++++ b/local-qwen3.8/feishu-bridge/am_business.py
+@@ -108,6 +108,10 @@
+             or not o['message_id'] or body['source_message']!=o['message_id']):raise BoundaryError('FEEDBACK_BINDING_INVALID')
+         if self.s.clock()>o['scheduled_at']+86400:raise BoundaryError('FEEDBACK_CARD_EXPIRED')
+         self.ledger.port.guard(row['chat'],row['user'])
++        if row['user'] not in json.loads(self.items.get(o['item_id'])['assignees']):raise BoundaryError('NOT_ASSIGNEE')
++        # Set only after the original message, occurrence, group and actor have
++        # all been checked. Error handling may then send this actor a private form.
++        row['_feedback_context']={'occurrence':o['id'],'nonce':payload['feedback_nonce'],'source_message':o['message_id'],'group':row['chat']}
+         action=value.get('action');detail=body.get('detail','')
+         if action=='feedback_form':
+             from am_ux import card_time
+@@ -120,7 +124,8 @@
+             # A button without a date/material does not invent one.
+             detail={'eta':'预计完成时间待补充','help':'协助内容待补充','submitted':'材料位置待补充'}[action]
+         op='feedback/'+digest([o['id'],row['user'],action,detail])
+-        result=self.items.feedback(row['user'],op,o['item_id'],o['item_version'],action,detail,{'message_id':o['message_id'],'occurrence':o['id']})
++        result=self.items.feedback(row['user'],op,o['item_id'],o['item_version'],action,detail,{'message_id':o['message_id'],'occurrence':o['id']},
++                                   submission_key=row.get('_feedback_submission') or digest([row['app'],row['tenant'],row['id']]))
+         event=result.get('business_event_id',op)
+         self.notify(row,('已记录本次反馈；'+('提交材料仍待核验。' if action=='submitted' else '尚未标记事项完成。')) if result['applied'] else '已保留迟到反馈，未覆盖负责人后续决定。',kind='feedback_ack',object_id=o['id'],event_key=event)
+         owner=self.owner_origin()
+@@ -134,6 +139,47 @@
+             self.ux_feedback_notice(owner,result['item'],summary,event)
+ 
+         return None
++
++    def feedback_error(self,row,code):
++        context=row.get('_feedback_context')
++        if not context:return None
++        from fs_agent.card_ui import card,paragraph,button,field,bind_rendered_card
++        body=json.loads(row['body']);incoming=body.get('form_value') or {}
++        if not isinstance(incoming,dict):incoming={}
++        defaults={k:v for k,v in incoming.items() if k in ('kind','eta','detail') and isinstance(v,str) and len(v)<=3000}
++        if code not in ('FORM_TIME_REQUIRED','FORM_REQUIRED','FORM_INVALID'):
++            message='这张补填卡已提交过其他内容；请回到原事项卡发起新反馈。' if code=='OPERATION_ID_REUSED' else '本次反馈的处理结果尚未确认，请从原事项卡核对后重试；已有记录保留。'
++            return self.notify(row,message,kind='feedback_ack',object_id=context['occurrence'],event_key=digest(['feedback-error',context,row['user'],code,defaults]))
++        # A correction belongs to its user and original occurrence. Duplicate
++        # invalid submissions reuse the same private prompt, never the group card.
++        nonce=digest(['feedback-correction',context,row['user'],code,defaults])
++        if self.s.rows('SELECT 1 FROM am_cards WHERE nonce=?',(nonce,)):return None
++        snapshot={'context':context,'defaults':defaults,'app':row['app'],'tenant':row['tenant']}
++        inputs=field('kind','反馈类型',kind='select_static',options=[('eta','预计时间'),('help','需要协助'),('submitted','提交材料'),('not_mine','非本人负责')],default=defaults.get('kind'))
++        inputs+=field('eta','预计完成日期和时间（选择预计时间时必填）',kind='picker_datetime',required=defaults.get('kind')=='eta')
++        inputs+=field('detail','说明 / 材料链接',default=defaults.get('detail',''))
++        inputs.append(button('补齐并提交反馈',{'flow':'am_self','nonce':nonce,'action':'submit'},name='feedback_submit',submit=True))
++        rendered=bind_rendered_card(card('反馈尚未提交',[paragraph('请选择预计完成的日期和时间。有效说明已保留；补齐后再提交。' if code=='FORM_TIME_REQUIRED' else '请补齐反馈类型和说明，再提交。有效说明已保留。'),{'tag':'form','name':'feedback_correction','elements':inputs}]))
++        with self.s.tx() as c:
++            out=self.notify(row,card=rendered,kind='feedback_correction',object_id=context['occurrence'],conn=c,event_key=nonce)
++            c.execute('INSERT INTO am_cards VALUES(?,?,?,?,?,?,?,?,?,?,NULL)',(nonce,'feedback_correction',context['occurrence'],1,row['user'],'feedback-private:'+row['user'],canonical(snapshot),digest(snapshot),min(row['expires'],self.scheduler.occurrence(context['occurrence'])['scheduled_at']+86400),out))
++
++    def handle_feedback_correction(self,row,c):
++        body=json.loads(row['body']);snapshot=json.loads(c['snapshot'])
++        if (c['actor']!=row['user'] or c['expires']<=self.s.clock() or not c['message_id'] or body['source_message']!=c['message_id']
++            or digest(snapshot)!=c['hash'] or snapshot['app']!=row['app'] or snapshot['tenant']!=row['tenant']
++            or body['value'].get('action')!='submit'):raise BoundaryError('FEEDBACK_BINDING_INVALID')
++        if c['chat'].startswith('feedback-private:'):
++            message=self.g.reminders.port.read_card(c['message_id'])
++            if message['chat_id']!=row['chat'] or message['sender_id']!=self.g.config.bot_open_id or message.get('deleted'):raise BoundaryError('FEEDBACK_BINDING_INVALID')
++            self.s.execute('UPDATE am_cards SET chat=? WHERE nonce=?',(row['chat'],c['nonce']))
++        elif c['chat']!=row['chat']:raise BoundaryError('FEEDBACK_BINDING_INVALID')
++        context=snapshot['context']
++        origin=dict(row,chat=context['group'],chat_type='p2p',_feedback_submission='feedback-correction/'+c['nonce'])
++        submitted={'value':{'feedback':context['occurrence'],'nonce':context['nonce'],'action':'feedback_form'},'source_message':context['source_message'],'form_value':body.get('form_value')}
++        try:return self.handle_feedback(origin,submitted)
++        finally:
++            if origin.get('_feedback_context'):row['_feedback_context']=origin['_feedback_context']
+ 
+     def briefing_payload(self,plan):
+         sub=self.s.rows('SELECT id FROM am_subscriptions WHERE plan_id=?',(plan['id'],))
+--- a/local-qwen3.8/feishu-bridge/am_presentation.py
++++ b/local-qwen3.8/feishu-bridge/am_presentation.py
+@@ -5,6 +5,8 @@
+ """
+ import json
+ import uuid
++import time
++from fs_agent import request_timing as timing
+ from fs_agent.project_catalog import canonical,digest
+ from fs_agent.config import BoundaryError
+ from fs_agent.card_ui import card,paragraph,button,field,bind_rendered_card
+@@ -44,10 +46,21 @@
+             expected=row.get('_view_version')
+             if expected is not None and not immutable and expected!=view['view_version']:raise BoundaryError('VIEW_CHANGED')
+             if view['pending_outbox']:
+-                pending=self.s.rows('SELECT state FROM outbox WHERE id=?',(view['pending_outbox'],))
++                row['_blocked_interaction']=ident
++                pending=self.s.rows('SELECT * FROM outbox WHERE id=?',(view['pending_outbox'],))
+                 if pending and pending[0]['state']=='unknown' and self.reconcile_view(ident):
+                     view=self.s.rows('SELECT * FROM am_interactions WHERE id=?',(ident,))[0]
+                 elif pending and pending[0]['state'] in ('sending','unknown'):raise BoundaryError('VIEW_DELIVERY_UNKNOWN')
++                elif pending and pending[0]['state']=='rejected' and view['kind']=='navigation' and view['message_id']:
++                    # Rejection alone is insufficient: only a trusted platform
++                    # read confirming the exact old target was deleted permits
++                    # a new ordinary navigation card. Keep all old journals.
++                    unavailable=getattr(self.g.api,'navigation_target_unavailable',None)
++                    if unavailable and unavailable(view['message_id'],pending[0]):
++                        with self.s.tx() as c:
++                            c.execute('UPDATE am_interactions SET message_id=NULL,pending_outbox=NULL WHERE id=? AND pending_outbox=?',(ident,view['pending_outbox']))
++                        view=self.s.rows('SELECT * FROM am_interactions WHERE id=?',(ident,))[0]
++                    elif not row.get('_retry_rejected_view'):raise BoundaryError('VIEW_DELIVERY_REJECTED')
+             if kind=='immutable':return view,True
+         else:
+             self.s.execute('INSERT INTO am_interactions VALUES(?,?,?,?,0,NULL,\'{}\',\'[]\',NULL,?)',(ident,self.scope(row),row['id'],kind,row['expires']))
+@@ -80,6 +93,7 @@
+             else:actions+=long_view['actions']
+         view,replayed=self.bind_view(row,data)
+         if replayed:return None
++        render_started=time.monotonic()
+         row=dict(row,expires=min(row['expires'],view['expires']))
+         version=view['view_version']+1;nonce=digest([view['id'],version]);actions=list(actions)
+         if fields is not None:actions.append((submit[0],submit[1]))
+@@ -118,6 +132,7 @@
+             else:expanded.append(el)
+         rendered=bind_rendered_card(card(title,expanded));metrics=visible_metrics(rendered);metrics.update(exception=envelope.exception,origin_event=row['id'],created=self.s.clock())
+         fingerprint=digest(snapshot)
++        timing.add(self.s,row['id'],'rendering',time.monotonic()-render_started)
+         with self.s.tx() as c:
+             current=c.execute('SELECT * FROM am_interactions WHERE id=?',(view['id'],)).fetchone()
+             if current['view_version']!=view['view_version']:raise BoundaryError('VIEW_CHANGED')
+@@ -153,8 +168,34 @@
+         # CREATE without a received message ID remains unknown; do not infer
+         # absence and resend. PATCH can be read at its already bound identity.
+         if not delivery or not delivery['target_message']:return False
+-        if not self.g.api.verify_card(delivery['target_message'],out):return False
++        with timing.measure(self.s,timing.origin(self.s,out['id']),'readback'):
++            if not self.g.api.verify_card(delivery['target_message'],out):return False
+         with self.s.tx() as c:
+             c.execute("UPDATE outbox SET state='sent',message_id=?,error=NULL WHERE id=?",(delivery['target_message'],out['id']))
+             self.delivered(c,out,delivery['target_message'])
+         return True
++
++    def navigation_recovery(self,row,ident,*,check=False):
++        views=self.s.rows('SELECT * FROM am_interactions WHERE id=?',(ident,))
++        if not views or views[0]['scope']!=self.scope(row) or views[0]['expires']<=self.s.clock():raise BoundaryError('VIEW_SCOPE_CHANGED')
++        view=views[0]
++        pending=self.s.rows('SELECT state FROM outbox WHERE id=?',(view['pending_outbox'],)) if view['pending_outbox'] else []
++        rejected=bool(pending and pending[0]['state']=='rejected')
++        if check and rejected:
++            row['_interaction']=ident;row['_view_version']=view['view_version'];row['_retry_rejected_view']=True
++            return self.ux_home(row)
++        if check and self.reconcile_view(ident):
++            row['_interaction']=ident;row['_view_version']=view['view_version']
++            return self.ux_home(row)
++        status_id=digest(['navigation-recovery',ident])
++        status=self.s.rows('SELECT * FROM am_interactions WHERE id=?',(status_id,))
++        if status and status[0]['pending_outbox']:
++            pending=self.s.rows('SELECT state FROM outbox WHERE id=?',(status[0]['pending_outbox'],))
++            # Even the status delivery can be unknown. Never recursively
++            # manufacture further status messages without a reliable receipt.
++            if pending and pending[0]['state'] in ('sending','unknown'):return None
++        recovery=dict(row,_interaction=status_id,_view_kind='recovery')
++        recovery.pop('_view_version',None);recovery.pop('_immutable_output',None)
++        message='上次页面更新被拒绝，原页面仍保留。可点“重新打开页面”重试普通导航。' if rejected else '上次页面更新是否完成仍不确定。请点“核对页面状态”；核对成功后返回首页。'
++        return self.ux_page(recovery,'页面状态待核对',message+'\n原业务记录保留，不会重新执行提醒或批准。',
++            [('重新打开页面' if rejected else '核对页面状态',{'page':'reconcile_navigation','interaction':ident})],data={'recovery_for':ident})
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -3,11 +3,13 @@
+ import json
+ import re
+ import uuid
++import time
+ from datetime import datetime
+ from zoneinfo import ZoneInfo
+ from fs_agent.config import BoundaryError
+ from fs_agent.message_text import normalize_message
+ from fs_agent.project_catalog import canonical,digest
++from fs_agent import request_timing as timing
+ from group_ledger import render_project,select_projects,SOURCE,SHEET
+ from am_business import BusinessCommands
+ from am_updates import UpdateCommands
+@@ -28,6 +30,7 @@
+         self.flags=dict(DEFAULT_FLAGS,**(flags or {}))
+         self.owner=gateway.config.owner
+         self.items=None;self.scheduler=None;self.updates=None
++        timing.initialize(self.s)
+         with self.s.lock:
+             self.s.conn.executescript('''
+             CREATE TABLE IF NOT EXISTS am_inbox(
+@@ -79,6 +82,18 @@
+         return self.flags['query'] and deterministic_intent(text)=='project'
+ 
+     def ingest(self,payload):
++        received=self.s.clock();started=time.monotonic()
++        result=self._ingest(payload)
++        if result[1]:
++            h,e=payload['header'],payload['event']
++            ident=e['message']['message_id'] if h['event_type']=='im.message.receive_v1' else h['event_id']
++            provider=getattr(self.g,'provider',None);lock=getattr(provider,'lock',None)
++            busy=bool(lock and lock.locked())
++            self.s.execute('INSERT OR IGNORE INTO am_request_timings VALUES(?,?,?,NULL,NULL,NULL,NULL,NULL,?,?)',
++                           (ident,received,self.s.clock(),int(busy),canonical({'ingress':{'seconds':time.monotonic()-started,'calls':1}})))
++        return result
++
++    def _ingest(self,payload):
+         try:
+             meta=None;collection=None
+             h,e=payload['header'],payload['event'];config=self.g.config
+@@ -167,6 +182,7 @@
+             old=conn.execute('SELECT outbox_id FROM am_notice_keys WHERE notice_key=?',(notice_key,)).fetchone()
+             if old:return old[0]
+         out=self.s.add_outbox(row,text=text,card=card,private=True,conn=conn)
++        conn.execute('INSERT INTO am_outbox_events VALUES(?,?)',(out,row['id']))
+         if notice_key:conn.execute('INSERT INTO am_notice_keys VALUES(?,?)',(notice_key,out))
+         if kind=='status' and text and conn.execute('SELECT 1 FROM am_query_refs WHERE message_id=? AND expires>?',(row['id'],self.s.clock())).fetchone():
+             kind='query';object_id=row['id']
+@@ -193,7 +209,7 @@
+         return True
+ 
+     def authorized_notification(self,row):
+-        notes=self.s.rows("SELECT object_id FROM am_notifications WHERE outbox_id=? AND kind='feedback_ack'",(row['id'],))
++        notes=self.s.rows("SELECT object_id FROM am_notifications WHERE outbox_id=? AND kind IN ('feedback_ack','feedback_correction')",(row['id'],))
+         if not notes:return None
+         try:
+             o=self.scheduler.occurrence(notes[0]['object_id']);p=json.loads(o['payload']);item=self.items.get(o['item_id'])
+@@ -249,9 +265,13 @@
+ 
+     def projects(self,row):
+         if row['user']!=self.owner:raise BoundaryError('OWNER_ONLY')
+-        self.ledger.port.authorize_user(row['user'])
+-        projects=self.ledger.port.read()
+-        with self.ledger.mutex:
++        checked=row.get('_request_authorization')
++        scope=tuple(row.get(k) for k in ('app','tenant','user','chat'))
++        fresh=checked and checked[0]==scope and time.monotonic()-checked[1]<=2
++        if not (row.get('_readonly_request') and fresh):
++            with timing.measure(self.s,row.get('id'),'authorization'):self.ledger.port.authorize_user(row['user'])
++        with timing.measure(self.s,row.get('id'),'source_read'):projects=self.ledger.port.read()
++        with timing.measure(self.s,row.get('id'),'local_calculation'),self.ledger.mutex:
+             result=self.ledger.catalog.sync(projects,complete=all(p.get('read_status','complete')=='complete' for p in projects),revision=projects[0].get('source_revision') if projects else None)
+             self._briefing_projects=result
+             return result
+@@ -310,17 +330,7 @@
+             if focus:c.execute('INSERT OR IGNORE INTO am_query_refs VALUES(?,?,?,?)',(row['id'],scope,focus,row['expires']))
+ 
+     def briefing(self,row,*,changes_only=False):
+-        projects=self.projects(row)
+-        changes=self.ledger.catalog.changes()
+-        lines=['变化查询：记录文字变化不代表正式批准或验收改变。']
+-        if not changes:lines+=['暂无可比较的新变化；首次完整读取只建立基线。']
+-        for c in changes:
+-            stamp=datetime.fromtimestamp(c['read_at'],ZoneInfo('Asia/Shanghai'))
+-            lines += [f"{c['title']}｜{c['field']}｜{stamp.year}.{stamp.month}.{stamp.day} {stamp:%H:%M}\n原值：{c['before_value'] or '未记录'}\n现值：{c['after_value']}\n事件：{c['id'][:12]}"]
+-        if not changes_only:lines += [self.todos(row,projects=projects)]
+-        lines+=['来源：'+SOURCE+'?sheet='+SHEET,'主动查询不会改变订阅的投递记录。']
+-        text='\n\n'.join(lines)
+-        return text if len(text)<10000 else text[:9500]+'\n本次仅显示前部变化；完整记录仍保存在 AM。'
++        return BriefingMixin.briefing(self,row,changes_only=changes_only)
+ 
+     def todos(self,row,*,projects=None,uncertain=False):
+         if projects is None:projects=self.projects(row)
+@@ -356,6 +366,8 @@
+             body=json.loads(row['body'])
+             if body['value'].get('feedback'):return self.handle_feedback(row,body)
+             if body['value'].get('briefing'):return self.handle_briefing_card(row,body)
++            correction=self.s.rows("SELECT * FROM am_cards WHERE nonce=? AND flow='feedback_correction'",(body['value'].get('nonce'),))
++            if correction:return self.handle_feedback_correction(row,correction[0])
+             c,action=self.validate_card(row)
+             if c['flow']=='ux':return self.ux_handle(row,c,action)
+             if hasattr(self,'handle_business_card'):return self.handle_business_card(row,c,action)
+@@ -401,12 +413,34 @@
+             self.s.execute("UPDATE am_inbox SET state='delivery_unknown' WHERE id=?",(row['id'],))
+             raise BoundaryError('GROUP_REPLY_UNKNOWN')
+ 
++    def readonly_request(self,row):
++        """Only ordinary owner navigation may reuse a check in this request.
++
++        Never persisted, never shared with another event/user. Approval,
++        collection, feedback and document actions keep their original checks.
++        Delivery still independently refreshes authorization.
++        """
++        if row['user']!=self.owner or row['chat_type']!='p2p':return False
++        if row['kind']=='menu':return row['body'] in ('home','projects','more')
++        if row['kind']=='text':
++            q=row['body'].strip()
++            return q in ('/menu','/am','/help','/status','/briefing','/changes','/todo','变化简报','查看变化','项目变化','我的待办') or q.startswith('/project') or deterministic_intent(q)=='project'
++        if row['kind']=='card':
++            body=json.loads(row['body']);value=body['value']
++            cards=self.s.rows("SELECT * FROM am_cards WHERE nonce=? AND flow='ux'",(value.get('nonce'),))
++            if not cards or cards[0]['actor']!=row['user']:return False
++            action=json.loads(cards[0]['snapshot']).get('actions',{}).get(value.get('action'),{})
++            return action.get('page') in ('home','projects','search','project','project_actions','more','work','help','status','briefing','briefing_detail')
++        return False
++
+     def step(self):
+         self.ux_cleanup()
+         self.s.execute("UPDATE am_inbox SET body='',state=CASE WHEN state='received' THEN 'expired' ELSE state END WHERE expires<=?",(self.s.clock(),))
+         self.s.execute('DELETE FROM am_sessions WHERE expires<=?',(self.s.clock(),))
+         self.s.execute('DELETE FROM am_query_refs WHERE expires<=?',(self.s.clock(),))
+         self.s.execute('DELETE FROM am_source_meta WHERE id IN (SELECT id FROM am_inbox WHERE expires<=?)',(self.s.clock(),))
++        self.s.execute('DELETE FROM am_request_timings WHERE event_id IN (SELECT id FROM am_inbox WHERE expires<=?)',(self.s.clock(),))
++        self.s.execute('DELETE FROM am_outbox_events WHERE event_id NOT IN (SELECT event_id FROM am_request_timings)')
+         self.s.execute("UPDATE am_cards SET snapshot='{}' WHERE expires<=? AND (flow!='ux' OR outbox_id IN (SELECT id FROM outbox WHERE expires<=?))",(self.s.clock(),self.s.clock()))
+         rows=self.s.rows("SELECT * FROM am_inbox WHERE state='received' AND expires>? ORDER BY created LIMIT 1",(self.s.clock(),))
+         if not rows:
+@@ -424,12 +458,19 @@
+             return False
+         row=rows[0]
+         if not self.s.execute("UPDATE am_inbox SET state='processing' WHERE id=? AND state='received'",(row['id'],)):return False
++        started=time.monotonic()
++        self.s.execute('UPDATE am_request_timings SET started=? WHERE event_id=?',(self.s.clock(),row['id']))
+         try:
+-            if row['chat_type']=='group':self.ledger.port.guard(row['chat'],row['user'])
+-            elif row['user']==self.owner:self.ledger.port.authorize_user(row['user'])
+-            elif row['kind']!='card':raise BoundaryError('OWNER_ONLY')
++            row['_readonly_request']=self.readonly_request(row)
++            with timing.measure(self.s,row['id'],'authorization'):
++                if row['chat_type']=='group':self.ledger.port.guard(row['chat'],row['user'])
++                elif row['user']==self.owner:self.ledger.port.authorize_user(row['user'])
++                elif row['kind']!='card':raise BoundaryError('OWNER_ONLY')
++            row['_request_authorization']=(tuple(row.get(k) for k in ('app','tenant','user','chat')),time.monotonic())
+             text=self.handle(row)
+-            if row['user']==self.owner:self.ledger.port.authorize_user(row['user'])
++            if not row['_readonly_request']:
++                with timing.measure(self.s,row['id'],'authorization'):
++                    if row['user']==self.owner:self.ledger.port.authorize_user(row['user'])
+             if text:
+                 if row['chat_type']=='group':self.group_status(row,text)
+                 else:self.ux_page(row,'处理结果',text,[('返回首页',{'page':'home'})])
+@@ -438,10 +479,15 @@
+             if str(exc)=='GROUP_REPLY_UNKNOWN':return True
+             code=str(exc) if isinstance(exc,(BoundaryError,ValueError)) and re.fullmatch('[A-Z_0-9]{1,80}',str(exc)) else 'AM_REQUEST_FAILED'
+             self.s.execute("UPDATE am_inbox SET state='failed',error=? WHERE id=?",(code,row['id']))
+-            if row['chat_type']=='group':
++            if row.get('_feedback_context'):
++                self.feedback_error(row,code)
++            elif row['chat_type']=='group':
+                 try:
+                     self.group_status(row,'本次操作未完成：'+code+'。未据此写入台账。')
+                     self.s.execute("UPDATE am_inbox SET state='failed',error=? WHERE id=?",(code,row['id']))
+                 except Exception:pass
+             elif row['user']==self.owner:self.ux_error(row,code)
++        finally:
++            timing.add(self.s,row['id'],'processing_total',time.monotonic()-started)
++            self.s.execute('UPDATE am_request_timings SET processed=? WHERE event_id=?',(self.s.clock(),row['id']))
+         return True
+--- a/local-qwen3.8/feishu-bridge/am_ux.py
++++ b/local-qwen3.8/feishu-bridge/am_ux.py
+@@ -281,6 +281,7 @@
+             self.s.execute('UPDATE am_ux_drafts SET data=? WHERE id=?',(canonical(previous),d['id']))
+         values=self.ux_form_values(snapshot,body) if submit else {}
+         data=dict(snapshot['data'],nonce=c['nonce']);page=a['page']
++        if page=='reconcile_navigation':return self.navigation_recovery(row,a['interaction'],check=True)
+         if page=='home':return self.ux_home(row)
+         if page=='projects':return self.ux_projects(row,next=a.get('next','project'),query=a.get('query',''),page=a.get('offset',0))
+         if page=='search':return self.ux_projects(row,next=a['next'],query=values['query'])
+@@ -392,7 +393,9 @@
+ 
+     def ux_error(self,row,code):
+         row['_view_kind']='recovery'
+-        if code=='VIEW_DELIVERY_UNKNOWN':return None
++        if code in ('VIEW_DELIVERY_UNKNOWN','VIEW_DELIVERY_REJECTED'):
++            ident=row.get('_blocked_interaction') or row.get('_interaction')
++            return self.navigation_recovery(row,ident) if ident else None
+         if code in ('VIEW_CHANGED','VIEW_EXPIRED'):
+             row.pop('_interaction',None);row.pop('_view_version',None)
+         messages={'VIEW_EXPIRED':'当前视图已过期，请重新打开首页；业务记录保留。','VIEW_CHANGED':'当前页面已更新，请打开最新导航。原业务记录和有效草稿保留。','FORM_REQUIRED':'请填写必填内容。','FORM_OPTION_INVALID':'选项已失效，请重新选择。','FORM_INVALID':'表单内容无法识别，请重新填写。','FORM_TIME_REQUIRED':'请选择完整日期和时间。','FUTURE_SEND_TIME_REQUIRED':'发送时刻已经过去，请重新设置未来时间。','PLAN_VALIDITY_REQUIRED':'截止时间需要晚于下一次发送，且在一年以内。','CALENDAR_COVERAGE_MISSING':'尚无覆盖该日期的已核实工作日历。可改为明确的一次提醒，或待日历核实后设置普通周期。','UX_DRAFT_CHANGED':'内容已变化，请重新预览再确认。','UX_DRAFT_EXPIRED':'草稿已过期或取消，请重新创建。','COLLECTION_CONTEXT_EXPIRED':'收集已过期或对象已更换，请重新选择收集目标后发送。','COLLECTION_REFERENCE_CONFLICT':'引用的项目与当前收集对象不一致，请重新选择目标。','TARGET_REVISION_CHANGED':'目标内容已变化，请重新选择并预检。','CARD_IDENTITY_OR_VERSION_INVALID':'此卡片已过期或不属于当前身份与聊天，请重新打开菜单。','PROJECT_IDENTITY_UNVERIFIED':'项目身份尚未核实，请重新选择。','PROGRESS_TEXT_REQUIRED':'进展采集需要文字；附件请通过资料预检入口提交。'}
+--- a/local-qwen3.8/feishu-bridge/am_views.py
++++ b/local-qwen3.8/feishu-bridge/am_views.py
+@@ -65,7 +65,7 @@
+         back={'page':'project','project':key,'origin':origin}
+         if section:
+             actions=[('其他栏目',dict(back,section='sections')),('返回概览',back),('返回项目列表',origin)]
+-        else:actions=[('查看栏目',dict(back,section='sections')),('项目操作',{'page':'project_actions','project':key}),('返回项目列表',origin)]
++        else:actions=[('查看栏目',dict(back,section='sections')),('项目操作',{'page':'project_actions','project':key,'origin':origin}),('返回项目列表',origin)]
+         if section=='sections':
+             text='选择需要查看的内容。'
+             actions=[(label,dict(back,section=part)) for label,part in [('关键日期','dates'),('人员与职责','people'),('待办','todos'),('查看来源','source'),('完整原文','full')]]+[('返回概览',back)]
+@@ -161,9 +161,10 @@
+         if page=='documents':return self.ux_documents(row,a)
+         if page=='project_actions':
+             p=self.ux_project(row,a['project']);actions=[]
++            origin=a.get('origin') or row.get('_list_origin') or {'page':'projects'}
+             if self.flags['scheduler']:actions.append(('创建提醒',{'page':'remind','project':p['key']}))
+             if self.flags['progress_collection']:actions.append(('更新进展',{'page':'collect','project':p['key']}))
+-            return self.ux_page(row,'项目操作',p['title'],actions+[('返回项目',{'page':'project','project':p['key']})])
++            return self.ux_page(row,'项目操作',p['title'],actions+[('返回项目',{'page':'project','project':p['key'],'origin':origin})],data={'origin':origin})
+         if page in ('history','item_full','item_actions'):
+             item=self.items.get(a['item'])
+             if item['owner']!=row['user']:raise BoundaryError('OWNER_ONLY')
+--- a/local-qwen3.8/feishu-bridge/query_rules.py
++++ b/local-qwen3.8/feishu-bridge/query_rules.py
+@@ -16,7 +16,8 @@
+ 
+ def fields_for(text):
+     fields = []
+-    for pattern, field in ((r"何时|什么时候|日期|节点|交期|排期|计划|多久|时间", "schedule"),
++    for pattern, field in ((r"进展|进度|现状|状态|情况|怎么样|如何|卡在哪|什么问题", "progress"),
++                           (r"何时|什么时候|日期|节点|交期|排期|计划|多久|时间", "schedule"),
+                            (r"待办|跟进|下一步|接下来", "todo"),
+                            (r"谁|负责|责任|人员|分工|联系人", "people")):
+         if re.search(pattern, text):
+--- a/local-qwen3.8/feishu-bridge/source_views.py
++++ b/local-qwen3.8/feishu-bridge/source_views.py
+@@ -11,6 +11,12 @@
+ 
+ ALIASES = {**{v:k for k,v in FIELDS.items()}, 'dates':'schedule', 'todos':'todo'}
+ CONDITION = re.compile(r'前提|条件|仍待|尚未|未验收|未核|不能|须|必须|仅|除外|待.*到货')
++# Positive, deliberately small grammar. Arbitrary prose after a name is NOT
++# evidence that a row stands alone. A full field remains the fallback unit.
++ROLE = r'(?:职责[0-9]+|项目经理|项目负责人|负责人|硬件|软件|结构|测试|质量|采购|产品|研发)(?:工程师)?'
++PERSON = r'AR[0-9]+[\u4e00-\u9fff]{2,12}'
++LOCAL_DUTY = r'，负责本项目(?:第[0-9]+类)?(?:资料核对|硬件设计|软件开发|结构设计|测试验证|质量检查)(?:，不代表专业验收)?[。]?'
++INDEPENDENT_ROLE = re.compile(ROLE+r'[：:]'+PERSON+r'(?:[、；]'+PERSON+r')*(?:'+LOCAL_DUTY+r')?')
+ 
+ @dataclass(frozen=True)
+ class SourceBlock:
+@@ -56,11 +62,10 @@
+         subject=project['key']
+         spans=[(0,len(value),value)]
+         lines=[m for m in re.finditer(r'[^\n]+',value) if m[0].strip()]
+-        # Only explicit role/person rows are independent. Headers, pronouns,
+-        # exceptions and cross-line conditions keep the whole field together.
++        # Every line must be wholly covered by the positive local-role grammar.
++        # One unparsed/global sentence keeps ALL rows in the original block.
+         if key=='people' and len(value)>200 and len(lines)>1 and all(
+-                re.search(r'AR[0-9]+',m[0]) and re.match(r'^[^：:]{1,40}[：:]',m[0])
+-                and not re.search(r'以上|以下|其余|前提|除外|仅限|但是|若|尚未|待确认',m[0]) for m in lines):
++                INDEPENDENT_ROLE.fullmatch(m[0].strip()) for m in lines):
+             spans=[(m.start(),m.end(),m[0]) for m in lines]
+         for start,end,part in spans:
+             blocks.append(SourceBlock(digest([subject,key,project.get('source_revision'),start,end,part]),part,subject,key,
+@@ -81,7 +86,9 @@
+     # Date/todo statements can depend on a separate current-progress condition.
+     # Include the dependency whole, or decline the short claim altogether.
+     progress=project.get('项目进展','').strip()
+-    if set(keys)&{'schedule','todo'} and 'progress' not in keys and CONDITION.search(progress):
++    # Free-form progress can cancel/qualify another field without any known
++    # keyword. Always carry it whole, or decline the short claim on budget.
++    if set(keys)&{'schedule','todo'} and 'progress' not in keys and progress:
+         if not all(progress in b.text for b in blocks):blocks+=source_blocks(project,['progress'])
+     if any(b.read_status!='complete' for b in blocks):return [],'读取不完整，暂不能据此判断；请查看来源核对。'
+     if len(blocks)>3 or sum(len(b.text)+len(FIELDS[b.field])+3 for b in blocks)>budget:
+@@ -108,7 +115,9 @@
+ 
+ def render_data(data):
+     lines=[data['title']]
+-    if data['limitation']:lines.append(data['limitation'])
++    if data['limitation']:
++        lines.append('本次查询：'+'、'.join(FIELDS[k] for k in data['fields']))
++        lines.append(data['limitation'])
+     else:
+         lines += [data.get('labels',FIELDS)[b['field']]+'（台账原文）：'+b['text'] for b in data['blocks']]
+         lines += [field+'：台账未记录。' for field in data['empty_fields']]
