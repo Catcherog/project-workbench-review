@@ -1,0 +1,14 @@
+diff --git a/local-qwen3.8/feishu-bridge/am_documents.py b/local-qwen3.8/feishu-bridge/am_documents.py
+index ccb65a86..1eab66b4 100644
+--- a/local-qwen3.8/feishu-bridge/am_documents.py
++++ b/local-qwen3.8/feishu-bridge/am_documents.py
+@@ -22,6 +22,9 @@ class DocumentViewsMixin:
+         if not job:return False
+         d=dict(conn.execute('SELECT * FROM logic_drafts WHERE id=?',(job[0],)).fetchone())
+         row=dict(task,kind='text',id=task['id'])
++        if getattr(self,'conversation',None) is not None and conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='am_conversation_documents'").fetchone() and conn.execute('SELECT 1 FROM am_conversation_documents WHERE draft_id=?',(d['id'],)).fetchone():
++            self.notify(row,text=self.document_summary(d)+'\n可以直接说“查看稿件”“查看核对报告”，或继续补充资料。',kind='document_result',object_id=d['id'],version=d['revision'],conn=conn,event_key='doc/'+task['id'])
++            return True
+         nonce=digest(['document-result',task['id'],d['revision']])
+         actions=[('查看稿件',{'page':'documents','draft':d['id'],'section':'content'}),('处理稿件',{'page':'documents','draft':d['id'],'section':'actions'}),('核对报告',{'page':'documents','draft':d['id'],'section':'review'})]
+         summary=self.document_summary(d)
