@@ -1,0 +1,99 @@
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -25,7 +25,7 @@
+ 
+ 
+ class AmSelfService(QueryMixin,PresentationMixin,DocumentViewsMixin,BriefingMixin,ViewsMixin,UxMixin,BusinessCommands,UpdateCommands):
+-    def __init__(self,gateway,ledger,*,flags=None,calendar=None,metadata_reader=None,execution_policy=None,query_settings=None):
++    def __init__(self,gateway,ledger,*,flags=None,calendar=None,metadata_reader=None,execution_policy=None,query_settings=None,conversation_settings=None):
+         self.g,self.s,self.ledger=gateway,gateway.store,ledger
+         if flags and (set(flags)-set(DEFAULT_FLAGS) or any(type(v) is not bool for v in flags.values())):raise BoundaryError('AM_FEATURE_FLAGS_INVALID')
+         self.flags=dict(DEFAULT_FLAGS,**(flags or {}))
+@@ -57,6 +57,13 @@
+         self.init_ux()
+         self.init_presentation()
+         self.init_query(query_settings)
++        self.conversation=None
++        if conversation_settings is not None:
++            if not isinstance(conversation_settings,dict) or type(conversation_settings.get('enabled',False)) is not bool:
++                raise BoundaryError('AM_CONVERSATION_SETTINGS_INVALID')
++            if conversation_settings.get('enabled'):
++                from am_conversation.legacy import LegacyConversationBridge
++                self.conversation=LegacyConversationBridge(self,conversation_settings)
+         gateway.am_self=self
+ 
+     def scope(self,row):
+@@ -76,6 +83,7 @@
+                 'message_type':message['message_type'],'content_fingerprint':digest(content),'fingerprint_kind':'raw-content-v1'}
+ 
+     def wants(self,text):
++        if self.conversation is not None and self.conversation.wants(text):return True
+         if text.strip()=='/query-probe':return True
+         if text.strip() in ENTRY_TEXT:return True
+         if text.strip() in ('/am','/menu','/help','/status'):return True
+@@ -165,7 +173,7 @@
+                     focus=self.s.rows('SELECT 1 FROM am_sessions WHERE scope=? AND focus IS NOT NULL AND expires>?',(self.scope(session),self.s.clock()))
+                     if not (pending and choice_number(text)) and not (field_followup(text) and (focus or meta.get('parent'))):return False,False
+                 row={'id':m['message_id'],'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],
+-                     'chat_type':'p2p','created':int(m['create_time'])/1000,'kind':'collection' if collection else 'text',
++                     'chat_type':'p2p','created':int(m['create_time'])/1000,'kind':'collection' if collection else 'conversation' if self.conversation is not None and self.conversation.wants(text) else 'text',
+                      'body':canonical(json.loads(m['content']) if isinstance(m['content'],str) else m['content']) if m['message_type']=='file' else text}
+             else:return False,False
+             row['expires']=min(row['created'],self.s.clock())+86400
+@@ -228,6 +236,10 @@
+         except Exception:return False
+ 
+     def delivered(self,c,row,message_id):
++        if self.conversation is not None:
++            # A failed preview acknowledgement must not invalidate a verified send.
++            try:self.conversation.delivered(row,message_id,conn=c)
++            except Exception:pass
+         c.execute('UPDATE am_query_probes SET message_id=? WHERE outbox_id=?',(message_id,row['id']))
+         c.execute('UPDATE am_cards SET message_id=? WHERE outbox_id=?',(message_id,row['id']))
+         output=c.execute('SELECT * FROM am_view_outputs WHERE outbox_id=?',(row['id'],)).fetchone()
+@@ -501,6 +513,11 @@
+         context_token=timing.set_context(self.s,row['id'])
+         self.s.execute('UPDATE am_request_timings SET started=? WHERE event_id=?',(self.s.clock(),row['id']))
+         try:
++            if row.get('kind')=='conversation':
++                if self.conversation is None:raise BoundaryError('CONVERSATION_DISABLED')
++                self.conversation.process(row)
++                self.s.execute("UPDATE am_inbox SET state='done' WHERE id=?",(row['id'],))
++                return True
+             row['_readonly_request']=self.readonly_request(row)
+             row['_query_read']=self.query_request(row)
+             waiting=self.s.rows('SELECT * FROM am_query_wait WHERE event_id=?',(row['id'],))
+@@ -530,7 +547,12 @@
+             if str(exc)=='GROUP_REPLY_UNKNOWN':return True
+             code=str(exc) if isinstance(exc,(BoundaryError,ValueError)) and re.fullmatch('[A-Z_0-9]{1,80}',str(exc)) else 'AM_REQUEST_FAILED'
+             self.s.execute("UPDATE am_inbox SET state='failed',error=? WHERE id=?",(code,row['id']))
+-            if row.get('_feedback_context'):
++            if row.get('kind')=='conversation':
++                # Data-free recovery uses the original denial-delivery binding.
++                self.notify(dict(row,_query_read=False,_query_denial=True),
++                    text='当前未能处理这条消息。请稍后重试，或联系管理员核对访问范围。',
++                    kind='conversation_error',event_key='conversation-error:'+row['id'])
++            elif row.get('_feedback_context'):
+                 self.feedback_error(row,code)
+             elif row['chat_type']=='group':
+                 try:
+--- a/local-qwen3.8/feishu-bridge/bridge.py
++++ b/local-qwen3.8/feishu-bridge/bridge.py
+@@ -408,7 +408,8 @@
+                 metadata=CliProtectedReader(setting['binary'],setting['sha256'],setting['identity'])
+             bridge.am_self=AmSelfService(bridge.poc.gateway,bridge.group_ledger,flags=config['am_self'],
+                                         calendar=config.get('am_calendar'),metadata_reader=metadata,
+-                                        execution_policy=config.get('am_write_execution'),query_settings=config.get('am_query'))
++                                        execution_policy=config.get('am_write_execution'),query_settings=config.get('am_query'),
++                                        conversation_settings=config.get('am_conversation'))
+             bridge.am_self.enable_background()
+     def on_message(event):
+         receive_started=time.monotonic()
+@@ -516,6 +517,7 @@
+         thread.join(timeout=2)
+         if bridge.am_self is not None and not thread.is_alive():
+             bridge.am_self.close_query()
++            if bridge.am_self.conversation is not None:bridge.am_self.conversation.close()
+         if bridge.poc is not None and not thread.is_alive():
+             bridge.poc.close()
+         if bridge.group_ledger is not None and not thread.is_alive():
