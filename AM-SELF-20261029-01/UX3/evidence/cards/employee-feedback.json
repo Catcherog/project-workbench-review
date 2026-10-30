@@ -1,0 +1,141 @@
+{
+  "layer": "synthetic_renderer_example",
+  "card": {
+    "schema": "2.0",
+    "config": {
+      "wide_screen_mode": true,
+      "update_multi": true
+    },
+    "header": {
+      "title": {
+        "tag": "plain_text",
+        "content": "反馈尚未提交"
+      }
+    },
+    "body": {
+      "direction": "vertical",
+      "elements": [
+        {
+          "tag": "div",
+          "text": {
+            "tag": "plain_text",
+            "content": "请选择预计完成的日期和时间。有效说明已保留；补齐后再提交。"
+          },
+          "element_id": "uxv_897c0b7790ad0e022a782f99444156ac"
+        },
+        {
+          "tag": "form",
+          "name": "feedback_correction",
+          "elements": [
+            {
+              "tag": "div",
+              "text": {
+                "tag": "plain_text",
+                "content": "反馈类型"
+              }
+            },
+            {
+              "tag": "select_static",
+              "name": "kind",
+              "required": true,
+              "width": "fill",
+              "placeholder": {
+                "tag": "plain_text",
+                "content": "反馈类型"
+              },
+              "options": [
+                {
+                  "text": {
+                    "tag": "plain_text",
+                    "content": "预计时间"
+                  },
+                  "value": "eta"
+                },
+                {
+                  "text": {
+                    "tag": "plain_text",
+                    "content": "需要协助"
+                  },
+                  "value": "help"
+                },
+                {
+                  "text": {
+                    "tag": "plain_text",
+                    "content": "提交材料"
+                  },
+                  "value": "submitted"
+                },
+                {
+                  "text": {
+                    "tag": "plain_text",
+                    "content": "非本人负责"
+                  },
+                  "value": "not_mine"
+                }
+              ],
+              "initial_option": "eta"
+            },
+            {
+              "tag": "div",
+              "text": {
+                "tag": "plain_text",
+                "content": "预计完成日期和时间（选择预计时间时必填）"
+              }
+            },
+            {
+              "tag": "picker_datetime",
+              "name": "eta",
+              "required": true,
+              "width": "fill",
+              "placeholder": {
+                "tag": "plain_text",
+                "content": "预计完成日期和时间（选择预计时间时必填）"
+              }
+            },
+            {
+              "tag": "div",
+              "text": {
+                "tag": "plain_text",
+                "content": "说明 / 材料链接"
+              }
+            },
+            {
+              "tag": "input",
+              "name": "detail",
+              "required": true,
+              "width": "fill",
+              "placeholder": {
+                "tag": "plain_text",
+                "content": "说明 / 材料链接"
+              },
+              "default_value": "合成反馈说明，等待补齐日期",
+              "input_type": "multiline_text",
+              "max_length": 1000
+            },
+            {
+              "tag": "button",
+              "text": {
+                "tag": "plain_text",
+                "content": "补齐并提交反馈"
+              },
+              "type": "default",
+              "width": "fill",
+              "behaviors": [
+                {
+                  "type": "callback",
+                  "value": {
+                    "flow": "am_self",
+                    "nonce": "434e6dc5448ea04236decdde361fdbe504105c39db5212e24237e96c37cbff25",
+                    "action": "submit"
+                  }
+                }
+              ],
+              "name": "feedback_submit",
+              "form_action_type": "submit"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
