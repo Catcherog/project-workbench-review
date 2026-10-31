@@ -1,0 +1,710 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py
+index f3f2a37c..689bf18f 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py
+@@ -7,7 +7,7 @@ from dataclasses import asdict
+ import json
+ import time
+ from am_conversation.legacy import _hash
+-from am_conversation.types import canonical
++from am_conversation.types import canonical, ConversationError
+ from .context import ContextBuilder, SourceFact, MessageBlock, TaskState, ContextError
+ 
+ 
+@@ -22,6 +22,8 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+     version = snapshot.get('version')
+     expiry = min(ctx.content_expires_at, observed + 3600)
+     versions = {'ledger:'+p: str(version) for p in ctx.allowed_project_ids} if version else {}
++    if version:
++        versions['ledger-catalog'] = str(version)
+     expiries = {s: expiry for s in versions}
+     facts = []
+     for item in fresh:
+@@ -66,8 +68,9 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+                                    (record['event_id'],ctx.session_id,now))
+             if len(delivered) != 1 or delivered[0]['state'] != 'acknowledged' or json.loads(delivered[0]['reply'])['text'] != message['content']:
+                 continue
+-            if not prior and json.loads(delivered[0]['project_refs']):
+-                continue  # Older source-derived replies lack reusable provenance.
++            required = {'ledger:'+p for p in json.loads(delivered[0]['project_refs'])}
++            if required and (not prior or not required.issubset(json.loads(prior[0]['dependencies']))):
++                continue  # A present-but-empty record is not provenance for a known project read.
+         deps = json.loads(prior[0]['dependencies']) if prior else {}
+         dep_expiries = json.loads(prior[0]['expiries']) if prior else {}
+         if prior and (prior[0]['permission'] != permission or prior[0]['expires'] <= now):
+@@ -76,7 +79,7 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+             continue
+         blocks.append(MessageBlock(str(record['id']), ctx.session_id, permission, (message,),
+             min(record['content_expires'], ctx.content_expires_at),
+-            tuple(s.removeprefix('ledger:') for s in deps), tuple(deps.items()), tuple(dep_expiries.items())))
++            tuple(s.removeprefix('ledger:') for s in deps if s.startswith('ledger:')), tuple(deps.items()), tuple(dep_expiries.items())))
+     # Existing notes/knowledge remain clearly labelled untrusted data and keep
+     # the original store's scope policy. Ledger facts use structured provenance.
+     state = {k: v for k, v in current.items() if k not in ('fresh_project_sources', 'open_work_notes', 'knowledge')}
+@@ -106,10 +109,90 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+             selected.update(block.source_versions)
+             for source, end in block.source_expiries:
+                 selected_expiries[source] = min(selected_expiries.get(source, end), end)
+-    with host.s.tx() as conn:
+-        conn.execute('INSERT OR REPLACE INTO am_harness_context_sources VALUES(?,?,?,?,?,?)',
+-            (event_id, ctx.session_id, permission, canonical(selected),
+-             canonical(selected_expiries), min(ctx.content_expires_at, bundle.valid_until or ctx.content_expires_at)))
++    merge_sources(host, ctx, event_id, selected, selected_expiries,
++                  min(ctx.content_expires_at, bundle.valid_until or ctx.content_expires_at))
+     host.trace.emit(fence.run_id, 'span_end', phase='context', status='ok', elapsed_ms=(time.monotonic()-started)*1000,
+                     input_units=bundle.used, exact_token_count=False, source_count=len(selected))
+     return list(bundle.messages)
++
++
++def _permission(ctx, grant):
++    return _hash([ctx.scope, sorted(ctx.allowed_project_ids), grant, ctx.is_owner, ctx.source_access_version])
++
++
++def merge_sources(host, ctx, event_id, versions, expiries, expires):
++    """Persist a version-bound union in the original run transaction domain."""
++    from .am_adapter import engine_event_id
++    fence = host.hooks.fence
++    if fence is None or fence.scope_key != ctx.session_id:
++        raise ConversationError('HARNESS_UNBOUND_RUN')
++    permission = _permission(ctx, host.bridge._current(ctx)['grant'])
++    now = host.s.clock()
++    if set(versions) != set(expiries) or expires <= now or any(end <= now for end in expiries.values()):
++        raise ConversationError('CONTENT_EXPIRED')
++    with host.s.tx() as conn:
++        run = host.tasks.check_in_transaction(conn, fence, allowed_states=('running',))
++        if engine_event_id(run) != event_id:
++            raise ConversationError('HARNESS_SOURCE_EVENT_MISMATCH')
++        old = conn.execute('SELECT * FROM am_harness_context_sources WHERE event_id=?',(event_id,)).fetchone()
++        merged, ends = {}, {}
++        if old:
++            if old['scope_key'] != ctx.session_id or old['permission'] != permission:
++                raise ConversationError('CONVERSATION_SCOPE_CHANGED')
++            merged, ends = json.loads(old['dependencies']), json.loads(old['expiries'])
++            expires = min(expires, old['expires'])
++        for source, version in versions.items():
++            if source in merged and merged[source] != version:
++                raise ConversationError('SOURCE_ACCESS_CHANGED')
++            merged[source] = version
++            ends[source] = min(ends.get(source, expiries[source]), expiries[source], ctx.content_expires_at)
++        if set(merged) != set(ends) or expires <= now or any(end <= now for end in ends.values()):
++            raise ConversationError('CONTENT_EXPIRED')
++        conn.execute('INSERT OR REPLACE INTO am_harness_context_sources VALUES(?,?,?,?,?,?)',
++            (event_id, ctx.session_id, permission, canonical(merged), canonical(ends),
++             min([expires, ctx.content_expires_at, *ends.values()])))
++
++
++def record_read_source(host, ctx, *, project=None, catalog=False):
++    current = host.bridge._current(ctx)
++    event_id = current.get('engine_event_id')
++    if event_id is None:
++        return  # Ingress reads retain their separate immutable read publication journal.
++    row = current['row']; snapshot = row.get('_snapshot_meta', {})
++    version = snapshot.get('version'); observed = row.get('_observed_at')
++    if not version or type(observed) not in (int,float):
++        raise ConversationError('HARNESS_SOURCE_PROVENANCE_REQUIRED')
++    if catalog:
++        source = 'ledger-catalog'
++    else:
++        if not isinstance(project, dict) or not ctx.can_access_project(project.get('id')):
++            raise ConversationError('PROJECT_ACCESS_DENIED')
++        if project.get('snapshot', {}).get('version') != version:
++            raise ConversationError('SOURCE_ACCESS_CHANGED')
++        source = 'ledger:'+project['id']
++    expires = min(ctx.content_expires_at, observed+3600)
++    merge_sources(host, ctx, event_id, {source: str(version)}, {source: expires}, expires)
++
++
++def validate_publication_sources(host, conn, run, prepared):
++    """Known project references cannot publish with missing/expired provenance."""
++    from am_conversation.types import AccessContext
++    ctx = AccessContext(**prepared['context'])
++    event_id = prepared['reply']['event_id']
++    required = {'ledger:'+p for p in prepared['project_refs']}
++    row = conn.execute('SELECT * FROM am_harness_context_sources WHERE event_id=? AND scope_key=?',
++                       (event_id, run.scope.key)).fetchone()
++    if row is None:
++        if required:
++            raise ConversationError('HARNESS_SOURCE_PROVENANCE_REQUIRED')
++        return
++    versions, expiries = json.loads(row['dependencies']), json.loads(row['expiries'])
++    if (row['permission'] != _permission(ctx, prepared['grant'])
++            or not required.issubset(versions) or set(versions) != set(expiries)):
++        raise ConversationError('HARNESS_SOURCE_PROVENANCE_REQUIRED')
++    now = host.s.clock()
++    if row['expires'] <= now or any(end <= now for end in expiries.values()):
++        raise ConversationError('CONTENT_EXPIRED')
++    version = prepared['row'].get('_snapshot_meta', {}).get('version')
++    if versions and (version is None or any(v != str(version) for v in versions.values())):
++        raise ConversationError('SOURCE_ACCESS_CHANGED')
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py
+index ec195dbc..ac1125af 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py
+@@ -111,7 +111,7 @@ def guard_local_transaction(host, conn):
+ 
+ 
+ @contextmanager
+-def guard_local_database(host, conn):
++def guard_local_database(host, conn, *, require_binding=False):
+     """Cross-db writes: durable intent, cancellation lock, local commit receipt.
+ 
+     The caller commits its local SQLite transaction inside this context. This
+@@ -119,6 +119,8 @@ def guard_local_database(host, conn):
+     intent plus a local receipt for explicit reconciliation; it is never replayed.
+     The gateway lock orders cancellation against the entire short local commit.
+     """
++    if require_binding and host.hooks.fence is not None and _current.get() is None:
++        raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
+     current = _next_local(host)
+     if current is None:
+         yield
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_fix2.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_fix2.py
+new file mode 100644
+index 00000000..acf16db4
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_fix2.py
+@@ -0,0 +1,180 @@
++"""Additional FIX2 transaction/provenance boundaries; all I/O synthetic."""
++from contextlib import contextmanager
++import json
++import sqlite3
++import pytest
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig, execute, incoming, call, answer, project
++from am_harness.reservation import ingress_context, reconcile_local_commit
++
++
++def stop(rig, text='停止当前任务'):
++    with ingress_context():
++        rig[1].admit(incoming(rig,text))
++
++
++def run(rig,text,outputs=()):
++    conv,h=rig;conv[1].outputs.extend(outputs);row=incoming(rig,text);ident=h.admit(row)
++    return row,ident,h.run_once()
++
++
++def candidate(rig):
++    execute(rig,'保存合成待批准知识规则',[call('propose_knowledge',{'kind':'rule','content':'FIX2合成知识'})])
++    return dict(rig[1].bridge.knowledge._db.execute('SELECT * FROM knowledge_records ORDER BY created_at DESC').fetchone())
++
++
++def test_unknown_revise_knowledge_stops_after_one_model_call(harness,monkeypatch):
++    conv,h=harness;old=candidate(harness);original=h.tasks.transaction_guard;before=len(conv[1].prompts)
++    @contextmanager
++    def lost(*a,**kw):
++        with original(*a,**kw) as conn:
++            yield conn
++            raise RuntimeError('synthetic gateway commit interruption')
++    monkeypatch.setattr(h.tasks,'transaction_guard',lost)
++    _,ident,result=run(harness,'修订这条合成知识规则',[call('revise_knowledge',{'record_id':old['id'],'version':1,'content':'FIX2合成知识新版本'}),answer('不应继续调用模型')])
++    assert result.status=='unknown' and result.error=='HARNESS_LOCAL_COMMIT_UNKNOWN'
++    assert len(conv[1].prompts)==before+1 and h.tasks.lane_status()['state']=='quarantined'
++    assert h.bridge.knowledge._db.execute('SELECT count(*) FROM knowledge_records').fetchone()[0]==2
++    reservation=h.s.rows("SELECT id,state FROM am_harness_reservations WHERE run_id=? AND kind='local_database'",(ident,))[0]
++    assert reservation['state']=='reserved'
++    assert reconcile_local_commit(h,reservation['id'])=='succeeded'
++    assert h.tasks.lane_status()['state']=='quarantined' and h.run_once().status=='idle'
++
++
++@pytest.mark.parametrize('where',['before','after'])
++@pytest.mark.parametrize('control',['stop','revise'])
++def test_knowledge_approval_orders_control_against_commit(harness,monkeypatch,where,control):
++    conv,h=harness;record=candidate(harness);original=h.bridge.knowledge.approve
++    def changed(*a,**kw):
++        command='停止当前任务' if control=='stop' else '更正当前任务：仅解释待批准的含义'
++        if where=='before':stop(harness,command)
++        result=original(*a,**kw)
++        if where=='after':stop(harness,command)
++        return result
++    monkeypatch.setattr(h.bridge.knowledge,'approve',changed)
++    _,ident,result=run(harness,'批准知识 '+record['id']+' v1')
++    assert result.status=='stale'
++    actual=h.bridge.knowledge._db.execute('SELECT status FROM knowledge_records WHERE id=?',(record['id'],)).fetchone()[0]
++    assert actual==('candidate' if where=='before' else 'approved')
++    receipts=h.s.rows("SELECT state FROM am_harness_reservations WHERE run_id=? AND kind='local_database'",(ident,))
++    assert receipts==([] if where=='before' else [{'state':'succeeded'}])
++    assert not h.s.rows("SELECT 1 FROM am_conversation_outputs WHERE json_extract(reply,'$.event_id')=?",('harness:'+ident+':v1',))
++
++
++@pytest.mark.parametrize('missing',['executor','binding'])
++def test_direct_knowledge_without_binding_never_uses_legacy(harness,missing):
++    conv,h=harness;record=candidate(harness)
++    h.bridge.agent.local_control_executor=(None if missing=='executor' else lambda ctx,e,n,a,apply:apply())
++    _,ident,result=run(harness,'批准知识 '+record['id']+' v1')
++    assert result.error=='HARNESS_LOCAL_BINDING_REQUIRED'
++    assert h.bridge.knowledge._db.execute('SELECT status FROM knowledge_records WHERE id=?',(record['id'],)).fetchone()[0]=='candidate'
++
++
++def test_knowledge_version_guard_stays_authoritative(harness):
++    conv,h=harness;record=candidate(harness)
++    _,ident,result=run(harness,'批准知识 '+record['id']+' v2')
++    assert result.status!='completed'
++    assert h.bridge.knowledge._db.execute('SELECT status FROM knowledge_records WHERE id=?',(record['id'],)).fetchone()[0]=='candidate'
++    assert not h.s.rows("SELECT 1 FROM am_harness_reservations WHERE run_id=? AND state='succeeded'",(ident,))
++
++
++def test_direct_pending_cancel_is_fenced(harness,monkeypatch):
++    conv,h=harness
++    execute(harness,'准备给我发送测试消息',[call('send_message',{'target':'self','body':'FIX2合成发送预览'})])
++    with h.bridge.store.original._connection() as db:action=dict(db.execute('SELECT * FROM conversation_actions').fetchone())
++    original=h.bridge.store.original.cancel_action
++    def interrupted(*a,**kw):stop(harness);return original(*a,**kw)
++    monkeypatch.setattr(h.bridge.store.original,'cancel_action',interrupted)
++    _,ident,result=run(harness,'取消 '+action['id'])
++    with h.bridge.store.original._connection() as db:current=dict(db.execute('SELECT * FROM conversation_actions WHERE id=?',(action['id'],)).fetchone())
++    assert result.status=='stale' and current['status']==action['status']=='draft'
++    assert not h.s.rows('SELECT * FROM am_conversation_sends')
++
++
++def test_knowledge_transaction_rolls_back_before_commit(harness):
++    _,h=harness;k=h.bridge.knowledge;before=k._db.execute('SELECT count(*) FROM knowledge_records').fetchone()[0]
++    with pytest.raises(RuntimeError,match='KNOWN_ABORT'):
++        with k._transaction():
++            k._db.execute("CREATE TABLE rollback_probe(value TEXT)")
++            raise RuntimeError('KNOWN_ABORT')
++    assert not k._db.in_transaction
++    assert not k._db.execute("SELECT 1 FROM sqlite_master WHERE name='rollback_probe'").fetchone()
++    assert k._db.execute('SELECT count(*) FROM knowledge_records').fetchone()[0]==before
++
++
++def test_cleanup_failure_does_not_mask_original_unknown(harness):
++    _,h=harness;k=h.bridge.knowledge;original=k._db
++    class CleanupFailure:
++        def __getattr__(self,key):return getattr(original,key)
++        def execute(self,sql,*a):
++            if sql=='ROLLBACK':raise sqlite3.OperationalError('synthetic rollback failure')
++            return original.execute(sql,*a)
++    k._db=CleanupFailure()
++    try:
++        with pytest.raises(RuntimeError,match='HARNESS_LOCAL_COMMIT_UNKNOWN'):
++            with k._transaction():raise RuntimeError('HARNESS_LOCAL_COMMIT_UNKNOWN')
++    finally:
++        k._db=original
++        if original.in_transaction:original.rollback()
++
++
++def dynamic(rig,marker='FIX2动态项目回答标记',multiple=False):
++    conv,h=rig
++    row=incoming(rig,'仅用于取得合成项目标识')
++    with h.bridge.request_context(dict(row)) as ctx:projects=h.bridge.projects.list_projects(ctx)
++    ids=[p['id'] for p in projects][:2]
++    outputs=[call('list_projects',{}),call('read_project',{'project_id':ids[0]})]
++    if multiple:outputs.append(call('read_project',{'project_id':ids[1]}))
++    outputs.append(answer(marker))
++    _,ident=execute(rig,'请列出项目目录并分析其中的项目',outputs)
++    return ident,ids[:2 if multiple else 1]
++
++
++@pytest.mark.parametrize('invalidation',['unchanged','changed','expired','missing'])
++def test_dynamic_multiple_projects_and_history_validity(harness,invalidation):
++    conv,h=harness;marker='FIX2多项目历史标记';ident,ids=dynamic(harness,marker,True)
++    saved=h.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=?',('harness:'+ident+':v1',))[0]
++    deps=json.loads(saved['dependencies']);assert {'ledger:'+p for p in ids} <= set(deps)
++    if invalidation=='changed':
++        conv[0][5].values[1][4]='合成来源已变化';h.service.snapshots.refresh().result(3)
++    elif invalidation=='expired':
++        h.s.execute('UPDATE am_harness_context_sources SET expires=? WHERE event_id=?',(h.s.clock()-1,'harness:'+ident+':v1'))
++    elif invalidation=='missing':
++        h.s.execute("UPDATE am_harness_context_sources SET dependencies='{}',expiries='{}' WHERE event_id=?",('harness:'+ident+':v1',))
++    _,later=execute(harness,'请展开上一条回答',[answer('合成后续说明')])
++    assert (marker in conv[1].prompts[-1])==(invalidation=='unchanged')
++    if invalidation=='unchanged':
++        inherited=h.s.rows('SELECT expiries FROM am_harness_context_sources WHERE event_id=?',('harness:'+later+':v1',))[0]
++        assert all(json.loads(inherited['expiries'])[s]<=t for s,t in json.loads(saved['expiries']).items())
++
++
++def test_catalog_only_history_also_obeys_source_version(harness):
++    conv,h=harness;marker='FIX2项目目录标记'
++    _,ident=execute(harness,'请给我项目目录',[call('list_projects',{}),answer(marker)])
++    saved=h.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=?',('harness:'+ident+':v1',))[0]
++    assert 'ledger-catalog' in json.loads(saved['dependencies'])
++    conv[0][5].values[1][4]='合成新来源';h.service.snapshots.refresh().result(3)
++    execute(harness,'展开上一条回答',[answer('新一轮说明')]);assert marker not in conv[1].prompts[-1]
++
++
++@pytest.mark.parametrize('damage',['missing','expired'])
++def test_publication_refuses_incomplete_dynamic_provenance(harness,monkeypatch,damage):
++    conv,h=harness;original=h.publish;entered=[]
++    def damaged(conn,run,outcome):
++        entered.append(True)
++        event=outcome['prepared']['reply']['event_id']
++        if damage=='missing':conn.execute("UPDATE am_harness_context_sources SET dependencies='{}',expiries='{}' WHERE event_id=?",(event,))
++        else:conn.execute('UPDATE am_harness_context_sources SET expires=? WHERE event_id=?',(h.s.clock()-1,event))
++        return original(conn,run,outcome)
++    monkeypatch.setattr(h.runtime,'publish',damaged)
++    _,ident,result=run(harness,'请列出目录并分析第一个项目',[call('list_projects',{}),call('read_project',{'project_id':project(conv)}),answer('不应发布的合成项目答案')])
++    assert entered==[True] and result.status=='failed'
++    assert not h.s.rows('SELECT * FROM am_conversation_outputs')
++
++
++def test_true_queue_expiry_has_no_dispatch_and_notifies_once(harness):
++    conv,h=harness;row=incoming(harness,'排队问题');ident=h.admit(row);conv[0][4].now+=121
++    h.tasks.purge_expired();h.sync_terminal();h.sync_terminal()
++    saved=h.s.rows('SELECT lease_generation,state FROM am_harness_runs WHERE id=?',(ident,))[0]
++    notices=h.s.rows("SELECT o.body FROM outbox o JOIN am_notifications n ON n.outbox_id=o.id WHERE n.kind='harness_error'")
++    assert saved=={'lease_generation':0,'state':'expired'} and len(notices)==1
++    assert '排队超时' in notices[0]['body'] and not conv[1].prompts
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2.py
+new file mode 100644
+index 00000000..b141208d
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2.py
+@@ -0,0 +1,34 @@
++"""The six FIX2 audit behaviors with the real R2 finalizer, synthetic I/O."""
++import json
++from types import SimpleNamespace
++import pytest
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig
++from am_conversation.rewrite_host import OwnerPrivateRewrite
++import test_history_dynamic_dependency as history
++import test_knowledge_unknown_commit as knowledge
++import test_running_expiry_notice as timeout
++
++CASES=[('history_prefetch',history.test_project_answer_source_versions_cover_dynamic_reads,{'mode':'prefetch'}),
++       ('history_dynamic',history.test_project_answer_source_versions_cover_dynamic_reads,{'mode':'dynamic'}),
++       ('propose_unknown',knowledge.test_unknown_knowledge_commit_preserves_quarantine,{'tool':'propose_knowledge'}),
++       ('report_unknown',knowledge.test_unknown_knowledge_commit_preserves_quarantine,{'tool':'record_report'}),
++       ('direct_approval',knowledge.test_direct_knowledge_approval_is_fenced_at_commit,{}),
++       ('running_timeout',timeout.test_running_task_is_not_reported_as_unstarted_queue_timeout,{})]
++
++@pytest.mark.parametrize('mode',['off','enforce'])
++@pytest.mark.parametrize('label,case,options',CASES,ids=[x[0] for x in CASES])
++def test_fix2_with_r2(harness,monkeypatch,mode,label,case,options):
++    conv,h=harness;h.bridge.agent.output_finalizer=OwnerPrivateRewrite(h.bridge,{'mode':mode,'max_seconds':30.0})
++    original=conv[1].complete
++    def complete(prompt,**kw):
++        if 'contract_fingerprint' in kw.get('json_schema',{}).get('properties',{}):
++            payload=json.loads(prompt.split('数据如下：\n',1)[1])
++            candidate={'contract_fingerprint':payload['contract_fingerprint'],'lead_in':'record','groups':[
++                {'joiner':'semicolon','items':[{'claim_id':c['claim_id'],'variant':min(1,len(c['variants'])-1)} for c in payload['claims']]}]}
++            conv[1].prompts.append(prompt)
++            return SimpleNamespace(text=json.dumps(candidate,ensure_ascii=False),model='synthetic-json',elapsed=.01)
++        return original(prompt,**kw)
++    monkeypatch.setattr(conv[1],'complete',complete)
++    args=dict(options)
++    if label in ('propose_unknown','report_unknown','direct_approval'):args['monkeypatch']=monkeypatch
++    case(harness,**args)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_history_dynamic_dependency.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_history_dynamic_dependency.py
+new file mode 100644
+index 00000000..b089cd68
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_history_dynamic_dependency.py
+@@ -0,0 +1,34 @@
++"""Independent F02 audit probe. Uses original isolated synthetic host fixture."""
++import json
++import pytest
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig, execute, incoming, call, answer, project
++
++
++@pytest.mark.parametrize('mode', ['prefetch', 'dynamic'])
++def test_project_answer_source_versions_cover_dynamic_reads(harness, mode):
++    conv, host = harness
++    marker = '动态来源依赖审计唯一标记：旧记录中的进展尚待核实。'
++    if mode == 'prefetch':
++        _, run_id = execute(harness, '请分析需求75的情况', [answer(marker)])
++    else:
++        _, run_id = execute(harness, '请列出项目目录并分析第一个项目的情况', [
++            call('list_projects', {}),
++            call('read_project', {'project_id': project(conv)}),
++            answer(marker),
++        ])
++    context = host.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=?',
++                         ('harness:' + run_id + ':v1',))[0]
++    output = host.s.rows('SELECT * FROM am_conversation_outputs WHERE json_extract(reply,\'$.event_id\')=?',
++                        ('harness:' + run_id + ':v1',))[0]
++    old_snapshot = host.service.snapshots.latest
++    conv[0][5].values[1][4] = '更新后的来源记录：新进展已经替代旧记录。'
++    host.service.snapshots.refresh().result(3)
++    assert host.service.snapshots.latest != old_snapshot
++    execute(harness, '请把上一条回答展开说明', [answer('依据当前可用内容进一步说明。')])
++    present = marker in conv[1].prompts[-1]
++    print(json.dumps({'mode': mode, 'dependencies': json.loads(context['dependencies']),
++                      'project_refs': json.loads(output['project_refs']),
++                      'old_snapshot': old_snapshot,
++                      'new_snapshot': host.service.snapshots.latest,
++                      'old_answer_in_next_actual_prompt': present}, ensure_ascii=False))
++    assert not present, 'Source-version-invalid project answer reached next actual provider prompt'
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_knowledge_unknown_commit.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_knowledge_unknown_commit.py
+new file mode 100644
+index 00000000..fa22a0b6
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_knowledge_unknown_commit.py
+@@ -0,0 +1,63 @@
++"""Independent F01 regression: unknown cross-database commits must stay unknown.
++
++Uses the fixed review snapshot's original host fixtures; all I/O is synthetic.
++The expected behavior assertions intentionally fail against R1-FIX1.
++"""
++from contextlib import contextmanager
++import json
++import pytest
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig, incoming, execute, call, answer, project
++
++
++@pytest.mark.parametrize('tool', ['propose_knowledge', 'record_report'])
++def test_unknown_knowledge_commit_preserves_quarantine(harness, monkeypatch, tool):
++    conv, host = harness
++    original = host.tasks.transaction_guard
++    @contextmanager
++    def lost_gateway_commit(*args, **kwargs):
++        with original(*args, **kwargs) as connection:
++            yield connection
++            raise RuntimeError('synthetic lost gateway commit')
++    monkeypatch.setattr(host.tasks, 'transaction_guard', lost_gateway_commit)
++    args = ({'kind':'rule','content':'合成知识提交中断标记'} if tool == 'propose_knowledge'
++            else {'project_id':project(conv),'content':'合成知识提交中断标记'})
++    conv[1].outputs.extend([call(tool, args), answer('工具结果需要核实。')])
++    row = incoming(harness, '请保存这条合成知识和反馈资料')
++    run_id = host.admit(row)
++    result = host.run_once()
++    records = [dict(row) for row in host.bridge.knowledge._db.execute('SELECT id,status,content FROM knowledge_records')]
++    has_receipt_table = host.bridge.knowledge._db.execute("SELECT 1 FROM sqlite_master WHERE name='am_harness_local_commits'").fetchone()
++    receipts = [dict(row) for row in host.bridge.knowledge._db.execute('SELECT * FROM am_harness_local_commits')] if has_receipt_table else []
++    reservations = host.s.rows('SELECT state,kind FROM am_harness_reservations WHERE run_id=?', (run_id,))
++    run = host.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?', (run_id,))[0]
++    lane = host.tasks.lane_status()
++    observed = {'tool':tool,'result':result.__dict__,'run':run,'lane':lane['state'],
++                'records':records,'receipt_count':len(receipts),'reservations':reservations,
++                'model_calls':len(conv[1].prompts),'generic_error_in_second_prompt':len(conv[1].prompts)>1 and 'TOOL_UNAVAILABLE' in conv[1].prompts[-1]}
++    print(json.dumps(observed,ensure_ascii=False,indent=2))
++    assert len(records) == 1 and len(receipts) == 1
++    assert reservations == [{'state':'reserved','kind':'local_database'}]
++    assert result.status == 'unknown', observed
++    assert run['state'] == 'unknown' and lane['state'] == 'quarantined', observed
++
++
++def test_direct_knowledge_approval_is_fenced_at_commit(harness, monkeypatch):
++    conv, host = harness
++    execute(harness, '保存合成待批准知识', [call('propose_knowledge', {'kind':'rule','content':'合成知识批准取消标记'})])
++    record = dict(host.bridge.knowledge._db.execute('SELECT * FROM knowledge_records').fetchone())
++    assert record['status'] == 'candidate'
++    original = host.bridge.knowledge.approve
++    def interrupted(*args, **kwargs):
++        host.admit(incoming(harness, '停止当前任务'))
++        return original(*args, **kwargs)
++    monkeypatch.setattr(host.bridge.knowledge, 'approve', interrupted)
++    row = incoming(harness, '批准知识 ' + record['id'] + ' v1')
++    run_id = host.admit(row)
++    result = host.run_once()
++    status = host.bridge.knowledge._db.execute('SELECT status FROM knowledge_records WHERE id=?', (record['id'],)).fetchone()[0]
++    run = host.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?', (run_id,))[0]
++    reservations = host.s.rows('SELECT state,kind FROM am_harness_reservations WHERE run_id=?', (run_id,))
++    observed = {'result':result.__dict__, 'run':run, 'knowledge_status':status, 'reservations':reservations}
++    print(json.dumps(observed,ensure_ascii=False,indent=2))
++    assert result.status == 'stale' and run['state'] == 'cancelled'
++    assert status == 'candidate', observed
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_running_expiry_notice.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_running_expiry_notice.py
+new file mode 100644
+index 00000000..fcf9c293
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_running_expiry_notice.py
+@@ -0,0 +1,54 @@
++"""Independent audit boundary: running deadline is not an unstarted queue timeout."""
++import json
++import threading
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig, incoming, call, answer, project
++
++
++def test_running_task_is_not_reported_as_unstarted_queue_timeout(harness):
++    conv,h=harness
++    entered=threading.Event()
++    release=threading.Event()
++    calls=[]
++    original=conv[1].complete
++    def blocked(*args,**kwargs):
++        calls.append('model_dispatched')
++        entered.set()
++        assert release.wait(5)
++        return original(*args,**kwargs)
++    conv[1].complete=blocked
++    conv[1].outputs.append(answer('合成晚返回回复'))
++    row=incoming(harness,'解释一项通用工作方法')
++    ident=h.admit(row)
++    results=[]
++    worker=threading.Thread(target=lambda:results.append(h.run_once()))
++    worker.start()
++    assert entered.wait(3)
++    try:
++        assert h.s.rows('SELECT state FROM am_harness_runs WHERE id=?',(ident,))[0]['state']=='running'
++        conv[0][4].now+=121
++        h.tasks.purge_expired()
++        h.sync_terminal()
++        lane=h.tasks.lane_status()['state']
++        nextrow=incoming(harness,'另一个通用工作问题')
++        nextident=h.admit(nextrow)
++        idle=h.run_once()
++        snapshot={
++            'run':h.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?',(ident,))[0],
++            'worker_still_running':worker.is_alive(),
++            'notices':h.s.rows("SELECT body FROM outbox WHERE body LIKE '%任务编号%'"),
++            'model_has_started':entered.is_set(),
++            'lane_state':lane,
++            'automatic_model_replays':len(calls)-1,
++            'next_run_state':h.s.rows('SELECT state FROM am_harness_runs WHERE id=?',(nextident,))[0]['state'],
++            'next_run_attempt':idle.status,
++        }
++        print(json.dumps(snapshot,ensure_ascii=False))
++        assert snapshot['run']=={'state':'expired','error':'DEADLINE_EXCEEDED'}
++        assert snapshot['notices'] and snapshot['worker_still_running']
++        assert lane=='quarantined'
++        assert len(calls)==1 and idle.status=='idle' and snapshot['next_run_state']=='queued'
++        assert all('排队超时' not in r['body'] for r in snapshot['notices']),snapshot
++    finally:
++        release.set()
++        worker.join(5)
++    assert not worker.is_alive()
+diff --git a/am-conversation-r1/src/am_conversation/engine.py b/am-conversation-r1/src/am_conversation/engine.py
+index 6f7b6be0..da160385 100644
+--- a/am-conversation-r1/src/am_conversation/engine.py
++++ b/am-conversation-r1/src/am_conversation/engine.py
+@@ -195,6 +195,14 @@ class ConversationAgent:
+         self._checkpoint(ctx, "after_finish")
+         return reply
+ 
++    def _local_control(self, ctx, event_id, name, arguments, apply):
++        executor = getattr(self, 'local_control_executor', None)
++        if executor is not None:
++            return executor(ctx, event_id, name, arguments, apply)
++        if getattr(self.lifecycle, 'strict_bound', False):
++            raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
++        return apply()
++
+     def _control(self, ctx, event_id, text):
+         if not ctx.is_owner and re.search(r'(?:把.*计划.*(?:改|调整)|(?:帮我|替我|直接)(?:修改|调整|批准).*计划)',text):
+             return AgentReply(event_id,'正式计划调整需要管理人确认。我可以查询你有权查看的项目，并记录你负责事项的反馈。','denied')
+@@ -203,7 +211,9 @@ class ConversationAgent:
+             if not self.knowledge or not ctx.is_owner:
+                 raise ConversationError("OWNER_REQUIRED")
+             self._guard(ctx, "manage")
+-            record = self.knowledge.approve(ctx, knowledge[1], int(knowledge[2]))
++            record = self._local_control(ctx, event_id, 'approve_knowledge',
++                {'record_id': knowledge[1], 'version': int(knowledge[2])},
++                lambda: self.knowledge.approve(ctx, knowledge[1], int(knowledge[2])))
+             return AgentReply(event_id, "这条知识已按所示版本批准，将在其适用范围内使用。", "knowledge_approved", source_ids=(record["id"],))
+         confirm, cancel = _CONFIRM.fullmatch(text), _CANCEL.fullmatch(text)
+         if not confirm and not cancel:
+@@ -223,7 +233,9 @@ class ConversationAgent:
+             return AgentReply(event_id, "这个动作已经开始或结果仍待核对，不能按尚未执行的草稿取消，也不会重复执行。", "execution_unknown")
+         self._guard(ctx, "manage", action.get("arguments",{}))
+         if cancel:
+-            self.store.cancel_action(ctx, action["id"], expected_version=action["version"])
++            self._local_control(ctx, event_id, 'cancel_pending_action',
++                {'action_id': action['id'], 'version': action['version']},
++                lambda: self.store.cancel_action(ctx, action["id"], expected_version=action["version"]))
+             return AgentReply(event_id, "这个待执行动作已取消。", "cancelled")
+         if confirm[2] and int(confirm[2]) != action["version"]:
+             return AgentReply(event_id, "这份内容已经修改，请核对当前版本后再确认。", "version_conflict")
+diff --git a/am-conversation-r1/src/am_conversation/knowledge.py b/am-conversation-r1/src/am_conversation/knowledge.py
+index 04ed1ba7..a4c66838 100644
+--- a/am-conversation-r1/src/am_conversation/knowledge.py
++++ b/am-conversation-r1/src/am_conversation/knowledge.py
+@@ -169,11 +169,17 @@ class KnowledgeStore:
+                     yield
+                     self._db.execute(f"RELEASE SAVEPOINT {savepoint}" if savepoint else "COMMIT")
+             except BaseException:
+-                if savepoint:
+-                    self._db.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+-                    self._db.execute(f"RELEASE SAVEPOINT {savepoint}")
+-                else:
+-                    self._db.execute("ROLLBACK")
++                if self._db.in_transaction:
++                    try:
++                        if savepoint:
++                            self._db.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
++                            self._db.execute(f"RELEASE SAVEPOINT {savepoint}")
++                        else:
++                            self._db.execute("ROLLBACK")
++                    except sqlite3.Error:
++                        # Preserve the primary commit/operation exception. In
++                        # particular, a committed local DB cannot be rolled back.
++                        pass
+                 raise
+ 
+     @staticmethod
+diff --git a/am-conversation-r1/src/am_conversation/legacy.py b/am-conversation-r1/src/am_conversation/legacy.py
+index 1309fa63..2fc08393 100644
+--- a/am-conversation-r1/src/am_conversation/legacy.py
++++ b/am-conversation-r1/src/am_conversation/legacy.py
+@@ -91,6 +91,9 @@ class _LegacyProjects:
+             current = self.bridge._current(ctx)
+             from .capabilities import information as project_information
+             result['information'] = project_information(self.bridge,ctx,{'project_id':project_id,'limit':3,'exclude_ledger':True},current['row']['id'])
++        observer = getattr(self.bridge, 'project_read_observer', None)
++        if observer is not None:
++            observer(ctx, result)
+         return result
+ 
+ 
+diff --git a/local-qwen3.8/feishu-bridge/am_harness_host.py b/local-qwen3.8/feishu-bridge/am_harness_host.py
+index 79ba1cf4..a4835be3 100644
+--- a/local-qwen3.8/feishu-bridge/am_harness_host.py
++++ b/local-qwen3.8/feishu-bridge/am_harness_host.py
+@@ -87,10 +87,12 @@ class HarnessHost:
+             on_change=self.effects.suppress_pending, execution_seconds=self.config.execution_seconds)
+         self.bridge.agent.external_executor = self.execute_action
+         self.bridge.agent.local_executor = self.execute_local
++        self.bridge.agent.local_control_executor = self.execute_local_control
++        self.bridge.project_read_observer = self.record_project_read
+         self.s.local_write_guard = lambda conn: guard_local_transaction(self, conn)
+         self.s.local_commit_guard = lambda conn: check_local_commit(self, conn)
+         history.original.local_write_guard = lambda conn: guard_local_database(self, conn)
+-        self.bridge.knowledge.local_write_guard = lambda conn: guard_local_database(self, conn)
++        self.bridge.knowledge.local_write_guard = lambda conn: guard_local_database(self, conn, require_binding=True)
+         from am_harness.host_focus import HostFocus
+         self.focus = HostFocus(self)
+         history.original.focus_setter = self.focus.remember
+@@ -169,6 +171,8 @@ class HarnessHost:
+         ctx = AccessContext(**prepared['context'])
+         if ctx.session_id != run.scope.key or row['expires'] > run.expires_at:
+             raise ConversationError('HARNESS_PUBLICATION_SCOPE_CHANGED')
++        from am_harness.host_context import validate_publication_sources
++        validate_publication_sources(self, conn, run, prepared)
+         # All network reads finished before this short transaction. Original
+         # dispatcher repeats fresh authorization; this check sees local policy.
+         if self.bridge._grant(dict(row), verify=False) != prepared['grant']:
+@@ -319,7 +323,9 @@ class HarnessHost:
+             if row['chat_type'] == 'group':
+                 row.update(_query_group=row['chat'], _public_query=True)
+             text = ('这项任务的执行结果仍待核对，没有自动重试。' if run.state == 'unknown'
+-                    else '这项任务排队超时，未自动重试。请重新提问。' if run.state == 'expired' and run.error == 'DEADLINE_EXCEEDED'
++                    else ('这项任务排队超时，未自动重试。请重新提问。' if run.lease_generation == 0
++                          else '这项任务已超时，执行结果需要核对，系统没有自动重试。')
++                    if run.state == 'expired' and run.error == 'DEADLINE_EXCEEDED'
+                     else '这项任务未完成。请稍后重新提问或核对任务状态。')
+             text += '\n任务编号：' + run.id
+             self.service.notify(row, text=text, kind='harness_error',
+@@ -370,6 +376,13 @@ class HarnessHost:
+         self.sync_terminal()
+         return bool(rows or self.futures or self.worker)
+ 
++    def execute_local_control(self, ctx, event_id, name, arguments, apply):
++        from am_conversation.types import ToolCall
++        from am_harness.runtime import mark_dispatch
++        mark_dispatch('local_control')
++        with local_context(self, ctx, ToolCall('control', name, arguments), event_id):
++            return apply()
++
+     def execute_local(self, ctx, call, event_id, tool):
+         from am_harness.runtime import mark_dispatch
+         mark_dispatch("local_tool")
+@@ -396,6 +409,10 @@ class HarnessHost:
+         record_result(self, action['id'], result)
+         return result
+ 
++    def record_project_read(self, ctx, project):
++        from am_harness.host_context import record_read_source
++        record_read_source(self, ctx, project=project)
++
+     def read_tool(self, ctx, call, event_id):
+         from am_harness.registry_adapter import AmRegistryAdapter
+         from am_harness.tool_policy import ToolInvocation
+@@ -412,6 +429,9 @@ class HarnessHost:
+         self.hooks(ctx, 'after_tool', call.arguments)
+         if adapter.authorize(spec, invocation) is not True:
+             raise ConversationError('PROJECT_ACCESS_DENIED')
++        if call.name == 'list_projects':
++            from am_harness.host_context import record_read_source
++            record_read_source(self, ctx, catalog=True)
+         return result
+ 
+     def reconcile_receipt(self, outbox_id):

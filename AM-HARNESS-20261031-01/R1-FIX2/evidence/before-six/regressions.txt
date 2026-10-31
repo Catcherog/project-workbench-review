@@ -1,0 +1,303 @@
+{"mode": "prefetch", "dependencies": {"ledger:39c7e18459dc53fe94271f8866f7dbe6": "fa13968f60969f2dda3205a03acb81ca09b5957bf03c7dfd704828f518d6ec19"}, "project_refs": ["39c7e18459dc53fe94271f8866f7dbe6"], "old_snapshot": "fa13968f60969f2dda3205a03acb81ca09b5957bf03c7dfd704828f518d6ec19", "new_snapshot": "63ab5b6f16308c22ff66634e820c31f776b41e87b5a9fe814a59a31fc6b7554a", "old_answer_in_next_actual_prompt": false}
+.{"mode": "dynamic", "dependencies": {}, "project_refs": ["39c7e18459dc53fe94271f8866f7dbe6"], "old_snapshot": "fa13968f60969f2dda3205a03acb81ca09b5957bf03c7dfd704828f518d6ec19", "new_snapshot": "63ab5b6f16308c22ff66634e820c31f776b41e87b5a9fe814a59a31fc6b7554a", "old_answer_in_next_actual_prompt": true}
+F{
+  "tool": "propose_knowledge",
+  "result": {
+    "run_id": "run_8161828944154d9a7ac7a0ac1958740cf4eb96c7",
+    "status": "completed",
+    "published": true,
+    "error": null
+  },
+  "run": {
+    "state": "succeeded",
+    "error": null
+  },
+  "lane": "idle",
+  "records": [
+    {
+      "id": "3aac2f2d9ef24e3a9b6bf435c0064b18",
+      "status": "candidate",
+      "content": "合成知识提交中断标记"
+    }
+  ],
+  "receipt_count": 1,
+  "reservations": [
+    {
+      "state": "reserved",
+      "kind": "local_database"
+    }
+  ],
+  "model_calls": 2,
+  "generic_error_in_second_prompt": true
+}
+F{
+  "tool": "record_report",
+  "result": {
+    "run_id": "run_8161828944154d9a7ac7a0ac1958740cf4eb96c7",
+    "status": "completed",
+    "published": true,
+    "error": null
+  },
+  "run": {
+    "state": "succeeded",
+    "error": null
+  },
+  "lane": "idle",
+  "records": [
+    {
+      "id": "95bf406f5a564b628612f79864351580",
+      "status": "candidate",
+      "content": "合成知识提交中断标记"
+    }
+  ],
+  "receipt_count": 1,
+  "reservations": [
+    {
+      "state": "reserved",
+      "kind": "local_database"
+    }
+  ],
+  "model_calls": 2,
+  "generic_error_in_second_prompt": true
+}
+F{
+  "result": {
+    "run_id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+    "status": "stale",
+    "published": false,
+    "error": "STALE_FENCE"
+  },
+  "run": {
+    "state": "cancelled",
+    "error": "CANCELLED"
+  },
+  "knowledge_status": "approved",
+  "reservations": []
+}
+F{"run": {"state": "expired", "error": "DEADLINE_EXCEEDED"}, "worker_still_running": true, "notices": [{"body": "这项任务排队超时，未自动重试。请重新提问。\n任务编号：run_8161828944154d9a7ac7a0ac1958740cf4eb96c7"}], "model_has_started": true, "lane_state": "quarantined", "automatic_model_replays": 0, "next_run_state": "queued", "next_run_attempt": "idle"}
+F
+=================================== FAILURES ===================================
+_______ test_project_answer_source_versions_cover_dynamic_reads[dynamic] _______
+
+harness = (((<am_service.AmSelfService object at 0x110c102c0>, <fs_agent.gateway.Gateway object at 0x1109823f0>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x110c7d400>), <am_harness_host.HarnessHost object at 0x110980c50>)
+mode = 'dynamic'
+
+    @pytest.mark.parametrize('mode', ['prefetch', 'dynamic'])
+    def test_project_answer_source_versions_cover_dynamic_reads(harness, mode):
+        conv, host = harness
+        marker = '动态来源依赖审计唯一标记：旧记录中的进展尚待核实。'
+        if mode == 'prefetch':
+            _, run_id = execute(harness, '请分析需求75的情况', [answer(marker)])
+        else:
+            _, run_id = execute(harness, '请列出项目目录并分析第一个项目的情况', [
+                call('list_projects', {}),
+                call('read_project', {'project_id': project(conv)}),
+                answer(marker),
+            ])
+        context = host.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=?',
+                             ('harness:' + run_id + ':v1',))[0]
+        output = host.s.rows('SELECT * FROM am_conversation_outputs WHERE json_extract(reply,\'$.event_id\')=?',
+                            ('harness:' + run_id + ':v1',))[0]
+        old_snapshot = host.service.snapshots.latest
+        conv[0][5].values[1][4] = '更新后的来源记录：新进展已经替代旧记录。'
+        host.service.snapshots.refresh().result(3)
+        assert host.service.snapshots.latest != old_snapshot
+        execute(harness, '请把上一条回答展开说明', [answer('依据当前可用内容进一步说明。')])
+        present = marker in conv[1].prompts[-1]
+        print(json.dumps({'mode': mode, 'dependencies': json.loads(context['dependencies']),
+                          'project_refs': json.loads(output['project_refs']),
+                          'old_snapshot': old_snapshot,
+                          'new_snapshot': host.service.snapshots.latest,
+                          'old_answer_in_next_actual_prompt': present}, ensure_ascii=False))
+>       assert not present, 'Source-version-invalid project answer reached next actual provider prompt'
+E       AssertionError: Source-version-invalid project answer reached next actual provider prompt
+E       assert not True
+
+../input/Harness复审与补修/tests/test_history_dynamic_dependency.py:34: AssertionError
+____ test_unknown_knowledge_commit_preserves_quarantine[propose_knowledge] _____
+
+harness = (((<am_service.AmSelfService object at 0x110c3df40>, <fs_agent.gateway.Gateway object at 0x110c3fd10>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x110bca240>), <am_harness_host.HarnessHost object at 0x110c3e150>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x110bef2f0>
+tool = 'propose_knowledge'
+
+    @pytest.mark.parametrize('tool', ['propose_knowledge', 'record_report'])
+    def test_unknown_knowledge_commit_preserves_quarantine(harness, monkeypatch, tool):
+        conv, host = harness
+        original = host.tasks.transaction_guard
+        @contextmanager
+        def lost_gateway_commit(*args, **kwargs):
+            with original(*args, **kwargs) as connection:
+                yield connection
+                raise RuntimeError('synthetic lost gateway commit')
+        monkeypatch.setattr(host.tasks, 'transaction_guard', lost_gateway_commit)
+        args = ({'kind':'rule','content':'合成知识提交中断标记'} if tool == 'propose_knowledge'
+                else {'project_id':project(conv),'content':'合成知识提交中断标记'})
+        conv[1].outputs.extend([call(tool, args), answer('工具结果需要核实。')])
+        row = incoming(harness, '请保存这条合成知识和反馈资料')
+        run_id = host.admit(row)
+        result = host.run_once()
+        records = [dict(row) for row in host.bridge.knowledge._db.execute('SELECT id,status,content FROM knowledge_records')]
+        has_receipt_table = host.bridge.knowledge._db.execute("SELECT 1 FROM sqlite_master WHERE name='am_harness_local_commits'").fetchone()
+        receipts = [dict(row) for row in host.bridge.knowledge._db.execute('SELECT * FROM am_harness_local_commits')] if has_receipt_table else []
+        reservations = host.s.rows('SELECT state,kind FROM am_harness_reservations WHERE run_id=?', (run_id,))
+        run = host.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?', (run_id,))[0]
+        lane = host.tasks.lane_status()
+        observed = {'tool':tool,'result':result.__dict__,'run':run,'lane':lane['state'],
+                    'records':records,'receipt_count':len(receipts),'reservations':reservations,
+                    'model_calls':len(conv[1].prompts),'generic_error_in_second_prompt':len(conv[1].prompts)>1 and 'TOOL_UNAVAILABLE' in conv[1].prompts[-1]}
+        print(json.dumps(observed,ensure_ascii=False,indent=2))
+        assert len(records) == 1 and len(receipts) == 1
+        assert reservations == [{'state':'reserved','kind':'local_database'}]
+>       assert result.status == 'unknown', observed
+E       AssertionError: {'generic_error_in_second_prompt': True, 'lane': 'idle', 'model_calls': 2, 'receipt_count': 1, ...}
+E       assert 'completed' == 'unknown'
+E         
+E         - unknown
+E         + completed
+
+../input/Harness复审与补修/tests/test_knowledge_unknown_commit.py:40: AssertionError
+______ test_unknown_knowledge_commit_preserves_quarantine[record_report] _______
+
+harness = (((<am_service.AmSelfService object at 0x110bc9df0>, <fs_agent.gateway.Gateway object at 0x110c3ddc0>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x110bef710>), <am_harness_host.HarnessHost object at 0x110c3e330>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x110c4deb0>
+tool = 'record_report'
+
+    @pytest.mark.parametrize('tool', ['propose_knowledge', 'record_report'])
+    def test_unknown_knowledge_commit_preserves_quarantine(harness, monkeypatch, tool):
+        conv, host = harness
+        original = host.tasks.transaction_guard
+        @contextmanager
+        def lost_gateway_commit(*args, **kwargs):
+            with original(*args, **kwargs) as connection:
+                yield connection
+                raise RuntimeError('synthetic lost gateway commit')
+        monkeypatch.setattr(host.tasks, 'transaction_guard', lost_gateway_commit)
+        args = ({'kind':'rule','content':'合成知识提交中断标记'} if tool == 'propose_knowledge'
+                else {'project_id':project(conv),'content':'合成知识提交中断标记'})
+        conv[1].outputs.extend([call(tool, args), answer('工具结果需要核实。')])
+        row = incoming(harness, '请保存这条合成知识和反馈资料')
+        run_id = host.admit(row)
+        result = host.run_once()
+        records = [dict(row) for row in host.bridge.knowledge._db.execute('SELECT id,status,content FROM knowledge_records')]
+        has_receipt_table = host.bridge.knowledge._db.execute("SELECT 1 FROM sqlite_master WHERE name='am_harness_local_commits'").fetchone()
+        receipts = [dict(row) for row in host.bridge.knowledge._db.execute('SELECT * FROM am_harness_local_commits')] if has_receipt_table else []
+        reservations = host.s.rows('SELECT state,kind FROM am_harness_reservations WHERE run_id=?', (run_id,))
+        run = host.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?', (run_id,))[0]
+        lane = host.tasks.lane_status()
+        observed = {'tool':tool,'result':result.__dict__,'run':run,'lane':lane['state'],
+                    'records':records,'receipt_count':len(receipts),'reservations':reservations,
+                    'model_calls':len(conv[1].prompts),'generic_error_in_second_prompt':len(conv[1].prompts)>1 and 'TOOL_UNAVAILABLE' in conv[1].prompts[-1]}
+        print(json.dumps(observed,ensure_ascii=False,indent=2))
+        assert len(records) == 1 and len(receipts) == 1
+        assert reservations == [{'state':'reserved','kind':'local_database'}]
+>       assert result.status == 'unknown', observed
+E       AssertionError: {'generic_error_in_second_prompt': True, 'lane': 'idle', 'model_calls': 2, 'receipt_count': 1, ...}
+E       assert 'completed' == 'unknown'
+E         
+E         - unknown
+E         + completed
+
+../input/Harness复审与补修/tests/test_knowledge_unknown_commit.py:40: AssertionError
+______________ test_direct_knowledge_approval_is_fenced_at_commit ______________
+
+harness = (((<am_service.AmSelfService object at 0x110eb8da0>, <fs_agent.gateway.Gateway object at 0x110bee2a0>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x110c4cd10>), <am_harness_host.HarnessHost object at 0x110bcab70>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x110bff050>
+
+    def test_direct_knowledge_approval_is_fenced_at_commit(harness, monkeypatch):
+        conv, host = harness
+        execute(harness, '保存合成待批准知识', [call('propose_knowledge', {'kind':'rule','content':'合成知识批准取消标记'})])
+        record = dict(host.bridge.knowledge._db.execute('SELECT * FROM knowledge_records').fetchone())
+        assert record['status'] == 'candidate'
+        original = host.bridge.knowledge.approve
+        def interrupted(*args, **kwargs):
+            host.admit(incoming(harness, '停止当前任务'))
+            return original(*args, **kwargs)
+        monkeypatch.setattr(host.bridge.knowledge, 'approve', interrupted)
+        row = incoming(harness, '批准知识 ' + record['id'] + ' v1')
+        run_id = host.admit(row)
+        result = host.run_once()
+        status = host.bridge.knowledge._db.execute('SELECT status FROM knowledge_records WHERE id=?', (record['id'],)).fetchone()[0]
+        run = host.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?', (run_id,))[0]
+        reservations = host.s.rows('SELECT state,kind FROM am_harness_reservations WHERE run_id=?', (run_id,))
+        observed = {'result':result.__dict__, 'run':run, 'knowledge_status':status, 'reservations':reservations}
+        print(json.dumps(observed,ensure_ascii=False,indent=2))
+        assert result.status == 'stale' and run['state'] == 'cancelled'
+>       assert status == 'candidate', observed
+E       AssertionError: {'knowledge_status': 'approved', 'reservations': [], 'result': {'error': 'STALE_FENCE', 'published': False, 'run_id': 'run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b', 'status': 'stale'}, 'run': {'error': 'CANCELLED', 'state': 'cancelled'}}
+E       assert 'approved' == 'candidate'
+E         
+E         - candidate
+E         + approved
+
+../input/Harness复审与补修/tests/test_knowledge_unknown_commit.py:63: AssertionError
+_________ test_running_task_is_not_reported_as_unstarted_queue_timeout _________
+
+harness = (((<am_service.AmSelfService object at 0x110c4fb30>, <fs_agent.gateway.Gateway object at 0x110c7f290>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x110bdaf00>), <am_harness_host.HarnessHost object at 0x110eb8fe0>)
+
+    def test_running_task_is_not_reported_as_unstarted_queue_timeout(harness):
+        conv,h=harness
+        entered=threading.Event()
+        release=threading.Event()
+        calls=[]
+        original=conv[1].complete
+        def blocked(*args,**kwargs):
+            calls.append('model_dispatched')
+            entered.set()
+            assert release.wait(5)
+            return original(*args,**kwargs)
+        conv[1].complete=blocked
+        conv[1].outputs.append(answer('合成晚返回回复'))
+        row=incoming(harness,'解释一项通用工作方法')
+        ident=h.admit(row)
+        results=[]
+        worker=threading.Thread(target=lambda:results.append(h.run_once()))
+        worker.start()
+        assert entered.wait(3)
+        try:
+            assert h.s.rows('SELECT state FROM am_harness_runs WHERE id=?',(ident,))[0]['state']=='running'
+            conv[0][4].now+=121
+            h.tasks.purge_expired()
+            h.sync_terminal()
+            lane=h.tasks.lane_status()['state']
+            nextrow=incoming(harness,'另一个通用工作问题')
+            nextident=h.admit(nextrow)
+            idle=h.run_once()
+            snapshot={
+                'run':h.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?',(ident,))[0],
+                'worker_still_running':worker.is_alive(),
+                'notices':h.s.rows("SELECT body FROM outbox WHERE body LIKE '%任务编号%'"),
+                'model_has_started':entered.is_set(),
+                'lane_state':lane,
+                'automatic_model_replays':len(calls)-1,
+                'next_run_state':h.s.rows('SELECT state FROM am_harness_runs WHERE id=?',(nextident,))[0]['state'],
+                'next_run_attempt':idle.status,
+            }
+            print(json.dumps(snapshot,ensure_ascii=False))
+            assert snapshot['run']=={'state':'expired','error':'DEADLINE_EXCEEDED'}
+            assert snapshot['notices'] and snapshot['worker_still_running']
+            assert lane=='quarantined'
+            assert len(calls)==1 and idle.status=='idle' and snapshot['next_run_state']=='queued'
+>           assert all('排队超时' not in r['body'] for r in snapshot['notices']),snapshot
+E           AssertionError: {'automatic_model_replays': 0, 'lane_state': 'quarantined', 'model_has_started': True, 'next_run_attempt': 'idle', ...}
+E           assert False
+E            +  where False = all(<generator object test_running_task_is_not_reported_as_unstarted_queue_timeout.<locals>.<genexpr> at 0x110d9f2a0>)
+
+../input/Harness复审与补修/tests/test_running_expiry_notice.py:50: AssertionError
+=============================== warnings summary ===============================
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /workspace/am/AM-HARNESS-20261031-01/R1-FIX2/evidence/before-six/regressions.xml -
+=========================== short test summary info ============================
+FAILED ../input/Harness复审与补修/tests/test_history_dynamic_dependency.py::test_project_answer_source_versions_cover_dynamic_reads[dynamic]
+FAILED ../input/Harness复审与补修/tests/test_knowledge_unknown_commit.py::test_unknown_knowledge_commit_preserves_quarantine[propose_knowledge]
+FAILED ../input/Harness复审与补修/tests/test_knowledge_unknown_commit.py::test_unknown_knowledge_commit_preserves_quarantine[record_report]
+FAILED ../input/Harness复审与补修/tests/test_knowledge_unknown_commit.py::test_direct_knowledge_approval_is_fenced_at_commit
+FAILED ../input/Harness复审与补修/tests/test_running_expiry_notice.py::test_running_task_is_not_reported_as_unstarted_queue_timeout
+5 failed, 1 passed, 2 warnings in 2.26s
