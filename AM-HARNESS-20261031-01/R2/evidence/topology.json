@@ -1,0 +1,178 @@
+{
+  "nodes": [
+    {
+      "id": "N01",
+      "name": "admit",
+      "function": "HarnessHost._admit_source",
+      "effects": "event",
+      "resume_policy": "original_admission"
+    },
+    {
+      "id": "N02",
+      "name": "resolve_intent",
+      "function": "ResponsePipeline.begin",
+      "effects": "pure",
+      "resume_policy": "rebuild_current"
+    },
+    {
+      "id": "N03",
+      "name": "plan_steps",
+      "function": "completion.resolve_goals",
+      "effects": "pure",
+      "resume_policy": "rebuild_current"
+    },
+    {
+      "id": "N04",
+      "name": "collect_evidence",
+      "function": "ResponsePipeline.record",
+      "effects": "read",
+      "resume_policy": "fresh_scope_only"
+    },
+    {
+      "id": "N05",
+      "name": "execute_capability",
+      "function": "ConversationAgent._run",
+      "effects": "original_tool",
+      "resume_policy": "receipt_only"
+    },
+    {
+      "id": "N06",
+      "name": "check_completion",
+      "function": "completion.check_goals",
+      "effects": "pure",
+      "resume_policy": "receipt_only"
+    },
+    {
+      "id": "N07",
+      "name": "compile_outcome",
+      "function": "ResponsePipeline.envelope",
+      "effects": "pure",
+      "resume_policy": "current_dependencies"
+    },
+    {
+      "id": "N08",
+      "name": "select_response_policy",
+      "function": "ResponsePipeline.finish",
+      "effects": "pure",
+      "resume_policy": "frozen_mode"
+    },
+    {
+      "id": "N09",
+      "name": "realize_response",
+      "function": "CoordinatorModel.complete",
+      "effects": "original_model",
+      "resume_policy": "no_effect_replay"
+    },
+    {
+      "id": "N10",
+      "name": "validate_response",
+      "function": "ResponsePipeline.validate",
+      "effects": "pure",
+      "resume_policy": "current_scope"
+    },
+    {
+      "id": "N11",
+      "name": "freeze_presentation",
+      "function": "ConversationStore.finish_event",
+      "effects": "original_sql",
+      "resume_policy": "stored_event"
+    },
+    {
+      "id": "N12",
+      "name": "publish_and_verify",
+      "function": "GatewayProjection.bind/receipt",
+      "effects": "original_outbox",
+      "resume_policy": "receipt_only"
+    },
+    {
+      "id": "N13",
+      "name": "continue_or_close",
+      "function": "host_context.build",
+      "effects": "read",
+      "resume_policy": "delivered_history_only"
+    }
+  ],
+  "edges": [
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      5,
+      4
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      4,
+      6
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      8,
+      9
+    ],
+    [
+      9,
+      5
+    ],
+    [
+      9,
+      10
+    ],
+    [
+      8,
+      10
+    ],
+    [
+      10,
+      11
+    ],
+    [
+      10,
+      8
+    ],
+    [
+      11,
+      12
+    ],
+    [
+      12,
+      13
+    ],
+    [
+      13,
+      2
+    ]
+  ],
+  "recovery": {
+    "read": "revalidate_scope_and_source",
+    "local_committed": "read_original_receipt",
+    "local_unknown": "original_reservation_reconciliation",
+    "external_unknown": "original_message_or_action_reconciliation",
+    "provider_stop_unknown": "original_lane_proof",
+    "terminal_notice": "original_idempotent_notice"
+  },
+  "meaning": "code responsibility registry, not full runtime trace coverage or a new graph runner"
+}

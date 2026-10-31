@@ -1,0 +1,270 @@
+{
+  "case_id": "SYN-EXPR-analysis",
+  "family": "analysis",
+  "question": "合成项目两份进展为什么不同？",
+  "evidence": {
+    "available": true,
+    "complete_response": true,
+    "has_more": false,
+    "facts": [
+      {
+        "fact_id": "a",
+        "subject_id": "syn-p",
+        "field": "progress",
+        "value": "来源甲记录试样完成，尚未验收。",
+        "assertion_type": "reported"
+      },
+      {
+        "fact_id": "b",
+        "subject_id": "syn-p",
+        "field": "progress",
+        "value": "来源乙记录尺寸待确认，范围不同。",
+        "assertion_type": "reported"
+      }
+    ]
+  },
+  "layer": "L2_synthetic_final_expression_only",
+  "actual_business_actions": 0,
+  "actual_delivery": 0,
+  "naturalness": "not_evaluated",
+  "profile_available": false,
+  "pair_order": [
+    "response",
+    "legacy"
+  ],
+  "response": {
+    "seconds": 18.012775417068042,
+    "turn": {
+      "text": "",
+      "tool_calls": [],
+      "response_plan": {
+        "envelope_fingerprint": "80df0168b5866463ddc6268a6d8f51413458a41dce1a3912b97fcefc944ab932",
+        "omitted_optional_claim_ids": [],
+        "segments": [
+          {
+            "kind": "text",
+            "intent": "answer",
+            "text": "两份进展记录不同，是因为来源甲记录的是“试样完成，尚未验收”，而来源乙记录的是“尺寸待确认，范围不同”。",
+            "claim_ids": [
+              "c021417fb7f8:a",
+              "c021417fb7f8:b"
+            ]
+          },
+          {
+            "kind": "locked",
+            "block_id": "goal-coverage"
+          }
+        ]
+      }
+    }
+  },
+  "legacy": {
+    "seconds": 6.868216750095598,
+    "turn": {
+      "text": "两份进展记录不同是因为来源甲和来源乙关注的维度不一样：来源甲记录的是“试样完成，尚未验收”，侧重于生产状态；来源乙记录的是“尺寸待确认”，侧重于技术规格。目前这两份信息尚未合并或确认哪一份为最终准确状态，建议核实具体差异后统一口径。",
+      "tool_calls": [],
+      "response_plan": null
+    }
+  },
+  "selected_text": "progress：\n来源甲记录试样完成，尚未验收。\n\nprogress：\n来源乙记录尺寸待确认，范围不同。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。",
+  "telemetry": {
+    "schema_version": "am-response/2.0.1",
+    "presentation_id": "7445eaec05bc5bf35f0f6ad35af639aaab7770783baa97a283bb4074c4cceea4",
+    "binding_key": "d67fe27786d500e80c3b2b6aac69df82420975bcc9182f5dc71362682e6b8807",
+    "semantic_hash": "3435c550eed681164a5868bfc5432f47ebc3c4a3f3d33c0d26ef82154f2a624a",
+    "selected_source": "fallback",
+    "reason": "semantic_profile_unavailable",
+    "candidate_hash": "bfbdd3d54f35c51fa36baa1bac6cd9094f7b63148e0d012068f0c72d5aec0f89",
+    "eligible": false,
+    "attempted": true,
+    "accepted": false,
+    "adopted": false,
+    "business_completion": "partial",
+    "delivery": "prepared",
+    "naturalness": "not_evaluated",
+    "mode": "enforce",
+    "task_model_calls": 1,
+    "task_repair_calls": 0,
+    "model_calls_total": 1,
+    "presentation_calls": 0,
+    "prepare_ms": 0.33583398908376694,
+    "total_ms": 24881.602416047826,
+    "expires_at": 1793437453.059107
+  },
+  "outcome": {
+    "allowed_next_steps": [],
+    "binding": {
+      "dependencies": {},
+      "dependency_complete": false,
+      "engine_event_id": "synthetic-expression-analysis",
+      "kind": "event",
+      "origin_event_id": "synthetic-expression-analysis",
+      "scope": [
+        "synthetic-tenant",
+        "synthetic-app",
+        "synthetic-owner",
+        "synthetic-chat",
+        ""
+      ],
+      "source_access_version": "synthetic-acl-v1"
+    },
+    "claims": [
+      {
+        "business_state": null,
+        "expression": "quote",
+        "id": "c021417fb7f8:a",
+        "modality": "reported",
+        "predicate": "progress",
+        "source": {},
+        "subject": "syn-p",
+        "value": "来源甲记录试样完成，尚未验收。"
+      },
+      {
+        "business_state": null,
+        "expression": "quote",
+        "id": "c021417fb7f8:b",
+        "modality": "reported",
+        "predicate": "progress",
+        "source": {},
+        "subject": "syn-p",
+        "value": "来源乙记录尺寸待确认，范围不同。"
+      }
+    ],
+    "completion": "partial",
+    "dependencies": {
+      "complete": false,
+      "global_source_access_version": "synthetic-acl-v1",
+      "objects": {},
+      "policy": "global_guard_retained",
+      "query_sets": [
+        {
+          "complete": true,
+          "has_more": false,
+          "requested": {
+            "project_id": "syn-p"
+          },
+          "source_coverage": {}
+        }
+      ]
+    },
+    "expires_at": 1793437453.059107,
+    "families": [
+      "analysis"
+    ],
+    "intent": {
+      "completion_basis": "typed_tool_results",
+      "goal_set_complete": false,
+      "goals": [],
+      "requested_object_type": null,
+      "user_request": "合成项目两份进展为什么不同？"
+    },
+    "outcome_hash": "80df0168b5866463ddc6268a6d8f51413458a41dce1a3912b97fcefc944ab932",
+    "pending_actions": [],
+    "profile_version": "unvalidated",
+    "protected_blocks": [
+      {
+        "id": "goal-coverage",
+        "required": true,
+        "role": "gap",
+        "text": "上述结果已保留；本轮完整目标是否全部满足，仍需核对。"
+      }
+    ],
+    "response_version": "am-response/2.0.1",
+    "schema_version": "am-outcome/2.0.1",
+    "work_units": [
+      {
+        "block_id": "unit:c021417fb7f8e75101564cda46fe6913835b60625fdc6c0b121bd5a75992fa9f",
+        "completion": "fulfilled",
+        "coverage": {
+          "complete": true,
+          "has_more": false,
+          "requested": {
+            "project_id": "syn-p"
+          },
+          "source_coverage": {}
+        },
+        "effect": "read",
+        "family": "analysis",
+        "gaps": [],
+        "id": "c021417fb7f8e75101564cda46fe6913835b60625fdc6c0b121bd5a75992fa9f",
+        "object_id": null,
+        "object_type": "analysis",
+        "operation": "read_information",
+        "receipt": null,
+        "result": {
+          "available": true,
+          "complete_response": true,
+          "facts": [
+            {
+              "assertion_type": "reported",
+              "fact_id": "a",
+              "field": "progress",
+              "subject_id": "syn-p",
+              "value": "来源甲记录试样完成，尚未验收。"
+            },
+            {
+              "assertion_type": "reported",
+              "fact_id": "b",
+              "field": "progress",
+              "subject_id": "syn-p",
+              "value": "来源乙记录尺寸待确认，范围不同。"
+            }
+          ],
+          "has_more": false
+        },
+        "status": "observed",
+        "status_text": "资料分析：已记录对应结果。",
+        "target": {
+          "project_id": "syn-p"
+        },
+        "verified": false,
+        "version": null
+      }
+    ]
+  },
+  "model_calls": {
+    "attempted": 2,
+    "started": 2,
+    "completed": 2,
+    "errors": [],
+    "calls": [
+      {
+        "elapsed_seconds": 18.01265383407008,
+        "queue_and_setup_seconds": 0.016008750069886446,
+        "provider_seconds": 18.010771041037515,
+        "usage": {
+          "input_tokens": 1030,
+          "output_tokens": 234,
+          "total_duration_ns": 17867468542,
+          "load_duration_ns": 1056000,
+          "input_duration_ns": 2474042000,
+          "output_duration_ns": 15320849000
+        }
+      },
+      {
+        "elapsed_seconds": 6.868098875042051,
+        "queue_and_setup_seconds": 0.017735583009198308,
+        "provider_seconds": 6.867023500031792,
+        "usage": {
+          "input_tokens": 390,
+          "output_tokens": 74,
+          "total_duration_ns": 6750366584,
+          "load_duration_ns": 1253334,
+          "input_duration_ns": 1760463000,
+          "output_duration_ns": 4831251000
+        }
+      }
+    ]
+  },
+  "ok": true,
+  "label": "harness-r2-analysis-1793437342",
+  "operation": "response_probe",
+  "completed_at": 1793437367.940782,
+  "expires_at": 1793523767.940782,
+  "original_host_pid": 69951,
+  "model": "qwen3.8:27b-bartowski-q8_0",
+  "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+  "original_coordinator": true,
+  "external_business_calls": 0,
+  "measurement_source_commit": "60f60f564080b75206cd80b35597c1d086925354"
+}
