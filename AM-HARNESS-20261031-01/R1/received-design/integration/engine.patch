@@ -1,0 +1,153 @@
+--- a/am-conversation-r1/src/am_conversation/engine.py
++++ b/am-conversation-r1/src/am_conversation/engine.py
+@@ -66,17 +66,25 @@
+                  config: RuntimeConfig | None = None,
+                  authorize: Callable[[AccessContext, str, dict], None] | None = None,
+                  metrics: Callable[[dict], None] | None = None,
+-                 clock: Callable[[], float] = time.time):
++                 clock: Callable[[], float] = time.time, lifecycle=None, fastpath=None):
+         self.model, self.store, self.registry = model, store, registry
+         self.knowledge, self.config = knowledge, config or RuntimeConfig()
+         self.authorize, self.clock = authorize, clock
+         self.metrics = metrics
++        self.lifecycle, self.fastpath = lifecycle, fastpath
+         # Bounded striped locks avoid an unbounded lock object per user.
+         self._locks = [threading.RLock() for _ in range(64)]
+ 
+     def _guard(self, ctx: AccessContext, operation: str, args: dict | None = None):
+         if self.authorize:
+             self.authorize(ctx, operation, args or {})
++
++    def _checkpoint(self, ctx, phase, args=None):
++        # Optional cooperative run fencing.  Keep these calls outside the
++        # ordinary tool-error catch blocks; an interruption must stop the run.
++        if self.lifecycle is not None:
++            self._guard(ctx, "read", args or {})
++            self.lifecycle(ctx, phase, args or {})
+ 
+     def _measure(self, event_id, span, started):
+         if self.metrics:
+@@ -94,6 +102,7 @@
+         lock = self._locks[int(ctx.session_id[:8], 16) % len(self._locks)]
+         with lock:
+             self._guard(ctx, "read")
++            self._checkpoint(ctx, "before_claim")
+             claim = self.store.claim_event(ctx, event_id, text)
+             if claim["state"] == "completed":
+                 saved = claim["reply"]
+@@ -104,9 +113,21 @@
+             try:
+                 deadline=time.monotonic()+min(self.config.max_request_seconds,timeout if timeout is not None else self.config.max_request_seconds)
+                 token=self.model.set_deadline(deadline) if hasattr(self.model,'set_deadline') else None
++                self._checkpoint(ctx, "before_control")
+                 control = self._control(ctx, event_id, text)
++                # A known external result was already recorded by _control.
++                # Cancellation here suppresses publication, not that receipt.
++                self._checkpoint(ctx, "after_control")
+                 if control is not None:
+                     return self._finish(ctx, event_id, text, control)
++                if self.fastpath is not None:
++                    self._checkpoint(ctx, "before_fastpath")
++                    fast = self.fastpath(ctx, event_id, text)
++                    self._checkpoint(ctx, "after_fastpath")
++                    if fast is not None:
++                        if not isinstance(fast, AgentReply) or fast.event_id != event_id:
++                            raise ConversationError("FASTPATH_REPLY_INVALID")
++                        return self._finish(ctx, event_id, text, fast)
+                 reply = self._run(ctx, event_id, text,deadline=deadline)
+                 return self._finish(ctx, event_id, text, reply)
+             except BaseException as exc:
+@@ -117,9 +138,55 @@
+             finally:
+                 if 'token' in locals() and token is not None:self.model.reset_deadline(token)
+ 
++    def handle_fastpath(self, ctx: AccessContext, event_id: str, text: str) -> AgentReply | None:
++        """Independent *read-only* ingress; never waits for the model lock.
++
++        Preflight must return None before claim_event on a miss.  The original
++        store still owns event dedupe/history.  This entry never invokes model,
++        confirmation, local mutations or external tools.  The host serializes
++        admission for this run and retains the original outbox delivery path.
++        """
++        if not isinstance(event_id, str) or not event_id or len(event_id) > 256:
++            raise ConversationError("INVALID_EVENT_ID")
++        if not isinstance(text, str) or not text.strip() or len(text) > self.config.max_input_chars:
++            raise ConversationError("INVALID_INPUT")
++        if self.fastpath is None:
++            return None
++        if not callable(getattr(self.fastpath, "prepare", None)) or not callable(getattr(self.fastpath, "consume", None)):
++            raise ConversationError("FASTPATH_PREPARATION_REQUIRED")
++        text = text.strip()
++        self._guard(ctx, "read")
++        self._checkpoint(ctx, "before_fastpath_prepare")
++        prepared = self.fastpath.prepare(ctx, text)
++        self._checkpoint(ctx, "after_fastpath_prepare")
++        if prepared is None:
++            return None
++        claim = self.store.claim_event(ctx, event_id, text)
++        if claim["state"] == "completed":
++            saved = claim["reply"]
++            return AgentReply(event_id, saved["text"], saved.get("status", "answered"), True,
++                              tuple(saved.get("pending_actions", [])), tuple(saved.get("source_ids", [])))
++        if claim["state"] != "claimed":
++            return AgentReply(event_id, "这条消息仍在处理或核对结果，请稍后查看原回复。", "in_progress")
++        try:
++            self._checkpoint(ctx, "before_fastpath_consume")
++            reply = self.fastpath.consume(ctx, event_id, text, prepared)
++            self._checkpoint(ctx, "after_fastpath_consume")
++            if (not isinstance(reply, AgentReply) or reply.event_id != event_id or reply.pending_actions
++                    or reply.status not in ("fastpath_answered", "fastpath_missing")
++                    or not reply.text.strip() or len(reply.text) > self.config.max_reply_chars):
++                raise ConversationError("FASTPATH_REPLY_INVALID")
++            return self._finish(ctx, event_id, text, reply)
++        except BaseException as exc:
++            code = str(exc) if re.fullmatch(r"[A-Z_0-9]{1,80}", str(exc)) else "CONVERSATION_FAILED"
++            self.store.fail_event(ctx, event_id, code)
++            raise
++
+     def _finish(self, ctx, event_id, user_text, reply):
+         self._guard(ctx, "read")
++        self._checkpoint(ctx, "before_finish")
+         self.store.finish_event(ctx, event_id, reply.to_dict())
++        self._checkpoint(ctx, "after_finish")
+         return reply
+ 
+     def _control(self, ctx, event_id, text):
+@@ -161,6 +228,7 @@
+         tool = self.registry.resolve(ctx, action["tool_name"], action["arguments"])
+         if tool.effect != "external":
+             raise ConversationError("ACTION_TOOL_CHANGED")
++        self._checkpoint(ctx, "before_external", action["arguments"])
+         approved = self.store.approve_action(ctx, action["id"], expected_version=action["version"], digest=action["digest"])
+         claim = self.store.begin_execution(ctx, action["id"], expected_version=approved["version"])
+         if not claim["claimed"]:
+@@ -255,11 +323,13 @@
+                 except Exception:pass
+             if len(canonical(messages)) > self._context_limit(tools):
+                 return AgentReply(event_id, "这次资料较多，已保留当前事项。请先指定最需要处理的项目或问题。", "context_limit", pending_actions=tuple(pending))
++            self._checkpoint(ctx, "before_model")
+             model_started = time.monotonic()
+             try:
+                 turn = self.model.complete(messages, tools, request_id=event_id)
+             finally:
+                 self._measure(event_id, "model", model_started)
++            self._checkpoint(ctx, "after_model")
+             if not turn.tool_calls:
+                 if self.config.trusted_write_replies and trusted_replies and len(trusted_replies)<expected_records:
+                     messages.append({'role':'system','content':'宿主执行记录显示，仅完成了'+str(len(trusted_replies))+'项，用户明确要求'+str(expected_records)+'项。继续处理尚未记录的对象，不重复创建已记录事项；不能把部分完成说成全部完成。'})
+@@ -281,6 +351,7 @@
+             requests = [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in turn.tool_calls]
+             messages.append({"role": "assistant", "content": canonical({"tool_calls": requests})})
+             for call in turn.tool_calls:
++                self._checkpoint(ctx, "before_tool", call.arguments)
+                 key = hashlib.sha256(canonical([call.name, call.arguments]).encode()).hexdigest()
+                 if key in completed_calls:
+                     outcome = completed_calls[key]
+@@ -325,6 +396,7 @@
+                         if code in ("SOURCE_LOADING", "MODEL_BUSY", "MODEL_PAUSED", "STOP_UNKNOWN"):
+                             raise
+                         outcome = {"status": "error", "code": "TOOL_UNAVAILABLE"}
++                self._checkpoint(ctx, "after_tool", call.arguments)
+                 messages.append({"role": "tool", "tool_call_id": call.id, "content": canonical(outcome)})
+                 if isinstance(outcome, dict) and outcome.get("record_id"):
+                     sources.append(outcome["record_id"])

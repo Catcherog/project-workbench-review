@@ -1,0 +1,744 @@
+........................F............................F.................. [ 12%]
+..................FF.FFFFFFFFFFFFFFFFF.FFFF.FF.......................... [ 24%]
+........................................................................ [ 36%]
+........................................................................ [ 49%]
+........................................................................ [ 61%]
+........................................................................ [ 73%]
+........................................................................ [ 86%]
+........................................................................ [ 98%]
+........                                                                 [100%]
+=================================== FAILURES ===================================
+______________ test_B07_owner_private_query_does_not_fake_a_group ______________
+
+rig = (<fs_agent.gateway.Gateway object at 0x112b6be00>, <fs_agent.store.Store object at 0x112b6b680>, <test_gateway.Offline...ect at 0x112b6a4e0>, <test_gateway.Clock object at 0x112b6ae10>, <fs_agent.embedded.EmbeddedPoC object at 0x112b68e60>)
+tmp_path = PosixPath('/private/var/folders/sn/mfcb7sy50fjgcq6jhwh4k9w80000gn/T/pytest-of-am-user/pytest-209/test_B07_owner_private_query_d0')
+
+    def test_B07_owner_private_query_does_not_fake_a_group(rig,tmp_path):
+     g,s,api,p,clock,e=rig;port=Port();auth=[];port.authorize_user=lambda u:auth.append(u)
+     port.guard=lambda *a:pytest.fail('private query must not call group guard')
+     ledger=GroupLedger(tmp_path,port,lambda *a:pytest.fail('no group sends'),clock=clock)
+     service=AmSelfService(g,ledger,flags={'query':True,'snapshots':True})
+     payload=event('/project 需求75',number=1)
+     assert service.ingest(payload)==(True,True);assert service.step();drain(g)
+     assert any('实际收货尚未核实' in x.get('body','') for x in api.sent)
+     assert auth and all(x=='ou_a' for x in auth)
+     assert not s.rows('SELECT * FROM tasks') and not p.prompts
+     assert service.ingest(event('/progress sample',number=2))==(False,False)
+>    assert service.ingest(event('/project 需求75',number=3,user='ou_b'))==(True,False)
+E    assert (True, True) == (True, False)
+E      
+E      At index 1 diff: True != False
+E      Use -v to get more diff
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py:71: AssertionError
+________ test_D_owner_exact_diff_approval_cannot_enable_disabled_write _________
+
+rig = (<fs_agent.gateway.Gateway object at 0x11370f950>, <fs_agent.store.Store object at 0x11370f4d0>, <test_gateway.Offline...ect at 0x11370fd10>, <test_gateway.Clock object at 0x11370f650>, <fs_agent.embedded.EmbeddedPoC object at 0x11370f3e0>)
+tmp_path = PosixPath('/private/var/folders/sn/mfcb7sy50fjgcq6jhwh4k9w80000gn/T/pytest-of-am-user/pytest-209/test_D_owner_exact_diff_approv0')
+
+    def test_D_owner_exact_diff_approval_cannot_enable_disabled_write(rig,tmp_path):
+     g,s,api,model,clock,e=rig;port=Port();port.authorize_user=lambda _:None
+     ledger=GroupLedger(tmp_path,port,lambda *a:None,clock=clock)
+     service=AmSelfService(g,ledger,flags={'query':True,'progress_collection':True,'ledger_write':False})
+     sheet=Sheet();service.updates.port=sheet
+     assert service.ingest(event('/update 需求75：上电测试今天完成，报告明天下午提交，低温复测还没做。',number=1))==(True,True)
+     service.step();drain(g)
+     p=s.rows('SELECT * FROM ledger_proposals')[0]
+     assert p['state']=='proposed'
+     c=click(service,g,s,1,'approve:项目进展')
+>    assert service.updates.proposal(p['id'])['state']=='approved' and not sheet.calls
+E    AssertionError: assert ('proposed' == 'approved'
+E      
+E      - approved
+E      + proposed)
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_entrypoints.py:51: AssertionError
+_________________ test_UX01_menu_event_to_live_project_detail __________________
+
+ux = (<am_service.AmSelfService object at 0x1137c2480>, <fs_agent.gateway.Gateway object at 0x1137c1ee0>, <fs_agent.store.S...Api object at 0x1137c1460>, <test_gateway.Clock object at 0x1137c2210>, <test_group_ledger.Port object at 0x1137c0740>)
+
+    def test_UX01_menu_event_to_live_project_detail(ux):
+        am,g,s,api,clock,_=ux
+        menu={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':'menu_1','event_type':'application.bot.menu_v6'},'event':{'operator':{'operator_id':{'open_id':'ou_a'}},'event_key':'am_work','timestamp':int(clock()*1000)}}
+        assert am.ingest(menu)==(True,True);assert am.ingest(menu)==(True,False)
+        am.step();drain(g)
+        c=latest(ux)
+        g.reminders.port.read=lambda mid:{'chat_id':'oc_dm','sender_id':g.config.bot_open_id}
+>       click(ux,'projects',c=c,overrides={})
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137c2480>, <fs_agent.gateway.Gateway object at 0x1137c1ee0>, <fs_agent.store.S...Api object at 0x1137c1460>, <test_gateway.Clock object at 0x1137c2210>, <test_group_ledger.Port object at 0x1137c0740>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______ test_menu_rejects_untrusted_actor_or_event_key[ou_other-am_work] _______
+
+ux = (<am_service.AmSelfService object at 0x1137c36b0>, <fs_agent.gateway.Gateway object at 0x1137c3b90>, <fs_agent.store.S...Api object at 0x1137c3440>, <test_gateway.Clock object at 0x1137c1fd0>, <test_group_ledger.Port object at 0x1137c3ec0>)
+actor = 'ou_other', key = 'am_work'
+
+    @pytest.mark.parametrize('actor,key',[('ou_other','am_work'),('ou_a','/plan 任意指令')])
+    def test_menu_rejects_untrusted_actor_or_event_key(ux,actor,key):
+        am,g,s,api,clock,_=ux
+        p={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':'bad','event_type':'application.bot.menu_v6'},'event':{'operator':{'operator_id':{'open_id':actor}},'event_key':key,'timestamp':int(clock()*1000)}}
+>       assert am.ingest(p)==(True,False) and not s.rows('SELECT * FROM am_inbox')
+E       assert ((True, True) == (True, False)
+E         
+E         At index 1 diff: True != False
+E         Use -v to get more diff)
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:69: AssertionError
+__________ test_UX02_edit_preserves_form_and_invalidates_old_approval __________
+
+ux = (<am_service.AmSelfService object at 0x1137ebec0>, <fs_agent.gateway.Gateway object at 0x1137c0ad0>, <fs_agent.store.S...Api object at 0x1137c2300>, <test_gateway.Clock object at 0x1137c22a0>, <test_group_ledger.Port object at 0x1137c3d70>)
+
+    def test_UX02_edit_preserves_form_and_invalidates_old_approval(ux):
+>       form=reminder_form(ux);click(ux,'preview_reminder',form=values(ux))
+             ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137ebec0>, <fs_agent.gateway.Gateway object at 0x1137c0ad0>, <fs_agent.store.S...Api object at 0x1137c2300>, <test_gateway.Clock object at 0x1137c22a0>, <test_group_ledger.Port object at 0x1137c3d70>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+___________ test_UX03_confirmation_replay_creates_one_plan_and_item ____________
+
+ux = (<am_service.AmSelfService object at 0x1137c3440>, <fs_agent.gateway.Gateway object at 0x1137c3d40>, <fs_agent.store.S...Api object at 0x1137c3230>, <test_gateway.Clock object at 0x1137c2990>, <test_group_ledger.Port object at 0x1137c20f0>)
+
+    def test_UX03_confirmation_replay_creates_one_plan_and_item(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137c3440>, <fs_agent.gateway.Gateway object at 0x1137c3d40>, <fs_agent.store.S...Api object at 0x1137c3230>, <test_gateway.Clock object at 0x1137c2990>, <test_group_ledger.Port object at 0x1137c20f0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_________________ test_UX03_unknown_only_offers_reconciliation _________________
+
+ux = (<am_service.AmSelfService object at 0x1137c0e30>, <fs_agent.gateway.Gateway object at 0x1137c0050>, <fs_agent.store.S...Api object at 0x1137c3bf0>, <test_gateway.Clock object at 0x1137c1730>, <test_group_ledger.Port object at 0x1137c01d0>)
+
+    def test_UX03_unknown_only_offers_reconciliation(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137c0e30>, <fs_agent.gateway.Gateway object at 0x1137c0050>, <fs_agent.store.S...Api object at 0x1137c3bf0>, <test_gateway.Clock object at 0x1137c1730>, <test_group_ledger.Port object at 0x1137c01d0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change0] ______________
+
+ux = (<am_service.AmSelfService object at 0x1137494c0>, <fs_agent.gateway.Gateway object at 0x11370e7b0>, <fs_agent.store.S...Api object at 0x11370e450>, <test_gateway.Clock object at 0x11370fbc0>, <test_group_ledger.Port object at 0x11370f1a0>)
+change = {'people': ['999']}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137494c0>, <fs_agent.gateway.Gateway object at 0x11370e7b0>, <fs_agent.store.S...Api object at 0x11370e450>, <test_gateway.Clock object at 0x11370fbc0>, <test_group_ledger.Port object at 0x11370f1a0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change1] ______________
+
+ux = (<am_service.AmSelfService object at 0x113749a30>, <fs_agent.gateway.Gateway object at 0x11374b770>, <fs_agent.store.S...Api object at 0x1137c38c0>, <test_gateway.Clock object at 0x1137c2db0>, <test_group_ledger.Port object at 0x1137c0d10>)
+change = {'body': ''}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113749a30>, <fs_agent.gateway.Gateway object at 0x11374b770>, <fs_agent.store.S...Api object at 0x1137c38c0>, <test_gateway.Clock object at 0x1137c2db0>, <test_group_ledger.Port object at 0x1137c0d10>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change2] ______________
+
+ux = (<am_service.AmSelfService object at 0x11378ff80>, <fs_agent.gateway.Gateway object at 0x1137a8fb0>, <fs_agent.store.S...Api object at 0x1137aabd0>, <test_gateway.Clock object at 0x1137a9bb0>, <test_group_ledger.Port object at 0x1137499a0>)
+change = {'when': '明天'}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x11378ff80>, <fs_agent.gateway.Gateway object at 0x1137a8fb0>, <fs_agent.store.S...Api object at 0x1137aabd0>, <test_gateway.Clock object at 0x1137a9bb0>, <test_group_ledger.Port object at 0x1137499a0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change3] ______________
+
+ux = (<am_service.AmSelfService object at 0x1137eab70>, <fs_agent.gateway.Gateway object at 0x1137eabd0>, <fs_agent.store.S...Api object at 0x1137e8740>, <test_gateway.Clock object at 0x1137ea1b0>, <test_group_ledger.Port object at 0x1137e8c50>)
+change = {'frequency': 'workdays', 'until': '2033-06-01 09:00 +0800'}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137eab70>, <fs_agent.gateway.Gateway object at 0x1137eabd0>, <fs_agent.store.S...Api object at 0x1137e8740>, <test_gateway.Clock object at 0x1137ea1b0>, <test_group_ledger.Port object at 0x1137e8c50>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_UX05_original_progress_message_fingerprint ________________
+
+ux = (<am_service.AmSelfService object at 0x1137e84a0>, <fs_agent.gateway.Gateway object at 0x1137ea3c0>, <fs_agent.store.S...Api object at 0x1137eb4a0>, <test_gateway.Clock object at 0x1137e9f40>, <test_group_ledger.Port object at 0x1137e9130>)
+
+    def test_UX05_original_progress_message_fingerprint(ux):
+>       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137e84a0>, <fs_agent.gateway.Gateway object at 0x1137ea3c0>, <fs_agent.store.S...Api object at 0x1137eb4a0>, <test_gateway.Clock object at 0x1137e9f40>, <test_group_ledger.Port object at 0x1137e9130>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+________ test_collection_expiry_and_switch_never_rebind_queued_message _________
+
+ux = (<am_service.AmSelfService object at 0x1137ebc80>, <fs_agent.gateway.Gateway object at 0x1137eb8c0>, <fs_agent.store.S...Api object at 0x1137a8fb0>, <test_gateway.Clock object at 0x1137a9c40>, <test_group_ledger.Port object at 0x1137ab590>)
+
+    def test_collection_expiry_and_switch_never_rebind_queued_message(ux):
+>       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137ebc80>, <fs_agent.gateway.Gateway object at 0x1137eb8c0>, <fs_agent.store.S...Api object at 0x1137a8fb0>, <test_gateway.Clock object at 0x1137a9c40>, <test_group_ledger.Port object at 0x1137ab590>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+____________ test_UX06_precheck_file_bound_to_exact_target_and_F08 _____________
+
+ux = (<am_service.AmSelfService object at 0x11378fa10>, <fs_agent.gateway.Gateway object at 0x11370ecc0>, <fs_agent.store.S...Api object at 0x11370fe90>, <test_gateway.Clock object at 0x11370fec0>, <test_group_ledger.Port object at 0x11370ed80>)
+
+    def test_UX06_precheck_file_bound_to_exact_target_and_F08(ux):
+>       request(ux,'/menu',1);click(ux,'targets');click(ux,'precheck_form')
+                              ^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x11378fa10>, <fs_agent.gateway.Gateway object at 0x11370ecc0>, <fs_agent.store.S...Api object at 0x11370fe90>, <test_gateway.Clock object at 0x11370fec0>, <test_group_ledger.Port object at 0x11370ed80>)
+page = 'targets'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+___________ test_UX07_wrong_actor_or_chat_cannot_execute[ou_b-oc_dm] ___________
+
+ux = (<am_service.AmSelfService object at 0x11374a420>, <fs_agent.gateway.Gateway object at 0x11370c410>, <fs_agent.store.S...Api object at 0x1137e8350>, <test_gateway.Clock object at 0x1137eb950>, <test_group_ledger.Port object at 0x1137eb830>)
+actor = 'ou_b', chat = 'oc_dm'
+
+    @pytest.mark.parametrize('actor,chat',[('ou_b','oc_dm'),('ou_a','oc_other')])
+    def test_UX07_wrong_actor_or_chat_cannot_execute(ux,actor,chat):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x11374a420>, <fs_agent.gateway.Gateway object at 0x11370c410>, <fs_agent.store.S...Api object at 0x1137e8350>, <test_gateway.Clock object at 0x1137eb950>, <test_group_ledger.Port object at 0x1137eb830>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_________ test_UX07_wrong_actor_or_chat_cannot_execute[ou_a-oc_other] __________
+
+ux = (<am_service.AmSelfService object at 0x1137c0b60>, <fs_agent.gateway.Gateway object at 0x1137c0e00>, <fs_agent.store.S...Api object at 0x11378e3f0>, <test_gateway.Clock object at 0x11378c2c0>, <test_group_ledger.Port object at 0x11378fda0>)
+actor = 'ou_a', chat = 'oc_other'
+
+    @pytest.mark.parametrize('actor,chat',[('ou_b','oc_dm'),('ou_a','oc_other')])
+    def test_UX07_wrong_actor_or_chat_cannot_execute(ux,actor,chat):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1137c0b60>, <fs_agent.gateway.Gateway object at 0x1137c0e00>, <fs_agent.store.S...Api object at 0x11378e3f0>, <test_gateway.Clock object at 0x11378c2c0>, <test_group_ledger.Port object at 0x11378fda0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+____________________ test_UX07_expired_card_cannot_execute _____________________
+
+ux = (<am_service.AmSelfService object at 0x113833770>, <fs_agent.gateway.Gateway object at 0x11374a3f0>, <fs_agent.store.S...Api object at 0x113748560>, <test_gateway.Clock object at 0x11374b320>, <test_group_ledger.Port object at 0x113748c20>)
+
+    def test_UX07_expired_card_cannot_execute(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113833770>, <fs_agent.gateway.Gateway object at 0x11374a3f0>, <fs_agent.store.S...Api object at 0x113748560>, <test_gateway.Clock object at 0x11374b320>, <test_group_ledger.Port object at 0x113748c20>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_UX04_group_form_continuous_feedback_two_actors ______________
+
+ux = (<am_service.AmSelfService object at 0x113830590>, <fs_agent.gateway.Gateway object at 0x113831d00>, <fs_agent.store.S...Api object at 0x113831dc0>, <test_gateway.Clock object at 0x113832b70>, <test_group_ledger.Port object at 0x113830c80>)
+
+    def test_UX04_group_form_continuous_feedback_two_actors(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,people=['0','1']));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113830590>, <fs_agent.gateway.Gateway object at 0x113831d00>, <fs_agent.store.S...Api object at 0x113831dc0>, <test_gateway.Clock object at 0x113832b70>, <test_group_ledger.Port object at 0x113830c80>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______________ test_UX08_search_no_results_and_long_body_readable ______________
+
+ux = (<am_service.AmSelfService object at 0x113832cf0>, <fs_agent.gateway.Gateway object at 0x1137c07d0>, <fs_agent.store.S...Api object at 0x1137c01d0>, <test_gateway.Clock object at 0x1137c0b60>, <test_group_ledger.Port object at 0x1137c3560>)
+
+    def test_UX08_search_no_results_and_long_body_readable(ux):
+>       request(ux,'/menu',1);click(ux,'projects');click(ux,'search',form={'query':'不会存在的项目'})
+                              ^^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113832cf0>, <fs_agent.gateway.Gateway object at 0x1137c07d0>, <fs_agent.store.S...Api object at 0x1137c01d0>, <test_gateway.Clock object at 0x1137c0b60>, <test_group_ledger.Port object at 0x1137c3560>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_collection_cross_thread_requires_new_choice _______________
+
+ux = (<am_service.AmSelfService object at 0x11370fd40>, <fs_agent.gateway.Gateway object at 0x1137c0f80>, <fs_agent.store.S...Api object at 0x1137c1940>, <test_gateway.Clock object at 0x1137c1160>, <test_group_ledger.Port object at 0x1137c2d20>)
+
+    def test_collection_cross_thread_requires_new_choice(ux):
+>       request(ux,'/menu',1,thread_id='thread-a');click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:177: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x11370fd40>, <fs_agent.gateway.Gateway object at 0x1137c0f80>, <fs_agent.store.S...Api object at 0x1137c1940>, <test_gateway.Clock object at 0x1137c1160>, <test_group_ledger.Port object at 0x1137c2d20>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______________ test_collection_different_project_mention_rejected ______________
+
+ux = (<am_service.AmSelfService object at 0x11378e8d0>, <fs_agent.gateway.Gateway object at 0x113831fd0>, <fs_agent.store.S...Api object at 0x113833530>, <test_gateway.Clock object at 0x1138315b0>, <test_group_ledger.Port object at 0x113833350>)
+
+    def test_collection_different_project_mention_rejected(ux):
+>       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x11378e8d0>, <fs_agent.gateway.Gateway object at 0x113831fd0>, <fs_agent.store.S...Api object at 0x113833530>, <test_gateway.Clock object at 0x1138315b0>, <test_group_ledger.Port object at 0x113833350>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______________________ test_future_cycle_start_respected _______________________
+
+ux = (<am_service.AmSelfService object at 0x113815550>, <fs_agent.gateway.Gateway object at 0x113749cd0>, <fs_agent.store.S...Api object at 0x11374aed0>, <test_gateway.Clock object at 0x11374b6e0>, <test_group_ledger.Port object at 0x1137e84d0>)
+
+    def test_future_cycle_start_respected(ux):
+>       reminder_form(ux)
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113815550>, <fs_agent.gateway.Gateway object at 0x113749cd0>, <fs_agent.store.S...Api object at 0x11374aed0>, <test_gateway.Clock object at 0x11374b6e0>, <test_group_ledger.Port object at 0x1137e84d0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_old_form_is_blocked_after_feature_disabled ________________
+
+ux = (<am_service.AmSelfService object at 0x113807170>, <fs_agent.gateway.Gateway object at 0x1138051f0>, <fs_agent.store.S...Api object at 0x1138077d0>, <test_gateway.Clock object at 0x113805fa0>, <test_group_ledger.Port object at 0x113807740>)
+
+    def test_old_form_is_blocked_after_feature_disabled(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113807170>, <fs_agent.gateway.Gateway object at 0x1138051f0>, <fs_agent.store.S...Api object at 0x1138077d0>, <test_gateway.Clock object at 0x113805fa0>, <test_group_ledger.Port object at 0x113807740>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_precheck_unread_file_is_not_claimed_missing _______________
+
+ux = (<am_service.AmSelfService object at 0x113804770>, <fs_agent.gateway.Gateway object at 0x113807ec0>, <fs_agent.store.S...Api object at 0x113806d50>, <test_gateway.Clock object at 0x1138046e0>, <test_group_ledger.Port object at 0x113805040>)
+
+    def test_precheck_unread_file_is_not_claimed_missing(ux):
+        from fs_agent.config import BoundaryError
+>       request(ux,'/menu',1);click(ux,'targets');click(ux,'precheck_form');click(ux,'start_precheck',form={'kind':'test','requirements':'交付物清单'})
+                              ^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113804770>, <fs_agent.gateway.Gateway object at 0x113807ec0>, <fs_agent.store.S...Api object at 0x113806d50>, <test_gateway.Clock object at 0x1138046e0>, <test_group_ledger.Port object at 0x113805040>)
+page = 'targets'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_project_card_reply_binding_survives_later_query _____________
+
+ux = (<am_service.AmSelfService object at 0x1138177d0>, <fs_agent.gateway.Gateway object at 0x113817f20>, <fs_agent.store.S...Api object at 0x113816e40>, <test_gateway.Clock object at 0x113814da0>, <test_group_ledger.Port object at 0x113804e00>)
+
+    def test_project_card_reply_binding_survives_later_query(ux):
+>       request(ux,'/menu',1);click(ux,'projects');click(ux,'project')
+                              ^^^^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x1138177d0>, <fs_agent.gateway.Gateway object at 0x113817f20>, <fs_agent.store.S...Api object at 0x113816e40>, <test_gateway.Clock object at 0x113814da0>, <test_group_ledger.Port object at 0x113804e00>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_ test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u63d0\u4ea4 {\u6d4b\u8bd5\u62a5\u544a}\uff0c\u53c2\u6570 {"version": 2}\u3002] _
+
+ux = (<am_service.AmSelfService object at 0x113815d60>, <fs_agent.gateway.Gateway object at 0x1137ebb30>, <fs_agent.store.S...Api object at 0x1137e85f0>, <test_gateway.Clock object at 0x1137e8560>, <test_group_ledger.Port object at 0x1137e8f20>)
+body = '请提交 {测试报告}，参数 {"version": 2}。'
+
+    @pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+    def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x113815d60>, <fs_agent.gateway.Gateway object at 0x1137ebb30>, <fs_agent.store.S...Api object at 0x1137e85f0>, <test_gateway.Clock object at 0x1137e8560>, <test_group_ledger.Port object at 0x1137e8f20>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_ test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u4fdd\u7559\u53cc\u62ec\u53f7 {{\u6837\u4f8b}}\u3002] _
+
+ux = (<am_service.AmSelfService object at 0x11378ff80>, <fs_agent.gateway.Gateway object at 0x11370e4e0>, <fs_agent.store.S...Api object at 0x11370f6e0>, <test_gateway.Clock object at 0x11370f0b0>, <test_group_ledger.Port object at 0x11370fb90>)
+body = '请保留双括号 {{样例}}。'
+
+    @pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+    def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x11378ff80>, <fs_agent.gateway.Gateway object at 0x11370e4e0>, <fs_agent.store.S...Api object at 0x11370f6e0>, <test_gateway.Clock object at 0x11370f0b0>, <test_group_ledger.Port object at 0x11370fb90>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+/tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../../workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+../../../../../../../../workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /workspace/am/AM-HARNESS-20261031-01/R1/verification/reconstructed-frozen/original.xml -
+=========================== short test summary info ============================
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py::test_B07_owner_private_query_does_not_fake_a_group
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_entrypoints.py::test_D_owner_exact_diff_approval_cannot_enable_disabled_write
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX01_menu_event_to_live_project_detail
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_menu_rejects_untrusted_actor_or_event_key[ou_other-am_work]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX02_edit_preserves_form_and_invalidates_old_approval
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX03_confirmation_replay_creates_one_plan_and_item
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX03_unknown_only_offers_reconciliation
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change0]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change1]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change2]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change3]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX05_original_progress_message_fingerprint
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_collection_expiry_and_switch_never_rebind_queued_message
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX06_precheck_file_bound_to_exact_target_and_F08
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX07_wrong_actor_or_chat_cannot_execute[ou_b-oc_dm]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX07_wrong_actor_or_chat_cannot_execute[ou_a-oc_other]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX07_expired_card_cannot_execute
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX04_group_form_continuous_feedback_two_actors
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX08_search_no_results_and_long_body_readable
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_collection_cross_thread_requires_new_choice
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_collection_different_project_mention_rejected
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_future_cycle_start_respected
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_old_form_is_blocked_after_feature_disabled
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_precheck_unread_file_is_not_claimed_missing
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_project_card_reply_binding_survives_later_query
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u63d0\u4ea4 {\u6d4b\u8bd5\u62a5\u544a}\uff0c\u53c2\u6570 {"version": 2}\u3002]
+FAILED ../../../../../../../../tmp/am-harness-review/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u4fdd\u7559\u53cc\u62ec\u53f7 {{\u6837\u4f8b}}\u3002]
+27 failed, 557 passed, 2 warnings in 14.64s
