@@ -1,0 +1,102 @@
+{
+  "case_id": "SYN-PAR-02",
+  "repeat": 2,
+  "mode": "legacy",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "a3f45dfeeec3457acadaab3267185b0c5e62275aa2066ebfee74abf186eff7bb",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "c46f0a716f28b0e214ea8e234d703608182e5dd4c8d1bdb8de4545f0064ee898",
+    "conversation.sqlite3": "f25cdaa31e095fe4eee380ba2fc37dd69a6faf7916fa3fb19e42851c899733fd"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "列出全部合成项目待办并告诉我总数。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 25481,
+          "calls": 3,
+          "characters": 5750,
+          "seconds": 0,
+          "tool_count": 10
+        },
+        "conversation_model": {
+          "calls": 3,
+          "seconds": 62.688417040975764
+        },
+        "conversation_tool:list_projects": {
+          "calls": 1,
+          "seconds": 0.0032260839361697435
+        },
+        "conversation_tool:read_project": {
+          "calls": 3,
+          "seconds": 0.010352084063924849
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00011929101310670376
+        },
+        "local_calculation": {
+          "calls": 7,
+          "seconds": 7.3320697993040085e-06
+        },
+        "snapshot_hit": {
+          "calls": 7,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 2.249958924949169e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00023908296134322882,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 4.1082967072725296e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "共找到3个合成项目，待办情况如下：\n1. 需求75:合成青岚：确认收货\n2. 需求76:合成星榆：跟进乙报告\n3. 需求77:合成海棠：待确认"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

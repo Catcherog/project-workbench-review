@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-REM-01",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "f10a11c54ef38844fa3aa2a7fd39ab1ba03973be12c1232c3342254d505897c7",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "06ddc1ee96c7c989961c9e6df438fe7be97586b999f704e1cea1b7b1152f0e81",
+    "conversation.sqlite3": "676b2e778d79570f29fbd0b92b459f52dff97f2a1dad905a8f474c014a8087b5"
+  },
+  "native_runs": [
+    {
+      "id": "run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b",
+      "event_id": "om503",
+      "input_text": "合成提醒计划 73872561932947bc8c0b32c135ff34f4 已按当前版本启用，说明实际时刻及目前是否发生提醒。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om503",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 22082,
+          "calls": 2,
+          "characters": 2851,
+          "seconds": 0,
+          "tool_count": 17
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 51.00740216707345
+        },
+        "conversation_tool:list_reminders": {
+          "calls": 1,
+          "seconds": 0.00383687496650964
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00020950008183717728
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 1.750071533024311e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.915963366627693e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00014050002209842205,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 3.145798109471798e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "source_result：\n{\"order\":\"created_desc\",\"plans\":[{\"created\":1898557200.0,\"id\":\"73872561932947bc8c0b32c135ff34f4\",\"item_id\":\"1be2da0d4e094c1bbee54bda1b24da3a\",\"kind\":\"daily\",\"next_at\":1898559000.0,\"recent_sends\":[],\"rule\":{\"quiet_policy\":\"exact\",\"time\":\"09:30\",\"timezone\":\"Asia/Shanghai\"},\"schedule_exhausted\":false,\"state\":\"active\",\"target\":\"本人私聊\",\"template\":\"合成试样确认\",\"valid_until\":1898956740.0,\"version\":1}]}\n\n提醒计划：只取得部分结果。\n本次读取范围尚未全部核实；已读取的内容不代表全部资料。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

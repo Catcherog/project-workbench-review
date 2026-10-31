@@ -1,0 +1,160 @@
+...................F...FF.......                                         [100%]
+=================================== FAILURES ===================================
+_ test_real_business_adapters_under_new_pipeline[test_new_document_does_not_cancel_earlier_draft] _
+
+convo = ((<am_service.AmSelfService object at 0x1105dddf0>, <fs_agent.gateway.Gateway object at 0x1109ff500>, <fs_agent.store....>, <test_group_ledger.Port object at 0x1109fe120>), <test_conversation_integration.JsonProvider object at 0x110637140>)
+case_name = 'test_new_document_does_not_cancel_earlier_draft'
+
+    @pytest.mark.parametrize('case_name', [
+        'test_create_followup_and_pause_use_original_item_store',
+        'test_group_send_waits_for_exact_text_readback_and_natural_confirmation',
+        'test_unknown_send_never_repeats_and_can_reconcile',
+        'test_schedule_activation_cancel_and_no_early_send',
+        'test_teaching_natural_approval_is_scoped_and_delivered',
+        'test_new_document_does_not_cancel_earlier_draft',
+        'test_project_feedback_flows_to_owner_without_ledger_write',
+        'test_change_reminder_time_requires_new_preview_and_keeps_plan_identity',
+        'test_briefing_subscription_is_confirmed_and_cancellable',
+        'test_consumed_once_reminder_can_still_be_listed_and_cancelled',
+        'test_standard_target_change_requires_current_result_before_cloud_preview',
+    ])
+    def test_real_business_adapters_under_new_pipeline(convo, case_name):
+        import test_conversation_integration as original_cases
+        am = convo[0][0]; bridge = am.conversation
+        bridge.agent.response_pipeline = ResponsePipeline({'mode': 'canonical'}, binding=bridge.response_binding,
+            targets=lambda ctx: bridge._current(ctx).get('project_catalog', []), clock=am.s.clock)
+        bridge.agent.model.model.response_protocol = True
+        am.s.response_projection = GatewayProjection(am.s)
+>       getattr(original_cases, case_name)(convo)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py:210: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+convo = ((<am_service.AmSelfService object at 0x1105dddf0>, <fs_agent.gateway.Gateway object at 0x1109ff500>, <fs_agent.store....>, <test_group_ledger.Port object at 0x1109fe120>), <test_conversation_integration.JsonProvider object at 0x110637140>)
+
+    def test_new_document_does_not_cancel_earlier_draft(convo):
+        row,text=speak(convo,'新建一份测试报告',[call('edit_document',{'operation':'create','kind':'test'})])
+>       assert row['state']=='done',row
+E       AssertionError: {'app': 'cli_test', 'body': '新建一份测试报告', 'chat': 'oc_dm', 'chat_type': 'p2p', ...}
+E       assert 'failed' == 'done'
+E         
+E         - done
+E         + failed
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_conversation_integration.py:124: AssertionError
+_ test_real_business_adapters_under_new_pipeline[test_consumed_once_reminder_can_still_be_listed_and_cancelled] _
+
+convo = ((<am_service.AmSelfService object at 0x1109fe870>, <fs_agent.gateway.Gateway object at 0x1109f9a00>, <fs_agent.store....>, <test_group_ledger.Port object at 0x1109f9a90>), <test_conversation_integration.JsonProvider object at 0x110551790>)
+case_name = 'test_consumed_once_reminder_can_still_be_listed_and_cancelled'
+
+    @pytest.mark.parametrize('case_name', [
+        'test_create_followup_and_pause_use_original_item_store',
+        'test_group_send_waits_for_exact_text_readback_and_natural_confirmation',
+        'test_unknown_send_never_repeats_and_can_reconcile',
+        'test_schedule_activation_cancel_and_no_early_send',
+        'test_teaching_natural_approval_is_scoped_and_delivered',
+        'test_new_document_does_not_cancel_earlier_draft',
+        'test_project_feedback_flows_to_owner_without_ledger_write',
+        'test_change_reminder_time_requires_new_preview_and_keeps_plan_identity',
+        'test_briefing_subscription_is_confirmed_and_cancellable',
+        'test_consumed_once_reminder_can_still_be_listed_and_cancelled',
+        'test_standard_target_change_requires_current_result_before_cloud_preview',
+    ])
+    def test_real_business_adapters_under_new_pipeline(convo, case_name):
+        import test_conversation_integration as original_cases
+        am = convo[0][0]; bridge = am.conversation
+        bridge.agent.response_pipeline = ResponsePipeline({'mode': 'canonical'}, binding=bridge.response_binding,
+            targets=lambda ctx: bridge._current(ctx).get('project_catalog', []), clock=am.s.clock)
+        bridge.agent.model.model.response_protocol = True
+        am.s.response_projection = GatewayProjection(am.s)
+>       getattr(original_cases, case_name)(convo)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py:210: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+convo = ((<am_service.AmSelfService object at 0x1109fe870>, <fs_agent.gateway.Gateway object at 0x1109f9a00>, <fs_agent.store....>, <test_group_ledger.Port object at 0x1109f9a90>), <test_conversation_integration.JsonProvider object at 0x110551790>)
+
+    def test_consumed_once_reminder_can_still_be_listed_and_cancelled(convo):
+        ux,p=convo;at=datetime.fromtimestamp(ux[4](),ZoneInfo('Asia/Shanghai'))+timedelta(minutes=5)
+        speak(convo,'在'+at.isoformat()+'提醒我合成验证',[call('schedule_reminder',{'target':'self','body':'合成验证','frequency':'once','at':at.isoformat()})])
+        speak(convo,'确认第1项');plan=ux[2].rows('SELECT * FROM reminder_plans')[0]
+        ux[4].now=at.timestamp();ux[0].scheduler.scan()
+        assert ux[0].scheduler.plan(plan['id'])['next_at']==float('inf')
+        row,text=speak(convo,'查看我的提醒',[call('list_reminders',{}),answer('已经生成本次发送任务，没有下一次安排。')])
+        assert row['state']=='done' and 'schedule_exhausted' in p.prompts[-1] and 'Infinity' not in p.prompts[-1]
+        row,text=speak(convo,'取消这条提醒',[call('control_reminder',{'plan_id':plan['id'],'version':plan['version'],'operation':'cancel'})])
+>       assert row['state']=='done' and ux[0].scheduler.plan(plan['id'])['state']=='cancelled'
+E       AssertionError: assert ('failed' == 'done'
+E         
+E         - done
+E         + failed)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_conversation_integration.py:202: AssertionError
+_ test_real_business_adapters_under_new_pipeline[test_standard_target_change_requires_current_result_before_cloud_preview] _
+
+convo = ((<am_service.AmSelfService object at 0x110a8c830>, <fs_agent.gateway.Gateway object at 0x1109ffb60>, <fs_agent.store....>, <test_group_ledger.Port object at 0x1109fe4b0>), <test_conversation_integration.JsonProvider object at 0x110553e30>)
+case_name = 'test_standard_target_change_requires_current_result_before_cloud_preview'
+
+    @pytest.mark.parametrize('case_name', [
+        'test_create_followup_and_pause_use_original_item_store',
+        'test_group_send_waits_for_exact_text_readback_and_natural_confirmation',
+        'test_unknown_send_never_repeats_and_can_reconcile',
+        'test_schedule_activation_cancel_and_no_early_send',
+        'test_teaching_natural_approval_is_scoped_and_delivered',
+        'test_new_document_does_not_cancel_earlier_draft',
+        'test_project_feedback_flows_to_owner_without_ledger_write',
+        'test_change_reminder_time_requires_new_preview_and_keeps_plan_identity',
+        'test_briefing_subscription_is_confirmed_and_cancellable',
+        'test_consumed_once_reminder_can_still_be_listed_and_cancelled',
+        'test_standard_target_change_requires_current_result_before_cloud_preview',
+    ])
+    def test_real_business_adapters_under_new_pipeline(convo, case_name):
+        import test_conversation_integration as original_cases
+        am = convo[0][0]; bridge = am.conversation
+        bridge.agent.response_pipeline = ResponsePipeline({'mode': 'canonical'}, binding=bridge.response_binding,
+            targets=lambda ctx: bridge._current(ctx).get('project_catalog', []), clock=am.s.clock)
+        bridge.agent.model.model.response_protocol = True
+        am.s.response_projection = GatewayProjection(am.s)
+>       getattr(original_cases, case_name)(convo)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py:210: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+convo = ((<am_service.AmSelfService object at 0x110a8c830>, <fs_agent.gateway.Gateway object at 0x1109ffb60>, <fs_agent.store....>, <test_group_ledger.Port object at 0x1109fe4b0>), <test_conversation_integration.JsonProvider object at 0x110553e30>)
+
+    def test_standard_target_change_requires_current_result_before_cloud_preview(convo):
+        from fs_agent.document_standards import DocumentStandards
+        from unittest.mock import Mock
+        ux,p=convo;am,g,s,api,clock,port=ux
+        standards=DocumentStandards(g.logic,{})
+        g.logic.standards=standards;standards.native_action=Mock(side_effect=AssertionError('no real cloud write'))
+        g.logic.business.document_identity=lambda row,target:{'project_code':'需求75','doc_type':'charter'}
+        speak(convo,'新建一份项目章程',[call('edit_document',{'operation':'create','kind':'charter'})])
+        draft=s.rows('SELECT * FROM logic_drafts')[0]
+        s.execute("INSERT INTO amdoc_context VALUES(?,?,?)",(draft['id'],json.dumps({'project_code':'需求75','doc_type':'charter'}),draft['expires']))
+        s.execute("INSERT INTO amdoc_results VALUES(?,1,'{}',?)",(draft['id'],draft['expires']))
+        s.execute("UPDATE logic_drafts SET state='ready',content='合成稿',content_hash='hash1',accepted_hash='hash1' WHERE id=?",(draft['id'],))
+        row,text=speak(convo,'选择文稿目标A',[call('edit_document',{'operation':'target','draft_id':draft['id'],'version':1,'target_alias':'A'})])
+>       assert row['state']=='done' and '重新生成' in text
+E       AssertionError: assert ('failed' == 'done'
+E         
+E         - done
+E         + failed)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_conversation_integration.py:230: AssertionError
+=============================== warnings summary ===============================
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /workspace/am/AM-HARNESS-20261031-01/R2-FIX1/evidence/stage1.xml -
+=========================== short test summary info ============================
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py::test_real_business_adapters_under_new_pipeline[test_new_document_does_not_cancel_earlier_draft]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py::test_real_business_adapters_under_new_pipeline[test_consumed_once_reminder_can_still_be_listed_and_cancelled]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py::test_real_business_adapters_under_new_pipeline[test_standard_target_change_requires_current_result_before_cloud_preview]
+3 failed, 29 passed, 2 warnings in 3.23s

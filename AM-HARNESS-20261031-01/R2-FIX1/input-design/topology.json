@@ -1,0 +1,265 @@
+{
+  "design_only": true,
+  "version": "2.0-design.1",
+  "note": "职责登记；不是当前运行系统已经使用的图执行器。未知动作不沿循环边重放。",
+  "nodes": [
+    {
+      "id": "N01",
+      "label": "接入与绑定",
+      "layer": "host",
+      "symbol": "admit",
+      "effects": "none",
+      "resume_policy": "原去重"
+    },
+    {
+      "id": "N02",
+      "label": "意图与对象",
+      "layer": "semantic",
+      "symbol": "resolve_intent",
+      "effects": "none",
+      "resume_policy": "纯推断"
+    },
+    {
+      "id": "N03",
+      "label": "任务步骤",
+      "layer": "semantic",
+      "symbol": "plan_steps",
+      "effects": "task_metadata",
+      "resume_policy": "幂等目标更新"
+    },
+    {
+      "id": "N04",
+      "label": "事实读取",
+      "layer": "evidence",
+      "symbol": "collect_evidence",
+      "effects": "read",
+      "resume_policy": "有效依赖下可重读"
+    },
+    {
+      "id": "N05",
+      "label": "领域能力",
+      "layer": "execution",
+      "symbol": "execute_capability",
+      "effects": "declared_by_tool",
+      "resume_policy": "按工具回执恢复"
+    },
+    {
+      "id": "N06",
+      "label": "目标核对",
+      "layer": "semantic",
+      "symbol": "check_completion",
+      "effects": "none",
+      "resume_policy": "纯检查"
+    },
+    {
+      "id": "N07",
+      "label": "结果快照",
+      "layer": "outcome",
+      "symbol": "compile_outcome",
+      "effects": "none",
+      "resume_policy": "新版本快照"
+    },
+    {
+      "id": "N08",
+      "label": "表达策略",
+      "layer": "response",
+      "symbol": "select_response_policy",
+      "effects": "none",
+      "resume_policy": "纯选择"
+    },
+    {
+      "id": "N09",
+      "label": "表达提案",
+      "layer": "response",
+      "symbol": "realize_response",
+      "effects": "model_or_pure",
+      "resume_policy": "最多一次可选表达"
+    },
+    {
+      "id": "N10",
+      "label": "内容与有效性",
+      "layer": "validation",
+      "symbol": "validate_response",
+      "effects": "read",
+      "resume_policy": "原守卫"
+    },
+    {
+      "id": "N11",
+      "label": "冻结呈现",
+      "layer": "presentation",
+      "symbol": "freeze_presentation",
+      "effects": "conversation_metadata",
+      "resume_policy": "稳定绑定键"
+    },
+    {
+      "id": "N12",
+      "label": "投递与回读",
+      "layer": "delivery",
+      "symbol": "publish_and_verify",
+      "effects": "original_outbox",
+      "resume_policy": "未知只对账"
+    },
+    {
+      "id": "N13",
+      "label": "续接或结束",
+      "layer": "goal",
+      "symbol": "continue_or_close",
+      "effects": "task_metadata",
+      "resume_policy": "新回合重取授权"
+    }
+  ],
+  "edges": [
+    {
+      "from": "N01",
+      "to": "N02",
+      "condition": "普通任务"
+    },
+    {
+      "from": "N01",
+      "to": "N04",
+      "condition": "快查询"
+    },
+    {
+      "from": "N01",
+      "to": "N07",
+      "condition": "控制或无来源通知"
+    },
+    {
+      "from": "N02",
+      "to": "N03",
+      "condition": "目标明确"
+    },
+    {
+      "from": "N02",
+      "to": "N07",
+      "condition": "需要必要输入"
+    },
+    {
+      "from": "N03",
+      "to": "N04",
+      "condition": "需事实"
+    },
+    {
+      "from": "N03",
+      "to": "N05",
+      "condition": "已授权步骤"
+    },
+    {
+      "from": "N04",
+      "to": "N06",
+      "condition": "读取完成"
+    },
+    {
+      "from": "N05",
+      "to": "N06",
+      "condition": "工具结果或停点"
+    },
+    {
+      "from": "N06",
+      "to": "N05",
+      "condition": "尚有已授权步骤且有预算"
+    },
+    {
+      "from": "N06",
+      "to": "N07",
+      "condition": "完成或真实停点"
+    },
+    {
+      "from": "N07",
+      "to": "N08",
+      "condition": "冻结完成度与依赖"
+    },
+    {
+      "from": "N08",
+      "to": "N09",
+      "condition": "选择已有提案或可选生成"
+    },
+    {
+      "from": "N08",
+      "to": "N10",
+      "condition": "自然模板或保护呈现"
+    },
+    {
+      "from": "N09",
+      "to": "N10",
+      "condition": "候选生成完成"
+    },
+    {
+      "from": "N10",
+      "to": "N11",
+      "condition": "合格且仍有效"
+    },
+    {
+      "from": "N10",
+      "to": "N08",
+      "condition": "候选被拒；仅一次canonical"
+    },
+    {
+      "from": "N10",
+      "to": "N13",
+      "condition": "绑定/来源失效；抑制正文"
+    },
+    {
+      "from": "N11",
+      "to": "N12",
+      "condition": "原事务发布"
+    },
+    {
+      "from": "N12",
+      "to": "N13",
+      "condition": "发送/核对结果"
+    },
+    {
+      "from": "N13",
+      "to": "N02",
+      "condition": "新用户回合与新有效上下文"
+    }
+  ],
+  "states": {
+    "goal": [
+      "active",
+      "awaiting_input",
+      "awaiting_approval",
+      "partial",
+      "fulfilled",
+      "blocked",
+      "cancelled"
+    ],
+    "run": [
+      "queued",
+      "running",
+      "succeeded",
+      "failed",
+      "cancelled",
+      "expired",
+      "unknown",
+      "waiting_review"
+    ],
+    "expression": [
+      "not_needed",
+      "not_attempted",
+      "planned",
+      "generating",
+      "accepted",
+      "rejected",
+      "fallback",
+      "suppressed"
+    ],
+    "presentation": [
+      "prepared",
+      "queued",
+      "dispatched",
+      "verified",
+      "suppressed",
+      "unknown"
+    ]
+  },
+  "constraints": [
+    "At most one canonical fallback.",
+    "Existing fast/control routes never invoke the model.",
+    "All model calls share the original absolute deadline.",
+    "EventBinding is not a RunBinding.",
+    "No automatic replay of unknown effects.",
+    "New user turn renews context; waiting never extends identity TTL."
+  ]
+}

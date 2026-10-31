@@ -1,0 +1,161 @@
+{
+  "case_id": "SYN-FUP-04",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "4d013994b518856bf06ae068ac15895d02184947453500b08f17ddd748053d7d",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "166fc03910178459df4868ca9dc8d17b887b7eb417b082359407bd791ae0afe3",
+    "conversation.sqlite3": "d8c831f68c952b619e82acbf47b5478ed7c523f1475716052e81ee6c63bae714"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "合成跟进已经提交资料，把它结案；下一轮确认当前结案预览。",
+      "state": "succeeded",
+      "error": null
+    },
+    {
+      "id": "run_b69c69c4230a7a483ac06b1415164460915aa7af",
+      "event_id": "om502",
+      "input_text": "确认执行 action_9e38e8970361473dbf522f099dc5f8cf v1",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 22695,
+          "calls": 2,
+          "characters": 2593,
+          "seconds": 0,
+          "tool_count": 14
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 42.66916991700418
+        },
+        "conversation_tool:list_followups": {
+          "calls": 1,
+          "seconds": 0.0023379159392789006
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00015829107724130154
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 1.9989674910902977e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 2.0830193534493446e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001582909608259797,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.8749927878379822e-05,
+          "calls": 1
+        }
+      }
+    },
+    {
+      "event_id": "om502",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00020170805510133505
+        },
+        "snapshot_hit": {
+          "seconds": 0,
+          "calls": 2
+        },
+        "local_calculation": {
+          "seconds": 1.6238773241639137e-06,
+          "calls": 2
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.3329554349184036e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.000106374965980649,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.1125073544681072e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [
+          "action_9e38e8970361473dbf522f099dc5f8cf"
+        ],
+        "replayed": false,
+        "source_ids": [],
+        "status": "needs_confirmation",
+        "text": "准备核验关闭跟进事项：合成试样确认\n核验依据：已提交合成资料；合成验收依据 syn-acceptance-1 已批准。\n只关闭此 AM 跟进，不改变正式项目或验收节点。\n动作编号：action_9e38e8970361473dbf522f099dc5f8cf v1\n确认执行这份内容，请回复“确认执行”；也可以继续修改或取消。\n\n跟进事项：尚待确认，未执行。"
+      }
+    },
+    {
+      "event_id": "harness:run_b69c69c4230a7a483ac06b1415164460915aa7af:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_b69c69c4230a7a483ac06b1415164460915aa7af:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "execution_succeeded",
+        "text": "这项跟进已按所示依据核验关闭，正式项目状态未修改。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

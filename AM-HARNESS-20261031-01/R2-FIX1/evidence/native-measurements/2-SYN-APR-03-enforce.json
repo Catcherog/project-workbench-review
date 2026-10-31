@@ -1,0 +1,83 @@
+{
+  "case_id": "SYN-APR-03",
+  "repeat": 2,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "41fea34c6f379663e2b37207d7c13084c2656dcdbe68b14ba1bc93bc601fd1d6",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "acc477067b691030fa176df115a96bd4c80b1740061a303442cc806185a44e1d",
+    "conversation.sqlite3": "2f1fc82decee520f3ae1e50ec60aef480b53959d2be1a3d7980c39cc519e47db"
+  },
+  "native_runs": [
+    {
+      "id": "run_b69c69c4230a7a483ac06b1415164460915aa7af",
+      "event_id": "om502",
+      "input_text": "取消 action_a079ae597a8d45939223f55dde91a438",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om502",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00026783300563693047
+        },
+        "snapshot_hit": {
+          "seconds": 0,
+          "calls": 2
+        },
+        "local_calculation": {
+          "seconds": 1.166015863418579e-06,
+          "calls": 2
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.125037670135498e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001308330101892352,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 1.7750076949596405e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_b69c69c4230a7a483ac06b1415164460915aa7af:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_b69c69c4230a7a483ac06b1415164460915aa7af:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "cancelled",
+        "text": "这个待执行动作已取消。\n\n控制操作：已记录对应结果。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

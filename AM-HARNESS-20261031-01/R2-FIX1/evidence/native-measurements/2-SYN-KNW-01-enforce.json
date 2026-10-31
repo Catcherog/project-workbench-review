@@ -1,0 +1,100 @@
+{
+  "case_id": "SYN-KNW-01",
+  "repeat": 2,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "cc71ad3b5d3c7eb5e8128f2a8ef57b4f5e3cd9c89987020c37d028366a1d25f0",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "593e1abe473dd6defb4706b10552abebad5bfec65131db40268bf9fe9650e19c",
+    "conversation.sqlite3": "fea31b5943fb410436235dcbcb0590563e024e83b2c47cf0d7c12c6f4e66ca40"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "把这条合成规则整理成可审核知识：外包装变更前先核对尺寸。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 23871,
+          "calls": 1,
+          "characters": 1812,
+          "seconds": 0,
+          "tool_count": 13
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00017991603817790747
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 2.041109837591648e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "conversation_model": {
+          "seconds": 18.819267124985345,
+          "calls": 1
+        },
+        "conversation_tool:propose_knowledge": {
+          "seconds": 0.003983082948252559,
+          "calls": 1
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.5420373529195786e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001455419696867466,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.6124995201826096e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [
+          "ebb3524bffc54e0a85118fed35ca74e2"
+        ],
+        "status": "knowledge_candidate",
+        "text": "已整理为待批准知识（当前私聊）：\n外包装变更前先核对尺寸。\n确认采用请回复：批准知识 ebb3524bffc54e0a85118fed35ca74e2 v1\n\n知识记录：已记录对应结果。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

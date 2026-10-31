@@ -1,0 +1,94 @@
+{
+  "case_id": "SYN-ERR-04",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "aeefefc34fda7e89464b1624b801cc714c5d9ad6113b3ba49f82c74f2e9ba712",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "c20db10a0779289e16767dc9dbe03878b47d998315d3ee71427b15f832e21623",
+    "conversation.sqlite3": "37df9e2dd268019ebc906d19f9b321ed0369863799f394f800147adb471595f0"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "上次因为权限版本变化没答完，现在我重新问需求76的进展。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 24956,
+          "calls": 1,
+          "characters": 7555,
+          "seconds": 0,
+          "tool_count": 10
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.0002211249666288495
+        },
+        "local_calculation": {
+          "calls": 6,
+          "seconds": 3.334018401801586e-06
+        },
+        "snapshot_hit": {
+          "calls": 6,
+          "seconds": 0
+        },
+        "conversation_model": {
+          "seconds": 44.366432415903546,
+          "calls": 1
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.7909333109855652e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001860000193119049,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 3.208301495760679e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "关键日期：\n\n\n待办：\n跟进乙报告\n\n项目进展：\n{\"fresh_read\": {\"source\": \"syn-ledger-e4\", \"version\": \"14\", \"status\": \"awaiting_sample_review\", \"permission\": \"allowed\"}, \"old_candidate_version\": \"12\"}\n\n人员与职责：\n负责人：AR2合成乙工\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-NOT-04",
+  "repeat": 2,
+  "mode": "legacy",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "0dad3f1218d22891e0b4087a9f745f3addf88373351b226ee79e479a2d8cf9ba",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "3d7136b289b0ca2ff55e24ee3eb8ab899960e6ccf3c95aa3e788ee15d08215f1",
+    "conversation.sqlite3": "5f3bbe60496570e49b22ba2342a953d24518ced0d28cc9de2971679aa73b5460"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "上一条只改成准备两张照片，其他内容保持。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 25481,
+          "calls": 2,
+          "characters": 3166,
+          "seconds": 0,
+          "tool_count": 10
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 36.35149879194796
+        },
+        "conversation_tool:update_work_note": {
+          "calls": 1,
+          "seconds": 0.004182207980193198
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.0002145830076187849
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 2.0419247448444366e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.4581019058823586e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001397499581798911,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.491706982254982e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "刚才尝试更新笔记时系统提示未找到该任务，可能已过期或状态变更。我重新查一下当前笔记状态，确认后再帮你改成“准备两张照片”。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

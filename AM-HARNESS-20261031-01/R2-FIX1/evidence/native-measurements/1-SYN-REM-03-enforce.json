@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-REM-03",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "cb6f617454f8f4051da7a6043b19acf8303f51a7d5a26a1c5ff5f062217e4877",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "65cbab0cd382e36cdb0b2c89e747805e6c1614b29b905757f157fe559d4bcf8f",
+    "conversation.sqlite3": "2e1db3592347498efa61ea6653fd75f986dc7b579ba11a7664eafffd9359fd70"
+  },
+  "native_runs": [
+    {
+      "id": "run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b",
+      "event_id": "om503",
+      "input_text": "合成计划到时间了，但上一条提醒结果还未知。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om503",
+      "received": 1898559000.0,
+      "accepted": 1898559000.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898559000.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 22082,
+          "calls": 2,
+          "characters": 2547,
+          "seconds": 0,
+          "tool_count": 17
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 46.73785520903766
+        },
+        "conversation_tool:list_reminders": {
+          "calls": 1,
+          "seconds": 0.0028276669327169657
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.0018629160476848483
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 1.8748687580227852e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.7489073798060417e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001595841022208333,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 3.1208968721330166e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "source_result：\n{\"order\":\"created_desc\",\"plans\":[{\"created\":1898557200.0,\"id\":\"48f052ca78264c96897399622392dad4\",\"item_id\":\"7cee65c3752844d8b70b150183aafe1b\",\"kind\":\"daily\",\"next_at\":1898645400.0,\"recent_sends\":[{\"error\":null,\"readback_state\":\"pending\",\"scheduled_at\":1898559000.0,\"state\":\"unknown\"}],\"rule\":{\"quiet_policy\":\"exact\",\"time\":\"09:30\",\"timezone\":\"Asia/Shanghai\"},\"schedule_exhausted\":false,\"state\":\"active\",\"target\":\"本人私聊\",\"template\":\"合成试样确认\",\"valid_until\":1898956740.0,\"version\":1}]}\n\n提醒计划：只取得部分结果。\n本次读取范围尚未全部核实；已读取的内容不代表全部资料。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

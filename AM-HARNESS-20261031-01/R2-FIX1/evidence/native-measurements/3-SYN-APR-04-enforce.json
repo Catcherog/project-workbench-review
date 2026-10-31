@@ -1,0 +1,104 @@
+{
+  "case_id": "SYN-APR-04",
+  "repeat": 3,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "e522e3c9570a0907f84bdd5930def4c99997fa60e6836497146f70261ac3c572",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "1fd8f5fe1e0698367af9f427eb69bc80fb10496d2ff55c55330e3c8175b20e3a",
+    "conversation.sqlite3": "d5e3e0caabb5702f9fd6ce17e8f38bb53a5291b6f87be5c3a61c729352f38d01"
+  },
+  "native_runs": [
+    {
+      "id": "run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b",
+      "event_id": "om503",
+      "input_text": "上一版通知的日期改成2030年3月6日，然后确认。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om503",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 23165,
+          "calls": 2,
+          "characters": 3673,
+          "seconds": 0,
+          "tool_count": 15
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 53.340802624006756
+        },
+        "conversation_tool:list_pending_actions": {
+          "calls": 1,
+          "seconds": 0.002322582993656397
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00018254201859235764
+        },
+        "local_calculation": {
+          "calls": 4,
+          "seconds": 2.7508940547704697e-06
+        },
+        "snapshot_hit": {
+          "calls": 4,
+          "seconds": 0
+        },
+        "conversation_tool:revise_pending_action": {
+          "seconds": 0.008326749899424613,
+          "calls": 1
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.4581019058823586e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001240420388057828,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.6791938580572605e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+        "pending_actions": [
+          "action_51aab5267547493ca787ca1fcc2da5d8"
+        ],
+        "replayed": false,
+        "source_ids": [],
+        "status": "needs_confirmation",
+        "text": "发送身份：合成机器人\n目标群：合成群\n接收人：合成甲工\n完整群消息：\n事项提醒\n@合成甲工\n请核对合成试样，日期2030年3月6日。请以当前版本为准。\n提醒编号 R-3b86f544c4015cb2\n发送时机：确认后立即发送一次。\n动作编号：action_51aab5267547493ca787ca1fcc2da5d8 v3\n确认执行这份内容，请回复“确认执行”；也可以继续修改或取消。\n\n待确认动作：只取得部分结果。\n本次读取范围尚未全部核实；已读取的内容不代表全部资料。\n\n待确认动作：尚待确认，未执行。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

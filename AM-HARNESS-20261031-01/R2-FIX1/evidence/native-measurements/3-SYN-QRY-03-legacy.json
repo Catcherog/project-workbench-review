@@ -1,0 +1,105 @@
+{
+  "case_id": "SYN-QRY-03",
+  "repeat": 3,
+  "mode": "legacy",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "c509836d03dbc49a8ab97ee6540c29a5572dc923ad1a89b7726e076ea8a86048",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "0de42744a6446646a87ff400206667f3bb36d55f23c690338e5dbde843e55788",
+    "conversation.sqlite3": "8b1d8549582bb518d2ceff0525e6bec90cbb24629242510ff913e0816f7d9556"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "列出需求75项目当前待办。",
+      "state": "cancelled",
+      "error": "CANCELLED"
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": null,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 25481,
+          "calls": 1,
+          "characters": 3383,
+          "seconds": 0,
+          "tool_count": 10
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00013295805547386408
+        },
+        "local_calculation": {
+          "calls": 4,
+          "seconds": 2.6668421924114227e-06
+        },
+        "snapshot_hit": {
+          "calls": 4,
+          "seconds": 0
+        },
+        "conversation_model": {
+          "seconds": 16.136060625081882,
+          "calls": 1
+        }
+      }
+    },
+    {
+      "event_id": "om502",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00044350000098347664
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 9.170034900307655e-07,
+          "calls": 1
+        },
+        "authorization_delivery": {
+          "seconds": 0.0001294589601457119,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 1.9415980204939842e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "unknown",
+      "reply_json": null,
+      "error_code": "STALE_FENCE",
+      "reply": null
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

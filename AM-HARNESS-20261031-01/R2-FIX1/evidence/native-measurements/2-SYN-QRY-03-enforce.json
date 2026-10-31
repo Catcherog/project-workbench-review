@@ -1,0 +1,105 @@
+{
+  "case_id": "SYN-QRY-03",
+  "repeat": 2,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "e59928ee8ee5788321d831b7d4076be3fcd2ded62c9d33accafad18ad2a89c98",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "1cbf2ffa09d4393c25c36da64c9baccd9d20f15931de3a22f6eabe5a5fbec7d7",
+    "conversation.sqlite3": "299dc5c23c03e969e8f607334f9312dd72a3890a9230739382520e2e98258bc8"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "列出需求75项目当前待办。",
+      "state": "cancelled",
+      "error": "CANCELLED"
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": null,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 24956,
+          "calls": 1,
+          "characters": 7562,
+          "seconds": 0,
+          "tool_count": 10
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.0001729580108076334
+        },
+        "local_calculation": {
+          "calls": 4,
+          "seconds": 2.416083589196205e-06
+        },
+        "snapshot_hit": {
+          "calls": 4,
+          "seconds": 0
+        },
+        "conversation_model": {
+          "seconds": 39.718062833999284,
+          "calls": 1
+        }
+      }
+    },
+    {
+      "event_id": "om502",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00028249993920326233
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 8.75093974173069e-07,
+          "calls": 1
+        },
+        "authorization_delivery": {
+          "seconds": 0.00013287505134940147,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 1.908303238451481e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "unknown",
+      "reply_json": null,
+      "error_code": "STALE_FENCE",
+      "reply": null
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

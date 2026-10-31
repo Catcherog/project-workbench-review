@@ -1,0 +1,102 @@
+{
+  "case_id": "SYN-PAR-02",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "f860e027dc19b597480f27b1951f6e5b7de25f3d061c2a8ea0d4c8a04dd97b7b",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "270416148eb1544d99cfc2389553bace433d6ce53f53dd62f290accc75b5fbc0",
+    "conversation.sqlite3": "3b2c5c208ec2634a4def1d33f685af34fdaa6d5a6b267a4839531560c3ec4e86"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "列出全部合成项目待办并告诉我总数。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 24956,
+          "calls": 3,
+          "characters": 15871,
+          "seconds": 0,
+          "tool_count": 10
+        },
+        "conversation_model": {
+          "calls": 3,
+          "seconds": 46.060281207901426
+        },
+        "conversation_tool:list_projects": {
+          "calls": 1,
+          "seconds": 0.003253416041843593
+        },
+        "conversation_tool:read_project": {
+          "calls": 3,
+          "seconds": 0.010416207136586308
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00020937505178153515
+        },
+        "local_calculation": {
+          "calls": 7,
+          "seconds": 6.000977009534836e-06
+        },
+        "snapshot_hit": {
+          "calls": 7,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.6249250620603561e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00015083292964845896,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.6916968636214733e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "context_limit",
+        "text": "当前资料超过本轮处理范围；已提交结果保留，请缩小查询范围。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

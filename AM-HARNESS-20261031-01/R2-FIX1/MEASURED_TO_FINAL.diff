@@ -1,0 +1,208 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1_audit.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1_audit.py
+index 1375930a..5cf96826 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1_audit.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1_audit.py
+@@ -414,3 +414,145 @@ def test_unresolved_clause_keeps_known_reminder_duty_visible():
+         assert any('明天提醒我' in b['text'] for b in data['protected_blocks'])
+         assert any(s.get('missing')=='clock' for s in data['allowed_next_steps'])
+     finally:p.end(t)
++
++
++def _pending_reminder_goal(tmp_path,*,ttl_seconds=1800):
++    from am_outcome.goals import GoalJournal
++    ctx=AccessContext('t','a','u','c',is_owner=True,content_expires_at=1000,source_access_version='v1')
++    store=ConversationStore(tmp_path/'continuation.db',clock=lambda:100)
++    question='明天09:30提醒我确认油脂交期'
++    args={'target':'self','body':'确认油脂交期','frequency':'once','at':'2030-03-02T09:30:00+08:00'}
++    store.claim_event(ctx,'first',question)
++    goal=GoalJournal(store,ctx,'first',question,CAT)
++    assert goal.before('schedule_reminder',args,'external') is None
++    action=store.create_action(ctx,tool_name='schedule_reminder',arguments=args,preview='合成提醒预览',ttl_seconds=ttl_seconds)
++    goal.record('schedule_reminder',args,{'status':'draft','action_id':action['id'],'version':1,'preview':action['preview'],'executed':False},'external')
++    return store,ctx,args,action
++
++
++def _claim_test_action(store,ctx,action):
++    store.mark_presented(ctx,action['id'],expected_version=action['version'],event_id='first')
++    store.approve_action(ctx,action['id'],expected_version=action['version'],digest=action['digest'])
++    assert store.begin_execution(ctx,action['id'],expected_version=action['version'])['claimed']
++
++
++def test_confirmed_goal_restores_native_receipt_and_call_cache_after_restart(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path);_claim_test_action(store,ctx,action)
++    receipt={'status':'succeeded','verified':True,'receipt_id':'synthetic-plan','message':'合成提醒计划已启用。'}
++    store.finish_execution(ctx,action['id'],status='succeeded',result=receipt)
++    assert 'result' not in store.action_metadata(ctx,action['id'])
++    store.close();store=ConversationStore(tmp_path/'continuation.db',clock=lambda:101)
++    resumed=GoalJournal(store,ctx,'next','继续',CAT)
++    assert resumed.fulfilled()
++    cached=resumed.before('schedule_reminder',args,'external')
++    assert cached==receipt
++    resumed.record('schedule_reminder',args,cached,'external')
++    assert resumed.fulfilled()
++    assert not store.begin_execution(ctx,action['id'],expected_version=1)['claimed']
++    assert len(store.list_actions(ctx,active_only=False))==1
++    store.close()
++
++
++def test_native_unknown_goal_blocks_until_verified_reconciliation(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path);_claim_test_action(store,ctx,action)
++    store.finish_execution(ctx,action['id'],status='unknown',result={'code':'SYNTHETIC_INTERRUPTED'})
++    for event in ('continue-one','continue-two'):
++        resumed=GoalJournal(store,ctx,event,'继续',CAT)
++        assert not resumed.fulfilled() and not resumed.data['ambiguous']
++        with pytest.raises(ConversationError,match='GOAL_RESULT_RECONCILE_REQUIRED'):
++            resumed.before('schedule_reminder',args,'external')
++    receipt={'status':'succeeded','verified':True,'receipt_id':'synthetic-plan'}
++    store.finish_execution(ctx,action['id'],status='succeeded',result=receipt)
++    resumed=GoalJournal(store,ctx,'verified','继续',CAT)
++    assert resumed.fulfilled() and resumed.before('schedule_reminder',args,'external')==receipt
++    assert not store.begin_execution(ctx,action['id'],expected_version=1)['claimed']
++    store.close()
++
++
++def test_changed_approved_payload_does_not_fulfill_old_goal(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path)
++    action=store.revise_action(ctx,action['id'],expected_version=1,arguments=dict(args,body='另一事项'),preview='修订后的预览')
++    _claim_test_action(store,ctx,action)
++    store.finish_execution(ctx,action['id'],status='succeeded',result={'status':'succeeded','verified':True,'receipt_id':'new-plan'})
++    resumed=GoalJournal(store,ctx,'next','继续',CAT)
++    assert not resumed.fulfilled() and resumed.data['ambiguous']
++    with pytest.raises(ConversationError,match='GOAL_SELECTION_REQUIRED'):resumed.before('schedule_reminder',args,'external')
++    store.close()
++
++
++@pytest.mark.parametrize('terminal',['cancelled','expired','failed'])
++def test_closed_pending_goal_cannot_create_a_replacement_on_repeated_call(tmp_path,terminal):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path,ttl_seconds=1 if terminal=='expired' else 1800)
++    if terminal=='cancelled':store.cancel_action(ctx,action['id'],expected_version=1)
++    elif terminal=='failed':
++        _claim_test_action(store,ctx,action)
++        store.finish_execution(ctx,action['id'],status='failed',result={'status':'failed'})
++    else:
++        # Expire only the preview, while the parent goal still has content time.
++        store._now=lambda:102
++    resumed=GoalJournal(store,ctx,'next','继续',CAT)
++    assert not resumed.fulfilled()
++    cached=resumed.before('schedule_reminder',args,'external')
++    assert cached['status']==terminal and cached['verified'] is False
++    resumed.record('schedule_reminder',args,cached,'external')
++    assert resumed.before('schedule_reminder',args,'external')==cached
++    assert len(store.list_actions(ctx,active_only=False))==1
++    store.close()
++
++
++def test_readonly_reconciliation_unit_is_not_an_execution_alias(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path);_claim_test_action(store,ctx,action)
++    store.finish_execution(ctx,action['id'],status='unknown',result={'code':'SYNTHETIC_INTERRUPTED'})
++    pending=GoalJournal(store,ctx,'lookup','继续',CAT)
++    pending.record('reconcile_send',{'action_id':action['id']},{'status':'unknown','action_id':action['id']},'read')
++    resumed=GoalJournal(store,ctx,'next','继续',CAT)
++    assert not resumed.data['ambiguous'] and not resumed.fulfilled()
++    with pytest.raises(ConversationError,match='GOAL_RESULT_RECONCILE_REQUIRED'):resumed.before('schedule_reminder',args,'external')
++    store.close()
++
++
++def test_success_without_verifiable_receipt_cannot_recreate_pending_action(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path);_claim_test_action(store,ctx,action)
++    store.finish_execution(ctx,action['id'],status='succeeded',result={'status':'succeeded','verified':False})
++    resumed=GoalJournal(store,ctx,'next','继续',CAT)
++    assert not resumed.fulfilled()
++    assert resumed.before('schedule_reminder',args,'external')=={'status':'succeeded','verified':False}
++    assert len(store.list_actions(ctx,active_only=False))==1
++    store.close()
++
++
++def test_goal_receipt_restore_cannot_use_metadata_to_bypass_source_guard(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path);_claim_test_action(store,ctx,action)
++    store.finish_execution(ctx,action['id'],status='succeeded',result={'status':'succeeded','verified':True,'receipt_id':'synthetic-plan'})
++    with store._connection(write=True) as db:db.execute("UPDATE conversation_actions SET source_access_version='v2' WHERE id=?",(action['id'],))
++    assert store.action_metadata(ctx,action['id'])['status']=='succeeded'
++    with pytest.raises(ConversationError,match='SOURCE_ACCESS_CHANGED'):GoalJournal(store,ctx,'next','继续',CAT)
++    store.close()
++
++
++def test_known_failed_local_goal_retains_original_explicit_retry_path(tmp_path):
++    from am_outcome.goals import GoalJournal
++    ctx=AccessContext('t','a','u','c',is_owner=True,content_expires_at=1000,allowed_project_ids=frozenset({'p'}))
++    store=ConversationStore(tmp_path/'local-retry.db',clock=lambda:100)
++    args={'project_id':'p','description':'核对测试排期'}
++    first=GoalJournal(store,ctx,'first','为需求75登记跟进：核对测试排期',CAT)
++    assert first.before('create_followup',args,'local') is None
++    first.record('create_followup',args,{'status':'failed'},'local')
++    resumed=GoalJournal(store,ctx,'next','继续',CAT)
++    assert resumed.before('create_followup',args,'local') is None
++    store.close()
++
++
++def test_goal_receipt_restore_retains_owner_role_requirement(tmp_path):
++    from am_outcome.goals import GoalJournal
++    store,ctx,args,action=_pending_reminder_goal(tmp_path);_claim_test_action(store,ctx,action)
++    store.finish_execution(ctx,action['id'],status='succeeded',result={'status':'succeeded','verified':True,'receipt_id':'synthetic-plan'})
++    with pytest.raises(ConversationError,match='OWNER_REQUIRED'):GoalJournal(store,replace(ctx,is_owner=False),'next','继续',CAT)
++    store.close()
+diff --git a/am-conversation-r1/src/am_outcome/goals.py b/am-conversation-r1/src/am_outcome/goals.py
+index 14d65a46..b31e7fea 100644
+--- a/am-conversation-r1/src/am_outcome/goals.py
++++ b/am-conversation-r1/src/am_outcome/goals.py
+@@ -25,12 +25,27 @@ class GoalJournal:
+                 self.data['cancelled']=True
+             # Reconcile confirmed external results through the original store.
+             for key,u in list(self.data['units'].items()):
++                if u.get('effect')!='external':continue
+                 action=u.get('result',{}).get('action_id')
+                 if not action or u['completion']=='fulfilled':continue
+-                try:row=store.action_metadata(ctx,action)
+-                except ConversationError:continue
+-                if row['status']=='succeeded' and row.get('result'):
+-                    self.data['units'][key]=adapt(u['operation'],u['target'],row['result'],u['effect'],key=key)
++                # Full receipt access must retain the original source/scope
++                # checks. Metadata deliberately omits the result payload.
++                if not ctx.is_owner:raise ConversationError('OWNER_REQUIRED')
++                row=store.get_action(ctx,action)
++                if (row['tool_name']!=u['operation'] or row['arguments']!=u['target']
++                        or row['version']!=u['result'].get('version')):
++                    self.data['ambiguous']=True
++                    continue
++                if row['status'] in ('succeeded','unknown','executing','failed','cancelled','expired'):
++                    raw=dict(row['result']) if isinstance(row.get('result'),dict) else {}
++                    if row['status']!='succeeded':
++                        raw.update(status=row['status'],verified=False,action_id=action,version=row['version'])
++                    restored=adapt(u['operation'],u['target'],raw,u['effect'],key=key)
++                    self.data['units'][key]=restored
++                    # Restore both views. Reusing the old draft cache would
++                    # downgrade the reconciled unit on an exact repeated call.
++                    self.data['calls'][key]={'state':'unknown' if restored['status']=='unknown' else restored['completion'],
++                                             'result':raw,'native_action_id':action}
+         else:
+             self.id=fingerprint([ctx.scope,event,'goals'])
+             goals,complete=resolve_goals(text,catalog)
+@@ -53,7 +68,8 @@ class GoalJournal:
+         if prior:
+             if prior['state']=='fulfilled':return prior['result']
+             if prior['state'] in ('executing','unknown'):raise ConversationError('GOAL_RESULT_RECONCILE_REQUIRED')
+-            if prior['state']=='awaiting_approval':return prior['result']
++            if prior['state']=='awaiting_approval' or (prior['state']=='blocked' and prior.get('native_action_id')):
++                return prior['result']
+         # A changed payload must not silently replay an already committed matter.
+         unit={'operation':name,'target':args}
+         for goal in self.data['progress']:
+@@ -66,7 +82,10 @@ class GoalJournal:
+     def record(self,name,args,result,effect):
+         key=fingerprint([name,args]);unit=adapt(name,args,result,effect,key=key)
+         self.data['units'][key]=unit
+-        if effect!='read':self.data['calls'][key]={'state':'unknown' if unit['status']=='unknown' else unit['completion'],'result':result}
++        if effect!='read':
++            prior=self.data['calls'].get(key,{})
++            self.data['calls'][key]={'state':'unknown' if unit['status']=='unknown' else unit['completion'],'result':result}
++            if prior.get('native_action_id'):self.data['calls'][key]['native_action_id']=prior['native_action_id']
+         self.save()
+ 
+     def context(self):

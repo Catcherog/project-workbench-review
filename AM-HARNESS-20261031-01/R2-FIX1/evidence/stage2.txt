@@ -1,0 +1,51 @@
+..........................F............................................. [ 31%]
+.........................................................sss............ [ 62%]
+........................................................................ [ 93%]
+...............                                                          [100%]
+=================================== FAILURES ===================================
+______ test_untrusted_plan_never_replaces_verified_result[invented_fact] _______
+
+response = (((<am_service.AmSelfService object at 0x10f354ec0>, <fs_agent.gateway.Gateway object at 0x10f3541d0>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x10f355a00>), <am_harness_host.HarnessHost object at 0x10f357590>)
+change = 'invented_fact'
+
+    @pytest.mark.parametrize('change', ['missing_block', 'invented_fact', 'wrong_fingerprint', 'malformed_intent'])
+    def test_untrusted_plan_never_replaces_verified_result(response, change):
+        conv, h = response
+        pipeline = h.bridge.agent.response_pipeline
+        row = incoming(response, '读取合成资料')
+        from am_conversation.types import AgentReply
+        with h.bridge.request_context(row) as ctx:
+            token = pipeline.begin(ctx, row['id'], row['body'])
+            try:
+                pipeline.record('read_information', {}, {'facts': [{'fact_id':'f1', 'field':'progress', 'value':'试验预计完成，尚未验收。'}], 'complete_response':False, 'has_more':True}, 'read')
+                envelope = pipeline.envelope(); data = envelope.data
+                plan = {'envelope_fingerprint': envelope.digest, 'segments': [
+                    {'kind':'text', 'intent':'answer', 'text':'试验已验收。', 'claim_ids':[data['claims'][0]['id']]},
+                    *[{'kind':'locked', 'block_id':b['id']} for b in data['protected_blocks']]], 'omitted_optional_claim_ids':[]}
+                if change=='missing_block': plan['segments']=plan['segments'][:1]
+                if change=='wrong_fingerprint': plan['envelope_fingerprint']='0'*64
+                if change=='malformed_intent': plan['segments'][0]['intent']=['answer']
+                candidate, reason = pipeline.validate(plan, envelope, 6000)
+                assert candidate is None
+>               if change=='invented_fact': assert reason=='semantic_profile_unavailable'
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AssertionError: assert 'family_unvalidated' == 'semantic_profile_unavailable'
+E                 
+E                 - semantic_profile_unavailable
+E                 + family_unvalidated
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py:237: AssertionError
+=============================== warnings summary ===============================
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /workspace/am/AM-HARNESS-20261031-01/R2-FIX1/evidence/stage2.xml -
+=========================== short test summary info ============================
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_response_v2.py::test_untrusted_plan_never_replaces_verified_result[invented_fact]
+1 failed, 227 passed, 3 skipped, 2 warnings in 4.83s

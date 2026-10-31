@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-OUT-04",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "1a6a3ca8ac3a6333bc91107612f8e7cf2b32c5a8252ef744cb163e416e4be8e8",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "85dde69585aa1e6def1a9450c28edc690ea7d22f99f439bb24008158053703d4",
+    "conversation.sqlite3": "e311aa2855e919a3970980c70292da9060f3d1e1ae609444b877240b3f5de229"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "文档已经保存了，继续把同一份合成文档挂到刚确认的节点。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 22149,
+          "calls": 2,
+          "characters": 2033,
+          "seconds": 0,
+          "tool_count": 15
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 42.974320792010985
+        },
+        "conversation_tool:list_pending_actions": {
+          "calls": 1,
+          "seconds": 0.004656000062823296
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.0001949579454958439
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 2.374988980591297e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.7080456018447876e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00015787500888109207,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.5541987270116806e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "source_result：\n{\"actions\":[]}\n\n待确认动作：只取得部分结果。\n本次读取范围尚未全部核实；已读取的内容不代表全部资料。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

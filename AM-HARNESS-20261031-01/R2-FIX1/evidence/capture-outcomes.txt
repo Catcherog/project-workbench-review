@@ -1,0 +1,88 @@
+.F........F.
+=================================== FAILURES ===================================
+____________________________ test_capture[analysis] ____________________________
+
+response = (((<am_service.AmSelfService object at 0x1125b22d0>, <fs_agent.gateway.Gateway object at 0x1125d3bc0>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x11244d790>), <am_harness_host.HarnessHost object at 0x1125d31d0>)
+family = 'analysis'
+
+    @pytest.mark.parametrize('family',FAMILIES)
+    def test_capture(response,family):
+        conv,h=response;am,g,s,api,clock,port=conv[0];p=project(conv)
+        if family=='query':question='需求75关键日期';execute(response,question)
+        elif family in ('analysis','partial'):
+            facts=[{'fact_id':'synthetic-'+str(i),'subject_id':p,'field':'progress','value':('预计明天完成，尚未验收。' if i==0 else '另一来源的尺寸仍待确认。'), 'assertion_type':'reported','evidence':{'source_id':'synthetic-source','object_id':str(i),'version':'1'}} for i in range(2 if family=='analysis' else 10)]
+            info=SimpleNamespace(store=SimpleNamespace(access_version=lambda:'synthetic-info-v1'),query=lambda row,subject:{'facts':facts,'coverage':{'processing_pending':family=='partial','sources':[]},'gaps':[],'version':'1'})
+            am.information=info
+            question='读取需求75信息并解释覆盖范围'
+>           execute(response,question,[call('read_information',{'project_id':p,'limit':6}),answer('预计明天完成，尚未验收。')])
+
+scripts/test_capture_outcomes.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+harness = (((<am_service.AmSelfService object at 0x1125b22d0>, <fs_agent.gateway.Gateway object at 0x1125d3bc0>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x11244d790>), <am_harness_host.HarnessHost object at 0x1125d31d0>)
+text = '读取需求75信息并解释覆盖范围'
+outputs = [{'tool_calls': [{'arguments': {'limit': 6, 'project_id': '39c7e18459dc53fe94271f8866f7dbe6'}, 'id': 'c1', 'name': 'read_information'}], 'type': 'tool_calls'}, {'text': '预计明天完成，尚未验收。', 'type': 'answer'}]
+
+    def execute(harness, text, outputs=()):
+        convo,h = harness; convo[1].outputs.extend(outputs)
+        row = incoming(harness,text); result = h.admit(row)
+        if isinstance(result,str) and result.startswith('run_'):
+            work = h.run_once()
+>           assert work.status == 'completed', (work, h.s.rows('SELECT state,error FROM am_harness_runs'))
+E           AssertionError: (WorkResult(run_id='run_8161828944154d9a7ac7a0ac1958740cf4eb96c7', status='unknown', published=False, error='RUNNER_FAILED'), [{'error': 'RUNNER_FAILED', 'state': 'unknown'}])
+E           assert 'unknown' == 'completed'
+E             
+E             - completed
+E             + unknown
+
+worktree/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_host.py:38: AssertionError
+____________________________ test_capture[partial] _____________________________
+
+response = (((<am_service.AmSelfService object at 0x112414b00>, <fs_agent.gateway.Gateway object at 0x11244fd40>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x112e438f0>), <am_harness_host.HarnessHost object at 0x1123f90a0>)
+family = 'partial'
+
+    @pytest.mark.parametrize('family',FAMILIES)
+    def test_capture(response,family):
+        conv,h=response;am,g,s,api,clock,port=conv[0];p=project(conv)
+        if family=='query':question='需求75关键日期';execute(response,question)
+        elif family in ('analysis','partial'):
+            facts=[{'fact_id':'synthetic-'+str(i),'subject_id':p,'field':'progress','value':('预计明天完成，尚未验收。' if i==0 else '另一来源的尺寸仍待确认。'), 'assertion_type':'reported','evidence':{'source_id':'synthetic-source','object_id':str(i),'version':'1'}} for i in range(2 if family=='analysis' else 10)]
+            info=SimpleNamespace(store=SimpleNamespace(access_version=lambda:'synthetic-info-v1'),query=lambda row,subject:{'facts':facts,'coverage':{'processing_pending':family=='partial','sources':[]},'gaps':[],'version':'1'})
+            am.information=info
+            question='读取需求75信息并解释覆盖范围'
+>           execute(response,question,[call('read_information',{'project_id':p,'limit':6}),answer('预计明天完成，尚未验收。')])
+
+scripts/test_capture_outcomes.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+harness = (((<am_service.AmSelfService object at 0x112414b00>, <fs_agent.gateway.Gateway object at 0x11244fd40>, <fs_agent.store...est_conversation_integration.JsonProvider object at 0x112e438f0>), <am_harness_host.HarnessHost object at 0x1123f90a0>)
+text = '读取需求75信息并解释覆盖范围'
+outputs = [{'tool_calls': [{'arguments': {'limit': 6, 'project_id': '39c7e18459dc53fe94271f8866f7dbe6'}, 'id': 'c1', 'name': 'read_information'}], 'type': 'tool_calls'}, {'text': '预计明天完成，尚未验收。', 'type': 'answer'}]
+
+    def execute(harness, text, outputs=()):
+        convo,h = harness; convo[1].outputs.extend(outputs)
+        row = incoming(harness,text); result = h.admit(row)
+        if isinstance(result,str) and result.startswith('run_'):
+            work = h.run_once()
+>           assert work.status == 'completed', (work, h.s.rows('SELECT state,error FROM am_harness_runs'))
+E           AssertionError: (WorkResult(run_id='run_8161828944154d9a7ac7a0ac1958740cf4eb96c7', status='unknown', published=False, error='RUNNER_FAILED'), [{'error': 'RUNNER_FAILED', 'state': 'unknown'}])
+E           assert 'unknown' == 'completed'
+E             
+E             - completed
+E             + unknown
+
+worktree/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_host.py:38: AssertionError
+=============================== warnings summary ===============================
+../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED scripts/test_capture_outcomes.py::test_capture[analysis] - AssertionEr...
+FAILED scripts/test_capture_outcomes.py::test_capture[partial] - AssertionErr...
+2 failed, 10 passed, 288 deselected, 2 warnings in 2.50s

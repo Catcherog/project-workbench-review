@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-REM-03",
+  "repeat": 1,
+  "mode": "legacy",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "b106d259cbf4d7378ea6c45e8450803d447109c4390e3c3d6b1f3955f3e279b1",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "97eaa00bed841c67873e2e86b7ed0b12ed1acac9498e0b1816b200a18baa7a1c",
+    "conversation.sqlite3": "c0ef53a79d2ef3b14d258c07582bdc49c02451ffc77b4220a47e96896dabf652"
+  },
+  "native_runs": [
+    {
+      "id": "run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b",
+      "event_id": "om503",
+      "input_text": "合成计划到时间了，但上一条提醒结果还未知。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om503",
+      "received": 1898559000.0,
+      "accepted": 1898559000.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898559000.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 22607,
+          "calls": 2,
+          "characters": 2545,
+          "seconds": 0,
+          "tool_count": 17
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 34.7996119169984
+        },
+        "conversation_tool:list_reminders": {
+          "calls": 1,
+          "seconds": 0.0020015829941257834
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00019095907919108868
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 1.7099082469940186e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.500011421740055e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00013058295007795095,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 3.216695040464401e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "合成计划提醒已触发，但上一条发送结果仍显示为“未知”，无法确认是否送达。建议稍后手动检查或重新触发，以免遗漏。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

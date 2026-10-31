@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-APR-04",
+  "repeat": 1,
+  "mode": "legacy",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "d82f1f49e4059bf4388e56fdd78daba1a4782defbd0f533acd594221672e39a3",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "578496fc50c971078a2c10e11f68a8e5ad7c903ba8f5939a8593ecf8eb2d43c1",
+    "conversation.sqlite3": "6c5b85a18a85ec45d9f00bf3ae4abfc98950733652b897f6612bb2e05301b211"
+  },
+  "native_runs": [
+    {
+      "id": "run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b",
+      "event_id": "om503",
+      "input_text": "上一版通知的日期改成2030年3月6日，然后确认。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om503",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 23690,
+          "calls": 2,
+          "characters": 2923,
+          "seconds": 0,
+          "tool_count": 15
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 45.772548666922376
+        },
+        "conversation_tool:revise_pending_action": {
+          "calls": 1,
+          "seconds": 0.0035065000411123037
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00022183393593877554
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 1.915963366627693e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.4579854905605316e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00011212495155632496,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.416700590401888e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_2c05bd773167b7fdcae55d3a32f6c3188a669f6b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "修改失败，系统提示目标已变更（ACTION_TARGET_CHANGED）。请确认是否要重新核实“合成群”和“合成甲工”的信息，或提供新的目标信息以便重新生成预览。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

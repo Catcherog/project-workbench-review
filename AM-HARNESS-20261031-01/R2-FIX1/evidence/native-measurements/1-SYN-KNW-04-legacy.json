@@ -1,0 +1,161 @@
+{
+  "case_id": "SYN-KNW-04",
+  "repeat": 1,
+  "mode": "legacy",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "4038433798040fafafb4c226148a1e0211743f52437c6b224e4def46db3a5be0",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "f757403962ede4262f222dcd383f2a1739bfefbd4744ff20ed6e0216ec944a79",
+    "conversation.sqlite3": "95dc4850408873784b7739f7ac81ccdd6099da209170557491235e1454711fc1"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "批准知识 4ef8094104bf4d378e1c27b963a1bd70 v3",
+      "state": "succeeded",
+      "error": null
+    },
+    {
+      "id": "run_b69c69c4230a7a483ac06b1415164460915aa7af",
+      "event_id": "om502",
+      "input_text": "刚才批准的规则是什么？",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00016166700515896082
+        },
+        "snapshot_hit": {
+          "seconds": 0,
+          "calls": 2
+        },
+        "local_calculation": {
+          "seconds": 1.2080417945981026e-06,
+          "calls": 2
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.0830117389559746e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00010562501847743988,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 1.77919864654541e-05,
+          "calls": 1
+        }
+      }
+    },
+    {
+      "event_id": "om502",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 24396,
+          "calls": 2,
+          "characters": 2471,
+          "seconds": 0,
+          "tool_count": 13
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 37.02909045899287
+        },
+        "conversation_tool:search_knowledge": {
+          "calls": 1,
+          "seconds": 0.0046410830691456795
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.00016366702038794756
+        },
+        "local_calculation": {
+          "calls": 3,
+          "seconds": 1.7508864402770996e-06
+        },
+        "snapshot_hit": {
+          "calls": 3,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.583946868777275e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00017991696950048208,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 2.662499900907278e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [
+          "4ef8094104bf4d378e1c27b963a1bd70"
+        ],
+        "status": "knowledge_approved",
+        "text": "这条知识已按所示版本批准，将在其适用范围内使用。"
+      }
+    },
+    {
+      "event_id": "harness:run_b69c69c4230a7a483ac06b1415164460915aa7af:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_b69c69c4230a7a483ac06b1415164460915aa7af:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "clarification",
+        "text": "已提交结果保留；请明确剩余事项或缺少的参数。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}

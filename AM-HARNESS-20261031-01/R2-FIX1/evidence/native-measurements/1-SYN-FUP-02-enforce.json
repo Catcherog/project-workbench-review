@@ -1,0 +1,98 @@
+{
+  "case_id": "SYN-FUP-02",
+  "repeat": 1,
+  "mode": "enforce",
+  "source_commit": "e86a443367c5bfbd980103481a14039334dd6280",
+  "observation_sha256": "07819a19ce929b6d1bf8d636f158c5d2600bd4ad930f0316a828bdf0d1a23805",
+  "scope": "closed synthetic databases of this exact fixed benchmark only",
+  "immutable_read_without_wal": true,
+  "native_database_hashes": {
+    "gateway.sqlite3": "66cea39cf7c373ac63334a5bb1b3279e2ef0a17aedb498e98c537830a35986a7",
+    "conversation.sqlite3": "1617c646dc32fcb95ad47c08981755e40447d9825130f2bbc90e5699c093f096"
+  },
+  "native_runs": [
+    {
+      "id": "run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b",
+      "event_id": "om501",
+      "input_text": "帮我跟进合成海棠的审批。",
+      "state": "succeeded",
+      "error": null
+    }
+  ],
+  "request_timings": [
+    {
+      "event_id": "om501",
+      "received": 1898557200.0,
+      "accepted": 1898557200.0,
+      "started": null,
+      "processed": null,
+      "actionable": 1898557200.0,
+      "finished": null,
+      "readback_verified": null,
+      "model_busy": 0,
+      "stages": {
+        "conversation_context_budget": {
+          "budget": 22695,
+          "calls": 2,
+          "characters": 2382,
+          "seconds": 0,
+          "tool_count": 14
+        },
+        "conversation_model": {
+          "calls": 2,
+          "seconds": 44.66532804095186
+        },
+        "conversation_tool:list_projects": {
+          "calls": 1,
+          "seconds": 0.004534417064860463
+        },
+        "ingress": {
+          "calls": 1,
+          "seconds": 0.0001602920237928629
+        },
+        "local_calculation": {
+          "calls": 4,
+          "seconds": 3.958120942115784e-06
+        },
+        "snapshot_hit": {
+          "calls": 4,
+          "seconds": 0
+        },
+        "outbox_wait": {
+          "seconds": 0,
+          "calls": 1
+        },
+        "identity_policy_check": {
+          "seconds": 1.9170111045241356e-06,
+          "calls": 2
+        },
+        "authorization_delivery": {
+          "seconds": 0.00015779107343405485,
+          "calls": 1
+        },
+        "publish": {
+          "seconds": 3.129197284579277e-05,
+          "calls": 1
+        }
+      }
+    }
+  ],
+  "conversation_results": [
+    {
+      "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+      "state": "completed",
+      "error_code": null,
+      "reply": {
+        "event_id": "harness:run_3acb4b73002eef3dd38d3445ec7cf58fa0897c4b:v1",
+        "pending_actions": [],
+        "replayed": false,
+        "source_ids": [],
+        "status": "answered",
+        "text": "source_result：\n{\"has_more\":false,\"next_offset\":2,\"projects\":[{\"aliases\":[\"需求77:合成海棠\",\"需求77\"],\"id\":\"b839c97f7103512298a8506419bd3075\",\"observed_at\":\"2030-03-01T09:00:00+08:00\",\"title\":\"需求77:合成海棠\"},{\"aliases\":[\"需求78:合成海棠\",\"需求78\"],\"id\":\"30b963208917571c899a73fa375e91fe\",\"observed_at\":\"2030-03-01T09:00:00+08:00\",\"title\":\"需求78:合成海棠\"}],\"total\":2}\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。"
+      }
+    }
+  ],
+  "epoch_fields_use_synthetic_fixture_clock": true,
+  "stage_seconds_are_native_monotonic_measurements": true,
+  "production_database_read": false
+}
