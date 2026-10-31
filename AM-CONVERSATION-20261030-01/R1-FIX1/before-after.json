@@ -1,0 +1,43 @@
+{
+  "source_before": "cd59333c8fdb3d57d045a9ac571bf3c17321d54a",
+  "source_after": "8c25340dd5b9e97ec0354b19ab61f7e877401f9f",
+  "baseline_defects_reproduced": 6,
+  "baseline_fingerprint_differences": {
+    "local-qwen3.8/feishu-bridge/am_info_sync/store.py": "Preserved URL metadata fix after unified version.",
+    "am-conversation-r1/src/am_conversation/tools.py": "Original local owner wording versus sanitized owner label; no functional difference."
+  },
+  "real_model_calls": 0,
+  "real_platform_calls": 0,
+  "findings": [
+    {
+      "id": "F01",
+      "before": "successful 1 -> denied 0 -> timeout 1 visible fact",
+      "after": "denied persists through timeout/rate limit/parse error and restart; old lease rejected; authoritative success required"
+    },
+    {
+      "id": "F02",
+      "before": "denied source value remained in model history and reply",
+      "after": "persistent conservative global source visibility epoch invalidates derived history, cached replies, work notes, conversation knowledge, pending actions and outbox; user message history preserved; generation/delivery checked; cancellation and exact reconciliation retained"
+    },
+    {
+      "id": "F03",
+      "before": "101 -> 101 -> 101; healthy 102 not attempted",
+      "after": "101 fails -> 102 succeeds in same bounded pass; 101 independent durable attempts/error/retry/gap; recovery succeeds without duplicate 102 registration"
+    },
+    {
+      "id": "F04",
+      "before": "new action unknown, previous copy1 receipt accepted as success",
+      "after": "current action remains unknown without copy1 receipt; exact key readback confirms copy2; same action never creates a third copy"
+    },
+    {
+      "id": "F05",
+      "before": "subjects A,B; extractor saw only A; B empty with no pending",
+      "after": "same legal current version re-extracted for A,B; B gets only its own quoted evidence; duplicate registration no extra analysis; expired raw remains explicit pending; old extractor lease fenced"
+    },
+    {
+      "id": "F06",
+      "before": "request A modified latest B and reported A unchanged version",
+      "after": "explicit A + expected revision updates only A and returns updated revision; B unchanged; stale/concurrent revision rejected"
+    }
+  ]
+}

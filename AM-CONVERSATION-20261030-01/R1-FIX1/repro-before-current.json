@@ -1,0 +1,311 @@
+{
+  "schema": "am-audit-defect-reproduction-v1",
+  "audit_commit": "581632802f415b923e17ccf4817a153ac630de5c",
+  "source_commit_reported_by_handoff": "53330c3869aa1ff4e39c7c41ec82243c6126491f",
+  "base_audit_commit": "7445333757fd39b674caa7cca8237ee9ecc46f89",
+  "started_at_utc": "2026-10-31T02:35:51.906716+00:00",
+  "finished_at_utc": "2026-10-31T02:35:52.188117+00:00",
+  "scope": "offline_defect_reproduction_only",
+  "assertions_mean": "These assertions prove the reported defective behavior; they are not fix-verification tests.",
+  "live_model_calls": 0,
+  "live_platform_calls": 0,
+  "matches_fixed_snapshot_fingerprints": false,
+  "source_fingerprint_differences": [
+    "local-qwen3.8/feishu-bridge/am_info_sync/store.py",
+    "am-conversation-r1/src/am_conversation/tools.py"
+  ],
+  "checked_source_files_unchanged": true,
+  "script_count": 5,
+  "defect_count": 6,
+  "reproduced_defect_count": 6,
+  "fixed_snapshot_validation": "not_fully_established",
+  "defects": [
+    {
+      "id": "F01",
+      "priority": "P1",
+      "title": "访问拒绝被普通读取错误清除",
+      "status": "reproduced",
+      "script": "am_information_audit_repro.py",
+      "evidence": [
+        {
+          "state": "initial_success",
+          "availability": "ok",
+          "visible_fact_count": 1,
+          "stale": [
+            false
+          ]
+        },
+        {
+          "state": "permission_denied",
+          "availability": "denied",
+          "visible_fact_count": 0,
+          "stale": []
+        },
+        {
+          "state": "subsequent_timeout_without_success",
+          "availability": "error",
+          "visible_fact_count": 1,
+          "stale": [
+            true
+          ]
+        }
+      ]
+    },
+    {
+      "id": "F02",
+      "priority": "P1",
+      "title": "已撤权来源经旧对话历史再次进入模型输入",
+      "status": "reproduced",
+      "script": "reproduce_conversation_history_revocation.py",
+      "evidence": {
+        "source_availability": "denied",
+        "current_information_fact_count": 0,
+        "fresh_model_context_fact_count": 0,
+        "old_source_value_in_model_history": true,
+        "agent_accepted_reply_containing_old_source_value": true,
+        "agent_status": "answered",
+        "live_model_or_transport": false
+      }
+    },
+    {
+      "id": "F03",
+      "priority": "P1",
+      "title": "无法读取的队首持续阻塞后续发现",
+      "status": "reproduced",
+      "script": "am_information_audit_repro.py",
+      "evidence": {
+        "step_runs": 3,
+        "backend_child_calls": [
+          "101",
+          "101",
+          "101"
+        ],
+        "pending_after": [
+          "child_pending:101",
+          "child_pending:102"
+        ],
+        "healthy_second_child_ever_attempted": false,
+        "control_after_bad_head_removed": "workitem:102"
+      }
+    },
+    {
+      "id": "F04",
+      "priority": "P1",
+      "title": "当前云写入未知却用旧回执确认新动作",
+      "status": "reproduced",
+      "script": "repro_doc_receipt_mix.py",
+      "evidence": {
+        "first_idem": "fb1a87f0f0f0cb20588e23134bf12dec4a374b53cb6191219d8ffca4127e2d28",
+        "current_idem": "236ba09c2f048ab9f38afcc824202f1e3a61fd44e972fc09baeb3abf97acec70",
+        "current_publisher_state": "unknown",
+        "adapter_result": {
+          "status": "succeeded",
+          "verified": true,
+          "receipt_id": "https://example.com/docx/copy1",
+          "message": "云文档结果待确认，请先执行 /doc 云文档对账。"
+        },
+        "write_states": [
+          {
+            "revision": 1,
+            "state": "verified",
+            "token": "copy1"
+          },
+          {
+            "revision": 1,
+            "state": "writing",
+            "token": "copy2"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F05",
+      "priority": "P2",
+      "title": "追加项目关联后原事实未重新提取",
+      "status": "reproduced",
+      "script": "am_information_subject_repro.py",
+      "evidence": {
+        "current_subject_scope": [
+          "A",
+          "B"
+        ],
+        "extractor_subject_scopes_seen": [
+          [
+            "A"
+          ]
+        ],
+        "first_analyze_status": "done",
+        "second_analyze_result": null,
+        "project_B_fact_count": 0,
+        "project_B_processing_pending": false,
+        "project_B_needs_refresh_or_review": false
+      }
+    },
+    {
+      "id": "F06",
+      "priority": "P2",
+      "title": "指定 A 稿预检要求实际写入最新 B 稿",
+      "status": "reproduced",
+      "script": "repro_doc_wrong_draft.py",
+      "evidence": {
+        "requested_draft": "A",
+        "reported_result": {
+          "draft_id": "A",
+          "version": 1,
+          "state": "collecting",
+          "message": "已记录预检要求，需要按新要求重新检查。"
+        },
+        "actual_drafts": [
+          {
+            "id": "A",
+            "revision": 1,
+            "target_requirements": null
+          },
+          {
+            "id": "B",
+            "revision": 2,
+            "target_requirements": "{\"checks\":[{\"expected\":\"A型号\",\"id\":\"1\",\"kind\":\"expected_value\",\"label\":\"型号\",\"text\":\"型号\"}],\"origin\":\"owner_explicit\",\"source_message\":\"event\",\"version\":\"b6684c0dd9b5865061e6a42e1713399d7dffead298e1963e4de9dc35f2705a92\"}"
+          }
+        ]
+      }
+    }
+  ],
+  "scripts": [
+    {
+      "script": "am_information_audit_repro.py",
+      "state": "defect_reproduced",
+      "exit_code": 0,
+      "evidence": {
+        "permission_regression": [
+          {
+            "state": "initial_success",
+            "availability": "ok",
+            "visible_fact_count": 1,
+            "stale": [
+              false
+            ]
+          },
+          {
+            "state": "permission_denied",
+            "availability": "denied",
+            "visible_fact_count": 0,
+            "stale": []
+          },
+          {
+            "state": "subsequent_timeout_without_success",
+            "availability": "error",
+            "visible_fact_count": 1,
+            "stale": [
+              true
+            ]
+          }
+        ],
+        "queue_head_blocking": {
+          "step_runs": 3,
+          "backend_child_calls": [
+            "101",
+            "101",
+            "101"
+          ],
+          "pending_after": [
+            "child_pending:101",
+            "child_pending:102"
+          ],
+          "healthy_second_child_ever_attempted": false,
+          "control_after_bad_head_removed": "workitem:102"
+        }
+      }
+    },
+    {
+      "script": "reproduce_conversation_history_revocation.py",
+      "state": "defect_reproduced",
+      "exit_code": 0,
+      "evidence": {
+        "source_availability": "denied",
+        "current_information_fact_count": 0,
+        "fresh_model_context_fact_count": 0,
+        "old_source_value_in_model_history": true,
+        "agent_accepted_reply_containing_old_source_value": true,
+        "agent_status": "answered",
+        "live_model_or_transport": false
+      }
+    },
+    {
+      "script": "repro_doc_receipt_mix.py",
+      "state": "defect_reproduced",
+      "exit_code": 0,
+      "evidence": {
+        "first_idem": "fb1a87f0f0f0cb20588e23134bf12dec4a374b53cb6191219d8ffca4127e2d28",
+        "current_idem": "236ba09c2f048ab9f38afcc824202f1e3a61fd44e972fc09baeb3abf97acec70",
+        "current_publisher_state": "unknown",
+        "adapter_result": {
+          "status": "succeeded",
+          "verified": true,
+          "receipt_id": "https://example.com/docx/copy1",
+          "message": "云文档结果待确认，请先执行 /doc 云文档对账。"
+        },
+        "write_states": [
+          {
+            "revision": 1,
+            "state": "verified",
+            "token": "copy1"
+          },
+          {
+            "revision": 1,
+            "state": "writing",
+            "token": "copy2"
+          }
+        ]
+      }
+    },
+    {
+      "script": "am_information_subject_repro.py",
+      "state": "defect_reproduced",
+      "exit_code": 0,
+      "evidence": {
+        "current_subject_scope": [
+          "A",
+          "B"
+        ],
+        "extractor_subject_scopes_seen": [
+          [
+            "A"
+          ]
+        ],
+        "first_analyze_status": "done",
+        "second_analyze_result": null,
+        "project_B_fact_count": 0,
+        "project_B_processing_pending": false,
+        "project_B_needs_refresh_or_review": false
+      }
+    },
+    {
+      "script": "repro_doc_wrong_draft.py",
+      "state": "defect_reproduced",
+      "exit_code": 0,
+      "evidence": {
+        "requested_draft": "A",
+        "reported_result": {
+          "draft_id": "A",
+          "version": 1,
+          "state": "collecting",
+          "message": "已记录预检要求，需要按新要求重新检查。"
+        },
+        "actual_drafts": [
+          {
+            "id": "A",
+            "revision": 1,
+            "target_requirements": null
+          },
+          {
+            "id": "B",
+            "revision": 2,
+            "target_requirements": "{\"checks\":[{\"expected\":\"A型号\",\"id\":\"1\",\"kind\":\"expected_value\",\"label\":\"型号\",\"text\":\"型号\"}],\"origin\":\"owner_explicit\",\"source_message\":\"event\",\"version\":\"b6684c0dd9b5865061e6a42e1713399d7dffead298e1963e4de9dc35f2705a92\"}"
+          }
+        ]
+      }
+    }
+  ],
+  "actual_tested_source_commit": "cd59333c8fdb3d57d045a9ac571bf3c17321d54a",
+  "interpretation": "Six defects reproduced on latest original worktree; not an exact 53330c fixed-snapshot validation. Difference explanations are in before-after.json."
+}

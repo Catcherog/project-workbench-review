@@ -1,0 +1,22 @@
+"""Joint synthetic checks for the three modules; no live API calls or services."""
+import hashlib,importlib.util,json,sys,time
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[2];OUT=Path(__file__).parent
+STUDIO=ROOT/'FS-AGENT-GROK-POC-20261017-01_R1_Studio'
+sys.path[:0]=[str(STUDIO/'src'),str(STUDIO/'tests'),str(ROOT/'local-qwen3.8/feishu-bridge'),str(ROOT/'am-conversation-r1/src')]
+if importlib.util.find_spec('pytest') is None:sys.path.append(str(STUDIO/'.venv/lib'/f'python{sys.version_info.major}.{sys.version_info.minor}'/'site-packages'))
+import pytest
+import lark_oapi  # Dependency initialization uses local architecture detection, no remote calls.
+roots=[ROOT/'local-qwen3.8/feishu-bridge',STUDIO/'src',STUDIO/'tests',ROOT/'am-conversation-r1/src']
+def hashes():
+ return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for root in roots for p in root.rglob('*.py') if '.venv' not in p.parts}
+before=hashes();started=time.time()
+files=[STUDIO/'tests/test_conversation_integration.py',STUDIO/'tests/test_document_standards.py',ROOT/'local-qwen3.8/feishu-bridge/test_am_information.py',ROOT/'local-qwen3.8/feishu-bridge/test_info_sources.py',ROOT/'local-qwen3.8/feishu-bridge/test_info_cloud.py',ROOT/'local-qwen3.8/feishu-bridge/test_info_url_metadata.py',STUDIO/'tests/test_conversation_fix1.py']
+def offline(event,args):
+ if event in {'socket.connect','socket.getaddrinfo','subprocess.Popen','os.system','os.posix_spawn'}:raise RuntimeError('OFFLINE_CHECK_BLOCKED:'+event)
+sys.addaudithook(offline)
+code=pytest.main([*[str(p) for p in files],'-q','--tb=short',f'--junitxml={OUT}/joint-tests.xml'])
+after=hashes();result={'started_at':started,'finished_at':time.time(),'exit_code':code,'source_unchanged_during_test':before==after,'source_hashes':before,'synthetic_only':True,'real_model_calls':0,'real_platform_calls':0,'python_version':sys.version,'network_and_process_guard':True,'counting_rule':'83 original + 8 URL metadata + FIX1 parametrized tests; repeat runs are not added'}
+(OUT/'joint-checks.json').write_text(json.dumps(result,indent=2)+'\n')
+if before!=after:raise SystemExit('SOURCE_CHANGED_DURING_TEST')
+raise SystemExit(code)
