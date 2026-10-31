@@ -1,0 +1,1302 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="5" failures="38" skipped="1" tests="584" time="70.361" timestamp="2026-10-31T00:31:07.334589-04:00" hostname="37afe87fd97a"><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[\u4ea4\u4ed8100\u53f0\u3002-\u4ea4\u4ed810\u53f0\u3002]" time="0.001" /><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[A\u9879\u6d4b\u8bd5\u5df2\u901a\u8fc7\uff1bB\u9879\u6d4b\u8bd5\u672a\u901a\u8fc7\u3002-B\u9879\u6d4b\u8bd5\u5df2\u901a\u8fc7\uff1bA\u9879\u6d4b\u8bd5\u672a\u901a\u8fc7\u3002]" time="0.000" /><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[A\u9879\u76ee\u9884\u8ba12026.11.1\u4ea4\u4ed8\uff1bB\u9879\u76ee\u9884\u8ba12026.11.2\u4ea4\u4ed8\u3002-A\u9879\u76ee\u9884\u8ba12026.11.2\u4ea4\u4ed8\u3002]" time="0.000" /><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[\u6837\u673a\u9884\u8ba1\u5b8c\u6210\u3002-\u6837\u673a\u5df2\u5b8c\u6210\u3002]" time="0.000" /><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[A\u626d\u77e9-1.5N\xb7m\uff1bB\u626d\u77e92.5N\xb7m\u3002-A\u626d\u77e92.5N\xb7m\u3002]" time="0.000" /><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[\u8d28\u91cf10\u516c\u65a4\u3002-\u8d28\u91cf10\u514b\u3002]" time="0.001" /><testcase classname="tests.test_am_self_a" name="test_A01_bound_facts_reject_wrong_rewrite[A\u8d1f\u8d23\u4ebaAR1\u7532\uff1bB\u8d1f\u8d23\u4ebaAR2\u4e59\u3002-A\u8d1f\u8d23\u4ebaAR2\u4e59\u3002]" time="0.000" /><testcase classname="tests.test_am_self_a" name="test_A02_identifier_explanation_and_multiple_ids" time="0.006" /><testcase classname="tests.test_am_self_a" name="test_A02_clarification_survives_restart" time="0.051" /><testcase classname="tests.test_am_self_a" name="test_A03_threads_and_explicit_quote_are_scoped" time="0.069" /><testcase classname="tests.test_am_self_a" name="test_A04_known_object_model_failure_and_paused_fast_query" time="0.012" /><testcase classname="tests.test_am_self_a" name="test_A05_late_unrelated_does_not_erase_new_edit" time="0.074" /><testcase classname="tests.test_am_self_a" name="test_A05_ordinary_ok_and_duplicate_regenerate_preview" time="0.074" /><testcase classname="tests.test_am_self_a" name="test_A06_atomic_preview_and_late_receipt" time="0.062" /><testcase classname="tests.test_am_self_a" name="test_A07_preflight_crossing_window_cannot_send_or_extend_retry" time="0.061" /><testcase classname="tests.test_am_self_a" name="test_A08_shared_stop_unknown_and_restart" time="0.020" /><testcase classname="tests.test_am_self_a" name="test_A10_disclosure_does_not_leak_candidate_names" time="0.001" /><testcase classname="tests.test_am_self_a" name="test_A09_worker_error_does_not_silently_discard_next_input" time="0.010" /><testcase classname="tests.test_am_self_a" name="test_A11_existing_data_survives_repeated_migration" time="0.136" /><testcase classname="tests.test_am_self_a" name="test_A01_cross_line_headings_cannot_be_paired_with_another_result" time="0.001" /><testcase classname="tests.test_am_self_b" name="test_B02_stable_id_rename_sort_and_ambiguous_numbers" time="0.048" /><testcase classname="tests.test_am_self_b" name="test_B03_first_same_revision_only_and_order_do_not_make_changes" time="0.047" /><testcase classname="tests.test_am_self_b" name="test_B04_partial_failed_read_does_not_advance_baseline" time="0.038" /><testcase classname="tests.test_am_self_b" name="test_B06_changes_query_is_non_consuming" time="0.041" /><testcase classname="tests.test_am_self_b" name="test_B07_owner_private_query_does_not_fake_a_group" time="0.175"><failure message="assert (True, True) == (True, False)&#10;  &#10;  At index 1 diff: True != False&#10;  Use -v to get more diff">rig = (&lt;fs_agent.gateway.Gateway object at 0x7f3645a92990&gt;, &lt;fs_agent.store.Store object at 0x7f3645a91070&gt;, &lt;test_gateway.O...7f3645baa600&gt;, &lt;test_gateway.Clock object at 0x7f3645babe00&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x7f3645a928a0&gt;)
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-3/test_B07_owner_private_query_d0')
+
+    def test_B07_owner_private_query_does_not_fake_a_group(rig,tmp_path):
+     g,s,api,p,clock,e=rig;port=Port();auth=[];port.authorize_user=lambda u:auth.append(u)
+     port.guard=lambda *a:pytest.fail('private query must not call group guard')
+     ledger=GroupLedger(tmp_path,port,lambda *a:pytest.fail('no group sends'),clock=clock)
+     service=AmSelfService(g,ledger,flags={'query':True,'snapshots':True})
+     payload=event('/project 需求75',number=1)
+     assert service.ingest(payload)==(True,True);assert service.step();drain(g)
+     assert any('实际收货尚未核实' in x.get('body','') for x in api.sent)
+     assert auth and all(x=='ou_a' for x in auth)
+     assert not s.rows('SELECT * FROM tasks') and not p.prompts
+     assert service.ingest(event('/progress sample',number=2))==(False,False)
+&gt;    assert service.ingest(event('/project 需求75',number=3,user='ou_b'))==(True,False)
+E    assert (True, True) == (True, False)
+E      
+E      At index 1 diff: True != False
+E      Use -v to get more diff
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py:71: AssertionError</failure></testcase><testcase classname="tests.test_am_self_b" name="test_B02_changed_number_stays_pending_until_explicit_mapping" time="0.055" /><testcase classname="tests.test_am_self_c" name="test_C01_C02_feedback_identity_versions_idempotency" time="0.047" /><testcase classname="tests.test_am_self_c" name="test_C03_scans_unique_and_restart_unknown" time="0.036" /><testcase classname="tests.test_am_self_c" name="test_C04_latest_item_state_checked_after_preflight[pause]" time="0.032" /><testcase classname="tests.test_am_self_c" name="test_C04_latest_item_state_checked_after_preflight[cancel]" time="0.034" /><testcase classname="tests.test_am_self_c" name="test_C04_latest_item_state_checked_after_preflight[close]" time="0.035" /><testcase classname="tests.test_am_self_c" name="test_C05_calendar_missing_and_no_catchup_burst" time="0.035" /><testcase classname="tests.test_am_self_c" name="test_C06_per_occurrence_preview_required" time="0.044" /><testcase classname="tests.test_am_self_c" name="test_C07_definite_failure_retry_same_key_unknown_never_resends" time="0.052" /><testcase classname="tests.test_am_self_c" name="test_C08_chat_cleanup_does_not_delete_long_lived_items" time="0.039" /><testcase classname="tests.test_am_self_c" name="test_C09_briefing_unknown_restart_keeps_event_cursor" time="0.061" /><testcase classname="tests.test_am_self_c" name="test_C04_body_revision_invalidates_old_rule_and_occurrence" time="0.050" /><testcase classname="tests.test_am_self_c" name="test_C08_terminal_cleanup_keeps_idempotency_tombstones" time="0.063" /><testcase classname="tests.test_am_self_c" name="test_C02_processing_requires_explicit_status_not_ack" time="0.039" /><testcase classname="tests.test_am_self_d" name="test_D01_mixed_facts_and_retained_requirements" time="0.036" /><testcase classname="tests.test_am_self_d" name="test_D02_reporter_check_not_write_authorization" time="0.038" /><testcase classname="tests.test_am_self_d" name="test_D03_replay_same_collection_proposal_and_write" time="0.044" /><testcase classname="tests.test_am_self_d" name="test_D04_relocates_sorted_row_and_stops_identity_conflicts" time="0.045" /><testcase classname="tests.test_am_self_d" name="test_D05_stale_before_and_partial_field_approval" time="0.074" /><testcase classname="tests.test_am_self_d" name="test_D06_lost_response_and_partial_success_not_rewritten" time="0.057" /><testcase classname="tests.test_am_self_d" name="test_D07_source_withdrawal_invalidates_unexecuted_approval" time="0.054" /><testcase classname="tests.test_am_self_d" name="test_D08_non_target_protection_and_rich_target_refusal" time="0.114" /><testcase classname="tests.test_am_self_d" name="test_D09_docx_paragraph_table_order_and_limits" time="0.048"><failure message="AssertionError: assert 'failed' == 'complete'&#10;  &#10;  - complete&#10;  + failed">def test_D09_docx_paragraph_table_order_and_limits():
+     from docx import Document
+     doc=Document();doc.add_paragraph('第一段');table=doc.add_table(rows=1,cols=1);table.cell(0,0).text='表格材料';doc.add_paragraph('最后一段')
+     out=io.BytesIO();doc.save(out)
+     source=read_source('test.docx',out.getvalue(),source_id='S1',origin='synthetic')
+&gt;    assert source['read_status']=='complete'
+E    AssertionError: assert 'failed' == 'complete'
+E      
+E      - complete
+E      + failed
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_d.py:117: AssertionError</failure></testcase><testcase classname="tests.test_am_self_d" name="test_D09_pdf_pages_scanned_encrypted_and_corrupt" time="0.363"><failure message="AssertionError: assert [] == ['PDF第1页', 'PDF第2页']&#10;  &#10;  Right contains 2 more items, first extra item: 'PDF第1页'&#10;  Use -v to get more diff">def test_D09_pdf_pages_scanned_encrypted_and_corrupt():
+     from pypdf import PdfWriter
+     from pypdf.generic import DecodedStreamObject,NameObject,DictionaryObject
+     writer=PdfWriter()
+     for text in ('first','second'):
+      page=writer.add_blank_page(width=200,height=200);stream=DecodedStreamObject();stream.set_data(('BT /F1 12 Tf 10 100 Td ('+text+') Tj ET').encode());page[NameObject('/Contents')]=writer._add_object(stream)
+      font=DictionaryObject({NameObject('/Type'):NameObject('/Font'),NameObject('/Subtype'):NameObject('/Type1'),NameObject('/BaseFont'):NameObject('/Helvetica')});page[NameObject('/Resources')]=DictionaryObject({NameObject('/Font'):DictionaryObject({NameObject('/F1'):writer._add_object(font)})})
+     out=io.BytesIO();writer.write(out)
+     parsed=read_source('pages.pdf',out.getvalue(),source_id='S1',origin='synthetic')
+&gt;    assert [p['location'] for p in parsed['segments']]==['PDF第1页','PDF第2页']
+E    AssertionError: assert [] == ['PDF第1页', 'PDF第2页']
+E      
+E      Right contains 2 more items, first extra item: 'PDF第1页'
+E      Use -v to get more diff
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_d.py:136: AssertionError</failure></testcase><testcase classname="tests.test_am_self_d" name="test_D10_first_precheck_target_invalidates_generic_ready" time="0.059" /><testcase classname="tests.test_am_self_d" name="test_D11_D12_no_false_pass_or_instruction_execution" time="0.001" /><testcase classname="tests.test_am_self_d" name="test_D11_empty_list_and_wrong_version_are_not_available" time="0.001" /><testcase classname="tests.test_am_self_entrypoints" name="test_C_owner_creates_item_then_exact_future_plan_from_private_chat" time="0.218" /><testcase classname="tests.test_am_self_entrypoints" name="test_D_owner_exact_diff_approval_cannot_enable_disabled_write" time="0.241"><failure message="AssertionError: assert ('proposed' == 'approved'&#10;  &#10;  - approved&#10;  + proposed)">rig = (&lt;fs_agent.gateway.Gateway object at 0x7f364475d010&gt;, &lt;fs_agent.store.Store object at 0x7f364475cce0&gt;, &lt;test_gateway.O...7f3644753b00&gt;, &lt;test_gateway.Clock object at 0x7f3644753f80&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x7f364475cdd0&gt;)
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-3/test_D_owner_exact_diff_approv0')
+
+    def test_D_owner_exact_diff_approval_cannot_enable_disabled_write(rig,tmp_path):
+     g,s,api,model,clock,e=rig;port=Port();port.authorize_user=lambda _:None
+     ledger=GroupLedger(tmp_path,port,lambda *a:None,clock=clock)
+     service=AmSelfService(g,ledger,flags={'query':True,'progress_collection':True,'ledger_write':False})
+     sheet=Sheet();service.updates.port=sheet
+     assert service.ingest(event('/update 需求75：上电测试今天完成，报告明天下午提交，低温复测还没做。',number=1))==(True,True)
+     service.step();drain(g)
+     p=s.rows('SELECT * FROM ledger_proposals')[0]
+     assert p['state']=='proposed'
+     c=click(service,g,s,1,'approve:项目进展')
+&gt;    assert service.updates.proposal(p['id'])['state']=='approved' and not sheet.calls
+E    AssertionError: assert ('proposed' == 'approved'
+E      
+E      - approved
+E      + proposed)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_entrypoints.py:51: AssertionError</failure></testcase><testcase classname="tests.test_am_self_fix1" name="test_F01_queued_duplicate_unknown_does_not_block_independent_item" time="0.050" /><testcase classname="tests.test_am_self_fix1" name="test_F02_same_card_continuous_multi_person_feedback_and_owner_fence" time="0.137" /><testcase classname="tests.test_am_self_fix1" name="test_F03_private_reference_overrides_recent_focus" time="0.252" /><testcase classname="tests.test_am_self_fix1" name="test_F04_next_briefing_body_and_attempt_association[preflight_expiry]" time="0.138" /><testcase classname="tests.test_am_self_fix1" name="test_F04_next_briefing_body_and_attempt_association[rejected_exhausted]" time="0.141" /><testcase classname="tests.test_am_self_fix1" name="test_F04_next_briefing_body_and_attempt_association[unknown]" time="0.137" /><testcase classname="tests.test_am_self_fix1" name="test_F04_next_briefing_body_and_attempt_association[verified]" time="0.132" /><testcase classname="tests.test_am_self_fix1" name="test_F05_briefing_uses_same_current_set_as_todo" time="0.414" /><testcase classname="tests.test_am_self_fix1" name="test_F06_precheck_adopt_actual_adapter_mount_and_readback" time="0.058" /><testcase classname="tests.test_am_self_fix1" name="test_F07_source_adapter_raw_content_preserved[False-text]" time="0.164" /><testcase classname="tests.test_am_self_fix1" name="test_F07_source_adapter_raw_content_preserved[False-post]" time="0.152" /><testcase classname="tests.test_am_self_fix1" name="test_F07_source_adapter_raw_content_preserved[False-whitespace]" time="0.177" /><testcase classname="tests.test_am_self_fix1" name="test_F07_source_adapter_raw_content_preserved[True-text]" time="0.238" /><testcase classname="tests.test_am_self_fix1" name="test_F07_source_adapter_raw_content_preserved[True-post]" time="0.228" /><testcase classname="tests.test_am_self_fix1" name="test_F07_source_adapter_raw_content_preserved[True-whitespace]" time="0.265" /><testcase classname="tests.test_am_self_fix1" name="test_F08_empty_heading_and_table_are_not_substantive[text]" time="0.000" /><testcase classname="tests.test_am_self_fix1" name="test_F08_empty_heading_and_table_are_not_substantive[docx]" time="0.070"><failure message="assert (not [] and [])">shape = 'docx'
+
+    @pytest.mark.parametrize('shape',['text','docx','table','positive','partial'])
+    def test_F08_empty_heading_and_table_are_not_substantive(shape):
+        text='交付物清单：\n   '
+        if shape=='positive':text='交付物清单：\n1. 测试报告A'
+        if shape in ('docx','table'):
+            from docx import Document
+            doc=Document()
+            if shape=='docx':doc.add_heading('交付物清单',1)
+            else:
+                table=doc.add_table(rows=1,cols=2);table.cell(0,0).text='交付物清单'
+            buf=io.BytesIO();doc.save(buf);source=read_source('report.docx',buf.getvalue(),source_id='S1',origin='synthetic')
+        else:source=read_source('report.txt',text.encode(),source_id='S1',origin='synthetic')
+        if shape=='partial':source.update(read_status='partial',limitation='部分内容不可读')
+        report=inspect_materials([source],{'checks':[{'id':'1','label':'交付物清单','text':'交付物清单','kind':'presence'}]})
+        if shape=='positive':assert report['已具备'] and not report['缺少']
+        elif shape=='partial':assert not report['已具备'] and not report['缺少'] and report['需专业判断']
+&gt;       else:assert not report['已具备'] and report['缺少']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert (not [] and [])
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:209: AssertionError</failure></testcase><testcase classname="tests.test_am_self_fix1" name="test_F08_empty_heading_and_table_are_not_substantive[table]" time="0.046"><failure message="assert (not [] and [])">shape = 'table'
+
+    @pytest.mark.parametrize('shape',['text','docx','table','positive','partial'])
+    def test_F08_empty_heading_and_table_are_not_substantive(shape):
+        text='交付物清单：\n   '
+        if shape=='positive':text='交付物清单：\n1. 测试报告A'
+        if shape in ('docx','table'):
+            from docx import Document
+            doc=Document()
+            if shape=='docx':doc.add_heading('交付物清单',1)
+            else:
+                table=doc.add_table(rows=1,cols=2);table.cell(0,0).text='交付物清单'
+            buf=io.BytesIO();doc.save(buf);source=read_source('report.docx',buf.getvalue(),source_id='S1',origin='synthetic')
+        else:source=read_source('report.txt',text.encode(),source_id='S1',origin='synthetic')
+        if shape=='partial':source.update(read_status='partial',limitation='部分内容不可读')
+        report=inspect_materials([source],{'checks':[{'id':'1','label':'交付物清单','text':'交付物清单','kind':'presence'}]})
+        if shape=='positive':assert report['已具备'] and not report['缺少']
+        elif shape=='partial':assert not report['已具备'] and not report['缺少'] and report['需专业判断']
+&gt;       else:assert not report['已具备'] and report['缺少']
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert (not [] and [])
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:209: AssertionError</failure></testcase><testcase classname="tests.test_am_self_fix1" name="test_F08_empty_heading_and_table_are_not_substantive[positive]" time="0.000" /><testcase classname="tests.test_am_self_fix1" name="test_F08_empty_heading_and_table_are_not_substantive[partial]" time="0.000" /><testcase classname="tests.test_am_self_fix1" name="test_F01_blocker_added_during_preflight_or_before_send[claim]" time="0.136" /><testcase classname="tests.test_am_self_fix1" name="test_F01_blocker_added_during_preflight_or_before_send[guard]" time="0.142" /><testcase classname="tests.test_am_self_fix1" name="test_F01_concurrent_claims_same_followup_have_one_external_call" time="0.151" /><testcase classname="tests.test_am_self_fix1" name="test_F02_actual_feedback_binding_and_closed_old_card" time="0.139" /><testcase classname="tests.test_am_self_fix1" name="test_F03_thread_identity_expiry_and_ttl_cleanup" time="0.491" /><testcase classname="tests.test_am_self_fix1" name="test_F06_local_failure_is_definite_but_upload_failure_stays_unknown" time="0.082" /><testcase classname="tests.test_am_self_fix1" name="test_F06_legacy_hash_migration_invalidates_adoption_preserves_external_unknown" time="0.067" /><testcase classname="tests.test_am_self_fix1" name="test_F07_legacy_unproven_fingerprint_cannot_authorize_source" time="0.140" /><testcase classname="tests.test_am_self_fix1" name="test_F02_legacy_item_migration_preserves_decision_fence_and_history" time="0.182" /><testcase classname="tests.test_am_self_fix1" name="test_F04_legacy_pending_migration_retains_attempt_identity[cancelled]" time="0.178" /><testcase classname="tests.test_am_self_fix1" name="test_F04_legacy_pending_migration_retains_attempt_identity[unknown]" time="0.188" /><testcase classname="tests.test_am_self_fix1" name="test_F04_legacy_pending_migration_retains_attempt_identity[sent]" time="0.215" /><testcase classname="tests.test_am_self_fix1" name="test_F08_structural_positive_and_empty_controls[table]" time="0.090"><failure message="assert ([])">shape = 'table'
+
+    @pytest.mark.parametrize('shape',['table','docx-list','markdown-empty','other-heading'])
+    def test_F08_structural_positive_and_empty_controls(shape):
+        if shape in ('table','docx-list'):
+            from docx import Document
+            doc=Document()
+            if shape=='table':
+                table=doc.add_table(rows=1,cols=2);table.cell(0,0).text='交付物清单';table.cell(0,1).text='测试报告A'
+            else:
+                doc.add_heading('交付物清单',1);doc.add_paragraph('1. 测试报告A')
+            buf=io.BytesIO();doc.save(buf);source=read_source('report.docx',buf.getvalue(),source_id='S1',origin='synthetic')
+        else:
+            text='| 交付物清单 |   |\n| --- | --- |' if shape=='markdown-empty' else '交付物清单：\n版本：v1'
+            source=read_source('report.md',text.encode(),source_id='S1',origin='synthetic')
+        report=inspect_materials([source],{'checks':[{'id':'1','label':'交付物清单','text':'交付物清单'}]})
+&gt;       if shape in ('table','docx-list'):assert report['已具备'] and not report['缺少']
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert ([])
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:379: AssertionError</failure></testcase><testcase classname="tests.test_am_self_fix1" name="test_F08_structural_positive_and_empty_controls[docx-list]" time="0.104"><failure message="assert ([])">shape = 'docx-list'
+
+    @pytest.mark.parametrize('shape',['table','docx-list','markdown-empty','other-heading'])
+    def test_F08_structural_positive_and_empty_controls(shape):
+        if shape in ('table','docx-list'):
+            from docx import Document
+            doc=Document()
+            if shape=='table':
+                table=doc.add_table(rows=1,cols=2);table.cell(0,0).text='交付物清单';table.cell(0,1).text='测试报告A'
+            else:
+                doc.add_heading('交付物清单',1);doc.add_paragraph('1. 测试报告A')
+            buf=io.BytesIO();doc.save(buf);source=read_source('report.docx',buf.getvalue(),source_id='S1',origin='synthetic')
+        else:
+            text='| 交付物清单 |   |\n| --- | --- |' if shape=='markdown-empty' else '交付物清单：\n版本：v1'
+            source=read_source('report.md',text.encode(),source_id='S1',origin='synthetic')
+        report=inspect_materials([source],{'checks':[{'id':'1','label':'交付物清单','text':'交付物清单'}]})
+&gt;       if shape in ('table','docx-list'):assert report['已具备'] and not report['缺少']
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert ([])
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:379: AssertionError</failure></testcase><testcase classname="tests.test_am_self_fix1" name="test_F08_structural_positive_and_empty_controls[markdown-empty]" time="0.001" /><testcase classname="tests.test_am_self_fix1" name="test_F08_structural_positive_and_empty_controls[other-heading]" time="0.000" /><testcase classname="tests.test_am_ux1" name="test_UX01_menu_event_to_live_project_detail" time="0.148"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f364469e8d0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364469c920&gt;, &lt;fs_agent.s...t at 0x7f364469d940&gt;, &lt;test_gateway.Clock object at 0x7f364469d5b0&gt;, &lt;test_group_ledger.Port object at 0x7f364469fbc0&gt;)
+
+    def test_UX01_menu_event_to_live_project_detail(ux):
+        am,g,s,api,clock,_=ux
+        menu={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':'menu_1','event_type':'application.bot.menu_v6'},'event':{'operator':{'operator_id':{'open_id':'ou_a'}},'event_key':'am_work','timestamp':int(clock()*1000)}}
+        assert am.ingest(menu)==(True,True);assert am.ingest(menu)==(True,False)
+        am.step();drain(g)
+        c=latest(ux)
+        g.reminders.port.read=lambda mid:{'chat_id':'oc_dm','sender_id':g.config.bot_open_id}
+&gt;       click(ux,'projects',c=c,overrides={})
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f364469e8d0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364469c920&gt;, &lt;fs_agent.s...t at 0x7f364469d940&gt;, &lt;test_gateway.Clock object at 0x7f364469d5b0&gt;, &lt;test_group_ledger.Port object at 0x7f364469fbc0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_menu_rejects_untrusted_actor_or_event_key[ou_other-am_work]" time="0.115"><failure message="assert ((True, True) == (True, False)&#10;  &#10;  At index 1 diff: True != False&#10;  Use -v to get more diff)">ux = (&lt;am_service.AmSelfService object at 0x7f364469d730&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364475c830&gt;, &lt;fs_agent.s...t at 0x7f364475ca40&gt;, &lt;test_gateway.Clock object at 0x7f364475c5c0&gt;, &lt;test_group_ledger.Port object at 0x7f364475c950&gt;)
+actor = 'ou_other', key = 'am_work'
+
+    @pytest.mark.parametrize('actor,key',[('ou_other','am_work'),('ou_a','/plan 任意指令')])
+    def test_menu_rejects_untrusted_actor_or_event_key(ux,actor,key):
+        am,g,s,api,clock,_=ux
+        p={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':'bad','event_type':'application.bot.menu_v6'},'event':{'operator':{'operator_id':{'open_id':actor}},'event_key':key,'timestamp':int(clock()*1000)}}
+&gt;       assert am.ingest(p)==(True,False) and not s.rows('SELECT * FROM am_inbox')
+E       assert ((True, True) == (True, False)
+E         
+E         At index 1 diff: True != False
+E         Use -v to get more diff)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:69: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_menu_rejects_untrusted_actor_or_event_key[ou_a-/plan \u4efb\u610f\u6307\u4ee4]" time="0.128" /><testcase classname="tests.test_am_ux1" name="test_UX02_edit_preserves_form_and_invalidates_old_approval" time="0.156"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f364469de80&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36447680e0&gt;, &lt;fs_agent.s...t at 0x7f3644769d00&gt;, &lt;test_gateway.Clock object at 0x7f364476b5c0&gt;, &lt;test_group_ledger.Port object at 0x7f364476a2d0&gt;)
+
+    def test_UX02_edit_preserves_form_and_invalidates_old_approval(ux):
+&gt;       form=reminder_form(ux);click(ux,'preview_reminder',form=values(ux))
+             ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f364469de80&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36447680e0&gt;, &lt;fs_agent.s...t at 0x7f3644769d00&gt;, &lt;test_gateway.Clock object at 0x7f364476b5c0&gt;, &lt;test_group_ledger.Port object at 0x7f364476a2d0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX03_confirmation_replay_creates_one_plan_and_item" time="0.192"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36447762a0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476a150&gt;, &lt;fs_agent.s...t at 0x7f364476a570&gt;, &lt;test_gateway.Clock object at 0x7f364476b2c0&gt;, &lt;test_group_ledger.Port object at 0x7f364475fe90&gt;)
+
+    def test_UX03_confirmation_replay_creates_one_plan_and_item(ux):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36447762a0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476a150&gt;, &lt;fs_agent.s...t at 0x7f364476a570&gt;, &lt;test_gateway.Clock object at 0x7f364476b2c0&gt;, &lt;test_group_ledger.Port object at 0x7f364475fe90&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX03_unknown_only_offers_reconciliation" time="0.179"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644780530&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f3644781f40&gt;, &lt;fs_agent.s...t at 0x7f3644780110&gt;, &lt;test_gateway.Clock object at 0x7f3644781640&gt;, &lt;test_group_ledger.Port object at 0x7f3644783680&gt;)
+
+    def test_UX03_unknown_only_offers_reconciliation(ux):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644780530&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f3644781f40&gt;, &lt;fs_agent.s...t at 0x7f3644780110&gt;, &lt;test_gateway.Clock object at 0x7f3644781640&gt;, &lt;test_group_ledger.Port object at 0x7f3644783680&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_form_invalid_values_never_create_plan[change0]" time="0.168"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36447776e0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36446aa930&gt;, &lt;fs_agent.s...t at 0x7f36446aad80&gt;, &lt;test_gateway.Clock object at 0x7f36446a89b0&gt;, &lt;test_group_ledger.Port object at 0x7f36446aa270&gt;)
+change = {'people': ['999']}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+&gt;       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36447776e0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36446aa930&gt;, &lt;fs_agent.s...t at 0x7f36446aad80&gt;, &lt;test_gateway.Clock object at 0x7f36446a89b0&gt;, &lt;test_group_ledger.Port object at 0x7f36446aa270&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_form_invalid_values_never_create_plan[change1]" time="0.223"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644780800&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36446aa750&gt;, &lt;fs_agent.s...t at 0x7f36446a81a0&gt;, &lt;test_gateway.Clock object at 0x7f36446aa150&gt;, &lt;test_group_ledger.Port object at 0x7f36446abe90&gt;)
+change = {'body': ''}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+&gt;       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644780800&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36446aa750&gt;, &lt;fs_agent.s...t at 0x7f36446a81a0&gt;, &lt;test_gateway.Clock object at 0x7f36446aa150&gt;, &lt;test_group_ledger.Port object at 0x7f36446abe90&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_form_invalid_values_never_create_plan[change2]" time="0.231"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644780890&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36447748f0&gt;, &lt;fs_agent.s...t at 0x7f3644774dd0&gt;, &lt;test_gateway.Clock object at 0x7f3644776570&gt;, &lt;test_group_ledger.Port object at 0x7f3644776ae0&gt;)
+change = {'when': '明天'}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+&gt;       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644780890&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36447748f0&gt;, &lt;fs_agent.s...t at 0x7f3644774dd0&gt;, &lt;test_gateway.Clock object at 0x7f3644776570&gt;, &lt;test_group_ledger.Port object at 0x7f3644776ae0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_form_invalid_values_never_create_plan[change3]" time="0.199"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644783830&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476a1b0&gt;, &lt;fs_agent.s...t at 0x7f36447684d0&gt;, &lt;test_gateway.Clock object at 0x7f3644768770&gt;, &lt;test_group_ledger.Port object at 0x7f364476b8f0&gt;)
+change = {'frequency': 'workdays', 'until': '2033-06-01 09:00 +0800'}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+&gt;       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644783830&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476a1b0&gt;, &lt;fs_agent.s...t at 0x7f36447684d0&gt;, &lt;test_gateway.Clock object at 0x7f3644768770&gt;, &lt;test_group_ledger.Port object at 0x7f364476b8f0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX05_original_progress_message_fingerprint" time="0.182"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644781f40&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364475f9b0&gt;, &lt;fs_agent.s...t at 0x7f364475d670&gt;, &lt;test_gateway.Clock object at 0x7f364475fef0&gt;, &lt;test_group_ledger.Port object at 0x7f364475d6d0&gt;)
+
+    def test_UX05_original_progress_message_fingerprint(ux):
+&gt;       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644781f40&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364475f9b0&gt;, &lt;fs_agent.s...t at 0x7f364475d670&gt;, &lt;test_gateway.Clock object at 0x7f364475fef0&gt;, &lt;test_group_ledger.Port object at 0x7f364475d6d0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_collection_expiry_and_switch_never_rebind_queued_message" time="0.278"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644769a00&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364469da60&gt;, &lt;fs_agent.s...t at 0x7f364469c050&gt;, &lt;test_gateway.Clock object at 0x7f364469f590&gt;, &lt;test_group_ledger.Port object at 0x7f364469ec30&gt;)
+
+    def test_collection_expiry_and_switch_never_rebind_queued_message(ux):
+&gt;       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644769a00&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364469da60&gt;, &lt;fs_agent.s...t at 0x7f364469c050&gt;, &lt;test_gateway.Clock object at 0x7f364469f590&gt;, &lt;test_group_ledger.Port object at 0x7f364469ec30&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX06_precheck_file_bound_to_exact_target_and_F08" time="0.171"><failure message="AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444b6750&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444b6600&gt;, &lt;fs_agent.s...t at 0x7f36444b7ce0&gt;, &lt;test_gateway.Clock object at 0x7f36444b7080&gt;, &lt;test_group_ledger.Port object at 0x7f36444b52e0&gt;)
+
+    def test_UX06_precheck_file_bound_to_exact_target_and_F08(ux):
+&gt;       request(ux,'/menu',1);click(ux,'targets');click(ux,'precheck_form')
+                              ^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444b6750&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444b6600&gt;, &lt;fs_agent.s...t at 0x7f36444b7ce0&gt;, &lt;test_gateway.Clock object at 0x7f36444b7080&gt;, &lt;test_group_ledger.Port object at 0x7f36444b52e0&gt;)
+page = 'targets'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX07_wrong_actor_or_chat_cannot_execute[ou_b-oc_dm]" time="0.157"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444b60f0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444b7cb0&gt;, &lt;fs_agent.s...t at 0x7f36444b6cf0&gt;, &lt;test_gateway.Clock object at 0x7f36444b6a50&gt;, &lt;test_group_ledger.Port object at 0x7f36444b41d0&gt;)
+actor = 'ou_b', chat = 'oc_dm'
+
+    @pytest.mark.parametrize('actor,chat',[('ou_b','oc_dm'),('ou_a','oc_other')])
+    def test_UX07_wrong_actor_or_chat_cannot_execute(ux,actor,chat):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444b60f0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444b7cb0&gt;, &lt;fs_agent.s...t at 0x7f36444b6cf0&gt;, &lt;test_gateway.Clock object at 0x7f36444b6a50&gt;, &lt;test_group_ledger.Port object at 0x7f36444b41d0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX07_wrong_actor_or_chat_cannot_execute[ou_a-oc_other]" time="0.158"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f364469f470&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364475ddc0&gt;, &lt;fs_agent.s...t at 0x7f364475d880&gt;, &lt;test_gateway.Clock object at 0x7f364475da90&gt;, &lt;test_group_ledger.Port object at 0x7f364475c680&gt;)
+actor = 'ou_a', chat = 'oc_other'
+
+    @pytest.mark.parametrize('actor,chat',[('ou_b','oc_dm'),('ou_a','oc_other')])
+    def test_UX07_wrong_actor_or_chat_cannot_execute(ux,actor,chat):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f364469f470&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364475ddc0&gt;, &lt;fs_agent.s...t at 0x7f364475d880&gt;, &lt;test_gateway.Clock object at 0x7f364475da90&gt;, &lt;test_group_ledger.Port object at 0x7f364475c680&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX07_expired_card_cannot_execute" time="0.172"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f364476b950&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f3644775340&gt;, &lt;fs_agent.s...t at 0x7f3644774710&gt;, &lt;test_gateway.Clock object at 0x7f3644776420&gt;, &lt;test_group_ledger.Port object at 0x7f36447763f0&gt;)
+
+    def test_UX07_expired_card_cannot_execute(ux):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f364476b950&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f3644775340&gt;, &lt;fs_agent.s...t at 0x7f3644774710&gt;, &lt;test_gateway.Clock object at 0x7f3644776420&gt;, &lt;test_group_ledger.Port object at 0x7f36447763f0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX04_group_form_continuous_feedback_two_actors" time="0.148"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36447818b0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364469ef00&gt;, &lt;fs_agent.s...t at 0x7f364469f560&gt;, &lt;test_gateway.Clock object at 0x7f364469d5e0&gt;, &lt;test_group_ledger.Port object at 0x7f364469c740&gt;)
+
+    def test_UX04_group_form_continuous_feedback_two_actors(ux):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,people=['0','1']));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36447818b0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364469ef00&gt;, &lt;fs_agent.s...t at 0x7f364469f560&gt;, &lt;test_gateway.Clock object at 0x7f364469d5e0&gt;, &lt;test_group_ledger.Port object at 0x7f364469c740&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_UX08_search_no_results_and_long_body_readable" time="0.158"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644781010&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36446aa870&gt;, &lt;fs_agent.s...t at 0x7f36446a8470&gt;, &lt;test_gateway.Clock object at 0x7f36446aaa20&gt;, &lt;test_group_ledger.Port object at 0x7f36446a8890&gt;)
+
+    def test_UX08_search_no_results_and_long_body_readable(ux):
+&gt;       request(ux,'/menu',1);click(ux,'projects');click(ux,'search',form={'query':'不会存在的项目'})
+                              ^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644781010&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36446aa870&gt;, &lt;fs_agent.s...t at 0x7f36446a8470&gt;, &lt;test_gateway.Clock object at 0x7f36446aaa20&gt;, &lt;test_group_ledger.Port object at 0x7f36446a8890&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_collection_cross_thread_requires_new_choice" time="0.150"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444bdbb0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444bfef0&gt;, &lt;fs_agent.s...t at 0x7f36444bc3b0&gt;, &lt;test_gateway.Clock object at 0x7f36444bfc50&gt;, &lt;test_group_ledger.Port object at 0x7f36444bf200&gt;)
+
+    def test_collection_cross_thread_requires_new_choice(ux):
+&gt;       request(ux,'/menu',1,thread_id='thread-a');click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:177: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444bdbb0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444bfef0&gt;, &lt;fs_agent.s...t at 0x7f36444bc3b0&gt;, &lt;test_gateway.Clock object at 0x7f36444bfc50&gt;, &lt;test_group_ledger.Port object at 0x7f36444bf200&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_collection_different_project_mention_rejected" time="0.172"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444bcfe0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444beab0&gt;, &lt;fs_agent.s...t at 0x7f36444bdd90&gt;, &lt;test_gateway.Clock object at 0x7f36444bda30&gt;, &lt;test_group_ledger.Port object at 0x7f36444bede0&gt;)
+
+    def test_collection_different_project_mention_rejected(ux):
+&gt;       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444bcfe0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444beab0&gt;, &lt;fs_agent.s...t at 0x7f36444bdd90&gt;, &lt;test_gateway.Clock object at 0x7f36444bda30&gt;, &lt;test_group_ledger.Port object at 0x7f36444bede0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_subscription_edit_and_repeat_confirm" time="0.380" /><testcase classname="tests.test_am_ux1" name="test_future_cycle_start_respected" time="0.163"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444be420&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476b080&gt;, &lt;fs_agent.s...t at 0x7f364476a810&gt;, &lt;test_gateway.Clock object at 0x7f364476a180&gt;, &lt;test_group_ledger.Port object at 0x7f3644768620&gt;)
+
+    def test_future_cycle_start_respected(ux):
+&gt;       reminder_form(ux)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444be420&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476b080&gt;, &lt;fs_agent.s...t at 0x7f364476a810&gt;, &lt;test_gateway.Clock object at 0x7f364476a180&gt;, &lt;test_group_ledger.Port object at 0x7f3644768620&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_old_form_is_blocked_after_feature_disabled" time="0.152"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f3644783c80&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476a030&gt;, &lt;fs_agent.s...t at 0x7f364475fce0&gt;, &lt;test_gateway.Clock object at 0x7f364475f950&gt;, &lt;test_group_ledger.Port object at 0x7f364475cce0&gt;)
+
+    def test_old_form_is_blocked_after_feature_disabled(ux):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f3644783c80&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f364476a030&gt;, &lt;fs_agent.s...t at 0x7f364475fce0&gt;, &lt;test_gateway.Clock object at 0x7f364475f950&gt;, &lt;test_group_ledger.Port object at 0x7f364475cce0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_precheck_unread_file_is_not_claimed_missing" time="0.140"><failure message="AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444c4890&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444bdac0&gt;, &lt;fs_agent.s...t at 0x7f36444bf890&gt;, &lt;test_gateway.Clock object at 0x7f36444bf710&gt;, &lt;test_group_ledger.Port object at 0x7f36444be510&gt;)
+
+    def test_precheck_unread_file_is_not_claimed_missing(ux):
+        from fs_agent.config import BoundaryError
+&gt;       request(ux,'/menu',1);click(ux,'targets');click(ux,'precheck_form');click(ux,'start_precheck',form={'kind':'test','requirements':'交付物清单'})
+                              ^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444c4890&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444bdac0&gt;, &lt;fs_agent.s...t at 0x7f36444bf890&gt;, &lt;test_gateway.Clock object at 0x7f36444bf710&gt;, &lt;test_group_ledger.Port object at 0x7f36444be510&gt;)
+page = 'targets'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_project_card_reply_binding_survives_later_query" time="0.124"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444c7620&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444c7980&gt;, &lt;fs_agent.s...t at 0x7f36444c43b0&gt;, &lt;test_gateway.Clock object at 0x7f36444c7080&gt;, &lt;test_group_ledger.Port object at 0x7f36444c5eb0&gt;)
+
+    def test_project_card_reply_binding_survives_later_query(ux):
+&gt;       request(ux,'/menu',1);click(ux,'projects');click(ux,'project')
+                              ^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444c7620&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444c7980&gt;, &lt;fs_agent.s...t at 0x7f36444c43b0&gt;, &lt;test_gateway.Clock object at 0x7f36444c7080&gt;, &lt;test_group_ledger.Port object at 0x7f36444c5eb0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_datetime_form_uses_explicit_business_timezone_not_client_reference" time="0.000" /><testcase classname="tests.test_am_ux1" name="test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u63d0\u4ea4 {\u6d4b\u8bd5\u62a5\u544a}\uff0c\u53c2\u6570 {&quot;version&quot;: 2}\u3002]" time="0.131"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444d2390&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444d2360&gt;, &lt;fs_agent.s...t at 0x7f36444d3a40&gt;, &lt;test_gateway.Clock object at 0x7f36444d2f90&gt;, &lt;test_group_ledger.Port object at 0x7f36444d1be0&gt;)
+body = '请提交 {测试报告}，参数 {"version": 2}。'
+
+    @pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+    def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444d2390&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444d2360&gt;, &lt;fs_agent.s...t at 0x7f36444d3a40&gt;, &lt;test_gateway.Clock object at 0x7f36444d2f90&gt;, &lt;test_group_ledger.Port object at 0x7f36444d1be0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1" name="test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u4fdd\u7559\u53cc\u62ec\u53f7 {{\u6837\u4f8b}}\u3002]" time="0.165"><failure message="AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})&#10;assert None is not None">ux = (&lt;am_service.AmSelfService object at 0x7f36444c55e0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444c40e0&gt;, &lt;fs_agent.s...t at 0x7f36444c5610&gt;, &lt;test_gateway.Clock object at 0x7f36444c76e0&gt;, &lt;test_group_ledger.Port object at 0x7f36444c44a0&gt;)
+body = '请保留双括号 {{样例}}。'
+
+    @pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+    def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+&gt;       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (&lt;am_service.AmSelfService object at 0x7f36444c55e0&gt;, &lt;fs_agent.gateway.Gateway object at 0x7f36444c40e0&gt;, &lt;fs_agent.s...t at 0x7f36444c5610&gt;, &lt;test_gateway.Clock object at 0x7f36444c76e0&gt;, &lt;test_group_ledger.Port object at 0x7f36444c44a0&gt;)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+&gt;       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1_precheck" name="test_empty_composite_field_does_not_borrow_responsible_person" time="0.049"><failure message="AssertionError: assert 'failed' == 'complete'&#10;  &#10;  - complete&#10;  + failed">def test_empty_composite_field_does_not_borrow_responsible_person():
+&gt;       result=report(('交付物清单','','负责人','AR001合成人员'))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cells = ('交付物清单', '', '负责人', 'AR001合成人员'), merge = None
+
+    def report(cells,merge=None):
+        doc=Document();table=doc.add_table(rows=1,cols=len(cells))
+        for i,text in enumerate(cells):table.cell(0,i).text=text
+        if merge:table.cell(0,merge[0]).merge(table.cell(0,merge[1]))
+        content=io.BytesIO();doc.save(content)
+        source=read_source('synthetic.docx',content.getvalue(),source_id='S1',origin='synthetic')
+&gt;       assert source['read_status']=='complete'
+E       AssertionError: assert 'failed' == 'complete'
+E         
+E         - complete
+E         + failed
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:15: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1_precheck" name="test_explicit_two_cell_value_is_evidence" time="0.037"><failure message="AssertionError: assert 'failed' == 'complete'&#10;  &#10;  - complete&#10;  + failed">def test_explicit_two_cell_value_is_evidence():
+&gt;       assert report(('交付物清单','测试报告A'))['已具备']
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cells = ('交付物清单', '测试报告A'), merge = None
+
+    def report(cells,merge=None):
+        doc=Document();table=doc.add_table(rows=1,cols=len(cells))
+        for i,text in enumerate(cells):table.cell(0,i).text=text
+        if merge:table.cell(0,merge[0]).merge(table.cell(0,merge[1]))
+        content=io.BytesIO();doc.save(content)
+        source=read_source('synthetic.docx',content.getvalue(),source_id='S1',origin='synthetic')
+&gt;       assert source['read_status']=='complete'
+E       AssertionError: assert 'failed' == 'complete'
+E         
+E         - complete
+E         + failed
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:15: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1_precheck" name="test_multiple_field_pairs_bind_only_the_adjacent_value" time="0.042"><failure message="AssertionError: assert 'failed' == 'complete'&#10;  &#10;  - complete&#10;  + failed">def test_multiple_field_pairs_bind_only_the_adjacent_value():
+&gt;       result=report(('项目名称','合成项目','交付物清单','测试报告A','负责人','AR001合成人员'))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cells = ('项目名称', '合成项目', '交付物清单', '测试报告A', '负责人', 'AR001合成人员'), merge = None
+
+    def report(cells,merge=None):
+        doc=Document();table=doc.add_table(rows=1,cols=len(cells))
+        for i,text in enumerate(cells):table.cell(0,i).text=text
+        if merge:table.cell(0,merge[0]).merge(table.cell(0,merge[1]))
+        content=io.BytesIO();doc.save(content)
+        source=read_source('synthetic.docx',content.getvalue(),source_id='S1',origin='synthetic')
+&gt;       assert source['read_status']=='complete'
+E       AssertionError: assert 'failed' == 'complete'
+E         
+E         - complete
+E         + failed
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:15: AssertionError</failure></testcase><testcase classname="tests.test_am_ux1_precheck" name="test_merged_cells_remain_professional_judgment" time="0.038"><failure message="AssertionError: assert 'failed' == 'complete'&#10;  &#10;  - complete&#10;  + failed">def test_merged_cells_remain_professional_judgment():
+&gt;       result=report(('交付物清单','','负责人','AR001合成人员'),(0,1))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cells = ('交付物清单', '', '负责人', 'AR001合成人员'), merge = (0, 1)
+
+    def report(cells,merge=None):
+        doc=Document();table=doc.add_table(rows=1,cols=len(cells))
+        for i,text in enumerate(cells):table.cell(0,i).text=text
+        if merge:table.cell(0,merge[0]).merge(table.cell(0,merge[1]))
+        content=io.BytesIO();doc.save(content)
+        source=read_source('synthetic.docx',content.getvalue(),source_id='S1',origin='synthetic')
+&gt;       assert source['read_status']=='complete'
+E       AssertionError: assert 'failed' == 'complete'
+E         
+E         - complete
+E         + failed
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1_precheck.py:15: AssertionError</failure></testcase><testcase classname="tests.test_am_ux2" name="test_U01_fields_and_source_are_distinct" time="0.257" /><testcase classname="tests.test_am_ux2" name="test_U02_single_and_multiple_people" time="0.160" /><testcase classname="tests.test_am_ux2" name="test_U03_complete_blocks_and_bounded_fallback" time="0.118" /><testcase classname="tests.test_am_ux2" name="test_U06_real_todo_pagination" time="0.157" /><testcase classname="tests.test_am_ux2" name="test_U07_once_edit_preview_exact_and_idempotent" time="0.377" /><testcase classname="tests.test_am_ux2" name="test_U08_cycle_fields_and_resume_preview" time="0.280" /><testcase classname="tests.test_am_ux2" name="test_U09_two_actors_feedback_and_notice_dedup" time="0.322" /><testcase classname="tests.test_am_ux2" name="test_U10_collection_single_result_content_review_is_not_approval" time="0.294" /><testcase classname="tests.test_am_ux2" name="test_U04_one_navigation_message_preserves_search_and_return" time="0.285" /><testcase classname="tests.test_am_ux2" name="test_U05_old_result_does_not_overwrite_new_interaction" time="0.161" /><testcase classname="tests.test_am_ux2" name="test_U11_subscription_contract_fixed_details_and_consumption" time="0.317" /><testcase classname="tests.test_am_ux2" name="test_U12_incomplete_precheck_then_supplement_retains_version" time="0.270" /><testcase classname="tests.test_am_ux2" name="test_U13_document_questions_and_short_result" time="0.197" /><testcase classname="tests.test_am_ux2" name="test_U14_exact_mount_preview_and_replay" time="0.229" /><testcase classname="tests.test_am_ux2" name="test_U15_unknown_update_reconciles_without_create" time="0.274" /><testcase classname="tests.test_am_ux2" name="test_U16_shared_group_card_does_not_become_private_navigation" time="0.335" /><testcase classname="tests.test_am_ux2" name="test_U15_busy_model_does_not_block_navigation" time="0.138" /><testcase classname="tests.test_am_ux2" name="test_U16_long_exact_preview_all_pages_reachable" time="0.221" /><testcase classname="tests.test_am_ux2" name="test_U15_expired_form_recovers_valid_draft" time="0.384" /><testcase classname="tests.test_am_ux2" name="test_U03_independent_role_rows_keep_scope_and_qualifiers" time="0.102" /><testcase classname="tests.test_am_ux2" name="test_U15_transformed_link_readback_requires_same_render_and_url" time="0.096" /><testcase classname="tests.test_am_ux2" name="test_U16_transformed_mentions_preserve_exact_people" time="0.111" /><testcase classname="tests.test_am_ux2" name="test_U10_legacy_content_check_has_one_result_and_no_approval" time="0.167" /><testcase classname="tests.test_am_ux2" name="test_U11_repeated_subscription_confirmation_has_one_receipt" time="0.231" /><testcase classname="tests.test_am_ux2_fix1" name="test_F01_new_round_same_text_and_replay" time="0.475" /><testcase classname="tests.test_am_ux2_fix1" name="test_F02_schedule_preserves_cross_field_dependency[\u4e0a\u8ff0\u8ba1\u5212\u5df2\u53d6\u6d88\uff0c\u65b0\u7684\u6d4b\u8bd5\u65e5\u671f\u53e6\u884c\u786e\u5b9a\u3002]" time="0.149" /><testcase classname="tests.test_am_ux2_fix1" name="test_F02_schedule_preserves_cross_field_dependency[\u6392\u671f\u4ee5\u8bc4\u5ba1\u540e\u7684\u901a\u77e5\u4e3a\u51c6\u3002]" time="0.142" /><testcase classname="tests.test_am_ux2_fix1" name="test_F02_schedule_preserves_cross_field_dependency[\u6628\u65e5\u516c\u5e03\u7684\u5b89\u6392\u4e0d\u518d\u9002\u7528\u3002]" time="0.137" /><testcase classname="tests.test_am_ux2_fix1" name="test_F02_global_people_condition_is_not_omitted" time="0.142" /><testcase classname="tests.test_am_ux2_fix1" name="test_F03_actual_entry_and_long_snapshot[menu]" time="0.432" /><testcase classname="tests.test_am_ux2_fix1" name="test_F03_actual_entry_and_long_snapshot[/briefing]" time="0.436" /><testcase classname="tests.test_am_ux2_fix1" name="test_F03_actual_entry_and_long_snapshot[/changes]" time="0.380" /><testcase classname="tests.test_am_ux2_fix1" name="test_F04_definitely_deleted_navigation_is_rebuilt_once" time="0.276" /><testcase classname="tests.test_am_ux2_fix1" name="test_F04_unknown_has_one_status_and_no_blind_republish[applied]" time="0.238" /><testcase classname="tests.test_am_ux2_fix1" name="test_F04_unknown_has_one_status_and_no_blind_republish[not_applied]" time="0.214" /><testcase classname="tests.test_am_ux2_fix1" name="test_F04_unknown_has_one_status_and_no_blind_republish[create_unknown]" time="0.205" /><testcase classname="tests.test_am_ux2_fix1" name="test_F05_explicit_fields_private_group_and_quote[\u8fdb\u5c55\u548c\u8d1f\u8d23\u4eba\u5206\u522b\u662f\u4ec0\u4e48-fields0]" time="0.195" /><testcase classname="tests.test_am_ux2_fix1" name="test_F05_explicit_fields_private_group_and_quote[\u8fdb\u5c55\u548c\u65e5\u671f-fields1]" time="0.166" /><testcase classname="tests.test_am_ux2_fix1" name="test_F05_explicit_fields_private_group_and_quote[\u8fdb\u5c55\u3001\u65e5\u671f\u3001\u5f85\u529e\u548c\u8d1f\u8d23\u4eba-fields2]" time="0.188" /><testcase classname="tests.test_am_ux2_fix1" name="test_F05_explicit_fields_private_group_and_quote[\u8c01\u8d1f\u8d23-fields3]" time="0.184" /><testcase classname="tests.test_am_ux2_fix1" name="test_F06_missing_eta_is_private_and_preserves_input" time="0.465" /><testcase classname="tests.test_am_ux2_fix1" name="test_F07_project_actions_preserve_search_position" time="0.346" /><testcase classname="tests.test_am_ux2_fix1" name="test_F01_legacy_claim_and_atomic_retry" time="0.366" /><testcase classname="tests.test_am_ux2_fix1" name="test_F04_temporary_rejection_cannot_rebuild" time="0.181" /><testcase classname="tests.test_am_ux2_fix1" name="test_F04_recovery_button_restores_only_after_exact_readback" time="0.241" /><testcase classname="tests.test_am_ux2_fix1" name="test_F06_unauthorized_actor_gets_no_private_prompt" time="0.319" /><testcase classname="tests.test_am_ux2_fix1" name="test_request_timings_separate_read_render_and_readback" time="0.197" /><testcase classname="tests.test_am_ux2_fix1_experience" name="test_novice_can_ask_without_command" time="0.201" /><testcase classname="tests.test_am_ux2_fix1_experience" name="test_novice_search_people_and_return" time="0.390" /><testcase classname="tests.test_am_ux2_fix1_experience" name="test_novice_briefing_details_and_todos" time="0.324" /><testcase classname="tests.test_am_ux2_fix1_experience" name="test_novice_todo_pagination" time="0.334" /><testcase classname="tests.test_am_ux2_fix1_experience" name="test_navigation_delivery_revocation_is_not_cached" time="0.180" /><testcase classname="tests.test_am_ux3" name="test_staff_complete_path_and_delivery_independent_of_poc" time="0.249" /><testcase classname="tests.test_am_ux3" name="test_missing_mapping_returns_notice_without_names_or_counts" time="0.140" /><testcase classname="tests.test_am_ux3" name="test_revoke_between_build_and_delivery_blocks_every_output" time="0.155" /><testcase classname="tests.test_am_ux3" name="test_revoke_with_hot_card_and_recent_never_discloses" time="0.249" /><testcase classname="tests.test_am_ux3" name="test_management_is_denied_and_ordinary_chat_unclaimed" time="0.166" /><testcase classname="tests.test_am_ux3" name="test_hot_pages_stable_source_no_model_and_recent_scoped" time="0.462" /><testcase classname="tests.test_am_ux3" name="test_snapshot_refresh_failure_keeps_complete_rows" time="0.207" /><testcase classname="tests.test_am_ux3" name="test_cross_actor_chat_and_stale_buttons_rejected" time="0.302" /><testcase classname="tests.test_am_ux3" name="test_slow_source_coalesces_and_returns_loading_state" time="0.196" /><testcase classname="tests.test_am_ux3" name="test_slow_verify_does_not_block_next_page_or_other_user" time="0.289" /><testcase classname="tests.test_am_ux3" name="test_single_form_item_only_preserves_edit_and_never_sends" time="0.667" /><testcase classname="tests.test_am_ux3" name="test_followup_buckets_use_feedback_and_send_evidence" time="0.436" /><testcase classname="tests.test_am_ux3" name="test_slow_publish_different_users_independent" time="0.177" /><testcase classname="tests.test_am_ux3" name="test_refresh_new_version_keeps_old_page_stable" time="0.228" /><testcase classname="tests.test_am_ux3" name="test_callback_protocol_roundtrip_and_no_patch" time="0.107" /><testcase classname="tests.test_am_ux3" name="test_query_identity_reuses_subtree_but_rechecks_employment" time="0.001" /><testcase classname="tests.test_am_ux3" name="test_unmapped_record_is_readable_but_cannot_start_management" time="0.185" /><testcase classname="tests.test_am_ux3" name="test_optional_identity_cache_uses_id_expiry_and_current_local_revocation" time="0.228" /><testcase classname="tests.test_am_ux3" name="test_query_identity_cache_does_not_apply_to_management" time="0.152" /><testcase classname="tests.test_am_ux3" name="test_reopen_after_long_idle_creates_one_current_navigation" time="0.249" /><testcase classname="tests.test_am_ux3" name="test_actual_feishu_readback_uses_independent_staff_query_authority" time="0.160" /><testcase classname="tests.test_am_ux3" name="test_expired_snapshot_has_bounded_recovery_to_current_catalog" time="0.237" /><testcase classname="tests.test_am_ux4" name="test_same_lease_and_snapshot_group_explicit_queries_no_model" time="0.149" /><testcase classname="tests.test_am_ux4" name="test_cross_actor_quote_uses_public_bot_reference_not_others_focus" time="0.229" /><testcase classname="tests.test_am_ux4" name="test_group_private_continuation_per_actor_retains_source_scope" time="0.352" /><testcase classname="tests.test_am_ux4" name="test_transient_refresh_keeps_original_deadline_but_negative_revokes" time="0.001" /><testcase classname="tests.test_am_ux4" name="test_root_identity_no_tree_and_subtree_lease_does_not_stack" time="0.001" /><testcase classname="tests.test_am_ux4" name="test_outbox_wakes_only_after_commit_and_rollback_never_wakes" time="0.119" /><testcase classname="tests.test_am_ux4" name="test_loading_not_yet_published_is_coalesced" time="0.176" /><testcase classname="tests.test_am_ux4" name="test_direct_return_is_local_and_next_nonce_proves_applied" time="0.202" /><testcase classname="tests.test_am_ux4" name="test_direct_return_cold_identity_and_public_button_stay_async" time="0.142" /><testcase classname="tests.test_am_ux4" name="test_group_action_word_never_becomes_project_query" time="0.112" /><testcase classname="tests.test_am_ux4" name="test_create_receipt_binds_group_private_view_without_second_read" time="0.198" /><testcase classname="tests.test_am_ux4" name="test_refresh_existing_page_sends_only_final_result" time="0.187" /><testcase classname="tests.test_charter" name="test_charter_file_runs_existing_pipeline_and_preserves_sources" time="0.045" /><testcase classname="tests.test_charter" name="test_link_neither_invents_document_nor_invalidates_existing_draft[https://example.invalid/wiki/document]" time="0.050" /><testcase classname="tests.test_charter" name="test_link_neither_invents_document_nor_invalidates_existing_draft[/doc logic charter https://example.invalid/wiki/document]" time="0.043" /><testcase classname="tests.test_charter" name="test_long_charter_projection_keeps_every_quote_and_ref_within_prompt_budget" time="0.005" /><testcase classname="tests.test_charter" name="test_charter_short_date_is_not_a_new_number_but_new_dates_are_rejected" time="0.000" /><testcase classname="tests.test_code_progress_recovery" name="test_recovery_only_exempts_explicit_code_execution[code-interrupted]" time="0.044" /><testcase classname="tests.test_code_progress_recovery" name="test_recovery_only_exempts_explicit_code_execution[legacy_api-stop_unknown]" time="0.039" /><testcase classname="tests.test_code_progress_recovery" name="test_recovery_only_exempts_explicit_code_execution[inconsistent_marker-stop_unknown]" time="0.035" /><testcase classname="tests.test_conversation_fix1" name="test_f01_denial_survives_read_errors_until_authoritative_success[error0]" time="0.037" /><testcase classname="tests.test_conversation_fix1" name="test_f01_denial_survives_read_errors_until_authoritative_success[error1]" time="0.035" /><testcase classname="tests.test_conversation_fix1" name="test_f01_denial_survives_read_errors_until_authoritative_success[error2]" time="0.031" /><testcase classname="tests.test_conversation_fix1" name="test_f01_revocation_fences_inflight_success" time="0.003" /><testcase classname="tests.test_conversation_fix1" name="test_f02_history_replay_actions_and_generation_invalidate[denied]" time="0.072" /><testcase classname="tests.test_conversation_fix1" name="test_f02_history_replay_actions_and_generation_invalidate[disabled]" time="0.070" /><testcase classname="tests.test_conversation_fix1" name="test_f02_history_replay_actions_and_generation_invalidate[readers]" time="0.060" /><testcase classname="tests.test_conversation_fix1" name="test_f02_source_change_during_model_discards_result" time="0.031" /><testcase classname="tests.test_conversation_fix1" name="test_f02_original_gateway_refuses_pending_reply[denied]" time="0.269" /><testcase classname="tests.test_conversation_fix1" name="test_f02_original_gateway_refuses_pending_reply[disabled]" time="0.260" /><testcase classname="tests.test_conversation_fix1" name="test_f03_bad_child_backoff_persists_and_healthy_child_proceeds[permission]" time="0.041" /><testcase classname="tests.test_conversation_fix1" name="test_f03_bad_child_backoff_persists_and_healthy_child_proceeds[timeout]" time="0.039" /><testcase classname="tests.test_conversation_fix1" name="test_f03_bad_child_backoff_persists_and_healthy_child_proceeds[mapping]" time="0.043" /><testcase classname="tests.test_conversation_fix1" name="test_f04_current_unknown_never_uses_previous_receipt_and_reconciles_exact" time="0.032" /><testcase classname="tests.test_conversation_fix1" name="test_f05_new_subject_reextracts_same_version_without_copying_facts[docx]" time="0.056" /><testcase classname="tests.test_conversation_fix1" name="test_f05_new_subject_reextracts_same_version_without_copying_facts[file_snapshot]" time="0.053" /><testcase classname="tests.test_conversation_fix1" name="test_f05_mapping_change_fences_old_extractor_and_expiry_stays_visible" time="0.046" /><testcase classname="tests.test_conversation_fix1" name="test_f05_denied_source_does_not_extract_until_access_revalidated" time="0.035" /><testcase classname="tests.test_conversation_fix1" name="test_f06_explicit_draft_updated_and_other_draft_unchanged" time="0.035" /><testcase classname="tests.test_conversation_fix1" name="test_f06_concurrent_change_is_rejected_before_write" time="0.035" /><testcase classname="tests.test_conversation_fix1" name="test_f02_revoked_draft_can_cancel_and_unknown_can_reconcile_without_reusing_payload" time="0.044" /><testcase classname="tests.test_conversation_fix1" name="test_f02_restored_source_requires_current_read_and_never_revives_old_history" time="0.046" /><testcase classname="tests.test_conversation_integration" name="test_natural_query_plain_text_and_legacy_command_remain" time="0.284" /><testcase classname="tests.test_conversation_integration" name="test_create_followup_and_pause_use_original_item_store" time="0.303" /><testcase classname="tests.test_conversation_integration" name="test_group_send_waits_for_exact_text_readback_and_natural_confirmation" time="0.396" /><testcase classname="tests.test_conversation_integration" name="test_unknown_send_never_repeats_and_can_reconcile" time="0.387" /><testcase classname="tests.test_conversation_integration" name="test_schedule_activation_cancel_and_no_early_send" time="0.353" /><testcase classname="tests.test_conversation_integration" name="test_teaching_natural_approval_is_scoped_and_delivered" time="0.272" /><testcase classname="tests.test_conversation_integration" name="test_large_information_result_is_projected_with_coverage" time="0.238" /><testcase classname="tests.test_conversation_integration" name="test_new_document_does_not_cancel_earlier_draft" time="0.340" /><testcase classname="tests.test_conversation_integration" name="test_project_feedback_flows_to_owner_without_ledger_write" time="0.466" /><testcase classname="tests.test_conversation_integration" name="test_change_reminder_time_requires_new_preview_and_keeps_plan_identity" time="0.465" /><testcase classname="tests.test_conversation_integration" name="test_natural_group_quote_is_actor_scoped_and_has_no_management_tools" time="0.365" /><testcase classname="tests.test_conversation_integration" name="test_briefing_subscription_is_confirmed_and_cancellable" time="0.375" /><testcase classname="tests.test_conversation_integration" name="test_expired_rendered_reply_is_removed_with_raw_history" time="0.247" /><testcase classname="tests.test_conversation_integration" name="test_consumed_once_reminder_can_still_be_listed_and_cancelled" time="0.442" /><testcase classname="tests.test_conversation_integration" name="test_estimated_afternoon_is_not_an_invented_clock_time" time="0.267" /><testcase classname="tests.test_conversation_integration" name="test_standard_target_change_requires_current_result_before_cloud_preview" time="0.599" /><testcase classname="tests.test_doc_logic" name="test_I01_text_html_and_answer_are_same_task_and_original_ttl" time="0.059" /><testcase classname="tests.test_doc_logic" name="test_I02_exact_target_revision_idempotency_and_readback" time="0.069" /><testcase classname="tests.test_doc_logic" name="test_I03_adoption_is_not_approval_and_modified_content_loses_adoption" time="0.060" /><testcase classname="tests.test_doc_logic" name="test_I04_response_lost_reconciles_without_second_write" time="0.061" /><testcase classname="tests.test_doc_logic" name="test_I04_failed_model_retains_sources_for_explicit_retry" time="0.043" /><testcase classname="tests.test_doc_logic" name="test_I04_unread_attachment_records_limit_instead_of_not_tested" time="0.043" /><testcase classname="tests.test_doc_logic" name="test_I05_cancel_before_write_and_late_model_result" time="0.048" /><testcase classname="tests.test_doc_logic" name="test_I05_new_draft_supersedes_old_result" time="0.049" /><testcase classname="tests.test_doc_logic" name="test_I05_cancel_after_remote_commit_preserves_receipt" time="0.055" /><testcase classname="tests.test_doc_logic" name="test_I06_cross_user_draft_denied_before_retrieval_and_no_memory" time="0.047" /><testcase classname="tests.test_doc_logic" name="test_I06_attachment_instructions_cannot_change_target_or_approval" time="0.041" /><testcase classname="tests.test_doc_logic" name="test_original_numbers_quotes_versions_and_visual_limit" time="0.001" /><testcase classname="tests.test_doc_logic" name="test_unknown_expiry_does_not_extend_business_or_personal_retention" time="0.050" /><testcase classname="tests.test_doc_logic" name="test_I05_cancel_at_dispatch_guard_and_reconcile_after_cancel" time="0.048" /><testcase classname="tests.test_doc_logic" name="test_unchanged_content_preserves_adoption_and_does_not_regenerate" time="0.052" /><testcase classname="tests.test_doc_logic" name="test_paused_draft_does_not_auto_resume_on_text" time="0.059" /><testcase classname="tests.test_doc_logic" name="test_receipt_worker_remains_responsive_while_model_runs" time="0.081" /><testcase classname="tests.test_doc_logic" name="test_logic_content_never_enters_other_doc_sample_history" time="0.051" /><testcase classname="tests.test_doc_logic" name="test_reported_mean_is_not_asked_again_and_bound_keeps_unknown_statistic" time="0.001" /><testcase classname="tests.test_doc_logic" name="test_whitespace_citation_repair_never_changes_value_or_identity" time="0.001" /><testcase classname="tests.test_doc_logic" name="test_versions_of_one_event_are_not_reclassified_as_independent" time="0.000" /><testcase classname="tests.test_doc_logic" name="test_durable_receipt_precedes_file_download_without_skipping_auth" time="0.059" /><testcase classname="tests.test_doc_logic" name="test_early_receipt_still_requires_current_department_authorization" time="0.046" /><testcase classname="tests.test_doc_logic" name="test_cancel_during_attachment_delivery_stops_message_publication" time="0.060" /><testcase classname="tests.test_doc_logic" name="test_bad_business_config_only_disables_business_connection" time="0.051" /><testcase classname="tests.test_doc_logic" name="test_target_selection_invalidates_an_inflight_generation" time="0.051" /><testcase classname="tests.test_doc_logic_fix1" name="test_two_questions_only_one_answer_keeps_other_open" time="0.069" /><testcase classname="tests.test_doc_logic_fix1" name="test_two_answers_map_individually_and_clear_gaps" time="0.052" /><testcase classname="tests.test_doc_logic_fix1" name="test_wait_or_unrelated_reply_does_not_resolve[\u6211\u67e5\u4e00\u4e0b]" time="0.061" /><testcase classname="tests.test_doc_logic_fix1" name="test_wait_or_unrelated_reply_does_not_resolve[\u4eca\u5929\u4e0b\u96e8\u3002]" time="0.058" /><testcase classname="tests.test_doc_logic_fix1" name="test_unavailable_preserves_boundary_and_stage_without_reasking" time="0.080" /><testcase classname="tests.test_doc_logic_fix1" name="test_partial_mean_then_sample_scope_updates_without_old_gap" time="0.066" /><testcase classname="tests.test_doc_logic_fix1" name="test_different_objects_units_and_single_mean_criteria_are_not_paired" time="0.001" /><testcase classname="tests.test_doc_logic_fix1" name="test_quantity_or_unit_correction_resolves_only_its_record[\u5e94\u4e3a\u9759\u6001\u7535\u6d4137 mA\uff0c\u539f\u7269\u7406\u91cf\u540d\u79f0\u5199\u9519]" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_quantity_or_unit_correction_resolves_only_its_record[\u5355\u4f4d\u5e94\u4e3amW\uff0c\u539fmA\u5199\u9519\uff1b\u9759\u6001\u529f\u801737 mW]" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_resolved_state_requires_current_exact_source_citation" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_C02_C04_semantic_distortions_are_rejected[\u626d\u77e9\uff1a\u8dd1\u5408\u518d\u6e05\u6d17\u540e\u22652.8 N\xb7m\u3002-\u8dd1\u5408\u540e\u626d\u77e9\u22652.8 N\xb7m\u3002-\u8dd1\u5408\u518d\u6e05\u6d17\u540e\u626d\u77e9\u22652.8 N\xb7m\u3002]" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_C02_C04_semantic_distortions_are_rejected[\u5de5\u7a0b\u5e08\u63d0\u4ea4\u91cd\u6821\u540e\u6062\u590d\u8bb0\u5f55\u3002-\u8fd9\u4e9b\u662f\u975e\u5b9e\u6d4b\u6570\u636e\u3002-\u8bb0\u5f55\u663e\u793a\u91cd\u6821\u540e\u6062\u590d\uff0c\u672c\u8f6e\u672a\u72ec\u7acb\u590d\u6838\u3002]" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_C05_negative_claim_evidence_direction" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_rephrased_question_with_supplement_ref_keeps_original_identity" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_condition_mismatch_is_not_automatically_paired" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_correction_quoting_old_unit_error_does_not_open_duplicate_issue" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_normalized_reporting_limits_keep_quotes_and_log_changes" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_explicit_no_gap_is_not_a_stage_gate_and_real_missing_record_survives" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_negating_a_false_nonmeasured_inference_is_not_that_inference" time="0.000" /><testcase classname="tests.test_doc_logic_fix1" name="test_independent_sections_are_not_required_to_cross_compare" time="0.001" /><testcase classname="tests.test_doc_logic_fix1" name="test_cross_section_requirement_is_narrowed_to_the_actual_history_boundary" time="0.001" /><testcase classname="tests.test_document_standards" name="test_complete_read_is_fenced_and_uses_current_permission" time="0.000" /><testcase classname="tests.test_document_standards" name="test_moving_document_rejected" time="0.000" /><testcase classname="tests.test_document_standards" name="test_missing_child_rejected" time="0.000" /><testcase classname="tests.test_document_standards" name="test_image_is_partial_not_full_text_success" time="0.000" /><testcase classname="tests.test_document_standards" name="test_embedded_sheet_is_not_mistaken_for_a_container" time="0.000" /><testcase classname="tests.test_document_standards" name="test_pagination_cycle_fails" time="0.001" /><testcase classname="tests.test_document_standards" name="test_source_urls_do_not_expand_scope[http://example.com/docx/x]" time="0.000" /><testcase classname="tests.test_document_standards" name="test_source_urls_do_not_expand_scope[https://bad.example/docx/x]" time="0.000" /><testcase classname="tests.test_document_standards" name="test_source_urls_do_not_expand_scope[https://u:p@example.com/docx/x]" time="0.000" /><testcase classname="tests.test_document_standards" name="test_source_urls_do_not_expand_scope[https://example.com/drive/x]" time="0.000" /><testcase classname="tests.test_document_standards" name="test_owner_catalog_denies_before_reading_cli" time="0.001" /><testcase classname="tests.test_document_standards" name="test_rich_header_label_and_style_preserved" time="0.001" /><testcase classname="tests.test_document_standards" name="test_unread_template_cannot_become_effective" time="0.000" /><testcase classname="tests.test_document_standards" name="test_runtime_control_failure_is_not_a_model_fallback" time="0.000" /><testcase classname="tests.test_document_standards" name="test_false_identity_guard_never_calls_provider" time="0.000" /><testcase classname="tests.test_document_standards" name="test_unavailable_reply_changes_only_the_named_gap" time="0.001" /><testcase classname="tests.test_document_standards" name="test_explicit_all_unavailable_can_defer_displayed_gaps" time="0.000" /><testcase classname="tests.test_document_standards" name="test_blank_template_cell_does_not_invent_mandatory_policy" time="0.001" /><testcase classname="tests.test_document_standards" name="test_readback_normalizes_only_false_style_defaults" time="0.000" /><testcase classname="tests.test_document_standards" name="test_identity_time_is_charged_to_original_budget" time="0.021" /><testcase classname="tests.test_document_standards" name="test_mapping_does_not_strip_negation_or_grant_confirmation" time="0.002" /><testcase classname="tests.test_document_standards" name="test_mapping_rejects_fabricated_quote" time="0.001" /><testcase classname="tests.test_document_standards" name="test_foreign_project_rejected_before_model" time="0.001" /><testcase classname="tests.test_document_standards" name="test_uploaded_scope_is_not_relabelled_as_current[source0-REFERENCE_NOT_PROJECT_FACT]" time="0.000" /><testcase classname="tests.test_document_standards" name="test_uploaded_scope_is_not_relabelled_as_current[source1-SOURCE_PROJECT_MISMATCH]" time="0.001" /><testcase classname="tests.test_document_standards" name="test_uploaded_scope_is_not_relabelled_as_current[source2-MULTI_PROJECT_INPUT_REQUIRES_SCOPE]" time="0.001" /><testcase classname="tests.test_document_standards" name="test_host_store_shares_transaction_and_connection" time="0.025" /><testcase classname="tests.test_document_standards" name="test_expiry_removes_sources_even_when_feature_is_disabled" time="0.035" /><testcase classname="tests.test_document_standards" name="test_native_copy_write_readback_and_repeat" time="0.030" /><testcase classname="tests.test_document_standards" name="test_reconciling_old_receipt_cannot_roll_back_current_document" time="0.024" /><testcase classname="tests.test_document_standards" name="test_uncertain_copy_reconciles_without_creating_again" time="0.023" /><testcase classname="tests.test_document_standards" name="test_copy_privacy_must_be_verified_before_project_content" time="0.018" /><testcase classname="tests.test_document_standards" name="test_uncertain_write_readback_reuses_actual_result" time="0.026" /><testcase classname="tests.test_document_standards" name="test_human_modified_target_is_never_overwritten" time="0.020" /><testcase classname="tests.test_document_standards" name="test_revision_requires_explicit_fields_and_revalidation" time="0.025" /><testcase classname="tests.test_document_standards" name="test_template_migration_is_not_silent" time="0.022" /><testcase classname="tests.test_embedded" name="test_rapid_selection_and_input_stay_in_poc_before_worker" time="0.075" /><testcase classname="tests.test_embedded" name="test_test_routes_remain_two_person_but_general_chat_keeps_access" time="0.065" /><testcase classname="tests.test_embedded" name="test_replayed_messages_never_cross_between_stores" time="0.086" /><testcase classname="tests.test_embedded" name="test_mode_survives_restart_and_does_not_extend_on_plain_input" time="0.073" /><testcase classname="tests.test_embedded" name="test_inbox_and_mode_transaction_roll_back_together" time="0.051" /><testcase classname="tests.test_embedded" name="test_poc_worker_fault_does_not_stop_other_users_general_chat" time="0.047" /><testcase classname="tests.test_embedded" name="test_approved_login_mode_keeps_private_paths_and_secret_reference" time="0.000"><skipped type="pytest.skip" message="service account checks require a non-root execution user">/tmp/am-harness-review-p4qzkl5j/source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_embedded.py:170: service account checks require a non-root execution user</skipped></testcase><testcase classname="tests.test_feishu_transport" name="test_real_sdk_dispatches_card_frame_without_network" time="0.002" /><testcase classname="tests.test_feishu_transport" name="test_sdk_socket_can_be_constructed_without_connecting" time="0.000" /><testcase classname="tests.test_gateway" name="test_offline_doc_fixed_file_and_private_delivery" time="0.038" /><testcase classname="tests.test_gateway" name="test_api_recovery_keeps_unknown_server_request_blocked" time="0.042" /><testcase classname="tests.test_gateway" name="test_group_never_receives_model_detail_or_file" time="0.047" /><testcase classname="tests.test_gateway" name="test_hard_scope_filter_before_persistence[payload0]" time="0.035" /><testcase classname="tests.test_gateway" name="test_hard_scope_filter_before_persistence[payload1]" time="0.038" /><testcase classname="tests.test_gateway" name="test_hard_scope_filter_before_persistence[payload2]" time="0.032" /><testcase classname="tests.test_gateway" name="test_tenant_and_app_mismatch" time="0.033" /><testcase classname="tests.test_gateway" name="test_message_dedupe_uses_app_tenant_message_not_just_event_id" time="0.039" /><testcase classname="tests.test_gateway" name="test_unselected_and_real_text_do_not_call_model" time="0.041" /><testcase classname="tests.test_gateway" name="test_menu_action_real_operator_and_version_binding" time="0.050" /><testcase classname="tests.test_gateway" name="test_permission_rechecked_at_execution_and_delivery" time="0.047" /><testcase classname="tests.test_gateway" name="test_unknown_send_never_blindly_retries_after_restart" time="0.047" /><testcase classname="tests.test_gateway" name="test_private_delivery_failure_does_not_leak_to_group" time="0.050" /><testcase classname="tests.test_gateway" name="test_absolute_ttl_includes_derived_results_and_files" time="0.049" /><testcase classname="tests.test_gateway" name="test_context_isolation_all_dimensions_and_future_messages" time="0.039" /><testcase classname="tests.test_gateway" name="test_scheduler_two_users_but_same_user_cross_chat_serial" time="0.048" /><testcase classname="tests.test_gateway" name="test_actual_offline_worker_overlap_and_bound" time="0.051" /><testcase classname="tests.test_gateway" name="test_queue_deadline_survives_restart_and_explicit_retry" time="0.044" /><testcase classname="tests.test_gateway" name="test_stop_unknown_reserves_user_and_global_slot" time="0.048" /><testcase classname="tests.test_gateway" name="test_restart_keeps_committed_results_without_reexecution" time="0.046" /><testcase classname="tests.test_gateway" name="test_private_result_still_checks_original_group_scope" time="0.046" /><testcase classname="tests.test_gateway" name="test_missing_directory_does_not_prove_process_stopped" time="0.054" /><testcase classname="tests.test_gateway" name="test_expired_redelivery_cannot_recreate_context" time="0.038" /><testcase classname="tests.test_harness_host" name="test_fast_fields_and_event_dedupe[\u9700\u6c4275\u7684\u9879\u76ee\u8fdb\u5c55]" time="0.232" /><testcase classname="tests.test_harness_host" name="test_fast_fields_and_event_dedupe[\u9700\u6c4275\u5173\u952e\u65e5\u671f]" time="0.271" /><testcase classname="tests.test_harness_host" name="test_fast_fields_and_event_dedupe[\u9700\u6c4275\u6709\u54ea\u4e9b\u5f85\u529e]" time="0.273" /><testcase classname="tests.test_harness_host" name="test_fast_fields_and_event_dedupe[\u9700\u6c4275\u8c01\u8d1f\u8d23]" time="0.315" /><testcase classname="tests.test_harness_host" name="test_complex_run_original_outbox_strict_origin_and_receipt" time="0.392" /><testcase classname="tests.test_harness_host" name="test_cancel_during_model_and_independent_read" time="0.336" /><testcase classname="tests.test_harness_host" name="test_revise_keeps_real_control_source_and_new_engine_id" time="0.347" /><testcase classname="tests.test_harness_host" name="test_cancel_pending_output_and_history" time="0.322" /><testcase classname="tests.test_harness_host" name="test_unbound_engine_cannot_execute" time="0.227" /><testcase classname="tests.test_harness_host" name="test_revoked_identity_fails_admission" time="0.225" /><testcase classname="tests.test_harness_host" name="test_send_original_approval_and_actual_reservations" time="0.420" /><testcase classname="tests.test_harness_host" name="test_noop_control_redelivery_does_not_stop_new_run" time="0.215" /><testcase classname="tests.test_harness_host" name="test_payload_tamper_rejected_in_dispatch_transaction" time="0.296" /><testcase classname="tests.test_harness_host" name="test_group_thread_binding" time="0.328" /><testcase classname="tests.test_harness_host" name="test_original_pump_handles_control_while_worker_is_busy" time="0.353" /><testcase classname="tests.test_harness_host" name="test_unknown_send_retains_one_original_action_and_no_retry" time="0.475" /><testcase classname="tests.test_harness_host" name="test_cancel_before_actual_send_reservation_prevents_send" time="0.407" /><testcase classname="tests.test_harness_host" name="test_cancel_after_send_preserves_verified_receipt" time="0.381" /><testcase classname="tests.test_harness_host" name="test_reminder_activation_reservation_keeps_original_approval" time="0.437" /><testcase classname="tests.test_harness_host" name="test_failed_receipt_readback_reconciles_without_resending" time="0.342" /><testcase classname="tests.test_harness_host" name="test_wrong_actor_control_cannot_cancel_owner_run" time="0.213" /><testcase classname="tests.test_harness_host" name="test_admission_restart_does_not_replay_committed_event" time="0.228" /><testcase classname="tests.test_harness_host" name="test_worker_failure_has_one_data_free_notice_without_retry[MODEL_BUSY-failed]" time="0.320" /><testcase classname="tests.test_harness_host" name="test_worker_failure_has_one_data_free_notice_without_retry[STOP_UNKNOWN-unknown]" time="0.426" /><testcase classname="tests.test_harness_host" name="test_control_admission_has_capacity_when_normal_inbox_is_full" time="0.394" /><testcase classname="tests.test_harness_host" name="test_fast_answer_provenance_expires_but_original_user_text_remains[source_version]" time="0.485" /><testcase classname="tests.test_harness_host" name="test_fast_answer_provenance_expires_but_original_user_text_remains[access_version]" time="0.442" /><testcase classname="tests.test_harness_host" name="test_fast_replay_cannot_renew_source_version_or_expiry" time="0.285" /><testcase classname="tests.test_harness_host" name="test_parallel_source_revocation_contract_is_preserved[before_dispatch]" time="0.319" /><testcase classname="tests.test_harness_host" name="test_parallel_source_revocation_contract_is_preserved[during_model]" time="0.307" /><testcase classname="tests.test_harness_host" name="test_parallel_source_revocation_contract_is_preserved[next_history]" time="0.335" /><testcase classname="tests.test_harness_host" name="test_native_document_actual_journal_reservation[False]" time="0.327" /><testcase classname="tests.test_harness_host" name="test_native_document_actual_journal_reservation[True]" time="0.354" /><testcase classname="tests.test_ingress_metadata" name="test_post_metadata_contains_no_body_identity_or_unknown_tag_value" time="0.001" /><testcase classname="tests.test_ingress_metadata" name="test_supported_post_and_invalid_json_metadata" time="0.000" /><testcase classname="tests.test_local_api" name="test_existing_app_cannot_open_competing_consumer" time="0.002" /><testcase classname="tests.test_local_api" name="test_no_remote_or_credential_bearing_endpoint[https://127.0.0.1:11434/v1]" time="0.000" /><testcase classname="tests.test_local_api" name="test_no_remote_or_credential_bearing_endpoint[http://localhost:11434/v1]" time="0.000" /><testcase classname="tests.test_local_api" name="test_no_remote_or_credential_bearing_endpoint[http://example.com:11434/v1]" time="0.000" /><testcase classname="tests.test_local_api" name="test_no_remote_or_credential_bearing_endpoint[http://key@127.0.0.1:11434/v1]" time="0.000" /><testcase classname="tests.test_local_api" name="test_no_remote_or_credential_bearing_endpoint[http://127.0.0.1:11434/v1?secret=x]" time="0.000" /><testcase classname="tests.test_local_api" name="test_api_ignores_environment_proxy_and_sends_no_tools" time="0.000"><error message="failed on setup with &quot;PermissionError: [Errno 1] Operation not permitted&quot;">@pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+&gt;       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socketserver.py:453: in __init__
+    self.socket = socket.socket(self.address_family,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;socket.socket fd=-1, family=0, type=0, proto=0&gt;
+family = &lt;AddressFamily.AF_INET: 2&gt;, type = &lt;SocketKind.SOCK_STREAM: 1&gt;
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+&gt;       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError</error></testcase><testcase classname="tests.test_local_api" name="test_changed_weights_or_response_model_rejected" time="0.000"><error message="failed on setup with &quot;PermissionError: [Errno 1] Operation not permitted&quot;">@pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+&gt;       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socketserver.py:453: in __init__
+    self.socket = socket.socket(self.address_family,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;socket.socket fd=-1, family=0, type=0, proto=0&gt;
+family = &lt;AddressFamily.AF_INET: 2&gt;, type = &lt;SocketKind.SOCK_STREAM: 1&gt;
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+&gt;       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError</error></testcase><testcase classname="tests.test_local_api" name="test_redirect_is_rejected_without_forwarding_prompt" time="0.000"><error message="failed on setup with &quot;PermissionError: [Errno 1] Operation not permitted&quot;">@pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+&gt;       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socketserver.py:453: in __init__
+    self.socket = socket.socket(self.address_family,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;socket.socket fd=-1, family=0, type=0, proto=0&gt;
+family = &lt;AddressFamily.AF_INET: 2&gt;, type = &lt;SocketKind.SOCK_STREAM: 1&gt;
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+&gt;       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError</error></testcase><testcase classname="tests.test_local_api" name="test_disposable_client_pins_model_and_cleans_payload" time="0.000"><error message="failed on setup with &quot;PermissionError: [Errno 1] Operation not permitted&quot;">@pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+&gt;       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socketserver.py:453: in __init__
+    self.socket = socket.socket(self.address_family,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;socket.socket fd=-1, family=0, type=0, proto=0&gt;
+family = &lt;AddressFamily.AF_INET: 2&gt;, type = &lt;SocketKind.SOCK_STREAM: 1&gt;
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+&gt;       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError</error></testcase><testcase classname="tests.test_local_api" name="test_timeout_does_not_claim_shared_model_stopped" time="0.001"><error message="failed on setup with &quot;PermissionError: [Errno 1] Operation not permitted&quot;">@pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+&gt;       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socketserver.py:453: in __init__
+    self.socket = socket.socket(self.address_family,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;socket.socket fd=-1, family=0, type=0, proto=0&gt;
+family = &lt;AddressFamily.AF_INET: 2&gt;, type = &lt;SocketKind.SOCK_STREAM: 1&gt;
+proto = 0, fileno = None
+
+    def __init__(self, family=-1, type=-1, proto=-1, fileno=None):
+        # For user code address family and type values are IntEnum members, but
+        # for the underlying _socket.socket they're just integers. The
+        # constructor of _socket.socket converts the given argument to an
+        # integer automatically.
+        if fileno is None:
+            if family == -1:
+                family = AF_INET
+            if type == -1:
+                type = SOCK_STREAM
+            if proto == -1:
+                proto = 0
+&gt;       _socket.socket.__init__(self, family, type, proto, fileno)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/socket.py:233: PermissionError</error></testcase><testcase classname="tests.test_meegle_port" name="test_exact_native_parent_upload_field_readback_and_idempotency" time="0.060" /><testcase classname="tests.test_meegle_port" name="test_new_identity_is_rejected_before_project_reads" time="0.047" /><testcase classname="tests.test_meegle_port" name="test_native_node_membership_is_authoritative" time="0.051" /><testcase classname="tests.test_meegle_port" name="test_target_changed_during_upload_stops_field_mutation" time="0.056" /><testcase classname="tests.test_meegle_port" name="test_unobserved_empty_field_is_not_assumed_empty" time="0.059" /><testcase classname="tests.test_meegle_port" name="test_missing_permission_and_old_approval_never_write" time="0.059" /><testcase classname="tests.test_meegle_port" name="test_D13_readback_requires_known_old_attachment_to_remain" time="0.058" /><testcase classname="tests.test_message_text" name="test_received_post_extracts_split_text_and_code_style" time="0.000" /><testcase classname="tests.test_message_text" name="test_title_paragraphs_blank_lines_and_literal_unicode_are_preserved" time="0.000" /><testcase classname="tests.test_message_text" name="test_post_bot_at_requires_structural_node_and_event_id_binding[@_user_1]" time="0.000" /><testcase classname="tests.test_message_text" name="test_post_bot_at_requires_structural_node_and_event_id_binding[ou_synthetic_bot]" time="0.000" /><testcase classname="tests.test_message_text" name="test_metadata_only_or_typed_display_name_does_not_authorize_a_post" time="0.001" /><testcase classname="tests.test_message_text" name="test_other_at_and_all_are_not_removed_or_promoted_to_commands" time="0.001" /><testcase classname="tests.test_message_text" name="test_bot_removal_cannot_join_fragments_into_command" time="0.000" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[a]" time="0.001" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[img]" time="0.000" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[media]" time="0.000" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[emotion]" time="0.001" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[code_block]" time="0.001" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[md]" time="0.001" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[hr]" time="0.000" /><testcase classname="tests.test_message_text" name="test_non_text_tags_reject_whole_post_even_between_command_fragments[unknown]" time="0.001" /><testcase classname="tests.test_message_text" name="test_plain_text_exact_mention_tokens_and_other_mentions" time="0.000" /><testcase classname="tests.test_message_text" name="test_plain_text_token_prefixes_are_never_partially_stripped[@_user_10 /doc sample]" time="0.000" /><testcase classname="tests.test_message_text" name="test_plain_text_token_prefixes_are_never_partially_stripped[x@_user_1 /doc sample]" time="0.000" /><testcase classname="tests.test_message_text" name="test_plain_text_token_prefixes_are_never_partially_stripped[@_user_1x /doc sample]" time="0.000" /><testcase classname="tests.test_message_text" name="test_plain_text_token_prefixes_are_never_partially_stripped[/d@_user_1oc sample]" time="0.000" /><testcase classname="tests.test_message_text" name="test_post_unbound_bot_target_is_rejected[ou_synthetic_bot-None]" time="0.001" /><testcase classname="tests.test_message_text" name="test_post_unbound_bot_target_is_rejected[ou_synthetic_bot-mentions1]" time="0.000" /><testcase classname="tests.test_message_text" name="test_post_unbound_bot_target_is_rejected[@_user_1-mentions2]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_forged_mentions_are_rejected[bad]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_forged_mentions_are_rejected[mentions1]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_forged_mentions_are_rejected[mentions2]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_forged_mentions_are_rejected[mentions3]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_forged_mentions_are_rejected[mentions4]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_forged_mentions_are_rejected[mentions5]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body0]" time="0.001" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body1]" time="0.001" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body2]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body3]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body4]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body5]" time="0.001" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body6]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body7]" time="0.000" /><testcase classname="tests.test_message_text" name="test_malformed_or_send_locale_shapes_are_rejected[body8]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[None]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[not-json]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[[]]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[&quot;string&quot;]" time="0.001" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[{&quot;text&quot;:&quot;a&quot;,&quot;text&quot;:&quot;/doc sample&quot;}]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[{&quot;text&quot;:NaN}]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_json_is_bounded_and_never_leaks_body[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]" time="0.001" /><testcase classname="tests.test_message_text" name="test_limits_are_distinct_and_preserve_exact_boundary" time="0.003" /><testcase classname="tests.test_message_text" name="test_invalid_text_and_style_are_rejected[node0]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_text_and_style_are_rejected[node1]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_text_and_style_are_rejected[node2]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_text_and_style_are_rejected[node3]" time="0.000" /><testcase classname="tests.test_message_text" name="test_invalid_text_and_style_are_rejected[node4]" time="0.000" /><testcase classname="tests.test_message_text" name="test_original_event_fields_and_mentions_remain_untouched" time="0.000" /><testcase classname="tests.test_message_text" name="test_only_text_and_post_are_supported_and_empty_text_remains_a_caller_decision" time="0.000" /><testcase classname="tests.test_message_text" name="test_received_post_accepts_identical_content_v2_without_mutation" time="0.000" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[None]" time="0.000" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[alternative1]" time="0.001" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[alternative2]" time="0.000" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[alternative3]" time="0.000" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[alternative4]" time="0.000" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[alternative5]" time="0.000" /><testcase classname="tests.test_message_text" name="test_content_v2_must_not_hide_different_or_unsupported_nodes[alternative6]" time="0.000" /><testcase classname="tests.test_message_text" name="test_v2_does_not_relax_primary_structure_and_unknown_field_checks" time="0.000" /><testcase classname="tests.test_post_flow" name="test_post_doc_uses_real_ingress_once_and_fixed_markdown" time="0.064" /><testcase classname="tests.test_post_flow" name="test_post_modes_and_replayed_messages_never_cross_stores" time="0.087" /><testcase classname="tests.test_post_flow" name="test_post_poc_allowlist_and_existing_private_chat_scope_stay_separate" time="0.068" /><testcase classname="tests.test_post_flow" name="test_group_post_requires_both_real_mention_signals_and_keeps_original_fields[valid-True]" time="0.044" /><testcase classname="tests.test_post_flow" name="test_group_post_requires_both_real_mention_signals_and_keeps_original_fields[metadata_only-False]" time="0.048" /><testcase classname="tests.test_post_flow" name="test_group_post_requires_both_real_mention_signals_and_keeps_original_fields[node_only-False]" time="0.043" /><testcase classname="tests.test_post_flow" name="test_group_post_requires_both_real_mention_signals_and_keeps_original_fields[wrong_bot-False]" time="0.047" /><testcase classname="tests.test_post_flow" name="test_group_post_requires_both_real_mention_signals_and_keeps_original_fields[wrong_chat-False]" time="0.039" /><testcase classname="tests.test_post_flow" name="test_unsupported_post_never_falls_back_to_general_model[False-a]" time="0.039" /><testcase classname="tests.test_post_flow" name="test_unsupported_post_never_falls_back_to_general_model[False-img]" time="0.042" /><testcase classname="tests.test_post_flow" name="test_unsupported_post_never_falls_back_to_general_model[False-unknown]" time="0.040" /><testcase classname="tests.test_post_flow" name="test_unsupported_post_never_falls_back_to_general_model[True-a]" time="0.064" /><testcase classname="tests.test_post_flow" name="test_unsupported_post_never_falls_back_to_general_model[True-img]" time="0.048" /><testcase classname="tests.test_post_flow" name="test_unsupported_post_never_falls_back_to_general_model[True-unknown]" time="0.051" /><testcase classname="tests.test_post_flow" name="test_post_does_not_revive_expired_input_and_execution_rechecks_permission" time="0.052" /><testcase classname="tests.test_post_flow" name="test_original_bridge_works_without_optional_poc_package" time="0.095" /><testcase classname="tests.test_post_flow" name="test_ordinary_text_input_limit_keeps_local_notice_without_inference" time="0.047" /><testcase classname="tests.test_project_memory" name="test_project_memory_isolated_deduped_and_review_never_means_acceptance" time="0.018" /><testcase classname="tests.test_project_memory" name="test_two_projects_and_conflicting_source_times_stay_separate" time="0.019" /><testcase classname="tests.test_provider" name="test_json_contract_observed_model_required" time="0.001" /><testcase classname="tests.test_provider" name="test_sanitized_environment_never_inherits_personal_tokens" time="0.001" /><testcase classname="tests.test_provider" name="test_process_timeout_kills_owned_group_and_preserves_safe_journal" time="0.163" /><testcase classname="tests.test_provider" name="test_process_output_cap" time="0.061" /><testcase classname="tests.test_provider" name="test_os_sandbox_blocks_sibling_task_files" time="0.004"><failure message="FileNotFoundError: [Errno 2] No such file or directory: '/usr/bin/sandbox-exec'">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-3/test_os_sandbox_blocks_sibling0')
+
+    def test_os_sandbox_blocks_sibling_task_files(tmp_path):
+        root = tmp_path.resolve()
+        task = root / "task"
+        task.mkdir()
+        secret = root / "synthetic-secret.txt"
+        secret.write_text("synthetic canary only")
+        allowed = task / "synthetic-input.txt"
+        allowed.write_text("synthetic allowed")
+        profile = task / "sandbox.sb"
+        profile.write_text(sandbox_profile(root, task, Path("/bin/cat")))
+&gt;       denied = subprocess.run(["/usr/bin/sandbox-exec", "-f", str(profile), "/bin/cat", str(secret)], capture_output=True)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:548: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:1026: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Popen: returncode: 255 args: ['/usr/bin/sandbox-exec', '-f', '/tmp/pytest-o...&gt;
+args = ['/usr/bin/sandbox-exec', '-f', '/tmp/pytest-of-root/pytest-3/test_os_sandbox_blocks_sibling0/task/sandbox.sb', '/bin/cat', '/tmp/pytest-of-root/pytest-3/test_os_sandbox_blocks_sibling0/synthetic-secret.txt']
+executable = b'/usr/bin/sandbox-exec', preexec_fn = None, close_fds = True
+pass_fds = (), cwd = None, env = None, startupinfo = None, creationflags = 0
+shell = False, p2cread = -1, p2cwrite = -1, c2pread = 17, c2pwrite = 18
+errread = 19, errwrite = 20, restore_signals = True, gid = None, gids = None
+uid = None, umask = -1, start_new_session = False, process_group = -1
+
+    def _execute_child(self, args, executable, preexec_fn, close_fds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals,
+                       gid, gids, uid, umask,
+                       start_new_session, process_group):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed when '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bin/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread &gt; 2)
+                and (c2pwrite == -1 or c2pwrite &gt; 2)
+                and (errwrite == -1 or errwrite &gt; 2)
+                and not start_new_session
+                and process_group == -1
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask &lt; 0):
+            self._posix_spawn(args, executable, env, restore_signals,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to parent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory allocation.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 fd range.
+        low_fds_to_close = []
+        while errpipe_write &lt; 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_keep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        process_group, gid, gids, uid, umask,
+                        preexec_fn, _USE_VFORK)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising an
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) &gt; 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.format(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_errno:
+                errno_num = int(hex_errno, 16)
+                if err_msg == "noexec:chdir":
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                elif err_msg == "noexec":
+                    err_msg = ""
+                    err_filename = None
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+                if err_filename is not None:
+&gt;                   raise child_exception_type(errno_num, err_msg, err_filename)
+E                   FileNotFoundError: [Errno 2] No such file or directory: '/usr/bin/sandbox-exec'
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:1955: FileNotFoundError</failure></testcase><testcase classname="tests.test_provider" name="test_inspect_rejects_connectors_and_unknown_schema" time="0.001" /><testcase classname="tests.test_provider" name="test_errors_never_echo_untrusted_body[HTTP 401-AUTH_FAILED]" time="0.000" /><testcase classname="tests.test_provider" name="test_errors_never_echo_untrusted_body[insufficient credits-QUOTA_EXHAUSTED]" time="0.000" /><testcase classname="tests.test_provider" name="test_errors_never_echo_untrusted_body[HTTP 429-RATE_LIMITED]" time="0.000" /><testcase classname="tests.test_provider" name="test_errors_never_echo_untrusted_body[secret body-CLI_FAILED]" time="0.000" /><testcase classname="tests.test_provider" name="test_template_cannot_start_live_runtime" time="0.001" /><testcase classname="tests.test_provider" name="test_dedicated_oauth_refresh_survives_and_task_is_cleaned[0]" time="0.013" /><testcase classname="tests.test_provider" name="test_dedicated_oauth_refresh_survives_and_task_is_cleaned[1]" time="0.012" /><testcase classname="tests.test_provider" name="test_oauth_parallel_refresh_is_not_silently_enabled" time="0.002" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_prompt_keeps_content_without_identity_metadata_or_input_mutation" time="0.000" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[-history0-DOC_INPUT_INVALID]" time="0.001" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-history1-DOC_INPUT_INVALID]" time="0.000" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[synthetic-history2-DOC_CONTEXT_INVALID]" time="0.001" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[synthetic-history3-DOC_CONTEXT_INVALID]" time="0.000" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[synthetic-history4-DOC_CONTEXT_INVALID]" time="0.000" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[synthetic-history5-DOC_CONTEXT_LIMIT]" time="0.000" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_input_limits_fail_without_truncation[synthetic-history6-PROMPT_INVALID]" time="0.233" /><testcase classname="tests.test_qwen_code_assist" name="test_doc_context_at_existing_limit_is_preserved" time="0.000" /><testcase classname="tests.test_qwen_code_assist" name="test_progress_keeps_fixed_sample_and_identifies_code_source" time="0.000" /><testcase classname="tests.test_qwen_runtime_only" name="test_non_qwen_runtime_is_rejected_before_execution[p1]" time="0.001" /><testcase classname="tests.test_qwen_runtime_only" name="test_non_qwen_runtime_is_rejected_before_execution[serve]" time="0.001" /><testcase classname="tests.test_qwen_runtime_only" name="test_non_qwen_runtime_is_rejected_before_execution[login]" time="0.001" /><testcase classname="tests.test_reminder" name="test_R01_natural_and_command_preview_without_group_send[\u5e2e\u6211\u5728\u5408\u6210\u7814\u53d1\u7fa4\u63d0\u9192\u5de5\u7a0b\u5e08\u7532\u548c\u5de5\u7a0b\u5e08\u4e59\uff0c\u4eca\u592917\u70b9\u524d\u63d0\u4ea4\u63a5\u53e3\u6d4b\u8bd5\u7ed3\u679c\uff0c\u5b8c\u6210\u540e\u628a\u94fe\u63a5\u53d1\u5230\u7fa4\u91cc\u3002]" time="0.063" /><testcase classname="tests.test_reminder" name="test_R01_natural_and_command_preview_without_group_send[/remind \u5e2e\u6211\u5728\u5408\u6210\u7814\u53d1\u7fa4\u63d0\u9192\u5de5\u7a0b\u5e08\u7532\u548c\u5de5\u7a0b\u5e08\u4e59\uff0c\u4eca\u592917\u70b9\u524d\u63d0\u4ea4\u63a5\u53e3\u6d4b\u8bd5\u7ed3\u679c\uff0c\u5b8c\u6210\u540e\u628a\u94fe\u63a5\u53d1\u5230\u7fa4\u91cc\u3002]" time="0.061" /><testcase classname="tests.test_reminder" name="test_R02_missing_fields_only_are_requested[group_query]" time="0.045" /><testcase classname="tests.test_reminder" name="test_R02_missing_fields_only_are_requested[people_queries]" time="0.049" /><testcase classname="tests.test_reminder" name="test_R02_missing_fields_only_are_requested[body]" time="0.053" /><testcase classname="tests.test_reminder" name="test_R02_same_names_require_selection_and_cannot_guess" time="0.082" /><testcase classname="tests.test_reminder" name="test_R02_group_and_members_remain_separate_from_ingress_whitelist" time="0.060" /><testcase classname="tests.test_reminder" name="test_R03_scheduled_request_cannot_be_silently_made_immediate" time="0.075" /><testcase classname="tests.test_reminder" name="test_R03_relative_dates_are_anchored_not_rolled_forward" time="0.073" /><testcase classname="tests.test_reminder" name="test_R04_true_at_nodes_deduplicate_and_body_markup_has_no_authority" time="0.000" /><testcase classname="tests.test_reminder" name="test_R05_old_preview_after_edit_cannot_send" time="0.071" /><testcase classname="tests.test_reminder" name="test_R05_card_modify_invalidates_at_ingress_before_worker" time="0.055" /><testcase classname="tests.test_reminder" name="test_R05_forwarded_preview_and_ordinary_ok_cannot_confirm" time="0.057" /><testcase classname="tests.test_reminder" name="test_R06_repeated_confirmation_and_restart_do_not_resend" time="0.074" /><testcase classname="tests.test_reminder" name="test_R06_concurrent_claimers_get_one_send_right" time="0.065" /><testcase classname="tests.test_reminder" name="test_R06_new_identical_reminder_is_a_different_business_message" time="0.099" /><testcase classname="tests.test_reminder" name="test_R07_definite_failure_manual_retry_reuses_approval_and_key" time="0.083" /><testcase classname="tests.test_reminder" name="test_R07_remote_sent_lost_reply_is_unknown_until_reconciled" time="0.068" /><testcase classname="tests.test_reminder" name="test_R07_send_in_progress_on_restart_is_never_queued_again" time="0.052" /><testcase classname="tests.test_reminder" name="test_R07_readback_or_private_receipt_failure_cannot_resend_group" time="0.067" /><testcase classname="tests.test_reminder" name="test_R08_cancel_before_claim_and_inflight_cancel_are_different" time="0.094" /><testcase classname="tests.test_reminder" name="test_R08_expiry_rejects_old_confirmation_and_erases_body" time="0.054" /><testcase classname="tests.test_reminder" name="test_R09_existing_doc_and_ordinary_context_are_not_modified" time="0.076" /><testcase classname="tests.test_reminder" name="test_R09_quote_is_material_not_a_new_reminder" time="0.033" /><testcase classname="tests.test_reminder" name="test_R09_non_owner_and_group_cannot_start_or_approve" time="0.051" /><testcase classname="tests.test_reminder" name="test_R10_disabled_switch_blocks_dispatch_and_preserves_old_scopes" time="0.055" /><testcase classname="tests.test_reminder" name="test_old_resend_cannot_trigger_reminder_group_delivery" time="0.050" /><testcase classname="tests.test_reminder" name="test_readback_rejects_extra_mentions_changed_body_and_wrong_sender" time="0.001" /><testcase classname="tests.test_reminder" name="test_plain_confirmation_is_allowed_only_for_one_delivered_current_preview" time="0.121" /><testcase classname="tests.test_reminder" name="test_text_confirmation_compares_the_delivered_snapshot_not_just_current_hash" time="0.055" /><testcase classname="tests.test_reminder" name="test_old_approved_work_is_not_quietly_sent_later" time="0.061" /><testcase classname="tests.test_reminder" name="test_changed_bot_requires_new_preview_and_has_no_valid_old_approval" time="0.077" /><testcase classname="tests.test_reminder" name="test_date_normalization_keeps_a_readable_separator" time="0.000" /><testcase classname="tests.test_reminder" name="test_repeating_an_unknown_original_request_does_not_silently_create_a_retry" time="0.068" /><testcase classname="tests.test_reminder" name="test_expiry_during_network_send_preserves_outcome_without_suspending_other_routes" time="0.060" /><testcase classname="tests.test_reminder" name="test_natural_missing_target_and_future_requests_still_enter_reminder_clarification[\u660e\u5929\u63d0\u9192\u4e00\u4e0b]" time="0.001" /><testcase classname="tests.test_reminder" name="test_natural_missing_target_and_future_requests_still_enter_reminder_clarification[\u63d0\u9192\u5927\u5bb6\u5c3d\u5feb\u5904\u7406]" time="0.000" /><testcase classname="tests.test_reminder" name="test_natural_missing_target_and_future_requests_still_enter_reminder_clarification[\u63d0\u9192\u5de5\u7a0b\u5e08\u7532\u4eca\u592916\u70b9\u524d\u4ea4\u62a5\u544a]" time="0.000" /><testcase classname="tests.test_reminder" name="test_business_content_timing_after_remind_verb_does_not_schedule_delivery" time="0.000" /><testcase classname="tests.test_reminder" name="test_R02_everyone_is_a_missing_named_target_not_a_group_member_query" time="0.045" /><testcase classname="tests.test_reminder" name="test_R05_delayed_plain_confirmation_cannot_bind_a_newer_preview" time="0.071" /><testcase classname="tests.test_reminder" name="test_R05_plain_confirmation_after_switching_to_doc_requires_exact_reference" time="0.066" /><testcase classname="tests.test_reminder" name="test_R06_repeated_plain_confirmation_returns_the_original_result" time="0.069" /><testcase classname="tests.test_reminder_bridge" name="test_R09_bridge_does_not_store_reminder_in_ordinary_chat_and_returns_after_cancel" time="0.066" /><testcase classname="tests.test_reminder_transport" name="test_send_uses_frozen_chat_and_structured_at_only" time="0.001" /><testcase classname="tests.test_reminder_transport" name="test_failure_classification_does_not_treat_being_sent_as_not_sent[230002-400-SendRejected]" time="0.001" /><testcase classname="tests.test_reminder_transport" name="test_failure_classification_does_not_treat_being_sent_as_not_sent[230020-400-SendRejected]" time="0.002" /><testcase classname="tests.test_reminder_transport" name="test_failure_classification_does_not_treat_being_sent_as_not_sent[230049-400-SendUnknown]" time="0.001" /><testcase classname="tests.test_reminder_transport" name="test_failure_classification_does_not_treat_being_sent_as_not_sent[999999-500-SendUnknown]" time="0.002" /><testcase classname="tests.test_reminder_transport" name="test_failure_classification_does_not_treat_being_sent_as_not_sent[230001-500-SendUnknown]" time="0.001" /><testcase classname="tests.test_reminder_transport" name="test_guard_and_unconfigured_group_are_rejected_before_sdk_call" time="0.001" /><testcase classname="tests.test_reminder_transport" name="test_bot_app_id_in_platform_readback_maps_to_verified_bot" time="0.001" /><testcase classname="tests.test_reminder_transport" name="test_unknown_without_lookup_permission_does_not_read_history" time="0.002" /><testcase classname="tests.test_reminder_transport" name="test_readback_mention_placeholders_resolve_and_extra_metadata_is_rejected" time="0.002" /></testsuite></testsuites>

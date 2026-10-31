@@ -1,0 +1,1378 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/context.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/context.py
+index 346fe887..e4d9528d 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/context.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/context.py
+@@ -153,6 +153,7 @@ class ContextBundle:
+     omitted_history: tuple[tuple[str, str], ...]
+     included_tasks: tuple[str, ...]
+     valid_until: float | None
++    omitted_tasks: tuple[tuple[str, str], ...] = ()
+ 
+ 
+ _DATA_POLICY = (
+@@ -226,6 +227,7 @@ class ContextBuilder:
+         selected_history: list[tuple[MessageBlock, list[dict[str, Any]]]] = []
+         omitted_sources: list[tuple[str, str]] = []
+         omitted_history: list[tuple[str, str]] = []
++        omitted_tasks: list[tuple[str, str]] = []
+ 
+         def render() -> list[dict[str, Any]]:
+             messages: list[dict[str, Any]] = [{"role": "system", "content": system + "\n\n" + _DATA_POLICY}]
+@@ -240,14 +242,6 @@ class ContextBuilder:
+         if self._count(render()) > self.limit:
+             raise ContextError("MANDATORY_CONTEXT_TOO_LARGE")
+ 
+-        for task in tasks:
+-            if (task.scope_key != scope_key or task.permission_fingerprint != permission_fingerprint
+-                    or task.expires_at <= now or (task.project_id is not None and not authorize_project(task.project_id))):
+-                continue
+-            selected_tasks.append(task)
+-            if self._count(render()) > self.limit:
+-                selected_tasks.pop()
+-
+         seen_source: dict[str, SourceFact] = {}
+         for fact in sorted(facts, key=lambda f: (-f.observed_at, f.source_id)):
+             reason = None
+@@ -277,6 +271,17 @@ class ContextBuilder:
+                 selected_facts.pop()
+                 omitted_sources.append((fact.source_id, "budget"))
+ 
++        for task in tasks:
++            if (task.scope_key != scope_key or task.permission_fingerprint != permission_fingerprint
++                    or task.expires_at <= now or (task.project_id is not None and not authorize_project(task.project_id))):
++                omitted_tasks.append((task.task_id, 'scope_permission_or_expiry'))
++                continue
++            selected_tasks.append(task)
++            if self._count(render()) > self.limit:
++                selected_tasks.pop()
++                omitted_tasks.append((task.task_id, "budget"))
++
++
+         # Most recent blocks have precedence; the final message order is chronological.
+         for block in reversed(history):
+             reason = None
+@@ -303,4 +308,4 @@ class ContextBuilder:
+                              self.counter.name, self.counter.exact,
+                              tuple((f.source_id, f.version) for f in selected_facts), tuple(omitted_sources),
+                              tuple(b.block_id for b, _ in selected_history), tuple(omitted_history),
+-                             tuple(t.task_id for t in selected_tasks), min(expiries) if expiries else None)
++                             tuple(t.task_id for t in selected_tasks), min(expiries) if expiries else None, tuple(omitted_tasks))
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/history_adapter.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/history_adapter.py
+index 69aef09e..6d3e9ca9 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/history_adapter.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/history_adapter.py
+@@ -51,11 +51,11 @@ class FencedHistoryStore:
+                 if "no such table" in str(exc): return False
+                 raise
+ 
+-    def history(self, ctx, limit=20):
++    def history_records(self, ctx, limit=20):
+         from am_conversation.store import HISTORY_RETENTION, _access_fingerprint, _derived_fingerprint, _limit
+         _limit(limit,HISTORY_RETENTION)
+         with self.original._connection() as conn:
+-            rows=conn.execute("""SELECT event_id,role,content_json FROM conversation_messages
++            rows=conn.execute("""SELECT id,event_id,role,content_json,content_expires FROM conversation_messages
+                 WHERE scope_key=? AND ((role='user' AND access_fingerprint=?) OR (role!='user' AND access_fingerprint=?)) AND content_expires>?
+                 ORDER BY id DESC LIMIT ?""",
+                 (ctx.session_id,_access_fingerprint(ctx),_derived_fingerprint(ctx),self.original._now(),HISTORY_RETENTION)).fetchall()
+@@ -77,6 +77,11 @@ class FencedHistoryStore:
+                     if run.state not in ("succeeded","waiting_review"): continue
+                     if run_id not in visibility: visibility[run_id]=self._visible_assistant(run)
+                     if not visibility[run_id]: continue
+-            kept.append({"role":row["role"],"content":json.loads(row["content_json"])})
++            kept.append(dict(row))
+             if len(kept)>=limit: break
+         return list(reversed(kept))
++
++
++    def history(self, ctx, limit=20):
++        return [{'role': row['role'], 'content': json.loads(row['content_json'])}
++                for row in self.history_records(ctx, limit)]
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py
+index 483043d8..f3f2a37c 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_context.py
+@@ -8,7 +8,7 @@ import json
+ import time
+ from am_conversation.legacy import _hash
+ from am_conversation.types import canonical
+-from .context import ContextBuilder, SourceFact, MessageBlock
++from .context import ContextBuilder, SourceFact, MessageBlock, TaskState, ContextError
+ 
+ 
+ def build_context(host, ctx, *, event_id, system, text, current, fresh, history, budget):
+@@ -49,17 +49,12 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+             dependency_expiries={s: expiries[s] for s in dependencies}, project_ids=[f.project_id for f in facts],
+             expires_at=ctx.content_expires_at, effect='pure_local', now=now)
+         host.trace.emit(fence.run_id, 'checkpoint_miss', phase='context')
+-    original = host.bridge.store.original
+-    from am_conversation.store import _access_fingerprint, _derived_fingerprint, HISTORY_RETENTION
+-    with original._connection() as conn:
+-        records = conn.execute('''SELECT id,event_id,role,content_json,content_expires
+-            FROM conversation_messages WHERE scope_key=? AND ((role='user' AND access_fingerprint=?) OR (role!='user' AND access_fingerprint=?)) AND content_expires>?
+-            ORDER BY id DESC LIMIT ?''', (ctx.session_id, _access_fingerprint(ctx), _derived_fingerprint(ctx), now, HISTORY_RETENTION)).fetchall()
++    records = host.bridge.store.history_records(ctx, limit=host.bridge.agent.config.history_messages) if history else []
+     blocks = []
+-    for i, message in enumerate(history):
+-        record = next((r for r in records if r['role'] == message['role'] and json.loads(r['content_json']) == message['content']), None)
+-        if record is None:
++    for record in records:
++        if record['event_id'] == event_id and record['role'] == 'user':
+             continue
++        message = {'role': record['role'], 'content': json.loads(record['content_json'])}
+         prior = host.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=? AND scope_key=?',
+                            (record['event_id'], ctx.session_id))
+         # Original user text has already passed the original access fingerprint.
+@@ -67,15 +62,15 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+         if message['role'] == 'user':
+             prior = []
+         else:
+-            delivered = host.s.rows('SELECT state,project_refs FROM am_conversation_outputs WHERE event_id=? AND scope=?',
+-                                   (record['event_id'],ctx.session_id))
+-            if not delivered or delivered[0]['state'] != 'acknowledged':
++            delivered = host.s.rows("SELECT o.state,o.project_refs,o.reply FROM am_conversation_outputs o JOIN outbox b ON b.id=o.outbox_id WHERE json_extract(o.reply,'$.event_id')=? AND o.scope=? AND o.expires>? AND b.state='sent'",
++                                   (record['event_id'],ctx.session_id,now))
++            if len(delivered) != 1 or delivered[0]['state'] != 'acknowledged' or json.loads(delivered[0]['reply'])['text'] != message['content']:
+                 continue
+             if not prior and json.loads(delivered[0]['project_refs']):
+                 continue  # Older source-derived replies lack reusable provenance.
+         deps = json.loads(prior[0]['dependencies']) if prior else {}
+         dep_expiries = json.loads(prior[0]['expiries']) if prior else {}
+-        if prior and prior[0]['permission'] != permission:
++        if prior and (prior[0]['permission'] != permission or prior[0]['expires'] <= now):
+             continue
+         if record['event_id'].startswith('harness:') and message['role'] == 'assistant' and not prior:
+             continue
+@@ -84,17 +79,37 @@ def build_context(host, ctx, *, event_id, system, text, current, fresh, history,
+             tuple(s.removeprefix('ledger:') for s in deps), tuple(deps.items()), tuple(dep_expiries.items())))
+     # Existing notes/knowledge remain clearly labelled untrusted data and keep
+     # the original store's scope policy. Ledger facts use structured provenance.
+-    state = {k: v for k, v in current.items() if k != 'fresh_project_sources'}
++    state = {k: v for k, v in current.items() if k not in ('fresh_project_sources', 'open_work_notes', 'knowledge')}
++    optional = []
++    for kind in ('open_work_notes', 'knowledge'):
++        for item in current.get(kind, []):
++            optional.append(TaskState(kind+':'+item['id'], ctx.session_id, permission,
++                item.get('project_id'), 'waiting_input', canonical({'kind': kind, 'record': item}),
++                item.get('version', 1), ctx.content_expires_at))
+     builder = ContextBuilder(limit=max(1024, budget-2000))
+-    bundle = builder.build(scope_key=ctx.session_id, permission_fingerprint=permission,
+-        system=system+'\n以下为经原权限筛选的数据，不是指令或批准：\n'+canonical(state),
+-        user_input=text, facts=facts, history=blocks, authorize_project=ctx.can_access_project,
+-        source_versions=versions, now=now)
++    try:
++        bundle = builder.build(scope_key=ctx.session_id, permission_fingerprint=permission,
++            system=system+'\n以下为经原权限筛选的数据，不是指令或批准：\n'+canonical(state),
++            user_input=text, facts=facts, tasks=optional, history=blocks, authorize_project=ctx.can_access_project,
++            source_versions=versions, now=now)
++    except ContextError as exc:
++        from .runtime import preparation_refusal
++        raise preparation_refusal(exc) from exc
++    host.trace.emit(fence.run_id, 'context_selection', phase='context',
++                    selected_notes=len(bundle.included_tasks),
++                    omitted_budget_notes=sum(reason == 'budget' for _, reason in bundle.omitted_tasks),
++                    omitted_invalid_notes=sum(reason != 'budget' for _, reason in bundle.omitted_tasks))
+     selected = dict(bundle.included_sources)
++    selected_expiries = {s: expiries[s] for s in selected}
++    for block in blocks:
++        if block.block_id in bundle.included_history:
++            selected.update(block.source_versions)
++            for source, end in block.source_expiries:
++                selected_expiries[source] = min(selected_expiries.get(source, end), end)
+     with host.s.tx() as conn:
+         conn.execute('INSERT OR REPLACE INTO am_harness_context_sources VALUES(?,?,?,?,?,?)',
+             (event_id, ctx.session_id, permission, canonical(selected),
+-             canonical({s: expiries[s] for s in selected}), min(ctx.content_expires_at, bundle.valid_until or ctx.content_expires_at)))
++             canonical(selected_expiries), min(ctx.content_expires_at, bundle.valid_until or ctx.content_expires_at)))
+     host.trace.emit(fence.run_id, 'span_end', phase='context', status='ok', elapsed_ms=(time.monotonic()-started)*1000,
+                     input_units=bundle.used, exact_token_count=False, source_count=len(selected))
+     return list(bundle.messages)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_focus.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_focus.py
+new file mode 100644
+index 00000000..314fdcbb
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/host_focus.py
+@@ -0,0 +1,71 @@
++"""One event-ordered, expiring focus for quick reads and durable conversation."""
++import json
++from .fastpath import FocusSnapshot
++from .history_adapter import _ENGINE_EVENT
++from .store import Scope, StoreError
++
++
++class HostFocus:
++    def __init__(self, host):
++        self.host = host
++        with host.s.tx() as conn:
++            conn.execute('CREATE TABLE IF NOT EXISTS am_harness_focus(scope_key TEXT PRIMARY KEY, project_id TEXT, event_order INTEGER NOT NULL, event_id TEXT NOT NULL, engine_event TEXT, permission TEXT NOT NULL, expires REAL NOT NULL)')
++
++    def _identity(self, ctx):
++        from am_conversation.legacy import _hash
++        h = self.host
++        current = h.bridge._current(ctx)
++        rows = h.s.rows('SELECT rowid AS event_order,created,expires FROM am_inbox WHERE id=?', (current['row']['id'],))
++        if len(rows) != 1:
++            raise RuntimeError('HARNESS_SOURCE_MISSING')
++        permission = _hash([ctx.scope, sorted(ctx.allowed_project_ids), current['grant'], ctx.is_owner, ctx.source_access_version])
++        return current, rows[0], permission
++
++    def get(self, ctx):
++        h = self.host
++        current, source, permission = self._identity(ctx)
++        rows = h.s.rows('SELECT * FROM am_harness_focus WHERE scope_key=?', (ctx.session_id,))
++        if not rows:
++            return None
++        row = rows[0]
++        if (row['event_order'] > source['event_order'] or row['permission'] != permission
++                or row['expires'] <= h.s.clock() or not row['project_id'] or not ctx.can_access_project(row['project_id'])):
++            return None
++        if row['engine_event']:
++            match = _ENGINE_EVENT.fullmatch(row['engine_event'])
++            if not match:
++                return None
++            try:
++                run = h.tasks.get(Scope.from_context(ctx), match[1])
++            except StoreError:
++                return None
++            if run.revision != int(match[2]) or run.purged or run.state not in ('queued','running','succeeded','waiting_review'):
++                return None
++        return FocusSnapshot(ctx.session_id, row['project_id'], row['expires'])
++
++    def project(self, ctx):
++        focus = self.get(ctx)
++        return focus.project_id if focus else None
++
++    def remember(self, ctx, project_id, event_id=None):
++        if project_id is not None and not ctx.can_access_project(project_id):
++            raise RuntimeError('PROJECT_ACCESS_DENIED')
++        h = self.host
++        current, source, permission = self._identity(ctx)
++        engine = current.get('engine_event_id')
++        expires = min(source['created']+600, source['expires'], ctx.content_expires_at)
++        with h.s.tx() as conn:
++            fence = h.hooks.fence
++            if engine:
++                if fence is None:
++                    raise RuntimeError('HARNESS_UNBOUND_RUN')
++                h.tasks.check_in_transaction(conn, fence, allowed_states=('running',))
++            conn.execute("""INSERT INTO am_harness_focus VALUES(?,?,?,?,?,?,?)
++                ON CONFLICT(scope_key) DO UPDATE SET project_id=excluded.project_id,
++                event_order=excluded.event_order,event_id=excluded.event_id,engine_event=excluded.engine_event,
++                permission=excluded.permission,expires=excluded.expires
++                WHERE excluded.event_order>=am_harness_focus.event_order""",
++                (ctx.session_id,project_id,source['event_order'],current['row']['id'],engine,permission,expires))
++
++    def invalidate(self, ctx):
++        self.remember(ctx, None)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py
+index d17af932..ec195dbc 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/reservation.py
+@@ -37,6 +37,8 @@ def reserve_effect(conn, operation_id, kind, payload):
+     """Optional only for original non-harness calls; never a permissive authorizer."""
+     bound = _current.get()
+     if bound is None:
++        if _local.get() is not None:
++            raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
+         return
+     host, fence, action = bound
+     if kind in ('native_document','document_mount') and (not payload.get('accepted_hash') or payload['accepted_hash'] != payload.get('content_hash')):
+@@ -52,7 +54,9 @@ def reserve_effect(conn, operation_id, kind, payload):
+         raise RuntimeError('HARNESS_RESERVATION_RECONCILE_REQUIRED')
+     conn.execute('INSERT INTO am_harness_reservations VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                  (key, fence.run_id, fence.scope_key, fence.revision, fence.cancel_epoch,
+-                  fence.generation, action['id'], kind, value_hash, 'reserved', None, host.s.clock()))
++                  fence.generation, action['id'], kind, value_hash,
++                  'succeeded' if _local.get() is not None and kind != 'local_database' else 'reserved',
++                  None, host.s.clock()))
+ 
+ 
+ def record_result(host, action_id, result):
+@@ -63,3 +67,137 @@ def record_result(host, action_id, result):
+     receipt_hash = hashlib.sha256(str(result.get('receipt_id', '')).encode()).hexdigest() if isinstance(result, dict) and result.get('receipt_id') else None
+     host.s.execute('UPDATE am_harness_reservations SET state=?,receipt_hash=? WHERE action_id=?',
+                    (state, receipt_hash, action_id))
++
++
++_local = ContextVar('am_harness_local_mutation', default=None)
++
++
++@contextmanager
++def local_context(host, ctx, call, event_id):
++    """Ordinary local tools need a task fence, never a new user approval."""
++    fence = host.hooks.fence
++    if fence is None or fence.scope_key != ctx.session_id:
++        raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
++    host.tasks.guard(fence)
++    action = {'id': 'local:' + hashlib.sha256(canonical([ctx.session_id, event_id, call.name, call.arguments]).encode()).hexdigest()}
++    token = _current.set((host, fence, action))
++    local_token = _local.set({'host': host, 'sequence': 0, 'tool': call.name})
++    try:
++        yield
++    finally:
++        _local.reset(local_token)
++        _current.reset(token)
++
++
++def _next_local(host):
++    local = _local.get()
++    if local is None:
++        return None
++    bound = _current.get()
++    if local['host'] is not host or bound is None or bound[0] is not host:
++        raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
++    local['sequence'] += 1
++    return bound[1], bound[2], str(local['sequence']), local['tool']
++
++
++def guard_local_transaction(host, conn):
++    """Same-db reservation and mutation commit under the cancellation lock."""
++    current = _next_local(host)
++    if current is None:
++        return
++    fence, action, sequence, tool = current
++    reserve_effect(conn, sequence, 'local_transaction', {'tool': tool, 'sequence': sequence})
++    conn.execute("UPDATE am_harness_reservations SET state='succeeded' WHERE action_id=? AND kind='local_transaction'", (action['id'],))
++
++
++@contextmanager
++def guard_local_database(host, conn):
++    """Cross-db writes: durable intent, cancellation lock, local commit receipt.
++
++    The caller commits its local SQLite transaction inside this context. This
++    is NOT a distributed atomic commit. A crash between commits leaves reserved
++    intent plus a local receipt for explicit reconciliation; it is never replayed.
++    The gateway lock orders cancellation against the entire short local commit.
++    """
++    current = _next_local(host)
++    if current is None:
++        yield
++        return
++    fence, action, sequence, tool = current
++    database = conn.execute('PRAGMA database_list').fetchone()[2]
++    database_hash = hashlib.sha256(database.encode()).hexdigest()
++    operation = database_hash + ':' + sequence
++    key = hashlib.sha256(canonical([action['id'], 'local_database', operation]).encode()).hexdigest()
++    token = _local.set(None)  # Reservation bookkeeping is not a nested business write.
++    try:
++        with host.s.tx() as gateway:
++            reserve_effect(gateway, operation, 'local_database', {'tool': tool, 'database': database_hash, 'sequence': sequence})
++    finally:
++        _local.reset(token)
++    committed = False
++    try:
++        with host.tasks.transaction_guard(fence) as gateway:
++            conn.execute('CREATE TABLE IF NOT EXISTS am_harness_local_commits(id TEXT PRIMARY KEY, run_id TEXT NOT NULL, revision INTEGER NOT NULL, created REAL NOT NULL)')
++            conn.execute('INSERT INTO am_harness_local_commits VALUES(?,?,?,?)', (key, fence.run_id, fence.revision, host.s.clock()))
++            yield
++            committed = not conn.in_transaction
++            if not committed:
++                raise RuntimeError('HARNESS_LOCAL_COMMIT_UNKNOWN')
++            gateway.execute("UPDATE am_harness_reservations SET state='succeeded',receipt_hash=? WHERE id=?", (key, key))
++    except BaseException as exc:
++        if committed or not conn.in_transaction:
++            raise RuntimeError('HARNESS_LOCAL_COMMIT_UNKNOWN') from exc
++        # The local transaction is still open; the store rolls it back. Keep
++        # durable intent for reconciliation rather than inventing a receipt.
++        raise
++
++
++@contextmanager
++def ingress_context():
++    """A new incoming event never inherits another event's business binding."""
++    token = _current.set(None)
++    local_token = _local.set(None)
++    try:
++        yield
++    finally:
++        _local.reset(local_token)
++        _current.reset(token)
++
++
++def check_local_commit(host, conn):
++    local = _local.get()
++    if local is None:
++        return
++    bound = _current.get()
++    if bound is None or bound[0] is not host:
++        raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
++    host.tasks.check_in_transaction(conn, bound[1], allowed_states=('running',))
++
++
++def reconcile_local_commit(host, reservation_id):
++    """Explicit receipt-only reconciliation; never replay or clear the lane.
++
++    Only the two configured original stores can prove a cross-db commit.
++    A missing receipt remains unknown; callers must not infer rollback from it.
++    """
++    import sqlite3
++    rows = host.s.rows("SELECT * FROM am_harness_reservations WHERE id=? AND kind='local_database'", (reservation_id,))
++    if len(rows) != 1:
++        raise RuntimeError('HARNESS_RESERVATION_NOT_FOUND')
++    row = rows[0]
++    original = host.bridge.store.original
++    paths = [original._path, host.bridge.knowledge._db.execute('PRAGMA database_list').fetchone()[2]]
++    receipts = []
++    for path in paths:
++        with sqlite3.connect('file:'+path+'?mode=ro',uri=True) as conn:
++            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='am_harness_local_commits'").fetchone():
++                receipts.extend(conn.execute('SELECT run_id,revision FROM am_harness_local_commits WHERE id=?',(reservation_id,)).fetchall())
++    if receipts != [(row['run_id'],row['revision'])]:
++        return 'unknown'
++    token = _local.set(None)
++    try:
++        with host.s.tx() as conn:
++            conn.execute("UPDATE am_harness_reservations SET state='succeeded',receipt_hash=? WHERE id=? AND state IN ('reserved','succeeded')", (reservation_id,reservation_id))
++    finally:
++        _local.reset(token)
++    return 'succeeded'
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/runtime.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/runtime.py
+index 00c4e4af..12b865ce 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/runtime.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/runtime.py
+@@ -10,12 +10,36 @@ from dataclasses import dataclass
+ import json
+ import re
+ import threading
++from contextvars import ContextVar
+ from typing import Any, Callable, Protocol
+ 
+ from .config import HarnessConfig
+ from .store import DurableStore, Scope, RunSnapshot, Lease, StoreError
+ 
+ 
++_execution = ContextVar('am_harness_execution_stage', default=None)
++
++
++class LocalPreparationRefusal(RuntimeError):
++    def __init__(self, code, proof):
++        self.code, self.proof = code, proof
++        super().__init__(code)
++
++
++def mark_dispatch(kind):
++    state = _execution.get()
++    if state is not None:
++        state['dispatches'].append(kind)
++
++
++def preparation_refusal(error):
++    from .context import ContextError
++    state = _execution.get()
++    if isinstance(error, ContextError) and state is not None and not state['dispatches']:
++        return LocalPreparationRefusal(str(error), state)
++    return error
++
++
+ class Runner(Protocol):
+     def run(self, snapshot: RunSnapshot) -> dict[str, Any]: ...
+ 
+@@ -81,6 +105,8 @@ class TaskRuntime:
+         heartbeat = threading.Thread(target=renew, name="am-harness-heartbeat", daemon=True)
+         heartbeat.start()
+         runner_started = runner_returned = False
++        execution = {"dispatches": []}
++        execution_token = _execution.set(execution)
+         try:
+             self.authorize(lease.run.scope, "execute")
+             self.store.guard(lease.fence)
+@@ -113,7 +139,8 @@ class TaskRuntime:
+                 result = WorkResult(lease.run.id, "stale", error=code)
+             elif code == "LEASE_QUARANTINED":
+                 result = WorkResult(lease.run.id, "unknown", error=code)
+-            elif not runner_started or runner_returned or code in safe_refusals or code in fence_failures:
++            elif (not runner_started or runner_returned or code in safe_refusals or code in fence_failures
++                  or isinstance(exc, LocalPreparationRefusal) and exc.proof is execution and not execution["dispatches"]):
+                 try:
+                     valid = self.store.finish(lease, state="failed", error=code)
+                     result = WorkResult(lease.run.id, "failed" if valid else "stale", error=code)
+@@ -131,5 +158,6 @@ class TaskRuntime:
+                 raise
+             return result
+         finally:
++            _execution.reset(execution_token)
+             stopped.set()
+             heartbeat.join(timeout=self.config.heartbeat_seconds + .5)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/telemetry.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/telemetry.py
+index 7fab08f5..17ae7e58 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/telemetry.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_harness/telemetry.py
+@@ -19,13 +19,13 @@ class TraceError(ValueError):
+ 
+ 
+ _EVENTS = frozenset({"run_start", "queued", "lease_acquired", "control", "span_start", "span_end",
+-                     "first_useful", "final", "run_state", "checkpoint_hit", "checkpoint_miss"})
++                     "first_useful", "final", "run_state", "checkpoint_hit", "checkpoint_miss", "context_selection"})
+ _PHASES = frozenset({"queue", "model", "tool", "context", "validation", "delivery", "work", "recovery"})
+ _STATUSES = frozenset({"queued", "running", "succeeded", "failed", "unknown", "cancelled", "stale", "expired",
+                        "waiting_input", "waiting_review", "ok", "error", "blocked", "rejected", "not_run"})
+ _NUMERIC_FIELDS = frozenset({"elapsed_ms", "queue_ms", "model_ms", "tool_ms", "delivery_ms", "input_units", "output_units",
+                             "input_tokens", "output_tokens", "queue_depth", "revision", "cancel_epoch", "priority",
+-                            "call_count", "source_count", "retry_count", "result_bytes"})
++                            "call_count", "source_count", "retry_count", "result_bytes", "selected_notes", "omitted_budget_notes", "omitted_invalid_notes"})
+ _BOOL_FIELDS = frozenset({"exact_token_count", "replayed", "verified", "still_running"})
+ 
+ 
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
+index 12ff0374..dc5043e4 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
+@@ -81,7 +81,13 @@ class Store:
+             self.conn.execute("BEGIN IMMEDIATE")
+             self._outbox_changed = False
+             try:
++                guard = getattr(self, "local_write_guard", None)
++                if guard is not None:
++                    guard(self.conn)
+                 yield self.conn
++                commit_guard = getattr(self, "local_commit_guard", None)
++                if commit_guard is not None:
++                    commit_guard(self.conn)
+                 self.conn.execute("COMMIT")
+                 wake = self._outbox_changed
+             except BaseException:
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_fix1.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_fix1.py
+new file mode 100644
+index 00000000..5cc3957e
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_fix1.py
+@@ -0,0 +1,294 @@
++"""R1-FIX1 boundaries on the current R2 host. Synthetic I/O only."""
++from contextlib import contextmanager
++import json
++import threading
++import pytest
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig, execute, incoming, call, answer, project, SETTINGS
++from am_harness_host import HarnessHost
++from am_harness.context import ContextError
++from am_harness.store import Scope
++
++
++def stop(rig, command='停止当前任务'):
++    _, host = rig
++    host.admit(incoming(rig, command))
++
++
++def run(rig, text, outputs):
++    conv, host = rig
++    conv[1].outputs.extend(outputs)
++    row = incoming(rig, text)
++    ident = host.admit(row)
++    return row, ident, host.run_once()
++
++
++@pytest.mark.parametrize('mode', ['cancel','revise'])
++@pytest.mark.parametrize('tool', ['create_followup','save_work_note','propose_knowledge','submit_project_update'])
++def test_local_create_stops_at_actual_store_boundary(harness, monkeypatch, tool, mode):
++    conv,h = harness
++    p = project(conv)
++    specs = {
++        'create_followup': (h.service.items, 'create', {'project_id':p,'description':'合成待核记录'}, lambda: h.s.rows('SELECT * FROM action_items')),
++        'save_work_note': (h.bridge.store.original, 'create_task', {'project_id':p,'title':'合成待核记录'}, lambda: _notes(harness)),
++        'propose_knowledge': (h.bridge.knowledge, 'submit', {'kind':'rule','content':'合成待核规则'}, lambda: list(h.bridge.knowledge._db.execute('SELECT * FROM knowledge_records'))),
++        'submit_project_update': (h.service.updates, 'collect', {'project_id':p,'content':'合成待核记录'}, lambda: h.s.rows('SELECT * FROM progress_collections')),
++    }
++    target,method,args,read = specs[tool]
++    original=getattr(target,method)
++    def interrupted(*a,**kw):
++        stop(harness, '停止当前任务' if mode=='cancel' else '更正当前任务：仅解释待核含义')
++        return original(*a,**kw)
++    monkeypatch.setattr(target,method,interrupted)
++    before=read()
++    _,ident,result=run(harness,'登记跟进与项目反馈：合成待核记录和合成待核规则',[call(tool,args)])
++    assert read()==before
++    state=h.s.rows('SELECT state,revision FROM am_harness_runs WHERE id=?',(ident,))[0]
++    assert state['state']==('cancelled' if mode=='cancel' else 'queued')
++    assert result.status=='stale'
++
++
++def _notes(rig):
++    _,h=rig
++    with h.bridge.store.original._connection() as c:
++        return [dict(x) for x in c.execute('SELECT * FROM conversation_tasks')]
++
++
++@pytest.mark.parametrize('operation', ['processing','pause','resume','cancel'])
++def test_followup_changes_cancel_before_commit(harness,monkeypatch,operation):
++    conv,h=harness
++    execute(harness,'登记合成跟进',[call('create_followup',{'description':'合成记录'})])
++    item=h.s.rows('SELECT * FROM action_items')[0]
++    before=h.service.items.get(item['id']);original=h.service.items.change
++    def interrupted(*a,**kw):
++        stop(harness);return original(*a,**kw)
++    monkeypatch.setattr(h.service.items,'change',interrupted)
++    run(harness,'修改合成跟进',[call('change_followup',{'item_id':item['id'],'version':item['version'],'operation':operation})])
++    assert h.service.items.get(item['id'])==before
++
++
++def test_feedback_and_reminder_control_cancel_before_commit(harness,monkeypatch):
++    conv,h=harness
++    execute(harness,'登记合成跟进',[call('create_followup',{'description':'合成记录'})])
++    item=h.s.rows('SELECT * FROM action_items')[0]
++    original=h.service.items.feedback
++    def interrupted(*a,**kw):stop(harness);return original(*a,**kw)
++    monkeypatch.setattr(h.service.items,'feedback',interrupted)
++    run(harness,'合成反馈原话',[call('submit_followup_feedback',{'item_id':item['id'],'version':1,'kind':'processing','content':'合成反馈原话'})])
++    assert not h.s.rows('SELECT * FROM item_feedback')
++    # Original scheduler fixture, no actual send or approval bypass.
++    from datetime import datetime,timezone
++    at=datetime.fromtimestamp(h.s.clock()+3600,timezone.utc).isoformat()
++    execute(harness,'请准备在17:00提醒我',[call('schedule_reminder',{'target':'self','body':'合成提醒','frequency':'once','at':at})])
++    execute(harness,'确认第1项')
++    plan=h.s.rows('SELECT * FROM reminder_plans')[0]
++    original_control=h.service.scheduler.control
++    def stop_control(*a,**kw):stop(harness);return original_control(*a,**kw)
++    monkeypatch.setattr(h.service.scheduler,'control',stop_control)
++    run(harness,'暂停合成计划',[call('control_reminder',{'plan_id':plan['id'],'version':plan['version'],'operation':'pause'})])
++    assert h.service.scheduler.plan(plan['id'])==plan
++
++
++@pytest.mark.parametrize('tool',['create_followup','save_work_note'])
++def test_committed_local_result_survives_later_stop(harness,monkeypatch,tool):
++    conv,h=harness
++    target,method=(h.service.items,'create') if tool=='create_followup' else (h.bridge.store.original,'create_task')
++    original=getattr(target,method)
++    def after(*a,**kw):
++        result=original(*a,**kw);stop(harness);return result
++    monkeypatch.setattr(target,method,after)
++    args={'description':'合成记录'} if tool=='create_followup' else {'project_id':project(conv),'title':'合成笔记'}
++    _,ident,result=run(harness,'保存合成跟进记录',[call(tool,args)])
++    assert len(h.s.rows('SELECT * FROM action_items') if tool=='create_followup' else _notes(harness))==1
++    assert result.status=='stale'
++    reservations=h.s.rows('SELECT * FROM am_harness_reservations WHERE run_id=?',(ident,))
++    assert reservations and all(x['state']=='succeeded' for x in reservations)
++    with h.bridge.store.original._connection() as c:
++        assert not c.execute('SELECT 1 FROM conversation_actions').fetchone()
++
++
++def test_cross_database_commit_ambiguity_requires_reconciliation(harness,monkeypatch):
++    conv,h=harness; original=h.tasks.transaction_guard
++    @contextmanager
++    def lost(*a,**kw):
++        with original(*a,**kw) as conn:
++            yield conn
++            raise RuntimeError('synthetic lost gateway commit')
++    monkeypatch.setattr(h.tasks,'transaction_guard',lost)
++    _,ident,result=run(harness,'记录笔记',[call('save_work_note',{'project_id':project(conv),'title':'合成提交'})])
++    assert result.status=='unknown' and h.tasks.lane_status()['state']=='quarantined'
++    assert len(_notes(harness))==1
++    reservations=h.s.rows('SELECT * FROM am_harness_reservations WHERE run_id=?',(ident,))
++    assert reservations and reservations[0]['state']=='reserved'
++    with h.bridge.store.original._connection() as c:
++        assert c.execute('SELECT count(*) FROM am_harness_local_commits').fetchone()[0]==1
++    from am_harness.reservation import reconcile_local_commit
++    assert reconcile_local_commit(h, reservations[0]['id']) == 'succeeded'
++    assert h.tasks.lane_status()['state']=='quarantined'
++    assert h.run_once().status=='idle'
++    assert len(_notes(harness))==1
++
++
++def test_missing_local_executor_does_not_fall_through_to_legacy(harness):
++    conv,h=harness;h.bridge.agent.local_executor=None
++    run(harness,'登记记录',[call('create_followup',{'description':'绝不能写入'}),answer('未登记。')])
++    assert not h.s.rows('SELECT * FROM action_items')
++
++
++@pytest.mark.parametrize('invalid',['unverified','cancelled','expired','permission','revision','unsent'])
++def test_unusable_history_never_reaches_prompt(harness,invalid):
++    conv,h=harness;marker='合成历史独特标记'
++    row,ident=execute(harness,'普通第一轮',[answer(marker)])
++    if invalid=='unverified':h.s.execute('UPDATE am_harness_outbox SET verified=0')
++    elif invalid=='cancelled':stop(harness,'取消任务 '+ident)
++    elif invalid=='unsent':h.s.execute("UPDATE am_conversation_outputs SET state='pending'")
++    elif invalid=='revision':h.s.execute('UPDATE am_harness_runs SET revision=revision+1 WHERE id=?',(ident,))
++    else:
++        with h.bridge.store.original._connection(write=True) as c:
++            c.execute("UPDATE conversation_messages SET "+('content_expires=0' if invalid=='expired' else "access_fingerprint='revoked'")+" WHERE role='assistant'")
++    execute(harness,'请解释上一条',[answer('不引用不可用记录。')])
++    assert marker not in conv[1].prompts[-1]
++
++
++def test_equal_text_does_not_alias_undelivered_newer_event(harness):
++    conv,h=harness;marker='同文不同事件标记'
++    execute(harness,'第一轮',[answer(marker)])
++    conv[1].outputs.append(answer(marker));row=incoming(harness,'第二轮');h.admit(row);assert h.run_once().status=='completed'
++    # Only the first event is acknowledged; the second identical body is pending.
++    execute(harness,'再展开第一轮',[answer('第三轮')])
++    assert marker in conv[1].prompts[-1]
++
++
++def test_old_model_project_cannot_overwrite_new_fast_focus(harness,monkeypatch):
++    conv,h=harness;entered=threading.Event();release=threading.Event()
++    execute(harness,'需求75谁负责')
++    original=h.bridge.store.original.focus_setter
++    def delayed(ctx,p,event=None):
++        if h.bridge._current(ctx)['row']['body']=='请分析需求76的情况':
++            entered.set();assert release.wait(4)
++        return original(ctx,p,event)
++    monkeypatch.setattr(h.bridge.store.original,'focus_setter',delayed)
++    conv[1].outputs.append(answer('旧任务需求76回答。'))
++    row=incoming(harness,'请分析需求76的情况');h.admit(row)
++    results=[];worker=threading.Thread(target=lambda:results.append(h.run_once()));worker.start()
++    assert entered.wait(3)
++    try:execute(harness,'需求75谁负责')
++    finally:release.set();worker.join(4)
++    assert not worker.is_alive() and results[0].status=='completed'
++    execute(harness,'那负责人呢？')
++    assert 'AR1测试甲' in conv[0][3].sent[-1]['body'] and 'AR2乙' not in conv[0][3].sent[-1]['body']
++
++
++@pytest.mark.parametrize('different', ['actor','thread','expiry','cancel'])
++def test_focus_scope_and_lifetime(harness,different):
++    conv,h=harness
++    row,ident=execute(harness,'分析需求75',[answer('需求75分析')])
++    if different=='expiry':conv[0][4].now+=601
++    if different=='cancel':stop(harness,'取消任务 '+ident)
++    if different=='actor':h.service.query_scope.setdefault('users',{})['ou_b']=['*']
++    target=incoming(harness,'那负责人呢？',actor='ou_b' if different=='actor' else 'ou_a',thread='other' if different=='thread' else None)
++    with h.bridge.request_context(dict(target)) as ctx:
++        assert h.focus.get(ctx) is None
++
++
++def test_local_budget_refusal_is_typed_and_next_request_runs(harness):
++    conv,h=harness;original=h.bridge.agent.context_builder
++    def too_large(ctx,**kw):kw['system']='合成超长系统内容'*10000;return original(ctx,**kw)
++    h.bridge.agent.context_builder=too_large
++    _,ident,result=run(harness,'普通问题',[])
++    assert result.status=='failed' and result.error=='MANDATORY_CONTEXT_TOO_LARGE'
++    assert h.tasks.lane_status()['state']=='idle' and not conv[1].prompts
++    h.bridge.agent.context_builder=original
++    execute(harness,'再问普通问题',[answer('可正常处理。')])
++
++
++@pytest.mark.parametrize('code',['MANDATORY_CONTEXT_TOO_LARGE','STOP_UNKNOWN'])
++def test_provider_exception_text_is_not_local_preparation_proof(harness,code):
++    conv,h=harness
++    def unknown(*a,**kw):raise RuntimeError(code)
++    conv[1].complete=unknown
++    _,ident,result=run(harness,'普通问题',[])
++    assert result.status=='unknown' and h.tasks.lane_status()['state']=='quarantined'
++
++
++def notices(h):return h.s.rows("SELECT * FROM am_notifications WHERE kind='harness_error'")
++
++
++def test_maintenance_expiry_survives_host_reconstruction(harness):
++    conv,h=harness;row=incoming(harness,'待过期任务');ident=h.admit(row)
++    conv[0][4].now+=121;h.tasks.purge_expired()
++    h.close();h.installation.restore();h.bridge.agent.lifecycle=None
++    h.bridge.store=h.bridge.agent.store=h.bridge.store.original
++    fresh=HarnessHost(h.service,SETTINGS);h.service.harness=fresh
++    try:
++        fresh.sync_terminal();fresh.sync_terminal()
++        assert len(notices(fresh))==1
++        assert fresh.s.rows('SELECT state,error FROM am_inbox WHERE id=?',(row['id'],))[0]=={'state':'harness_expired','error':'DEADLINE_EXCEEDED'}
++        assert fresh.run_once().status=='idle' and not conv[1].prompts
++    finally:fresh.close()
++
++
++def test_expired_identity_does_not_prevent_internal_terminal_sync(harness,monkeypatch):
++    conv,h=harness;row=incoming(harness,'待过期任务');h.admit(row)
++    conv[0][4].now+=121;h.tasks.purge_expired()
++    def denied(*a,**kw):raise RuntimeError('QUERY_IDENTITY_REVOKED')
++    monkeypatch.setattr(h.bridge,'_grant',denied)
++    h.sync_terminal()
++    assert not notices(h)
++    assert h.s.rows('SELECT state,error FROM am_inbox WHERE id=?',(row['id'],))[0]['state']=='harness_expired'
++    assert h.s.rows('SELECT expires FROM am_inbox WHERE id=?',(row['id'],))[0]['expires']==row['expires']
++
++
++def test_notice_retry_uses_durable_idempotency_without_replay(harness,monkeypatch):
++    conv,h=harness;row=incoming(harness,'待过期任务');h.admit(row)
++    conv[0][4].now+=121;h.tasks.purge_expired()
++    original=h.failure_notice
++    monkeypatch.setattr(h,'failure_notice',lambda saved:False);h.sync_terminal();assert not notices(h)
++    monkeypatch.setattr(h,'failure_notice',original);conv[0][4].now+=31;h.sync_terminal();h.sync_terminal()
++    assert len(notices(h))==1 and h.run_once().status=='idle'
++    assert not conv[1].prompts
++
++
++def test_content_expiry_finishes_inbox_without_late_notice(harness):
++    conv,h=harness;row=incoming(harness,'待过期任务');h.admit(row)
++    conv[0][4].now=row['expires']+1;h.tasks.purge_expired();h.sync_terminal()
++    assert not notices(h)
++    assert h.s.rows('SELECT state FROM am_inbox WHERE id=?',(row['id'],))[0]['state']=='harness_expired'
++
++
++def test_optional_notes_selected_whole_with_omission_reason(harness):
++    conv,h=harness;row=incoming(harness,'解释这些工作笔记')
++    body='合成完整条目，保持条件。'*250
++    with h.bridge.request_context(dict(row)) as ctx:
++        for i in range(4):h.bridge.store.create_task(ctx,project_id=project(conv),title='合成'+str(i),details=body)
++    conv[1].outputs.append(answer('按完整条目处理。'));h.admit(row);assert h.run_once().status=='completed'
++    from am_conversation.model import _PROMPT
++    envelope=json.loads(conv[1].prompts[-1][len(_PROMPT):])
++    selected=[]
++    for m in envelope['messages']:
++        if m['content'].startswith('AM_SOURCE_DATA\n'):
++            selected.extend(json.loads(m['content'].split('\n',1)[1])['tasks'])
++    assert 0 < len(selected) < 4
++    assert all(json.loads(item['details'])['record']['details']==body for item in selected)
++    selection=[e for e in h.trace.records if e['event']=='context_selection'][-1]
++    assert selection['omitted_budget_notes']==4-len(selected)
++
++
++def test_history_dependency_and_original_expiry_propagate(harness):
++    conv,h=harness
++    row,ident=execute(harness,'请分析需求75',[answer('合成项目分析记录。')])
++    before=h.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=?',('harness:'+ident+':v1',))[0]
++    row2,ident2=execute(harness,'把上一条回答展开说明',[answer('基于前一条记录继续说明。')])
++    after=h.s.rows('SELECT * FROM am_harness_context_sources WHERE event_id=?',('harness:'+ident2+':v1',))[0]
++    assert json.loads(before['dependencies'])
++    assert json.loads(before['dependencies']).items() <= json.loads(after['dependencies']).items()
++    for key,end in json.loads(before['expiries']).items():assert json.loads(after['expiries'])[key]<=end
++
++
++def test_local_change_has_atomic_committed_reservation(harness):
++    conv,h=harness
++    execute(harness,'登记跟进',[call('create_followup',{'description':'合成跟进'})])
++    item=h.s.rows('SELECT * FROM action_items')[0]
++    _,ident=execute(harness,'暂停跟进',[call('change_followup',{'item_id':item['id'],'version':1,'operation':'pause'})])
++    rows=h.s.rows('SELECT * FROM am_harness_reservations WHERE run_id=?',(ident,))
++    assert {r['kind'] for r in rows} >= {'local_transaction','followup_change'}
++    assert all(r['state']=='succeeded' for r in rows)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1.py
+new file mode 100644
+index 00000000..3f5e3de5
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix1.py
+@@ -0,0 +1,33 @@
++"""Five audit behaviors with the actual R2 finalizer present and enabled/off.
++
++The original coordinator remains in place; only its synthetic provider emits
++schema-valid test responses. No real model or configuration is touched.
++"""
++import json
++from types import SimpleNamespace
++import pytest
++from test_harness_host import harness, convo, ux, service, am_rig, base_rig
++import test_harness_regressions as cases
++from am_conversation.rewrite_host import OwnerPrivateRewrite
++
++CASES=[getattr(cases,name) for name in sorted(dir(cases)) if name.startswith('test_F')]
++
++
++@pytest.mark.parametrize('mode',['off','enforce'])
++@pytest.mark.parametrize('case',CASES,ids=lambda case:case.__name__.split('_')[1])
++def test_five_with_r2_finalizer(harness,monkeypatch,mode,case):
++    conv,h=harness
++    h.bridge.agent.output_finalizer=OwnerPrivateRewrite(h.bridge,{'mode':mode,'max_seconds':30.0})
++    original=conv[1].complete
++    def complete(prompt,**kw):
++        if 'contract_fingerprint' in kw.get('json_schema',{}).get('properties',{}):
++            payload=json.loads(prompt.split('数据如下：\n',1)[1])
++            candidate={'contract_fingerprint':payload['contract_fingerprint'],'lead_in':'record','groups':[
++                {'joiner':'semicolon','items':[{'claim_id':c['claim_id'],'variant':min(1,len(c['variants'])-1)} for c in payload['claims']]}]}
++            conv[1].prompts.append(prompt)
++            return SimpleNamespace(text=json.dumps(candidate,ensure_ascii=False),model='synthetic-json',elapsed=.01)
++        if not conv[1].outputs:
++            conv[1].outputs.append({'type':'answer','text':'按当前来源记录说明。'})
++        return original(prompt,**kw)
++    monkeypatch.setattr(conv[1],'complete',complete)
++    case(harness)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_regressions.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_regressions.py
+new file mode 100644
+index 00000000..a4cbee02
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_regressions.py
+@@ -0,0 +1,147 @@
++"""Five behavior regressions for AM-HARNESS R1.
++
++All I/O is provided by the original synthetic test fixtures. These tests do not
++start AM, access real Feishu/Qwen, change a service, or send a real message.
++Every assertion describes correct behavior. On audited c968eca all five fail.
++"""
++import json
++
++from test_harness_host import (
++    harness, convo, ux, service, am_rig, base_rig,
++    execute, incoming, call, answer, project,
++)
++from am_harness.store import Scope
++
++
++def test_F01_stop_before_local_followup_commit_blocks_mutation(harness):
++    conv, host = harness
++    execute(harness, '登记需求75报告跟进', [call('create_followup', {
++        'project_id': project(conv), 'description': '合成跟进',
++    })])
++    item = host.s.rows('SELECT * FROM action_items')[0]
++    host.service.items.change('ou_a', 'setup-pause', item['id'], item['version'], 'pause')
++    before = host.service.items.get(item['id'])
++    original = host.service.items.change
++
++    def cancel_before_commit(*args, **kwargs):
++        stop = incoming(harness, '停止当前任务')
++        host.admit(stop)
++        return original(*args, **kwargs)
++
++    host.service.items.change = cancel_before_commit
++    conv[1].outputs.append(call('change_followup', {
++        'item_id': item['id'], 'version': before['version'], 'operation': 'resume',
++    }))
++    row = incoming(harness, '恢复这项跟进')
++    run_id = host.admit(row)
++    result = host.run_once()
++    after = host.service.items.get(item['id'])
++    run = host.tasks.get(Scope(*host.bridge._identity(row)), run_id)
++    print(json.dumps({'case': 'F01', 'run_state': run.state, 'worker_status': result.status,
++                      'before': {'version': before['version'], 'paused': before['paused']},
++                      'after': {'version': after['version'], 'paused': after['paused']}}))
++    assert run.state == 'cancelled'
++    assert after['paused'] == before['paused'] == 1
++    assert after['version'] == before['version']
++
++
++def test_F02_delivered_durable_reply_reaches_next_model_prompt(harness):
++    conv, host = harness
++    marker = '先核实原始记录，再判断是否可以结项。'
++    row, run_id = execute(harness, '解释项目收尾判断方法', [answer(marker)])
++    out = host.s.rows('SELECT * FROM am_harness_outbox')[0]
++    saved = host.s.rows('SELECT * FROM am_conversation_outputs')[0]
++    assert out['state'] == 'sent' and out['verified'] == 1
++    assert saved['state'] == 'acknowledged'
++    with host.bridge.request_context(dict(row)) as ctx:
++        history = host.bridge.store.history(ctx)
++    assert any(m['role'] == 'assistant' and marker in m['content'] for m in history)
++    execute(harness, '把你上一条回答展开说明', [answer('接下来详细说明。')])
++    prompt = conv[1].prompts[-1]
++    print(json.dumps({'case': 'F02', 'source_event_id': saved['event_id'],
++                      'engine_event_id': json.loads(saved['reply'])['event_id'],
++                      'verified': out['verified'], 'delivery_state': saved['state'],
++                      'visible_in_history': True, 'visible_in_next_prompt': marker in prompt},
++                     ensure_ascii=False))
++    assert marker in prompt
++
++
++def test_F03_fast_pronoun_respects_completed_project_switch(harness):
++    conv, host = harness
++    execute(harness, '需求75的项目进展')
++    row, _ = execute(harness, '请分析需求76的进展并提出建议',
++                     [answer('需求76仍在处理中，建议先核对乙报告。')])
++    with host.bridge.request_context(dict(row)) as ctx:
++        focus = host.bridge.store.get_focus(ctx)
++        titles = {p['id']: p['title'] for p in host.bridge.projects.list_projects(ctx)}
++    assert '需求76' in titles[focus]
++    # A repaired implementation may use a proven current quick focus or fall
++    # back to the original model. Both may answer B; neither may answer stale A.
++    execute(harness, '那负责人呢？', [answer('需求76的负责人是AR2乙。')])
++    delivered = conv[0][3].sent[-1]['body']
++    print(json.dumps({'case': 'F03', 'current_project': titles[focus],
++                      'followup_answer': delivered}, ensure_ascii=False))
++    assert 'AR2乙' in delivered and 'AR1测试甲' not in delivered
++
++
++def test_F04_local_context_budget_failure_does_not_quarantine_global_lane(harness):
++    conv, host = harness
++    row = incoming(harness, '解释已有工作笔记如何处理')
++    notes = []
++    with host.bridge.request_context(dict(row)) as ctx:
++        project_id = sorted(ctx.allowed_project_ids)[0]
++        for i in range(3):
++            notes.append(host.bridge.store.create_task(ctx, project_id=project_id,
++                title='合成工作记录' + str(i), details='待核信息。' * 550))
++    # If bounded selection is implemented the first request can succeed. A
++    # classified pre-dispatch refusal is also acceptable; unknown is not.
++    conv[1].outputs.append(answer('工作笔记是待核事项，需要结合当前证据处理。'))
++    run_id = host.admit(row)
++    result = host.run_once()
++    lane = host.tasks.lane_status()
++    print(json.dumps({'case': 'F04', 'status': result.status, 'error': result.error,
++                      'lane': lane['state'], 'model_calls': len(conv[1].prompts)}))
++    assert lane['state'] == 'idle'
++    assert result.status != 'unknown'
++    # Remove the deliberately large fixture before proving the next ordinary
++    # request is runnable. This is local synthetic cleanup, not pause clearing.
++    with host.bridge.request_context(dict(row)) as ctx:
++        for note in notes:
++            host.bridge.store.update_task(ctx, note['id'], expected_version=note['version'],
++                                          changes={'status': 'closed'})
++    conv[1].outputs.clear()
++    later = incoming(harness, '解释一个简单概念')
++    later_id = host.admit(later)
++    conv[1].outputs.append(answer('计划表示安排，完成需要相应结果证据。'))
++    later_result = host.run_once()
++    assert later_result.status == 'completed'
++    assert host.s.rows('SELECT state FROM am_harness_runs WHERE id=?', (later_id,))[0]['state'] == 'succeeded'
++
++
++def test_F05_queued_expiry_updates_inbox_and_notifies_once(harness):
++    conv, host = harness
++    am = conv[0][0]
++    am.enable_background()
++    row = incoming(harness, '请解释排队的任务')
++    run_id = host.admit(row)
++    conv[0][4].now += 121
++    for _ in range(2):
++        am.pump()
++        if host.worker is not None:
++            host.worker.result(timeout=3)
++        for future in list(am.io_futures.values()):
++            future.result(timeout=3)
++    am.step(maintenance=True)
++    saved = host.s.rows('SELECT state,error FROM am_harness_runs WHERE id=?', (run_id,))[0]
++    inbox = host.s.rows('SELECT state,error FROM am_inbox WHERE id=?', (row['id'],))[0]
++    sql = "SELECT o.id FROM outbox o JOIN am_notifications n ON n.outbox_id=o.id WHERE n.kind='harness_error'"
++    notices = host.s.rows(sql)
++    print(json.dumps({'case': 'F05', 'run': saved, 'inbox': inbox,
++                      'failure_notices': len(notices), 'model_calls': len(conv[1].prompts)}))
++    assert saved['state'] == 'expired'
++    assert inbox['state'] != 'harness_queued' and inbox['error'] == 'DEADLINE_EXCEEDED'
++    assert len(notices) == 1
++    am.pump()
++    am.step(maintenance=True)
++    assert len(host.s.rows(sql)) == 1
++    assert not conv[1].prompts
+diff --git a/am-conversation-r1/src/am_conversation/engine.py b/am-conversation-r1/src/am_conversation/engine.py
+index d1933fc2..6f7b6be0 100644
+--- a/am-conversation-r1/src/am_conversation/engine.py
++++ b/am-conversation-r1/src/am_conversation/engine.py
+@@ -418,8 +418,14 @@ class ConversationAgent:
+                             tool_started = time.monotonic()
+                             try:
+                                 read_executor = getattr(self, 'read_executor', None)
+-                                outcome = (read_executor(ctx, call, event_id) if tool.effect == 'read' and read_executor is not None
+-                                           else tool.handler(ctx, call.arguments, event_id))
++                                local_executor = getattr(self, 'local_executor', None)
++                                if tool.effect == 'local' and local_executor is not None:
++                                    outcome = local_executor(ctx, call, event_id, tool)
++                                elif tool.effect == 'local' and getattr(self.lifecycle, 'strict_bound', False):
++                                    raise RuntimeError('HARNESS_LOCAL_BINDING_REQUIRED')
++                                else:
++                                    outcome = (read_executor(ctx, call, event_id) if tool.effect == 'read' and read_executor is not None
++                                               else tool.handler(ctx, call.arguments, event_id))
+                             finally:
+                                 self._measure(event_id, "tool:" + tool.name, tool_started)
+                             if tool.effect == "read":
+@@ -442,7 +448,7 @@ class ConversationAgent:
+                         outcome = {"status": "error", "code": str(exc)}
+                     except Exception as exc:
+                         code = str(exc)
+-                        if code in ("SOURCE_LOADING", "MODEL_BUSY", "MODEL_PAUSED", "STOP_UNKNOWN"):
++                        if code in ("SOURCE_LOADING", "MODEL_BUSY", "MODEL_PAUSED", "STOP_UNKNOWN", "HARNESS_LOCAL_COMMIT_UNKNOWN", "HARNESS_RESERVATION_RECONCILE_REQUIRED"):
+                             raise
+                         outcome = {"status": "error", "code": "TOOL_UNAVAILABLE"}
+                 self._checkpoint(ctx, "after_tool", call.arguments)
+diff --git a/am-conversation-r1/src/am_conversation/knowledge.py b/am-conversation-r1/src/am_conversation/knowledge.py
+index 5a625901..04ed1ba7 100644
+--- a/am-conversation-r1/src/am_conversation/knowledge.py
++++ b/am-conversation-r1/src/am_conversation/knowledge.py
+@@ -163,8 +163,11 @@ class KnowledgeStore:
+             savepoint = "knowledge_" + uuid.uuid4().hex if self._db.in_transaction else None
+             self._db.execute(f"SAVEPOINT {savepoint}" if savepoint else "BEGIN IMMEDIATE")
+             try:
+-                yield
+-                self._db.execute(f"RELEASE SAVEPOINT {savepoint}" if savepoint else "COMMIT")
++                from contextlib import nullcontext
++                guard = getattr(self, "local_write_guard", None)
++                with guard(self._db) if guard is not None and not savepoint else nullcontext():
++                    yield
++                    self._db.execute(f"RELEASE SAVEPOINT {savepoint}" if savepoint else "COMMIT")
+             except BaseException:
+                 if savepoint:
+                     self._db.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+diff --git a/am-conversation-r1/src/am_conversation/store.py b/am-conversation-r1/src/am_conversation/store.py
+index 0e6668d0..84f07714 100644
+--- a/am-conversation-r1/src/am_conversation/store.py
++++ b/am-conversation-r1/src/am_conversation/store.py
+@@ -195,9 +195,12 @@ class ConversationStore:
+                 db.execute("PRAGMA journal_mode=WAL")
+             if write:
+                 db.execute("BEGIN IMMEDIATE")
+-            yield db
+-            if write:
+-                db.commit()
++            from contextlib import nullcontext
++            guard = getattr(self, "local_write_guard", None)
++            with guard(db) if write and guard is not None else nullcontext():
++                yield db
++                if write:
++                    db.commit()
+         except BaseException:
+             if db.in_transaction:
+                 db.rollback()
+@@ -331,6 +334,9 @@ class ConversationStore:
+     def set_focus(self, ctx: AccessContext, project_id: str,
+                   event_id: str | None = None) -> None:
+         """Remember the project just resolved by a trusted, successful read."""
++        setter = getattr(self, "focus_setter", None)
++        if setter is not None:
++            return setter(ctx, project_id, event_id)
+         _project(ctx, project_id)
+         with self._connection(write=True) as db:
+             if event_id is not None:
+@@ -340,6 +346,9 @@ class ConversationStore:
+                         ctx.thread_id, project_id, event_id, self._now()))
+ 
+     def get_focus(self, ctx: AccessContext) -> str | None:
++        getter = getattr(self, "focus_getter", None)
++        if getter is not None:
++            return getter(ctx)
+         with self._connection() as db:
+             row = db.execute("SELECT project_id FROM conversation_focus WHERE scope_key=?",
+                              (ctx.session_id,)).fetchone()
+diff --git a/am-harness-r1/scripts/install_fix1_runtime.py b/am-harness-r1/scripts/install_fix1_runtime.py
+new file mode 100644
+index 00000000..d9f26e27
+--- /dev/null
++++ b/am-harness-r1/scripts/install_fix1_runtime.py
+@@ -0,0 +1,101 @@
++"""Install Harness FIX1 on the current R2 service; preserve all configuration bytes.
++
++Explicit operator action only. No baseline copying, second consumer, provider
++restart, authorization widening, database rollback or pause clearing.
++"""
++import argparse
++import fcntl
++import hashlib
++import json
++import os
++from pathlib import Path
++import shutil
++import sqlite3
++import subprocess
++import time
++
++parser=argparse.ArgumentParser(description=__doc__)
++parser.add_argument('--runtime-root',type=Path,required=True)
++parser.add_argument('--expected-commit',required=True)
++parser.add_argument('--source-commit',required=True)
++args=parser.parse_args();root=args.runtime_root.resolve()
++if not all(__import__('re').fullmatch('[a-f0-9]{40}', value) for value in (args.expected_commit,args.source_commit)):
++    raise ValueError('EXACT_SOURCE_COMMIT_REQUIRED')
++private=Path.home()/'.local/share/local-qwen-feishu'
++config_path=private/'config.json';raw=config_path.read_bytes();cfg=json.loads(raw)
++poc_raw=Path(cfg['poc_config']).read_bytes();poc=json.loads(poc_raw)
++state=Path(poc['service']['root_directory'])/'state';dbpath=state/'gateway.sqlite3'
++bridge_state=Path(cfg['state_directory'])
++service=root/'local-qwen3.8/feishu-bridge/service.sh'
++def git(*arguments):return subprocess.check_output(['git',*arguments],cwd=root,text=True).strip()
++if git('rev-parse','HEAD')!=args.expected_commit:raise RuntimeError('CONCURRENT_SOURCE_HEAD_CHANGED')
++if subprocess.run(['git','diff','--quiet'],cwd=root).returncode or subprocess.run(['git','diff','--cached','--quiet'],cwd=root).returncode:
++    raise RuntimeError('CONCURRENT_TRACKED_MODIFICATIONS')
++if cfg['am_self']['ledger_write'] is not False:raise RuntimeError('LEDGER_WRITE_NOT_DISABLED')
++subprocess.run(['git','cat-file','-e',args.source_commit+':am-conversation-r1/src/am_conversation/rewrite_host.py'],cwd=root,check=True,capture_output=True)
++subprocess.run(['git','merge-base','--is-ancestor',args.expected_commit,args.source_commit],cwd=root,check=True,capture_output=True)
++def consumers():
++    found=[]
++    for line in subprocess.check_output(['ps','-axo','pid=,args='],text=True).splitlines():
++        parts=line.strip().split(maxsplit=1)
++        if len(parts)==2 and Path(parts[1].split(' ',1)[0]).name.lower().startswith('python') and '/feishu-bridge/bridge.py --config ' in parts[1]:found.append(int(parts[0]))
++    return found
++def idle():
++    validation=state/'am-conversation-r2'
++    if list((validation/'requests').glob('*.json')):
++        raise RuntimeError('R2_VALIDATION_PENDING')
++    if any(not (validation/'results'/(p.stem+'.json')).exists() for p in (validation/'requests').glob('*.claimed')):
++        raise RuntimeError('R2_VALIDATION_IN_FLIGHT')
++    with sqlite3.connect('file:'+str(dbpath)+'?mode=ro',uri=True) as db:
++        for sql in ("SELECT count(*) FROM tasks WHERE state='running'",
++                    "SELECT count(*) FROM am_inbox WHERE state IN ('processing','harness_admitting')",
++                    "SELECT count(*) FROM outbox WHERE state IN ('sending','pending') AND expires>strftime('%s','now')"):
++            if db.execute(sql).fetchone()[0]:raise RuntimeError('SERVICE_WORK_IN_FLIGHT')
++        if db.execute("SELECT value FROM meta WHERE key='provider_pause'").fetchone():raise RuntimeError('PROVIDER_PAUSE_REQUIRES_RECONCILIATION')
++        if db.execute("SELECT 1 FROM sqlite_master WHERE name='am_harness_lane'").fetchone():
++            if db.execute('SELECT state FROM am_harness_lane').fetchone()[0]!='idle':raise RuntimeError('HARNESS_LANE_NOT_IDLE')
++            if db.execute("SELECT count(*) FROM am_harness_runs WHERE state IN ('queued','running')").fetchone()[0]:raise RuntimeError('HARNESS_WORK_PENDING')
++    with sqlite3.connect('file:'+str(bridge_state/'chat.sqlite3')+'?mode=ro',uri=True) as db:
++        tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
++        if 'inbox' in tables:
++            columns={r[1] for r in db.execute('PRAGMA table_info(inbox)')}
++            if 'state' in columns and db.execute("SELECT count(*) FROM inbox WHERE state IN ('processing','sending')").fetchone()[0]:raise RuntimeError('ORDINARY_CHAT_IN_FLIGHT')
++    model=state/'model-coordinator.json'
++    if model.exists() and json.loads(model.read_text()).get('state') in ('running','stop_unknown'):
++        raise RuntimeError('MODEL_EXECUTION_NOT_RESOLVED')
++# Hold the existing cross-process model lease before stopping the bridge.
++# A read-only idle sample alone races with the information background worker.
++model_lease=(state/'model-coordinator.lock').open('a+')
++fcntl.flock(model_lease,fcntl.LOCK_EX|fcntl.LOCK_NB)
++idle()
++if len(consumers())!=1:raise RuntimeError('ORIGINAL_CONSUMER_NOT_UNIQUE')
++backup=private/'validation/am-harness-r1-fix1'/('install-'+str(int(time.time())))
++backup.mkdir(parents=True,mode=0o700)
++subprocess.run(['/bin/zsh',str(service),'stop'],check=True,capture_output=True)
++try:
++    deadline=time.monotonic()+25
++    while consumers() and time.monotonic()<deadline:time.sleep(.2)
++    if consumers():raise RuntimeError('OLD_CONSUMER_HAS_NOT_STOPPED')
++    idle()
++    if config_path.read_bytes()!=raw or Path(cfg['poc_config']).read_bytes()!=poc_raw:
++        raise RuntimeError('CONCURRENT_CONFIGURATION_CHANGED')
++    with (bridge_state/'instance.lock').open('a+') as bridge_lock,(state/'instance.lock').open('a+') as gateway_lock:
++        for lock in (bridge_lock,gateway_lock):fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
++        (backup/'config.before.json').write_bytes(raw);(backup/'config.before.json').chmod(0o600)
++        for source,name in ((dbpath,'gateway.sqlite3'),(bridge_state/'chat.sqlite3','chat.sqlite3')):
++            with sqlite3.connect(source) as source_db,sqlite3.connect(backup/name) as target_db:source_db.backup(target_db)
++            (backup/name).chmod(0o600)
++        if git('rev-parse','HEAD')!=args.expected_commit:raise RuntimeError('CONCURRENT_SOURCE_HEAD_CHANGED')
++        if args.source_commit!=args.expected_commit:
++            subprocess.run(['git','merge','--ff-only',args.source_commit],cwd=root,check=True,capture_output=True)
++        if config_path.read_bytes()!=raw or Path(cfg['poc_config']).read_bytes()!=poc_raw:
++            raise RuntimeError('CONCURRENT_CONFIGURATION_CHANGED')
++finally:
++    # Only the original launchd service is restarted; no Qwen/Ollama commands.
++    subprocess.run(['/bin/zsh',str(service),'start'],check=True,capture_output=True)
++summary={'configuration_bytes_unchanged':config_path.read_bytes()==raw,'scope':'owner_private_only','source_commit':git('rev-parse','HEAD'),'previous_commit':args.expected_commit,
++         'installed_at':time.time(),'original_poc_config_unchanged':Path(cfg['poc_config']).read_bytes()==poc_raw,
++         'previous_settings_hash':hashlib.sha256(raw).hexdigest(),'protected_settings_unchanged':True,
++         'ledger_write':False,'backup_created_privately':True}
++(backup/'summary.json').write_text(json.dumps(summary,indent=2))
++print(json.dumps(summary))
+diff --git a/local-qwen3.8/feishu-bridge/am_harness_host.py b/local-qwen3.8/feishu-bridge/am_harness_host.py
+index 8844cfce..79ba1cf4 100644
+--- a/local-qwen3.8/feishu-bridge/am_harness_host.py
++++ b/local-qwen3.8/feishu-bridge/am_harness_host.py
+@@ -23,7 +23,7 @@ from am_harness.runtime import TaskRuntime
+ from am_harness.store import DurableStore, Scope, StoreError
+ from am_harness.telemetry import MetadataTrace
+ from am_harness.checkpoints import CheckpointStore
+-from am_harness.reservation import action_context, record_result
++from am_harness.reservation import action_context, record_result, local_context, guard_local_transaction, guard_local_database, check_local_commit
+ 
+ 
+ class _Runner:
+@@ -86,6 +86,17 @@ class HarnessHost:
+         self.controls = IngressController(self.tasks, authorize=self.authorize,
+             on_change=self.effects.suppress_pending, execution_seconds=self.config.execution_seconds)
+         self.bridge.agent.external_executor = self.execute_action
++        self.bridge.agent.local_executor = self.execute_local
++        self.s.local_write_guard = lambda conn: guard_local_transaction(self, conn)
++        self.s.local_commit_guard = lambda conn: check_local_commit(self, conn)
++        history.original.local_write_guard = lambda conn: guard_local_database(self, conn)
++        self.bridge.knowledge.local_write_guard = lambda conn: guard_local_database(self, conn)
++        from am_harness.host_focus import HostFocus
++        self.focus = HostFocus(self)
++        history.original.focus_setter = self.focus.remember
++        history.original.focus_getter = self.focus.project
++        if self.installation:
++            self.installation.router.focus = self.focus
+         self.bridge.agent.context_builder = self.build_context
+         self.bridge.agent.metrics = self.measure
+         self.bridge.agent.read_executor = self.read_tool
+@@ -98,6 +109,11 @@ class HarnessHost:
+                 kind TEXT NOT NULL,payload_hash TEXT NOT NULL,state TEXT NOT NULL,receipt_hash TEXT,created REAL NOT NULL)''')
+             c.execute("UPDATE am_inbox SET state='received' WHERE state='harness_admitting' AND expires>?", (self.s.clock(),))
+         self.phase_starts = __import__('contextvars').ContextVar('am_harness_phase_starts', default=None)
++        with self.s.tx() as c:
++            c.execute("""CREATE TABLE IF NOT EXISTS am_harness_terminal_sync(
++                run_id TEXT NOT NULL,revision INTEGER NOT NULL,state TEXT NOT NULL,
++                status TEXT NOT NULL,next_attempt REAL NOT NULL,
++                PRIMARY KEY(run_id,revision,state))""")
+         self.last_maintenance = 0
+ 
+     def _row(self, event_id):
+@@ -161,6 +177,11 @@ class HarnessHost:
+             c, prepared, event_key=deterministic_publication_key(r)))
+ 
+     def admit(self, source):
++        from am_harness.reservation import ingress_context
++        with ingress_context():
++            return self._admit_source(source)
++
++    def _admit_source(self, source):
+         row = dict(source)
+         if self.closed:
+             raise RuntimeError('HARNESS_CLOSED')
+@@ -177,7 +198,7 @@ class HarnessHost:
+                 text += '\n任务编号：' + reply.run_id
+                 reservations = self.s.rows("SELECT state,count(*) AS n FROM am_harness_reservations WHERE run_id=? GROUP BY state", (reply.run_id,))
+                 if reservations:
+-                    text += '\n已有动作提交记录；停止任务不会撤回这些动作，请按原记录核对。'
++                    text += '\n已有动作占用或提交记录；停止任务不会自动撤回已提交动作，请按原记录核对。'
+                 self.trace.emit(reply.run_id, 'control', revision=reply.revision, cancel_epoch=reply.cancel_epoch)
+             out = self.service.notify(row, text=text, kind='harness_control', event_key='harness-control:'+row['id'])
+             self.s.execute("UPDATE am_inbox SET state='done' WHERE id=?", (row['id'],))
+@@ -196,6 +217,9 @@ class HarnessHost:
+                     self.record_read_sources(c, ctx, prepared)
+                     c.execute("UPDATE am_inbox SET state='done' WHERE id=?", (row['id'],))
+                 return out
++            # A newer unresolved request invalidates stale pronoun context. The
++            # worker can establish its project only while its version is current.
++            self.focus.invalidate(ctx)
+         run = self.runtime.submit(scope, row['id'], row['body'], source_expires_at=row['expires'])
+         self.trace.start_run(run.id)
+         self.trace.emit(run.id, 'queued', revision=run.revision)
+@@ -249,17 +273,38 @@ class HarnessHost:
+ 
+     def run_once(self):
+         outcome = self.runtime.run_once('original-am-worker')
+-        if outcome.run_id:
+-            rows = self.s.rows('SELECT * FROM am_harness_runs WHERE id=?', (outcome.run_id,))
+-            state = rows[0]['state']
+-            self.s.execute('UPDATE am_inbox SET state=?,error=? WHERE id=?',
+-                           ('done' if state == 'succeeded' else 'harness_'+state, outcome.error, rows[0]['event_id']))
+-            self.trace.emit(outcome.run_id, 'run_state', status=state)
+-            if state in ('failed', 'unknown', 'expired'):
+-                self.failure_notice(rows[0])
++        self.sync_terminal()
+         self.s.outbox_wakeup()
+         return outcome
+ 
++    def sync_terminal(self):
++        """Durable state-derived work; restarts cannot lose maintenance-only exits."""
++        now = self.s.clock()
++        with self.s.tx() as conn:
++            conn.execute("""INSERT OR IGNORE INTO am_harness_terminal_sync
++                SELECT id,revision,state,'pending',0 FROM am_harness_runs
++                WHERE state IN ('succeeded','failed','cancelled','expired','unknown')""")
++            conn.execute("""UPDATE am_inbox SET
++                state=(SELECT CASE WHEN r.state='succeeded' THEN 'done' ELSE 'harness_'||r.state END
++                       FROM am_harness_runs r WHERE r.event_id=am_inbox.id),
++                error=(SELECT r.error FROM am_harness_runs r WHERE r.event_id=am_inbox.id)
++                WHERE id IN (SELECT event_id FROM am_harness_runs
++                             WHERE state IN ('succeeded','failed','cancelled','expired','unknown'))""")
++        rows = self.s.rows("""SELECT r.* FROM am_harness_terminal_sync t JOIN am_harness_runs r
++            ON r.id=t.run_id AND r.revision=t.revision AND r.state=t.state
++            WHERE t.status='pending' AND t.next_attempt<=? LIMIT 32""", (now,))
++        for saved in rows:
++            notice = saved['state'] in ('failed','expired','unknown')
++            status = 'done'
++            if notice:
++                if saved['expires_at'] <= now or saved.get('purged'):
++                    status = 'suppressed'
++                elif not self.failure_notice(saved):
++                    status = 'pending'
++            self.s.execute('UPDATE am_harness_terminal_sync SET status=?,next_attempt=? WHERE run_id=? AND revision=? AND state=?',
++                (status, now+30, saved['id'], saved['revision'], saved['state']))
++            self.trace.emit(saved['id'], 'run_state', status=saved['state'])
++
+     def failure_notice(self, saved):
+         """Data-free status after failure, using the original permission/sender.
+ 
+@@ -274,6 +319,7 @@ class HarnessHost:
+             if row['chat_type'] == 'group':
+                 row.update(_query_group=row['chat'], _public_query=True)
+             text = ('这项任务的执行结果仍待核对，没有自动重试。' if run.state == 'unknown'
++                    else '这项任务排队超时，未自动重试。请重新提问。' if run.state == 'expired' and run.error == 'DEADLINE_EXCEEDED'
+                     else '这项任务未完成。请稍后重新提问或核对任务状态。')
+             text += '\n任务编号：' + run.id
+             self.service.notify(row, text=text, kind='harness_error',
+@@ -321,9 +367,18 @@ class HarnessHost:
+                 'queue': len(self.s.rows("SELECT 1 FROM am_harness_runs WHERE state='queued'")),
+                 'admissions': len(self.futures), 'worker': self.worker is not None,
+                 'ledger_write': self.service.flags['ledger_write']})
++        self.sync_terminal()
+         return bool(rows or self.futures or self.worker)
+ 
++    def execute_local(self, ctx, call, event_id, tool):
++        from am_harness.runtime import mark_dispatch
++        mark_dispatch("local_tool")
++        with local_context(self, ctx, call, event_id):
++            return tool.handler(ctx, call.arguments, event_id)
++
+     def execute_action(self, ctx, action, tool):
++        from am_harness.runtime import mark_dispatch
++        mark_dispatch("external_action")
+         try:
+             with action_context(self, ctx, action):
+                 result = tool.handler(ctx, action['arguments'], action['id'])
+@@ -385,6 +440,9 @@ class HarnessHost:
+         if starts is None:
+             starts = {}; self.phase_starts.set(starts)
+         phase = event['phase']
++        if phase == 'before_model':
++            from am_harness.runtime import mark_dispatch
++            mark_dispatch('model')
+         for name in ('model', 'tool'):
+             if phase == 'before_'+name:
+                 starts[name] = time.monotonic()
