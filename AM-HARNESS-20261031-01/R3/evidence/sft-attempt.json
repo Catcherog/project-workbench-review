@@ -1,0 +1,91 @@
+{
+  "schema": "r3-mlx-smoke/1",
+  "execute_requested": true,
+  "training_started": true,
+  "training_completed": true,
+  "optimizer_steps": 1,
+  "quality_tier": "gold",
+  "experiment_scope": "independent_official_HF_base_not_proven_identical_to_production_Q8",
+  "base_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "source": "existing_local_snapshot",
+  "independent_base_authorization": "Current user explicitly approved independent baseline smoke after revision difference was disclosed.",
+  "production_configuration_changed": false,
+  "production_model_unloaded": false,
+  "business_acceptance": false,
+  "data_validation": "pass",
+  "train_examples": 1,
+  "dev_examples": 1,
+  "tokenization": {
+    "rows": 2,
+    "max_tokens": 570,
+    "silent_truncation": false
+  },
+  "mask": [
+    {
+      "id": "R3-SEED-owner-and-relevant-progress-1",
+      "split": "train",
+      "prompt_tokens": 542,
+      "completion_tokens": 28,
+      "truncated": false
+    },
+    {
+      "id": "R3-SEED-empty-todo-complete-read-1",
+      "split": "dev",
+      "prompt_tokens": 500,
+      "completion_tokens": 14,
+      "truncated": false
+    }
+  ],
+  "resources": {
+    "time": "2026-11-02T11:15:00.495901+08:00",
+    "available_memory_GiB": 33.91252136230469,
+    "memory_used_GiB": 24.094757080078125,
+    "memory_pressure": 1,
+    "swap_used_GiB": 1.10003662109375,
+    "swap_total_GiB": 2.0,
+    "service": {
+      "pending": 0,
+      "loaded_models": 1,
+      "available": true,
+      "loaded_bytes": 27129376930,
+      "model_expiry": [
+        "2026-11-02T11:27:33.830907+08:00"
+      ]
+    }
+  },
+  "original_model_lease_held": true,
+  "resource_policy": "Existing Q8 may stay resident while idle; nonblocking original lease prevents concurrent Qwen inference. 24 GiB available required before loading; MLX capped at 22 GiB. No unload or restart.",
+  "status": "one_step_completed",
+  "model_loads": 1,
+  "train_loss": 0.08501211553812027,
+  "dev_loss_before": 0.126229926943779,
+  "dev_loss_after": 0.12616302073001862,
+  "adapter_sha256": "c61a03a8ea9847e9a025cf10309d8ffc2dd4bdc2c91ede1619c0ea0005eb0b4b",
+  "peak_memory_bytes": 16564464890,
+  "adapter_tensor_roundtrip_verified": true,
+  "full_model_reload_verified": false,
+  "adapted_layers": 2,
+  "lora_parameters": {
+    "rank": 8,
+    "scale": 2.0,
+    "dropout": 0.0,
+    "keys": [
+      "self_attn.q_proj",
+      "self_attn.k_proj",
+      "self_attn.v_proj",
+      "self_attn.o_proj",
+      "linear_attn.in_proj_qkv",
+      "linear_attn.in_proj_z",
+      "linear_attn.in_proj_a",
+      "linear_attn.in_proj_b",
+      "linear_attn.out_proj"
+    ]
+  },
+  "trainable_parameters": 713472,
+  "data_sha256": {
+    "train": "f68efb68ed87080ee2eb024fff2b782f77e97001e2aca648a6a08081a7b9b70f",
+    "dev": "151a8f426722d0298dcf785c1fac45fe287d3717be4d7ca0cdd21d27226a3009"
+  },
+  "source_sha256": "129d1e101a4bb31ef06642c13a7e20182025d7269ff14be258f1b34047df8c7b",
+  "quality_conclusion": "not_evaluated"
+}

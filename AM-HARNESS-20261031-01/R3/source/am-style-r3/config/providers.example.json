@@ -1,0 +1,53 @@
+{
+  "schema": "am-expression-providers/1",
+  "notes": "All arms disabled. Production Qwen uses the original injected ModelCoordinator; this config is synthetic offline comparison only. Codex transport retains its own policy/AGENTS context, so comparison is provider-plus-harness, not model-only. The templates below are unresolved, not evidence.",
+  "codex_capability_proof_template": {
+    "schema": "am-codex-capabilities/1",
+    "profile": "am-expression-eval",
+    "binary_sha256": null,
+    "cli_version": null,
+    "effective_inventory_verified": false,
+    "observed_tool_names": null,
+    "synthetic_only": true,
+    "valid_until_unix": 0,
+    "mcp_server_ids": null,
+    "app_ids": null,
+    "config_sources": [],
+    "overrides_sha256": null,
+    "additional_environment_names": [],
+    "tool_surface_evidence": {"path": null, "sha256": null}
+  },
+  "codex_observed_surface_template": {
+    "schema": "am-codex-observed-surface/1",
+    "profile": "am-expression-eval",
+    "cli_version": null,
+    "overrides_sha256": null,
+    "config_sources_sha256": null,
+    "observed_tool_names": null,
+    "verified_by": null,
+    "policy_and_agents_preserved": false
+  },
+  "arms": [
+    {
+      "name": "qwen-isolated-prompt",
+      "kind": "ollama_isolated",
+      "enabled": false,
+      "endpoint": "http://127.0.0.1:11435",
+      "production_endpoint": "http://127.0.0.1:11434",
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "synthetic_only": true,
+      "isolation_record": null,
+      "expected_show_sha256": null
+    },
+    {
+      "name": "codex-cli-reference",
+      "kind": "codex_cli",
+      "enabled": false,
+      "binary": null,
+      "model": null,
+      "profile": "am-expression-eval",
+      "synthetic_only": true,
+      "capability_proof_file": null
+    }
+  ]
+}
