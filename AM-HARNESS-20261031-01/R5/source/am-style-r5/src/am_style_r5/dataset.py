@@ -413,20 +413,30 @@ def _validate_import(imported, *, feedback_path=None, raw_feedback_path=None):
     return expected
 
 
-def _gold_additions(imports, registry):
+def _gold_additions(imports, registry, *, join_reviewed_registries=False):
     additions, seen_imports = {"train": [], "dev": []}, set()
     for imported in imports:
         if imported["sha256"] in seen_imports:
             raise R5Error("duplicate feedback import")
         seen_imports.add(imported["sha256"])
-        if imported["group_registry_sha256"] != registry["sha256"]:
+        different_registry = imported["group_registry_sha256"] != registry["sha256"]
+        if different_registry and not join_reviewed_registries:
             raise R5Error("cannot mix different frozen registries")
+        # Keep the original import/batch/feedback intact. Joining is allowed only
+        # for each actually accepted record whose complete frame, prompt, policy,
+        # case/group identity and split remain identical in the destination.
+        # This never rebinds an old approval to a revised answer or context.
+        records = {r["id"]: r for r in imported["r4_import"]["records"]}
         for split in ("train", "dev"):
             for original in imported["r4_import"]["exports"]["outputs"]["sft." + split]:
+                if join_reviewed_registries:
+                    _record_matches_registry(records[original["id"]], registry)
                 row = deepcopy(original)
                 row["provenance"].update(r5_import_sha256=imported["sha256"],
                     raw_feedback_file_sha256=imported["raw_feedback_file"]["sha256"],
                     group_registry_sha256=registry["sha256"])
+                if different_registry:
+                    row["provenance"]["review_group_registry_sha256"] = imported["group_registry_sha256"]
                 additions[split].append(row)
     return additions
 
@@ -455,7 +465,8 @@ def _write_bytes(path, payload):
     return file_hash(path)
 
 
-def export_gold_snapshot(registry, imports, *, baseline_train, baseline_dev, output_dir):
+def export_gold_snapshot(registry, imports, *, baseline_train, baseline_dev, output_dir,
+                         join_reviewed_registries=False):
     """Write one new snapshot only after validating files, labels and leakage."""
     _validate_registry(registry)
     payloads, rows, baseline = _baselines(baseline_train, baseline_dev)
@@ -464,7 +475,9 @@ def export_gold_snapshot(registry, imports, *, baseline_train, baseline_dev, out
     imports = list(imports)
     for imported in imports:
         _validate_import(imported)
-    additions = _gold_additions(imports, registry)
+    if type(join_reviewed_registries) is not bool:
+        raise R5Error("registry join must be an explicit boolean")
+    additions = _gold_additions(imports, registry, join_reviewed_registries=join_reviewed_registries)
     for split in ("train", "dev"):
         rows[split] += additions[split]
         _validate_gold_rows(rows[split], split)
@@ -487,13 +500,16 @@ def export_gold_snapshot(registry, imports, *, baseline_train, baseline_dev, out
             rel = f"feedback/{index:03}-{key}.json" if key == "feedback_file" else f"feedback/{index:03}-original.txt"
             item[key] = {"path": rel, "sha256": _write_bytes(output / rel, Path(imported[key]["path"]).read_bytes())}
         references.append(item)
-    snapshot = seal({"schema": SNAPSHOT_SCHEMA, "source_ref": SOURCE_REF,
+    snapshot_body = {"schema": SNAPSHOT_SCHEMA, "source_ref": SOURCE_REF,
         "files": files, "counts": counts, "baseline": baseline, "baseline_preserved": True,
         "group_registry_sha256": registry["sha256"],
         "registry": {"path": "group-registry.json", "sha256": registry_hash}, "imports": references,
         "sealed_test": {"exported_rows": 0,
                         "groups": sum(s == "sealed_test" for s in registry["groups"].values())},
-        "sft_only": True, "training_executed": False, "naturalness_improvement_established": False})
+        "sft_only": True, "training_executed": False, "naturalness_improvement_established": False}
+    if join_reviewed_registries:
+        snapshot_body["review_registry_join"] = "exact_accepted_context/1"
+    snapshot = seal(snapshot_body)
     write_json(output / "snapshot.json", snapshot)
     return verify_gold_snapshot(output / "snapshot.json")
 
@@ -529,7 +545,11 @@ def verify_gold_snapshot(snapshot_path):
         _validate_import(imported, feedback_path=_contained_file(root, reference["feedback_file"]),
                          raw_feedback_path=_contained_file(root, reference["raw_feedback_file"]))
         imports.append(imported)
-    additions = _gold_additions(imports, registry)
+    join_mode = snapshot.get("review_registry_join")
+    if join_mode not in (None, "exact_accepted_context/1"):
+        raise R5Error("unsupported reviewed-registry join")
+    additions = _gold_additions(imports, registry,
+                               join_reviewed_registries=join_mode == "exact_accepted_context/1")
     rows = {}
     for split in ("train", "dev"):
         path = _contained_file(root, snapshot["files"][split])

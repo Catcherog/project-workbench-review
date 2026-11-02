@@ -58,15 +58,19 @@ index 00000000..de395f22
 +生产启用与真实外部业务发送未由本包授权。自然度改善、整体启用及业务验收仍需各自证据和判断；Codex 隔离、silver、DPO 仍分别列为未完成。
 diff --git a/am-style-r5/LOCAL_EXECUTION.md b/am-style-r5/LOCAL_EXECUTION.md
 new file mode 100644
-index 00000000..b64f0b69
+index 00000000..8e8895d1
 --- /dev/null
 +++ b/am-style-r5/LOCAL_EXECUTION.md
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,15 @@
 +# R5 原机接入记录
 +
 +日期：2026.11.2。交付版本 5.0.0；有效需求 AM-EXPRESSION-REQ-R5.1。
 +
-+本目录完整保存收到的 91 份交付文件，另加本说明。交付 ZIP SHA256 为 `b2cef47b2fcd4129e8a48fd6a3d53e5e0038932a378271258e4b440624f877d8`。交付文件没有修改，`baseline/` 只留作固定依赖与离线复现，没有覆盖既有工程。
++初次接入原样保存收到的91份交付文件。交付 ZIP SHA256 为 `b2cef47b2fcd4129e8a48fd6a3d53e5e0038932a378271258e4b440624f877d8`，原始附件仍完整保留在实验输入目录。`baseline/` 只留作固定依赖与离线复现，没有覆盖既有工程。
++
++收到三轮真实人工反馈后，集成版对 `dataset.py` / `cli.py` 补充显式 `--join-reviewed-registries` 数据组合入口：原反馈、原批次、原事实、prompt、policy、case/group及split全部保留，只有已认可记录的完整上下文与目标注册表逐项一致时才允许组合。默认仍拒绝不同注册表；任何上下文、标签原件、拆分或重复项变化继续拒绝。不是将旧认可转移到修改后的文本。6项新增检查覆盖上述边界，原R4依赖、数据数量门槛、训练参数与生产入口均未修改。
++
++`PACKAGE_MANIFEST.json` 保持原交付清单，未重写它来掩盖集成增量；严格原包 `verify.py` 在原始输入目录运行，修改后的集成版使用实际源码差异、逐文件指纹与完整unittest检查。反馈增量源码和证据单独进入R5审核目录。
 +
 +初始接入父提交为 `79191d68519cd0a5f3188e4af8595dbfde2bc056`；并行宿主任务随后增加原生私聊来源定位，最终接续父提交为 `4009a3ab2dc79b969ce7bf96502866dad8478072`。两项较新改动均保留，训练与表达依赖未变。R5 使用独立工作树中的当前 `am-conversation-r1/src` 和 `am-style-r3`；34 份代码/配置与交付基线字节一致。实际运行导入根通过 `AM_R5_HOST_SRC`、`AM_R5_TRAINING_ROOT` 指定，原生产消费者保持运行，不需要安装或重启服务。
 +
@@ -20463,10 +20467,10 @@ index 00000000..2f5fcd14
 +    return config
 diff --git a/am-style-r5/src/am_style_r5/cli.py b/am-style-r5/src/am_style_r5/cli.py
 new file mode 100644
-index 00000000..e128269a
+index 00000000..1ad0de08
 --- /dev/null
 +++ b/am-style-r5/src/am_style_r5/cli.py
-@@ -0,0 +1,338 @@
+@@ -0,0 +1,341 @@
 +"""Preparation is the default. Actual model execution has explicit commands."""
 +from __future__ import annotations
 +
@@ -20645,6 +20649,8 @@ index 00000000..e128269a
 +    p = sub.add_parser("snapshot")
 +    p.add_argument("--registry", required=True); p.add_argument("--imports", nargs="*", default=[])
 +    p.add_argument("--output", required=True)
++    p.add_argument("--join-reviewed-registries", action="store_true",
++                   help="Join already reviewed records only when their complete contexts match this registry")
 +    p = sub.add_parser("verify-snapshot"); p.add_argument("--snapshot", required=True)
 +    p = sub.add_parser("pilot-plan")
 +    for name in ("snapshot", "mechanics", "manifest", "output"):
@@ -20713,7 +20719,8 @@ index 00000000..e128269a
 +        elif command == "snapshot":
 +            from .dataset import export_gold_snapshot
 +            result = export_gold_snapshot(read_json(args.registry), [read_json(p) for p in args.imports],
-+                baseline_train=BASELINE_TRAIN, baseline_dev=BASELINE_DEV, output_dir=args.output)
++                baseline_train=BASELINE_TRAIN, baseline_dev=BASELINE_DEV, output_dir=args.output,
++                join_reviewed_registries=args.join_reviewed_registries)
 +        elif command == "verify-snapshot":
 +            from .dataset import verify_gold_snapshot
 +            result = verify_gold_snapshot(args.snapshot)
@@ -20985,10 +20992,10 @@ index 00000000..2644b266
 +    return file_hash(path)
 diff --git a/am-style-r5/src/am_style_r5/dataset.py b/am-style-r5/src/am_style_r5/dataset.py
 new file mode 100644
-index 00000000..555eeac1
+index 00000000..4671e398
 --- /dev/null
 +++ b/am-style-r5/src/am_style_r5/dataset.py
-@@ -0,0 +1,577 @@
+@@ -0,0 +1,597 @@
 +"""Frozen scenario groups and explicit human-review imports for the R5 pilot.
 +
 +No model is invoked and no proposal receives a label here. Content hashes bind
@@ -21404,20 +21411,30 @@ index 00000000..555eeac1
 +    return expected
 +
 +
-+def _gold_additions(imports, registry):
++def _gold_additions(imports, registry, *, join_reviewed_registries=False):
 +    additions, seen_imports = {"train": [], "dev": []}, set()
 +    for imported in imports:
 +        if imported["sha256"] in seen_imports:
 +            raise R5Error("duplicate feedback import")
 +        seen_imports.add(imported["sha256"])
-+        if imported["group_registry_sha256"] != registry["sha256"]:
++        different_registry = imported["group_registry_sha256"] != registry["sha256"]
++        if different_registry and not join_reviewed_registries:
 +            raise R5Error("cannot mix different frozen registries")
++        # Keep the original import/batch/feedback intact. Joining is allowed only
++        # for each actually accepted record whose complete frame, prompt, policy,
++        # case/group identity and split remain identical in the destination.
++        # This never rebinds an old approval to a revised answer or context.
++        records = {r["id"]: r for r in imported["r4_import"]["records"]}
 +        for split in ("train", "dev"):
 +            for original in imported["r4_import"]["exports"]["outputs"]["sft." + split]:
++                if join_reviewed_registries:
++                    _record_matches_registry(records[original["id"]], registry)
 +                row = deepcopy(original)
 +                row["provenance"].update(r5_import_sha256=imported["sha256"],
 +                    raw_feedback_file_sha256=imported["raw_feedback_file"]["sha256"],
 +                    group_registry_sha256=registry["sha256"])
++                if different_registry:
++                    row["provenance"]["review_group_registry_sha256"] = imported["group_registry_sha256"]
 +                additions[split].append(row)
 +    return additions
 +
@@ -21446,7 +21463,8 @@ index 00000000..555eeac1
 +    return file_hash(path)
 +
 +
-+def export_gold_snapshot(registry, imports, *, baseline_train, baseline_dev, output_dir):
++def export_gold_snapshot(registry, imports, *, baseline_train, baseline_dev, output_dir,
++                         join_reviewed_registries=False):
 +    """Write one new snapshot only after validating files, labels and leakage."""
 +    _validate_registry(registry)
 +    payloads, rows, baseline = _baselines(baseline_train, baseline_dev)
@@ -21455,7 +21473,9 @@ index 00000000..555eeac1
 +    imports = list(imports)
 +    for imported in imports:
 +        _validate_import(imported)
-+    additions = _gold_additions(imports, registry)
++    if type(join_reviewed_registries) is not bool:
++        raise R5Error("registry join must be an explicit boolean")
++    additions = _gold_additions(imports, registry, join_reviewed_registries=join_reviewed_registries)
 +    for split in ("train", "dev"):
 +        rows[split] += additions[split]
 +        _validate_gold_rows(rows[split], split)
@@ -21478,13 +21498,16 @@ index 00000000..555eeac1
 +            rel = f"feedback/{index:03}-{key}.json" if key == "feedback_file" else f"feedback/{index:03}-original.txt"
 +            item[key] = {"path": rel, "sha256": _write_bytes(output / rel, Path(imported[key]["path"]).read_bytes())}
 +        references.append(item)
-+    snapshot = seal({"schema": SNAPSHOT_SCHEMA, "source_ref": SOURCE_REF,
++    snapshot_body = {"schema": SNAPSHOT_SCHEMA, "source_ref": SOURCE_REF,
 +        "files": files, "counts": counts, "baseline": baseline, "baseline_preserved": True,
 +        "group_registry_sha256": registry["sha256"],
 +        "registry": {"path": "group-registry.json", "sha256": registry_hash}, "imports": references,
 +        "sealed_test": {"exported_rows": 0,
 +                        "groups": sum(s == "sealed_test" for s in registry["groups"].values())},
-+        "sft_only": True, "training_executed": False, "naturalness_improvement_established": False})
++        "sft_only": True, "training_executed": False, "naturalness_improvement_established": False}
++    if join_reviewed_registries:
++        snapshot_body["review_registry_join"] = "exact_accepted_context/1"
++    snapshot = seal(snapshot_body)
 +    write_json(output / "snapshot.json", snapshot)
 +    return verify_gold_snapshot(output / "snapshot.json")
 +
@@ -21520,7 +21543,11 @@ index 00000000..555eeac1
 +        _validate_import(imported, feedback_path=_contained_file(root, reference["feedback_file"]),
 +                         raw_feedback_path=_contained_file(root, reference["raw_feedback_file"]))
 +        imports.append(imported)
-+    additions = _gold_additions(imports, registry)
++    join_mode = snapshot.get("review_registry_join")
++    if join_mode not in (None, "exact_accepted_context/1"):
++        raise R5Error("unsupported reviewed-registry join")
++    additions = _gold_additions(imports, registry,
++                               join_reviewed_registries=join_mode == "exact_accepted_context/1")
 +    rows = {}
 +    for split in ("train", "dev"):
 +        path = _contained_file(root, snapshot["files"][split])
@@ -25088,6 +25115,92 @@ index 00000000..cde9dd3a
 +
 +if __name__ == "__main__":
 +    unittest.main()
+diff --git a/am-style-r5/tests/test_registry_join.py b/am-style-r5/tests/test_registry_join.py
+new file mode 100644
+index 00000000..0512be43
+--- /dev/null
++++ b/am-style-r5/tests/test_registry_join.py
+@@ -0,0 +1,80 @@
++"""Temporary fixtures only: no fabricated approval enters real training data."""
++from copy import deepcopy
++from pathlib import Path
++import tempfile
++import unittest
++
++from am_style_r5.common import R5Error, read_json, seal, write_json
++from am_style_r5.dataset import (freeze_group_registry, build_review_batch, feedback_template,
++    import_feedback_file, export_gold_snapshot, verify_gold_snapshot)
++from am_style_r5.scenarios import calibration_specs
++
++ROOT = Path(__file__).resolve().parents[1]
++BASE = {'baseline_train': ROOT / 'baseline/data/r4-gold/sft.train.jsonl',
++        'baseline_dev': ROOT / 'baseline/data/r4-gold/sft.dev.jsonl'}
++
++class RegistryJoinTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory(prefix='r5-join-unit-fixture-')
++        self.addCleanup(self.temp.cleanup)
++        self.root = Path(self.temp.name).resolve()
++        specs = calibration_specs()
++        self.a, self.b = specs[0], specs[3]
++        self.master = freeze_group_registry([self.a, self.b], **BASE)
++        self.imports = []
++        for n, spec in enumerate((self.a, self.b)):
++            registry = freeze_group_registry([spec], **BASE)
++            batch = build_review_batch([spec], registry, version=f'UNIT-TEST-ONLY-{n}')
++            feedback = feedback_template(batch)
++            feedback.update(origin='human', reviewer='SYNTHETIC_UNIT_FIXTURE_NOT_REAL',
++                            reviewed_at='2026-11-02T00:00:00+08:00')
++            row = feedback['ratings'][0]
++            row.update(status='reviewed', accepted_candidate='proposed_revision')
++            row['assessments']['proposed_revision'].update(facts_pass=True, style_pass=True, acceptable=True)
++            path = self.root / f'fixture-feedback-{n}.json'
++            write_json(path, feedback)
++            self.imports.append(import_feedback_file(batch, path))
++
++    def export(self, registry=None, imports=None, join=True, name='out'):
++        return export_gold_snapshot(registry or self.master, imports or self.imports,
++            **BASE, output_dir=self.root / name, join_reviewed_registries=join)
++
++    def test_explicit_join_preserves_original_reviews_and_roundtrips(self):
++        originals = deepcopy(self.imports)
++        snapshot = self.export()
++        self.assertEqual(snapshot['counts']['train'], 11)
++        self.assertEqual(snapshot['counts']['dev'], 1)
++        self.assertEqual(self.imports, originals)
++        self.assertEqual(verify_gold_snapshot(self.root / 'out/snapshot.json'), snapshot)
++        for split in ('train', 'dev'):
++            self.assertTrue((self.root / 'out' / f'sft.{split}.jsonl').read_bytes().startswith(BASE[f'baseline_{split}'].read_bytes()))
++
++    def test_default_rejects_mixed_registries(self):
++        with self.assertRaisesRegex(R5Error, 'different frozen registries'):
++            self.export(join=False)
++
++    def test_any_accepted_context_or_split_change_is_rejected(self):
++        for field in ('frame_sha256', 'prompt_sha256', 'policy_sha256', 'split', 'group_id'):
++            registry = deepcopy(self.master)
++            registry['scenarios'][self.a['id']][field] = '0' * 64 if field.endswith('sha256') else 'dev' if field == 'split' else 'another-group'
++            registry = seal(registry)
++            with self.subTest(field=field), self.assertRaises((ValueError, KeyError)):
++                self.export(registry=registry, name=field)
++
++    def test_changed_original_feedback_is_not_reinterpreted(self):
++        (self.root / 'fixture-feedback-0.json').write_text('{}')
++        with self.assertRaisesRegex(R5Error, 'feedback file changed'):
++            self.export()
++
++    def test_duplicate_accepted_rows_still_rejected(self):
++        with self.assertRaisesRegex(R5Error, 'duplicate feedback import'):
++            self.export(imports=[self.imports[0], self.imports[0]])
++
++    def test_resealed_snapshot_cannot_change_context_or_join_mode(self):
++        self.export()
++        path = self.root / 'out/snapshot.json'
++        snapshot = read_json(path)
++        snapshot['review_registry_join'] = 'accept_anything'
++        path.write_text(__import__('json').dumps(seal(snapshot)))
++        with self.assertRaisesRegex(R5Error, 'unsupported reviewed-registry join'):
++            verify_gold_snapshot(path)
 diff --git a/am-style-r5/tests/test_runners.py b/am-style-r5/tests/test_runners.py
 new file mode 100644
 index 00000000..0f1ef19e

@@ -1,24 +1,24 @@
 {
-  "source_commit": "b94f6cd9d859bd23b46a2f56377149ea473d6caf",
-  "new_human_labels": 0,
+  "source_commit": "158b675f45f5f2258ce022f771abe2b2706a3d19",
+  "new_human_labels": 22,
   "gold": {
-    "train": 9,
-    "dev": 1,
-    "train_groups": 9,
-    "dev_groups": 1
+    "train": 24,
+    "dev": 8,
+    "train_groups": 14,
+    "dev_groups": 5
   },
   "pilot": {
-    "status": "blocked",
+    "status": "metadata_ready_but_execution_blocked",
     "actual_runs": 0,
     "optimizer_steps": 0,
-    "plan_exit_code": 2,
-    "plan_created": false,
+    "plan_exit_code": 0,
+    "plan_created": true,
+    "metadata_preflight_exit_code": 0,
     "adapter_created": false,
-    "data_shortfall": {
-      "train_rows": 15,
-      "dev_rows": 7,
-      "dev_groups": 3
-    }
+    "blocking_reasons": [
+      "independent_holdout_not_available_user_confirmed",
+      "available_memory_below_24_GiB"
+    ]
   },
   "mechanics": {
     "status": "original_R4_graph_revalidated",
@@ -26,14 +26,14 @@
     "original_result_sha256": "bf4ac5775e61e9626fb92460a49b197045a4b2d310090e70a39257e9dda6d7b6"
   },
   "independent_holdout": {
-    "status": "blocked_missing_actual_cases_and_human_declaration",
+    "status": "user_confirmed_no_material",
     "frozen_count": 0,
     "new_groups": 0
   },
   "calibration": {
     "frozen_count": 22,
     "independent": false,
-    "case_manifest_sha256": "93897231b5a7cc01749d58f2358695a1c35289d3ba357d1ffc4d7a8a2822a0d3"
+    "case_manifest_sha256": "cfa6dc5056cad163fbe1e28a57a004b7836d304c0b3e320292aed5d2d67133dd"
   },
   "formal_three_arm_evaluation": {
     "status": "not_run_without_pilot_and_holdout",
@@ -45,23 +45,20 @@
     "human_preferences": 0,
     "mlx_pairs": 0
   },
-  "separate_host_probe": {
-    "real_qwen_calls": 1,
-    "scripted_task_model": true,
-    "repeat_added_calls": 0,
-    "external_business_calls": 0,
-    "delivery": false
-  },
   "resource_observation": {
-    "observed_at": 1793604142.935327,
-    "available_memory_GiB": 22.512969970703125,
-    "memory_pressure": 1,
-    "swap_used_GiB": 0.6519775390625,
-    "pending_business": 0,
-    "required_before_model_load_GiB": 24,
+    "observed_at": 1793611131.54191,
+    "source_head": "4009a3ab2dc79b969ce7bf96502866dad8478072",
+    "resource_status": "blocked_at_observation",
+    "metrics": {
+      "available_memory_GiB": 11.786941528320312,
+      "swap_used_GiB": 0.6519775390625,
+      "reason": "Insufficient memory/critical pressure; no model unload or automatic retry"
+    },
     "model_loaded": false,
-    "model_unloaded": false,
-    "new_consumer_started": false
+    "lease_acquired": false,
+    "training_executed": false,
+    "independent_holdout_frozen": false,
+    "execution_allowed_by_runbook": false
   },
   "codex_isolation": "incomplete_carried_forward",
   "silver_rows": 0,
@@ -70,5 +67,13 @@
   "naturalness_improvement": "not_established",
   "business_acceptance": false,
   "phone_acceptance": "not_run_in_R5",
-  "independent_person_acceptance": "not_run_in_R5"
+  "independent_person_acceptance": "not_run_in_R5",
+  "feedback_phase_new_model_calls": 0,
+  "initial_separate_host_probe": {
+    "real_qwen_calls": 1,
+    "scripted_task_model": true,
+    "repeat_added_calls": 0,
+    "external_business_calls": 0,
+    "delivery": false
+  }
 }

@@ -176,6 +176,8 @@ def _parser():
     p = sub.add_parser("snapshot")
     p.add_argument("--registry", required=True); p.add_argument("--imports", nargs="*", default=[])
     p.add_argument("--output", required=True)
+    p.add_argument("--join-reviewed-registries", action="store_true",
+                   help="Join already reviewed records only when their complete contexts match this registry")
     p = sub.add_parser("verify-snapshot"); p.add_argument("--snapshot", required=True)
     p = sub.add_parser("pilot-plan")
     for name in ("snapshot", "mechanics", "manifest", "output"):
@@ -244,7 +246,8 @@ def main(argv=None):
         elif command == "snapshot":
             from .dataset import export_gold_snapshot
             result = export_gold_snapshot(read_json(args.registry), [read_json(p) for p in args.imports],
-                baseline_train=BASELINE_TRAIN, baseline_dev=BASELINE_DEV, output_dir=args.output)
+                baseline_train=BASELINE_TRAIN, baseline_dev=BASELINE_DEV, output_dir=args.output,
+                join_reviewed_registries=args.join_reviewed_registries)
         elif command == "verify-snapshot":
             from .dataset import verify_gold_snapshot
             result = verify_gold_snapshot(args.snapshot)
