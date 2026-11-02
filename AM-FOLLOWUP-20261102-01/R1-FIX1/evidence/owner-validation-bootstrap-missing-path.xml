@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="5" failures="0" skipped="0" tests="5" time="2.518" timestamp="2026-11-02T15:16:33.702103+08:00" hostname="yixiwangmudeMac-Studio.local"><testcase classname="tests.test_followup_owner_validation" name="test_owner_validation_requires_explicit_narrow_request[owner-recipient_p2p-False]" time="0.038"><error message="failed on setup with &quot;ModuleNotFoundError: No module named 'am_response'&quot;">am_rig = (&lt;fs_agent.gateway.Gateway object at 0x10dc16b70&gt;, &lt;fs_agent.store.Store object at 0x10dc16420&gt;, &lt;test_gateway.Offline...ect at 0x10dc16450&gt;, &lt;test_gateway.Clock object at 0x101c675f0&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x10db66cf0&gt;)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires0')
+
+    @pytest.fixture
+    def service(am_rig,tmp_path):
+        g,s,api,model,clock,e=am_rig
+        port=ReadPort();port.authorize_user=lambda user:None
+        port.values=copy.deepcopy(VALUES[:2])+[['需求76:乙项目','','','跟进乙报告','乙项目处理中','AR2乙','']]
+        (tmp_path/'ledger').mkdir()
+&gt;       ledger=GroupLedger(tmp_path/'ledger',port,lambda *a:pytest.fail('no group sends'),clock=clock)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;group_ledger.GroupLedger object at 0x10dbe3500&gt;
+root = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires0/ledger')
+port = &lt;test_group_ledger.Port object at 0x10d8cfbf0&gt;
+reply = &lt;function service.&lt;locals&gt;.&lt;lambda&gt; at 0x10de52f20&gt;
+
+    def __init__(self, root, port, reply, *, clock=time.time, stopped=lambda: False, assistant=None):
+        self.port, self.reply, self.clock, self.stopped = port, reply, clock, stopped
+        self.assistant = assistant
+        self.root = Path(root)
+        self.mutex = threading.RLock()
+        self.db = sqlite3.connect(self.root / "group-ledger.sqlite3", timeout=1, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA secure_delete=ON")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS ledger_inbox(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, created REAL NOT NULL, received REAL NOT NULL,
+              state TEXT NOT NULL, error TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_focus(
+              chat TEXT NOT NULL, user TEXT NOT NULL, project TEXT NOT NULL,
+              expires REAL NOT NULL, PRIMARY KEY(chat,user));
+            CREATE TABLE IF NOT EXISTS group_turns(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, answer TEXT NOT NULL, mode TEXT NOT NULL,
+              created REAL NOT NULL, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS ledger_ai_events(
+              mid TEXT PRIMARY KEY, mode TEXT NOT NULL, model_calls INTEGER NOT NULL,
+              grounding TEXT);
+        """)
+        with self.db:
+            self.db.execute("UPDATE ledger_inbox SET state='interrupted',question='' WHERE state='processing'")
+            self.db.execute("UPDATE ledger_inbox SET state='delivery_unknown',question='' WHERE state='sending'")
+        with self.mutex, self.db:
+            columns={r[1] for r in self.db.execute("PRAGMA table_info(ledger_inbox)")}
+            for name,kind in {"thread":"TEXT NOT NULL DEFAULT ''", "parent":"TEXT", "root":"TEXT", "project":"TEXT", "answer_mid":"TEXT", "chat_type":"TEXT NOT NULL DEFAULT 'group'"}.items():
+                if name not in columns:self.db.execute("ALTER TABLE ledger_inbox ADD COLUMN "+name+" "+kind)
+            if "thread" not in {r[1] for r in self.db.execute("PRAGMA table_info(group_turns)")}:
+                self.db.execute("ALTER TABLE group_turns ADD COLUMN thread TEXT NOT NULL DEFAULT ''")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_conversations(scope TEXT PRIMARY KEY,focus TEXT,pending TEXT,version INTEGER NOT NULL,expires REAL NOT NULL)")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_migrations(version TEXT PRIMARY KEY)")
+            self.db.execute("INSERT OR IGNORE INTO query_migrations VALUES('A-conversations-1')")
+        from fs_agent.project_catalog import ProjectCatalog
+&gt;       from am_response.channels import ProtectedChannelJournal
+E       ModuleNotFoundError: No module named 'am_response'
+
+local-qwen3.8/feishu-bridge/group_ledger.py:388: ModuleNotFoundError</error></testcase><testcase classname="tests.test_followup_owner_validation" name="test_owner_validation_requires_explicit_narrow_request[engineer-recipient_p2p-True]" time="0.008"><error message="failed on setup with &quot;ModuleNotFoundError: No module named 'am_response'&quot;">am_rig = (&lt;fs_agent.gateway.Gateway object at 0x10db66960&gt;, &lt;fs_agent.store.Store object at 0x10db66750&gt;, &lt;test_gateway.Offline...ect at 0x10db66b70&gt;, &lt;test_gateway.Clock object at 0x10db66b10&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x10dbe06e0&gt;)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires1')
+
+    @pytest.fixture
+    def service(am_rig,tmp_path):
+        g,s,api,model,clock,e=am_rig
+        port=ReadPort();port.authorize_user=lambda user:None
+        port.values=copy.deepcopy(VALUES[:2])+[['需求76:乙项目','','','跟进乙报告','乙项目处理中','AR2乙','']]
+        (tmp_path/'ledger').mkdir()
+&gt;       ledger=GroupLedger(tmp_path/'ledger',port,lambda *a:pytest.fail('no group sends'),clock=clock)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;group_ledger.GroupLedger object at 0x10dbe0c80&gt;
+root = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires1/ledger')
+port = &lt;test_group_ledger.Port object at 0x10db66900&gt;
+reply = &lt;function service.&lt;locals&gt;.&lt;lambda&gt; at 0x10e452520&gt;
+
+    def __init__(self, root, port, reply, *, clock=time.time, stopped=lambda: False, assistant=None):
+        self.port, self.reply, self.clock, self.stopped = port, reply, clock, stopped
+        self.assistant = assistant
+        self.root = Path(root)
+        self.mutex = threading.RLock()
+        self.db = sqlite3.connect(self.root / "group-ledger.sqlite3", timeout=1, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA secure_delete=ON")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS ledger_inbox(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, created REAL NOT NULL, received REAL NOT NULL,
+              state TEXT NOT NULL, error TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_focus(
+              chat TEXT NOT NULL, user TEXT NOT NULL, project TEXT NOT NULL,
+              expires REAL NOT NULL, PRIMARY KEY(chat,user));
+            CREATE TABLE IF NOT EXISTS group_turns(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, answer TEXT NOT NULL, mode TEXT NOT NULL,
+              created REAL NOT NULL, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS ledger_ai_events(
+              mid TEXT PRIMARY KEY, mode TEXT NOT NULL, model_calls INTEGER NOT NULL,
+              grounding TEXT);
+        """)
+        with self.db:
+            self.db.execute("UPDATE ledger_inbox SET state='interrupted',question='' WHERE state='processing'")
+            self.db.execute("UPDATE ledger_inbox SET state='delivery_unknown',question='' WHERE state='sending'")
+        with self.mutex, self.db:
+            columns={r[1] for r in self.db.execute("PRAGMA table_info(ledger_inbox)")}
+            for name,kind in {"thread":"TEXT NOT NULL DEFAULT ''", "parent":"TEXT", "root":"TEXT", "project":"TEXT", "answer_mid":"TEXT", "chat_type":"TEXT NOT NULL DEFAULT 'group'"}.items():
+                if name not in columns:self.db.execute("ALTER TABLE ledger_inbox ADD COLUMN "+name+" "+kind)
+            if "thread" not in {r[1] for r in self.db.execute("PRAGMA table_info(group_turns)")}:
+                self.db.execute("ALTER TABLE group_turns ADD COLUMN thread TEXT NOT NULL DEFAULT ''")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_conversations(scope TEXT PRIMARY KEY,focus TEXT,pending TEXT,version INTEGER NOT NULL,expires REAL NOT NULL)")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_migrations(version TEXT PRIMARY KEY)")
+            self.db.execute("INSERT OR IGNORE INTO query_migrations VALUES('A-conversations-1')")
+        from fs_agent.project_catalog import ProjectCatalog
+&gt;       from am_response.channels import ProtectedChannelJournal
+E       ModuleNotFoundError: No module named 'am_response'
+
+local-qwen3.8/feishu-bridge/group_ledger.py:388: ModuleNotFoundError</error></testcase><testcase classname="tests.test_followup_owner_validation" name="test_owner_validation_requires_explicit_narrow_request[owner-group-True]" time="0.007"><error message="failed on setup with &quot;ModuleNotFoundError: No module named 'am_response'&quot;">am_rig = (&lt;fs_agent.gateway.Gateway object at 0x107133770&gt;, &lt;fs_agent.store.Store object at 0x1071308f0&gt;, &lt;test_gateway.Offline...ect at 0x1071196d0&gt;, &lt;test_gateway.Clock object at 0x10da30740&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x10dbe1d00&gt;)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires2')
+
+    @pytest.fixture
+    def service(am_rig,tmp_path):
+        g,s,api,model,clock,e=am_rig
+        port=ReadPort();port.authorize_user=lambda user:None
+        port.values=copy.deepcopy(VALUES[:2])+[['需求76:乙项目','','','跟进乙报告','乙项目处理中','AR2乙','']]
+        (tmp_path/'ledger').mkdir()
+&gt;       ledger=GroupLedger(tmp_path/'ledger',port,lambda *a:pytest.fail('no group sends'),clock=clock)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;group_ledger.GroupLedger object at 0x10dbe2fc0&gt;
+root = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires2/ledger')
+port = &lt;test_group_ledger.Port object at 0x10db66c60&gt;
+reply = &lt;function service.&lt;locals&gt;.&lt;lambda&gt; at 0x10e4531a0&gt;
+
+    def __init__(self, root, port, reply, *, clock=time.time, stopped=lambda: False, assistant=None):
+        self.port, self.reply, self.clock, self.stopped = port, reply, clock, stopped
+        self.assistant = assistant
+        self.root = Path(root)
+        self.mutex = threading.RLock()
+        self.db = sqlite3.connect(self.root / "group-ledger.sqlite3", timeout=1, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA secure_delete=ON")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS ledger_inbox(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, created REAL NOT NULL, received REAL NOT NULL,
+              state TEXT NOT NULL, error TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_focus(
+              chat TEXT NOT NULL, user TEXT NOT NULL, project TEXT NOT NULL,
+              expires REAL NOT NULL, PRIMARY KEY(chat,user));
+            CREATE TABLE IF NOT EXISTS group_turns(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, answer TEXT NOT NULL, mode TEXT NOT NULL,
+              created REAL NOT NULL, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS ledger_ai_events(
+              mid TEXT PRIMARY KEY, mode TEXT NOT NULL, model_calls INTEGER NOT NULL,
+              grounding TEXT);
+        """)
+        with self.db:
+            self.db.execute("UPDATE ledger_inbox SET state='interrupted',question='' WHERE state='processing'")
+            self.db.execute("UPDATE ledger_inbox SET state='delivery_unknown',question='' WHERE state='sending'")
+        with self.mutex, self.db:
+            columns={r[1] for r in self.db.execute("PRAGMA table_info(ledger_inbox)")}
+            for name,kind in {"thread":"TEXT NOT NULL DEFAULT ''", "parent":"TEXT", "root":"TEXT", "project":"TEXT", "answer_mid":"TEXT", "chat_type":"TEXT NOT NULL DEFAULT 'group'"}.items():
+                if name not in columns:self.db.execute("ALTER TABLE ledger_inbox ADD COLUMN "+name+" "+kind)
+            if "thread" not in {r[1] for r in self.db.execute("PRAGMA table_info(group_turns)")}:
+                self.db.execute("ALTER TABLE group_turns ADD COLUMN thread TEXT NOT NULL DEFAULT ''")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_conversations(scope TEXT PRIMARY KEY,focus TEXT,pending TEXT,version INTEGER NOT NULL,expires REAL NOT NULL)")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_migrations(version TEXT PRIMARY KEY)")
+            self.db.execute("INSERT OR IGNORE INTO query_migrations VALUES('A-conversations-1')")
+        from fs_agent.project_catalog import ProjectCatalog
+&gt;       from am_response.channels import ProtectedChannelJournal
+E       ModuleNotFoundError: No module named 'am_response'
+
+local-qwen3.8/feishu-bridge/group_ledger.py:388: ModuleNotFoundError</error></testcase><testcase classname="tests.test_followup_owner_validation" name="test_owner_validation_requires_explicit_narrow_request[owner-recipient_p2p-1]" time="0.007"><error message="failed on setup with &quot;ModuleNotFoundError: No module named 'am_response'&quot;">am_rig = (&lt;fs_agent.gateway.Gateway object at 0x10dbe2090&gt;, &lt;fs_agent.store.Store object at 0x10dbe3f80&gt;, &lt;test_gateway.Offline...ect at 0x10dbe20f0&gt;, &lt;test_gateway.Clock object at 0x10dbe2ea0&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x10dbe3e30&gt;)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires3')
+
+    @pytest.fixture
+    def service(am_rig,tmp_path):
+        g,s,api,model,clock,e=am_rig
+        port=ReadPort();port.authorize_user=lambda user:None
+        port.values=copy.deepcopy(VALUES[:2])+[['需求76:乙项目','','','跟进乙报告','乙项目处理中','AR2乙','']]
+        (tmp_path/'ledger').mkdir()
+&gt;       ledger=GroupLedger(tmp_path/'ledger',port,lambda *a:pytest.fail('no group sends'),clock=clock)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;group_ledger.GroupLedger object at 0x10dbe9ee0&gt;
+root = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_validation_requires3/ledger')
+port = &lt;test_group_ledger.Port object at 0x10dbe1f70&gt;
+reply = &lt;function service.&lt;locals&gt;.&lt;lambda&gt; at 0x10e452ca0&gt;
+
+    def __init__(self, root, port, reply, *, clock=time.time, stopped=lambda: False, assistant=None):
+        self.port, self.reply, self.clock, self.stopped = port, reply, clock, stopped
+        self.assistant = assistant
+        self.root = Path(root)
+        self.mutex = threading.RLock()
+        self.db = sqlite3.connect(self.root / "group-ledger.sqlite3", timeout=1, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA secure_delete=ON")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS ledger_inbox(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, created REAL NOT NULL, received REAL NOT NULL,
+              state TEXT NOT NULL, error TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_focus(
+              chat TEXT NOT NULL, user TEXT NOT NULL, project TEXT NOT NULL,
+              expires REAL NOT NULL, PRIMARY KEY(chat,user));
+            CREATE TABLE IF NOT EXISTS group_turns(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, answer TEXT NOT NULL, mode TEXT NOT NULL,
+              created REAL NOT NULL, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS ledger_ai_events(
+              mid TEXT PRIMARY KEY, mode TEXT NOT NULL, model_calls INTEGER NOT NULL,
+              grounding TEXT);
+        """)
+        with self.db:
+            self.db.execute("UPDATE ledger_inbox SET state='interrupted',question='' WHERE state='processing'")
+            self.db.execute("UPDATE ledger_inbox SET state='delivery_unknown',question='' WHERE state='sending'")
+        with self.mutex, self.db:
+            columns={r[1] for r in self.db.execute("PRAGMA table_info(ledger_inbox)")}
+            for name,kind in {"thread":"TEXT NOT NULL DEFAULT ''", "parent":"TEXT", "root":"TEXT", "project":"TEXT", "answer_mid":"TEXT", "chat_type":"TEXT NOT NULL DEFAULT 'group'"}.items():
+                if name not in columns:self.db.execute("ALTER TABLE ledger_inbox ADD COLUMN "+name+" "+kind)
+            if "thread" not in {r[1] for r in self.db.execute("PRAGMA table_info(group_turns)")}:
+                self.db.execute("ALTER TABLE group_turns ADD COLUMN thread TEXT NOT NULL DEFAULT ''")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_conversations(scope TEXT PRIMARY KEY,focus TEXT,pending TEXT,version INTEGER NOT NULL,expires REAL NOT NULL)")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_migrations(version TEXT PRIMARY KEY)")
+            self.db.execute("INSERT OR IGNORE INTO query_migrations VALUES('A-conversations-1')")
+        from fs_agent.project_catalog import ProjectCatalog
+&gt;       from am_response.channels import ProtectedChannelJournal
+E       ModuleNotFoundError: No module named 'am_response'
+
+local-qwen3.8/feishu-bridge/group_ledger.py:388: ModuleNotFoundError</error></testcase><testcase classname="tests.test_followup_owner_validation" name="test_owner_private_validation_has_separate_identity_and_real_confirmation_gate" time="0.008"><error message="failed on setup with &quot;ModuleNotFoundError: No module named 'am_response'&quot;">am_rig = (&lt;fs_agent.gateway.Gateway object at 0x10dbeba70&gt;, &lt;fs_agent.store.Store object at 0x10dbe9c70&gt;, &lt;test_gateway.Offline...ect at 0x10dbebb90&gt;, &lt;test_gateway.Clock object at 0x10dbe9520&gt;, &lt;fs_agent.embedded.EmbeddedPoC object at 0x10dbebcb0&gt;)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_private_validation_0')
+
+    @pytest.fixture
+    def service(am_rig,tmp_path):
+        g,s,api,model,clock,e=am_rig
+        port=ReadPort();port.authorize_user=lambda user:None
+        port.values=copy.deepcopy(VALUES[:2])+[['需求76:乙项目','','','跟进乙报告','乙项目处理中','AR2乙','']]
+        (tmp_path/'ledger').mkdir()
+&gt;       ledger=GroupLedger(tmp_path/'ledger',port,lambda *a:pytest.fail('no group sends'),clock=clock)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_fix1.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;group_ledger.GroupLedger object at 0x10dbb36e0&gt;
+root = PosixPath('/tmp/audit/pytest-of-audit/pytest-349/test_owner_private_validation_0/ledger')
+port = &lt;test_group_ledger.Port object at 0x10dbe9730&gt;
+reply = &lt;function service.&lt;locals&gt;.&lt;lambda&gt; at 0x10e4c4220&gt;
+
+    def __init__(self, root, port, reply, *, clock=time.time, stopped=lambda: False, assistant=None):
+        self.port, self.reply, self.clock, self.stopped = port, reply, clock, stopped
+        self.assistant = assistant
+        self.root = Path(root)
+        self.mutex = threading.RLock()
+        self.db = sqlite3.connect(self.root / "group-ledger.sqlite3", timeout=1, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA secure_delete=ON")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS ledger_inbox(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, created REAL NOT NULL, received REAL NOT NULL,
+              state TEXT NOT NULL, error TEXT);
+            CREATE TABLE IF NOT EXISTS ledger_focus(
+              chat TEXT NOT NULL, user TEXT NOT NULL, project TEXT NOT NULL,
+              expires REAL NOT NULL, PRIMARY KEY(chat,user));
+            CREATE TABLE IF NOT EXISTS group_turns(
+              mid TEXT PRIMARY KEY, chat TEXT NOT NULL, user TEXT NOT NULL,
+              question TEXT NOT NULL, answer TEXT NOT NULL, mode TEXT NOT NULL,
+              created REAL NOT NULL, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS ledger_ai_events(
+              mid TEXT PRIMARY KEY, mode TEXT NOT NULL, model_calls INTEGER NOT NULL,
+              grounding TEXT);
+        """)
+        with self.db:
+            self.db.execute("UPDATE ledger_inbox SET state='interrupted',question='' WHERE state='processing'")
+            self.db.execute("UPDATE ledger_inbox SET state='delivery_unknown',question='' WHERE state='sending'")
+        with self.mutex, self.db:
+            columns={r[1] for r in self.db.execute("PRAGMA table_info(ledger_inbox)")}
+            for name,kind in {"thread":"TEXT NOT NULL DEFAULT ''", "parent":"TEXT", "root":"TEXT", "project":"TEXT", "answer_mid":"TEXT", "chat_type":"TEXT NOT NULL DEFAULT 'group'"}.items():
+                if name not in columns:self.db.execute("ALTER TABLE ledger_inbox ADD COLUMN "+name+" "+kind)
+            if "thread" not in {r[1] for r in self.db.execute("PRAGMA table_info(group_turns)")}:
+                self.db.execute("ALTER TABLE group_turns ADD COLUMN thread TEXT NOT NULL DEFAULT ''")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_conversations(scope TEXT PRIMARY KEY,focus TEXT,pending TEXT,version INTEGER NOT NULL,expires REAL NOT NULL)")
+            self.db.execute("CREATE TABLE IF NOT EXISTS query_migrations(version TEXT PRIMARY KEY)")
+            self.db.execute("INSERT OR IGNORE INTO query_migrations VALUES('A-conversations-1')")
+        from fs_agent.project_catalog import ProjectCatalog
+&gt;       from am_response.channels import ProtectedChannelJournal
+E       ModuleNotFoundError: No module named 'am_response'
+
+local-qwen3.8/feishu-bridge/group_ledger.py:388: ModuleNotFoundError</error></testcase></testsuite></testsuites>

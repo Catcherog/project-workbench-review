@@ -1,0 +1,160 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_owner_validation.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_owner_validation.py
+new file mode 100644
+index 00000000..cdc06d1a
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_owner_validation.py
+@@ -0,0 +1,76 @@
++"""Explicit owner UAT stays separate from engineer identity and approval."""
++import json
++import pytest
++from test_followup_native import native, service, am_rig, base_rig, click
++from test_gateway import drain, event
++from fs_agent.config import BoundaryError
++from am_info_sync.ingest import record_offline
++
++
++def setup_owner(n):
++    n.am.information.service.offline=lambda *a,**kw:record_offline(n.reader,*a,**kw)
++    person={'id':n.am.owner,'name':'本人'}
++    n.g.reminders.port.people.append(person);n.members.append(person)
++    n.remote['om_owner']={'message_id':'om_owner','chat_id':n.row['chat'],'sender_id':n.am.owner,
++        'sender_type':'user','msg_type':'text','content':{'text':'/followup'},'deleted':False,'created_at':n.clock()}
++    original=n.api.client.im.v1.message.create
++    def create(request):
++        response=original(request)
++        if request.request_body.receive_id==n.am.owner:
++            n.remote[response.data.message_id]['chat_id']=n.row['chat']
++        return response
++    n.api.client.im.v1.message.create=create
++
++
++@pytest.mark.parametrize('kind',['conversation','collection'])
++def test_native_message_routes_remain_exact_private_conversation_evidence(native,kind):
++    n=native
++    n.s.execute('UPDATE am_inbox SET kind=? WHERE id=?',(kind,'om_engineer'))
++    target=n.f.p2p('ou_engineer_a')
++    assert target['anchor_message']=='om_engineer' and target['chat']=='oc_engineer'
++    n.remote['om_engineer']['sender_id']='ou_other'
++    with pytest.raises(BoundaryError,match='FOLLOWUP_PRIVATE_CHAT_IDENTITY'):
++        n.f.p2p('ou_engineer_a')
++    assert not n.calls
++
++
++def test_private_card_callbacks_do_not_become_message_anchors(native):
++    n=native;n.s.execute("UPDATE am_inbox SET kind='card' WHERE id='om_engineer'")
++    with pytest.raises(BoundaryError,match='FOLLOWUP_BOT_PRIVATE_CHAT_UNVERIFIED'):
++        n.f.p2p('ou_engineer_a')
++    assert not n.calls
++
++
++@pytest.mark.parametrize('recipient,channel,flag',[
++    ('owner','recipient_p2p',False),('engineer','recipient_p2p',True),
++    ('owner','group',True),('owner','recipient_p2p',1),
++])
++def test_owner_validation_requires_explicit_narrow_request(native,recipient,channel,flag):
++    n=native;user=n.am.owner if recipient=='owner' else 'ou_engineer_a'
++    with pytest.raises(BoundaryError,match='FOLLOWUP_VALIDATION_TARGET'):
++        n.f.validation_item(n.row,'oc_reminder',user,channel,owner_self_test=flag)
++    assert len(n.s.rows('SELECT * FROM action_items'))==1 and not n.calls
++
++
++def test_owner_private_validation_has_separate_identity_and_real_confirmation_gate(native):
++    n=native;setup_owner(n)
++    engineer=n.f.validation_item(n.row,'oc_reminder','ou_engineer_a','recipient_p2p')
++    owner=n.f.validation_item(n.row,'oc_reminder',n.am.owner,'recipient_p2p',owner_self_test=True)
++    assert owner['id']!=engineer['id'] and owner['project_ref']!=engineer['project_ref']
++    assert json.loads(owner['assignees'])==[n.am.owner]
++    assert json.loads(n.am.items.get(engineer['id'])['assignees'])==['ou_engineer_a']
++    nonce=n.f.preview_card(n.row,owner['id'],'recipient_p2p',recipient=n.am.owner,body='[AM本人联调测试] 请回复本消息。')
++    drain(n.g)
++    assert not n.calls and not n.s.rows('SELECT * FROM followup_intents')
++    card=n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0]
++    click(n,card);n.am.scheduler.dispatch();click(n,card);n.am.scheduler.step()
++    assert len(n.calls)==1 and n.calls[0][0]==n.am.owner
++    occurrence=n.s.rows('SELECT * FROM reminder_occurrences WHERE item_id=?',(owner['id'],))[0]
++    assert occurrence['state']=='sent' and occurrence['readback_state']=='verified'
++    payload=event('收到',number=908,user=n.am.owner,chat=n.row['chat'])
++    payload['event']['message'].update(parent_id=occurrence['message_id'],create_time=str(int(n.clock()*1000)))
++    assert n.am.ingest(payload)==(True,True)
++    n.am.step()
++    assert n.s.rows('SELECT kind FROM followup_reply_links WHERE item_id=?',(owner['id'],))==[{'kind':'acknowledged'}]
++    assert n.am.items.get(owner['id'])['state']!='closed'
++    assert len(n.calls)==1
+diff --git a/local-qwen3.8/feishu-bridge/am_followup_host.py b/local-qwen3.8/feishu-bridge/am_followup_host.py
+index ec254f38..238291fd 100644
+--- a/local-qwen3.8/feishu-bridge/am_followup_host.py
++++ b/local-qwen3.8/feishu-bridge/am_followup_host.py
+@@ -513,8 +513,11 @@ class FollowupHost:
+         profile=self.profile(user)
+         # Existing platform-authenticated inbound messages establish the bot DM.
+         # No contact discovery, new conversation probe, or user-to-user DM read.
++        # Native natural-language and collection routes retain the original
++        # authenticated incoming message ID too. Card/menu events are excluded;
++        # every selected message still needs independent exact platform proof.
+         rows=self.s.rows("SELECT * FROM am_inbox WHERE app=? AND tenant=? AND user=? AND chat_type='p2p' AND expires>? "
+-            "AND (kind='text' OR kind='followup_reply' AND EXISTS(SELECT 1 FROM followup_reply_links l WHERE l.message_id=am_inbox.id)) "
++            "AND (kind IN ('text','conversation','collection') OR kind='followup_reply' AND EXISTS(SELECT 1 FROM followup_reply_links l WHERE l.message_id=am_inbox.id)) "
+             "ORDER BY created DESC LIMIT 1",(self.app,self.tenant,user,self.s.clock()))
+         if not rows:
+             rows=self.s.rows("SELECT * FROM inbox WHERE app=? AND tenant=? AND user=? AND chat_type='p2p' AND message_id IS NOT NULL AND expires>? ORDER BY received DESC LIMIT 1",(self.app,self.tenant,user,self.s.clock()))
+@@ -797,11 +800,14 @@ class FollowupHost:
+                 nonce=self.preview_card(row,request['item_id'],request.get('channel','group'),body=request.get('body'),recipient=request.get('recipient'))
+                 result.update(nonce=nonce,preview_queued=True)
+             elif op=='validation_preview':
+-                item=self.validation_item(row,request['group_id'],request['recipient'],request['channel'])
++                owner_test=request.get('owner_self_test',False)
++                item=self.validation_item(row,request['group_id'],request['recipient'],request['channel'],owner_self_test=owner_test)
+                 body=('[AM联调测试] 这是一条经本人确认后发送的群内测试提醒，无需处理真实项目事项。收到后可回复“收到”。'
+                       if request['channel']=='group' else '[AM联调测试] 这是一条经本人确认后发送的机器人私聊测试消息，无需处理真实项目事项。收到后可回复“收到”。')
++                if owner_test:
++                    body='[AM本人联调测试] 这是一条发给本人、经本人确认后发送的机器人私聊测试消息，无需处理真实项目事项。请回复本消息“收到”，再回复一条标注为联调测试的进展；反馈不代表业务验收。'
+                 nonce=self.preview_card(row,item['id'],request['channel'],body=body,recipient=request['recipient'])
+-                result.update(item_id=item['id'],nonce=nonce,preview_queued=True,synthetic_business_content=True)
++                result.update(item_id=item['id'],nonce=nonce,preview_queued=True,synthetic_business_content=True,owner_self_test=owner_test)
+             elif op=='import':
+                 result['candidate_id']=self.import_candidate(row,request['candidate'])
+             else:raise BoundaryError('FOLLOWUP_OPERATOR_OPERATION_INVALID')
+@@ -813,22 +819,28 @@ class FollowupHost:
+         with os.fdopen(fd,'w') as stream:json.dump(result,stream,ensure_ascii=False)
+         return True
+ 
+-    def validation_item(self,row,group_id,recipient,channel):
++    def validation_item(self,row,group_id,recipient,channel,*,owner_self_test=False):
+         """Explicit local operator request only; isolated synthetic business identity.
+ 
+         Reuses ActionItems/FactEngine in the original process. Never attaches a
+         synthetic result to a real project or an existing business action.
+         """
+         self.actor(row)
+-        if channel not in ('group','recipient_p2p') or recipient==self.owner:raise BoundaryError('FOLLOWUP_VALIDATION_TARGET')
++        if type(owner_self_test) is not bool or channel not in ('group','recipient_p2p'):
++            raise BoundaryError('FOLLOWUP_VALIDATION_TARGET')
++        if (owner_self_test and (recipient!=self.owner or channel!='recipient_p2p')) or (not owner_self_test and recipient==self.owner):
++            raise BoundaryError('FOLLOWUP_VALIDATION_TARGET')
+         group=self.am.g.reminders.port.group(group_id);bot=self.am.g.reminders.port.bot()
+         people=[p for p in self.am.g.reminders.port.members(group_id) if p['id']==recipient]
+         if len(people)!=1:raise BoundaryError('FOLLOWUP_VALIDATION_TARGET')
+         self.profile(recipient)
+         if channel=='recipient_p2p':self.p2p(recipient)
+         from am_info_sync.models import Source,Principal
+-        info=self.sources.info;subject='validation:AM-FOLLOWUP-20261102-01:'+channel
+-        source_id='followup-validation:'+channel
++        # The explicitly requested owner test has its own identity. It must
++        # never replace an engineer's item or count as independent-person UAT.
++        audience=('owner:' if owner_self_test else '')+channel
++        info=self.sources.info;subject='validation:AM-FOLLOWUP-20261102-01:'+audience
++        source_id='followup-validation:'+audience
+         source=Source(source_id,'manual',subject,self.tenant,self.owner,enabled=True,output_chats=(group_id,),
+             settings={'subject_id':subject,'host_managed':True,'retain_derived':False})
+         info.store.register_source(source)
+@@ -837,8 +849,8 @@ class FollowupHost:
+             [{'field':'validation_scope','value':text,'quote':text,'confirmed':True}],idempotency_key='r1-validation')
+         observation=info.store.get_observation(source_id,recorded['object_id'],recorded['version'])
+         processed=info.service.facts.process(observation,[],extractor_version='explicit-system-validation-v1')
+-        item=self.am.items.create(self.owner,'AM-FOLLOWUP-R1-validation/'+channel,project_ref=subject,
+-            description='AM 联调测试（'+('群内 @' if channel=='group' else '机器人私聊')+'）',requirements='仅测试发送与回读，不代表业务完成',
++        item=self.am.items.create(self.owner,'AM-FOLLOWUP-R1-validation/'+audience,project_ref=subject,
++            description=('AM 本人联调测试（' if owner_self_test else 'AM 联调测试（')+('群内 @' if channel=='group' else '机器人私聊')+'）',requirements='仅测试发送与回读，不代表业务完成',
+             assignees=[recipient],source={'kind':'synthetic_validation','project_title':'AM 系统联调测试',
+                 'target':{'bot':bot,'group':group,'people':people}},deadline_kind='unspecified')
+         refs=self.sources.resolve(subject,processed['fact_ids'])
