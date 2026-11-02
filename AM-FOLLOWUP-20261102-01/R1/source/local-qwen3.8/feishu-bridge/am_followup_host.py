@@ -72,7 +72,8 @@ class FollowupHost:
             c.execute("INSERT OR IGNORE INTO meta VALUES('followup_signing_key',?)",(key,))
             path=c.execute('PRAGMA database_list').fetchone()[2]
         self.coordinator=FollowupCoordinator(path,signing_key=bytes.fromhex(key),owner_ids={self.tenant:self.owner},
-            evidence_gate=self.evidence_gate,recipient_gate=self.recipient_gate,clock=lambda:utc(self.s.clock()))
+            evidence_gate=self.evidence_gate,recipient_gate=self.recipient_gate,clock=lambda:utc(self.s.clock()),
+            final_native_check=self.final_native_check)
         self.confirmation=ConfirmationBridge(self.coordinator,expected_app_id=self.app,
             read_delivered=self.read_delivered,clock=lambda:utc(self.s.clock()))
         self.scheduler.followup=self
@@ -670,6 +671,16 @@ class FollowupHost:
         self.am.business_notification('occurrence_result',ident)
         return True
 
+    def final_native_check(self,c,request):
+        if not self.scheduler.enabled():return False
+        mapping=c.execute('SELECT * FROM followup_adoptions WHERE intent_id=?',(request.intent_id,)).fetchone()
+        if not mapping or mapping['request_uuid']!=request.request_uuid:return False
+        o=self.scheduler.occurrence(mapping['occurrence_id'],c);p=self.scheduler.plan(o['plan_id'],c)
+        sem=c.execute('SELECT version FROM action_semantics WHERE item_id=?',(o['item_id'],)).fetchone()
+        item=self.am.items.get(o['item_id'],c)
+        return (o['state']=='sending' and sem is not None and digest([item['version'],sem['version']])==request.draft.evidence.task_version
+                and self.scheduler.current(c,o,p) and self.scheduler.approval_valid(c,o,p) and not self.scheduler.blocked(c,o))
+
     def readback(self,ident,request=None):
         o=self.scheduler.occurrence(ident);p=json.loads(o['payload']);i=self.s.rows('SELECT * FROM followup_intents WHERE intent_id=?',(p['followup_intent'],))[0]
         d=_draft_load(i['draft_json'])
@@ -723,7 +734,16 @@ class FollowupHost:
             actions.append((text[:28],{'page':'item','item':item['id']}))
             if self.s.rows('SELECT 1 FROM action_semantics WHERE item_id=?',(item['id'],)):
                 view=self.view(item['id'])
-                if view['fields']:context.append(text+'：'+canonical(view['fields']))
+                if view['fields']:
+                    names={'execution':'执行','response':'回应','delivery':'本项交付','acceptance':'验收','plan_delivery':'方案交付',
+                           'sample_arrival':'样机到货','release_materials':'发布材料','planned_start':'计划开测','actual_start':'实际开测',
+                           'planned_release':'计划发布','actual_release':'实际发布','approval':'审批','test_overview':'测试概述',
+                           'external_release':'对外版本','deadline_text':'期限','blocker':'待解决项'}
+                    labels={'unknown':'待核实','planned':'计划中','in_progress':'进行中','blocked':'受阻','done':'来源称已完成',
+                            'cancelled':'已取消','pending':'待处理','acknowledged':'已回应','not_required':'不适用',
+                            'delivered':'已交付','accepted':'已验收','rejected':'未通过'}
+                    display=[names.get(k,'补充进展')+'：'+labels.get(str(v),str(v) if isinstance(v,(str,int,float)) else '详见依据') for k,v in view['fields'].items()]
+                    context.append(text+'：'+'；'.join(display))
                 if view['needs_review']:needs.append(text+'：依据已变化，相关字段待核。')
                 elif view['stale_fields']:context.append(text+'：保留此前已核实内容，新增变化尚未核实。')
         candidates=self.s.rows("SELECT id FROM followup_candidates WHERE state='candidate'")

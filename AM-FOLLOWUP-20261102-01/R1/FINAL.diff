@@ -130,10 +130,10 @@ index 00000000..c611fa59
 +
 diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/followup.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/followup.py
 new file mode 100644
-index 00000000..f8206932
+index 00000000..b86fa901
 --- /dev/null
 +++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/followup.py
-@@ -0,0 +1,921 @@
+@@ -0,0 +1,928 @@
 +"""One-shot follow-up admission for the existing AM sender.
 +
 +This module is deliberately not a scheduler or a Feishu client.  The existing
@@ -448,6 +448,7 @@ index 00000000..f8206932
 +        evidence_gate: EvidenceGate,
 +        recipient_gate: RecipientGate,
 +        clock: Callable[[], datetime] | None = None,
++        final_native_check: Callable[[sqlite3.Connection, DispatchRequest], bool] | None = None,
 +    ) -> None:
 +        if not isinstance(signing_key, bytes) or len(signing_key) < 32:
 +            raise FollowupError("signing_key_too_short")
@@ -459,6 +460,7 @@ index 00000000..f8206932
 +        self.evidence_gate = evidence_gate
 +        self.recipient_gate = recipient_gate
 +        self.clock = clock or (lambda: datetime.now(timezone.utc))
++        self.final_native_check = final_native_check
 +        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
 +        with self._db() as db:
 +            db.executescript("""
@@ -892,6 +894,11 @@ index 00000000..f8206932
 +                # original AM adapter is about to send.
 +                if current["payload_hash"] != request.payload_hash or current["draft_json"] != _json(_draft_dict(request.draft)):
 +                    raise DispatchBlocked("stored_intent_changed")
++                # Host adoption lives in this SAME SQLite file. Recheck native
++                # cancellation/version/approval under the final write lock,
++                # after all slow live gates and before the sending transition.
++                if self.final_native_check is not None and self.final_native_check(db, request) is not True:
++                    raise DispatchBlocked("native_admission_changed")
 +                db.execute(
 +                    "UPDATE followup_intents SET state='sending',crossed_send_boundary=1,updated_at=? WHERE tenant_id=? AND intent_id=?",
 +                    (_stamp(self._now()), tenant_id, intent_id),
@@ -1510,10 +1517,10 @@ index 152f2ecb..f305ebdc 100644
          scanned=self.scan()
 diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_native.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_native.py
 new file mode 100644
-index 00000000..3757de43
+index 00000000..32447e6d
 --- /dev/null
 +++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_native.py
-@@ -0,0 +1,364 @@
+@@ -0,0 +1,378 @@
 +"""Native SQLite/services and real SDK request construction; simulated platform only."""
 +import copy
 +import json
@@ -1878,6 +1885,20 @@ index 00000000..3757de43
 +    rendered=json.loads(out['body'])
 +    assert rendered['schema']=='2.0' and rendered==bind_rendered_card(rendered)
 +    assert rendered['body']['elements'][0]['element_id'].startswith('uxv_')
++
++
++def test_pause_during_final_slow_recipient_gate_blocks_network(native):
++    n=native;c=preview(n);click(n,c);original=n.f.coordinator.recipient_gate
++    def gate(*args):
++        result=original(*args)
++        rows=n.s.rows("SELECT * FROM reminder_occurrences WHERE state='sending'")
++        if rows:
++            plan=n.am.scheduler.plan(rows[0]['plan_id'])
++            n.am.scheduler.control(n.am.owner,'pause-in-final-gate',plan['id'],plan['version'],'pause')
++        return result
++    n.f.coordinator.recipient_gate=gate
++    n.am.scheduler.dispatch()
++    assert not n.calls and n.s.rows('SELECT state FROM followup_intents')[0]['state']=='blocked'
 diff --git a/local-qwen3.8/feishu-bridge/am_business.py b/local-qwen3.8/feishu-bridge/am_business.py
 index 823ef9ca..0b34ea35 100644
 --- a/local-qwen3.8/feishu-bridge/am_business.py
@@ -1929,10 +1950,10 @@ index 823ef9ca..0b34ea35 100644
          if first.startswith('/mapping'):
 diff --git a/local-qwen3.8/feishu-bridge/am_followup_host.py b/local-qwen3.8/feishu-bridge/am_followup_host.py
 new file mode 100644
-index 00000000..c89da809
+index 00000000..49d4f04f
 --- /dev/null
 +++ b/local-qwen3.8/feishu-bridge/am_followup_host.py
-@@ -0,0 +1,733 @@
+@@ -0,0 +1,753 @@
 +"""Follow-up admission inside the original AM service and original Scheduler.
 +
 +Items, facts, model calls, callbacks and network sends retain their original owners.
@@ -2007,7 +2028,8 @@ index 00000000..c89da809
 +            c.execute("INSERT OR IGNORE INTO meta VALUES('followup_signing_key',?)",(key,))
 +            path=c.execute('PRAGMA database_list').fetchone()[2]
 +        self.coordinator=FollowupCoordinator(path,signing_key=bytes.fromhex(key),owner_ids={self.tenant:self.owner},
-+            evidence_gate=self.evidence_gate,recipient_gate=self.recipient_gate,clock=lambda:utc(self.s.clock()))
++            evidence_gate=self.evidence_gate,recipient_gate=self.recipient_gate,clock=lambda:utc(self.s.clock()),
++            final_native_check=self.final_native_check)
 +        self.confirmation=ConfirmationBridge(self.coordinator,expected_app_id=self.app,
 +            read_delivered=self.read_delivered,clock=lambda:utc(self.s.clock()))
 +        self.scheduler.followup=self
@@ -2605,6 +2627,16 @@ index 00000000..c89da809
 +        self.am.business_notification('occurrence_result',ident)
 +        return True
 +
++    def final_native_check(self,c,request):
++        if not self.scheduler.enabled():return False
++        mapping=c.execute('SELECT * FROM followup_adoptions WHERE intent_id=?',(request.intent_id,)).fetchone()
++        if not mapping or mapping['request_uuid']!=request.request_uuid:return False
++        o=self.scheduler.occurrence(mapping['occurrence_id'],c);p=self.scheduler.plan(o['plan_id'],c)
++        sem=c.execute('SELECT version FROM action_semantics WHERE item_id=?',(o['item_id'],)).fetchone()
++        item=self.am.items.get(o['item_id'],c)
++        return (o['state']=='sending' and sem is not None and digest([item['version'],sem['version']])==request.draft.evidence.task_version
++                and self.scheduler.current(c,o,p) and self.scheduler.approval_valid(c,o,p) and not self.scheduler.blocked(c,o))
++
 +    def readback(self,ident,request=None):
 +        o=self.scheduler.occurrence(ident);p=json.loads(o['payload']);i=self.s.rows('SELECT * FROM followup_intents WHERE intent_id=?',(p['followup_intent'],))[0]
 +        d=_draft_load(i['draft_json'])
@@ -2658,7 +2690,16 @@ index 00000000..c89da809
 +            actions.append((text[:28],{'page':'item','item':item['id']}))
 +            if self.s.rows('SELECT 1 FROM action_semantics WHERE item_id=?',(item['id'],)):
 +                view=self.view(item['id'])
-+                if view['fields']:context.append(text+'：'+canonical(view['fields']))
++                if view['fields']:
++                    names={'execution':'执行','response':'回应','delivery':'本项交付','acceptance':'验收','plan_delivery':'方案交付',
++                           'sample_arrival':'样机到货','release_materials':'发布材料','planned_start':'计划开测','actual_start':'实际开测',
++                           'planned_release':'计划发布','actual_release':'实际发布','approval':'审批','test_overview':'测试概述',
++                           'external_release':'对外版本','deadline_text':'期限','blocker':'待解决项'}
++                    labels={'unknown':'待核实','planned':'计划中','in_progress':'进行中','blocked':'受阻','done':'来源称已完成',
++                            'cancelled':'已取消','pending':'待处理','acknowledged':'已回应','not_required':'不适用',
++                            'delivered':'已交付','accepted':'已验收','rejected':'未通过'}
++                    display=[names.get(k,'补充进展')+'：'+labels.get(str(v),str(v) if isinstance(v,(str,int,float)) else '详见依据') for k,v in view['fields'].items()]
++                    context.append(text+'：'+'；'.join(display))
 +                if view['needs_review']:needs.append(text+'：依据已变化，相关字段待核。')
 +                elif view['stale_fields']:context.append(text+'：保留此前已核实内容，新增变化尚未核实。')
 +        candidates=self.s.rows("SELECT id FROM followup_candidates WHERE state='candidate'")

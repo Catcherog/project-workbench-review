@@ -312,6 +312,7 @@ class FollowupCoordinator:
         evidence_gate: EvidenceGate,
         recipient_gate: RecipientGate,
         clock: Callable[[], datetime] | None = None,
+        final_native_check: Callable[[sqlite3.Connection, DispatchRequest], bool] | None = None,
     ) -> None:
         if not isinstance(signing_key, bytes) or len(signing_key) < 32:
             raise FollowupError("signing_key_too_short")
@@ -323,6 +324,7 @@ class FollowupCoordinator:
         self.evidence_gate = evidence_gate
         self.recipient_gate = recipient_gate
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.final_native_check = final_native_check
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         with self._db() as db:
             db.executescript("""
@@ -756,6 +758,11 @@ class FollowupCoordinator:
                 # original AM adapter is about to send.
                 if current["payload_hash"] != request.payload_hash or current["draft_json"] != _json(_draft_dict(request.draft)):
                     raise DispatchBlocked("stored_intent_changed")
+                # Host adoption lives in this SAME SQLite file. Recheck native
+                # cancellation/version/approval under the final write lock,
+                # after all slow live gates and before the sending transition.
+                if self.final_native_check is not None and self.final_native_check(db, request) is not True:
+                    raise DispatchBlocked("native_admission_changed")
                 db.execute(
                     "UPDATE followup_intents SET state='sending',crossed_send_boundary=1,updated_at=? WHERE tenant_id=? AND intent_id=?",
                     (_stamp(self._now()), tenant_id, intent_id),

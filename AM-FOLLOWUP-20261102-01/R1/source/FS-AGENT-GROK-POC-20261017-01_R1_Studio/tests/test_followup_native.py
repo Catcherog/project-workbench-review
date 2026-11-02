@@ -362,3 +362,17 @@ def test_followup_preview_uses_original_platform_preserved_render_binding(native
     rendered=json.loads(out['body'])
     assert rendered['schema']=='2.0' and rendered==bind_rendered_card(rendered)
     assert rendered['body']['elements'][0]['element_id'].startswith('uxv_')
+
+
+def test_pause_during_final_slow_recipient_gate_blocks_network(native):
+    n=native;c=preview(n);click(n,c);original=n.f.coordinator.recipient_gate
+    def gate(*args):
+        result=original(*args)
+        rows=n.s.rows("SELECT * FROM reminder_occurrences WHERE state='sending'")
+        if rows:
+            plan=n.am.scheduler.plan(rows[0]['plan_id'])
+            n.am.scheduler.control(n.am.owner,'pause-in-final-gate',plan['id'],plan['version'],'pause')
+        return result
+    n.f.coordinator.recipient_gate=gate
+    n.am.scheduler.dispatch()
+    assert not n.calls and n.s.rows('SELECT state FROM followup_intents')[0]['state']=='blocked'
