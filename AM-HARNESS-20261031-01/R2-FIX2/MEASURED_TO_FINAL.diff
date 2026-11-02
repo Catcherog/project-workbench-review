@@ -1,0 +1,109 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py
+index 3f0318f3..6bd9b7b2 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py
+@@ -44,7 +44,8 @@ def test_F02_lost_result_continuation_never_creates_again(response,changed):
+     conv[1].outputs.clear();h.bridge.agent.config=config
+     assert len(h.s.rows('SELECT * FROM action_items'))==1
+     h.bridge.registry._tools['create_followup']=tool
+-    execute(response,'继续',[call('create_followup',{'project_id':pid,'description':changed}),answer('结果待核对')])
++    conv[1].outputs.extend([call('create_followup',{'project_id':pid,'description':changed}),answer('结果待核对')])
++    h.admit(incoming(response,'继续'));h.run_once()
+     assert len(h.s.rows('SELECT * FROM action_items'))==1
+     assert h.s.rows('SELECT id FROM action_items')[0]['id']==commits[0]
+     with h.bridge.store._connection() as db:
+@@ -176,6 +177,9 @@ def test_supported_owner_relation_preserves_subject_role_value(text,accepted):
+ @pytest.mark.parametrize('text,accepted',[
+     ('根据记录，需求75的进展为测试尚未完成。',True),
+     ('根据记录，需求75项目进展是测试还没有完成。',True),
++    ('根据记录，需求75的进展为：测试尚未完成。',True),
++    ('根据记录，需求75的测试尚未完成。',True),
++    ('根据记录，需求75测试尚未完成。',True),
+     ('根据记录，需求76的进展为测试尚未完成。',False),
+     ('根据记录，需求75的进展为测试已完成。',False),
+     ('根据记录，需求75的进展为负责人认为测试尚未完成。',False),
+@@ -186,6 +190,34 @@ def test_supported_progress_relation_is_an_ordered_proposition(text,accepted):
+         assert bool(p.validate(compact(e,[{'kind':'text','intent':'answer','text':text,'refs':[0]}]),e,6000)[0]) is accepted
+     finally:p.end(t)
+ 
++@pytest.mark.parametrize('text,accepted',[
++    ('根据记录，需求75预计明天完成。',True),
++    ('根据记录，需求76预计明天完成。',False),
++    ('根据记录，需求75明天完成。',False),
++    ('根据记录，需求75预计今天完成。',False),
++])
++def test_subject_forecast_relation_keeps_qualifiers(text,accepted):
++    p,t,e=fact_pipeline({'field':'forecast','value':'明天完成','assertion_type':'forecast','subject_id':'p','subject_label':'需求75'},'需求75进展如何')
++    try:
++        assert bool(p.validate(compact(e,[{'kind':'text','intent':'answer','text':text,'refs':[0]}]),e,6000)[0]) is accepted
++    finally:p.end(t)
++
++def test_quote_negation_cannot_borrow_another_claim_qualifier():
++    p,t,e=fact_pipeline({'field':'progress','value':'完成','subject_id':'p','evidence':{'quote':'未完成'}},'需求75进展如何')
++    try:
++        p.record('read_information',{}, {'facts':[{'fact_id':'other','field':'progress','subject_id':'p','value':'测试未完成'}],'complete_response':True},'read')
++        e=p.envelope()
++        plan=compact(e,[{'kind':'text','intent':'answer','text':'根据记录，完成。测试未完成。','refs':[0,1]}])
++        assert p.validate(plan,e,6000)[0] is None
++    finally:p.end(t)
++
++def test_attributed_verbatim_value_is_source_projection_not_free_credit():
++    p,t,e=fact_pipeline({'field':'forecast','value':'明天完成','assertion_type':'forecast'},'需求75进展如何')
++    try:
++        candidate,reason=p.validate(compact(e,[{'kind':'text','intent':'answer','text':'根据记录，预计明天完成。','refs':[0]}]),e,6000)
++        assert candidate and reason=='source_projection'
++    finally:p.end(t)
++
+ def test_F04_canonical_fallback_keeps_forecast():
+     from types import SimpleNamespace
+     from am_conversation.types import AgentReply
+diff --git a/am-conversation-r1/src/am_response/semantics.py b/am-conversation-r1/src/am_response/semantics.py
+index c756fcb1..f3a81c99 100644
+--- a/am-conversation-r1/src/am_response/semantics.py
++++ b/am-conversation-r1/src/am_response/semantics.py
+@@ -1,7 +1,7 @@
+ """Executable, conservative Chinese proposition checker. Unknown is not pass."""
+ import re
+ 
+-PROFILE = 'bounded-zh/3'
++PROFILE = 'bounded-zh/3.1'
+ # These are lexical equivalences inside an ordered proposition, not bags of words.
+ _EQUIVALENTS = (('还没有','尚未'),('还没','尚未'),('暂时没有','尚无'),('预估','预计'),
+                ('估计会','预计'),('已经','已'),('已完成了','已完成'),('尚未完成','未完成'))
+@@ -32,7 +32,7 @@ def constrained_value(claim):
+     quote=claim.get('source',{}).get('quote','') if isinstance(claim.get('source'),dict) else ''
+     # An evidence quote may carry qualifiers absent from the typed value. We
+     # cannot silently discard them or infer that metadata supersedes them.
+-    for token in ('预计','尚未','未完成','未确认','待核','可能','建议','仅','如果','未验收'):
++    for token in ('预计','尚未','未完成','未确认','待核','可能','建议','仅','如果','未验收','未','不','没有','尚无','除非'):
+         if token in proposition(quote) or token in proposition(value):constraints.append(token)
+     for key in ('time','time_scope','scope'):
+         entry=claim.get(key)
+@@ -65,7 +65,10 @@ def claim_forms(claim,value):
+             forms.extend([atoms(prefix+role+'是'+person),atoms(prefix+role+'为'+person)])
+     if subject and predicate in ('项目进展','进展','progress','forecast'):
+         for prefix in (str(subject)+'的进展',str(subject)+'项目进展'):
+-            forms.extend([atoms(prefix+'为'+value),atoms(prefix+'是'+value),atoms(prefix+'：'+value)])
++            forms.extend([atoms(prefix+link+value) for link in ('为','是','：','为：','是：')])
++        # Subject attachment preserves the entire typed predicate/value; no
++        # token bag or inferred relation is used (e.g. 项目A的测试尚未完成).
++        forms.extend([atoms(str(subject)+link+value) for link in ('','的')])
+     return [f for f in forms if f]
+ 
+ 
+@@ -105,10 +108,13 @@ class SemanticAssessor:
+                 checks.append({'decision':'reject','rule':'unreferenced_statement'});continue
+             values=[constrained_value(c) for c in refs]
+             raw=lambda x:re.sub(r'[\s。；;，,:：]','',str(x))
+-            segment_verbatim=any(raw(text)==raw(c['value']) or raw(text)==raw(str(c.get('predicate',''))+str(c['value'])) for c in refs)
++            body=re.sub(r'^(?:目前|当前)?(?:资料显示|记录显示|根据当前资料|根据记录|资料记载|台账记载|台账显示)[，,：:\s]*','',text)
++            segment_verbatim=any(raw(body)==raw(value) or raw(body)==raw(str(c.get('predicate',''))+str(value))
++                                for c,(value,_) in zip(refs,values) if value is not None)
+             verbatim=verbatim and segment_verbatim
+             actual=atoms(text)
+-            forms=[claim_forms(c,value) if value is not None else [] for c,(value,_) in zip(refs,values)]
++            forms=[[form for form in claim_forms(c,value) if all(token in '；'.join(form) for token in constraints)]
++                   if value is not None else [] for c,(value,constraints) in zip(refs,values)]
+             permitted={a for group in forms for form in group for a in form}
+             missing=any(token not in proposition(text) for _,constraints in values for token in constraints)
+             if missing:

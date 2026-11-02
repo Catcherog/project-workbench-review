@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="9" time="2.694" timestamp="2026-11-02T09:47:10.673105+08:00" hostname="yixiwangmudeMac-Studio.local"><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F01_two_overlapping_matters_create_two_native_items" time="0.118"><failure message="assert 1 == 2&#10; +  where 1 = len([{'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}])">response = (((&lt;am_service.AmSelfService object at 0x11265de50&gt;, &lt;fs_agent.gateway.Gateway object at 0x1126b2a80&gt;, &lt;fs_agent.store...est_conversation_integration.JsonProvider object at 0x1126ec650&gt;), &lt;am_harness_host.HarnessHost object at 0x1126b0500&gt;)
+
+    def test_F01_two_overlapping_matters_create_two_native_items(response):
+        conv,h=response;pid=project(conv)
+        h.bridge.agent.config=replace(h.bridge.agent.config,goal_tracking=True)
+        execute(response,REQUEST,[call('create_followup',{'project_id':pid,'description':s}) for s in ('确认交期','确认交期变更原因')])
+        items=h.s.rows('SELECT * FROM action_items')
+&gt;       assert len(items)==2
+E       assert 1 == 2
+E        +  where 1 = len([{'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}])
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:23: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F01_one_native_receipt_cannot_satisfy_two_steps" time="0.000"><failure message="AssertionError: assert 'fulfilled' != 'fulfilled'">def test_F01_one_native_receipt_cannot_satisfy_two_steps():
+        goals,complete=resolve_goals(REQUEST,CAT)
+        units=[adapt('create_followup',{'project_id':'p','description':s},{'item':{'id':'one','version':1,'state':'open'}},'local',key=str(i)) for i,s in enumerate(('确认交期','确认交期变更原因'))]
+&gt;       assert check_goals(goals,complete,units)[1]!='fulfilled'
+E       AssertionError: assert 'fulfilled' != 'fulfilled'
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:30: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F02_lost_result_continuation_never_creates_again[\u786e\u8ba4\u6cb9\u8102\u4ea4\u671f ]" time="0.258"><failure message="assert 2 == 1&#10; +  where 2 = len([{'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}])&#10; +    where [{'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}] = rows('SELECT * FROM action_items')&#10; +      where rows = &lt;fs_agent.store.Store object at 0x1126ef020&gt;.rows&#10; +        where &lt;fs_agent.store.Store object at 0x1126ef020&gt; = &lt;am_harness_host.HarnessHost object at 0x111f43440&gt;.s">response = (((&lt;am_service.AmSelfService object at 0x112719220&gt;, &lt;fs_agent.gateway.Gateway object at 0x1126ef0b0&gt;, &lt;fs_agent.store...est_conversation_integration.JsonProvider object at 0x1128436b0&gt;), &lt;am_harness_host.HarnessHost object at 0x111f43440&gt;)
+changed = '确认油脂交期 '
+
+    @pytest.mark.parametrize('changed',['确认油脂交期 ','核实油脂交货日期'])
+    def test_F02_lost_result_continuation_never_creates_again(response,changed):
+        conv,h=response;pid=project(conv)
+        h.bridge.agent.config=replace(h.bridge.agent.config,goal_tracking=True)
+        tool=h.bridge.registry._tools['create_followup'];original=tool.handler
+        commits=[]
+        def lost(*args):
+            result=original(*args);commits.append(result['item']['id'])
+            raise RuntimeError('SYNTHETIC_RESULT_LOST_AFTER_COMMIT')
+        h.bridge.registry._tools['create_followup']=replace(tool,handler=lost)
+        config=h.bridge.agent.config;h.bridge.agent.config=replace(config,max_rounds=1)
+        execute(response,'为需求75登记跟进：确认油脂交期',[call('create_followup',{'project_id':pid,'description':'确认油脂交期'}),answer('结果待核对')])
+        conv[1].outputs.clear();h.bridge.agent.config=config
+        assert len(h.s.rows('SELECT * FROM action_items'))==1
+        h.bridge.registry._tools['create_followup']=tool
+        conv[1].outputs.extend([call('create_followup',{'project_id':pid,'description':changed}),answer('结果待核对')])
+        h.admit(incoming(response,'继续'));h.run_once()
+&gt;       assert len(h.s.rows('SELECT * FROM action_items'))==1
+E       assert 2 == 1
+E        +  where 2 = len([{'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}])
+E        +    where [{'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}] = rows('SELECT * FROM action_items')
+E        +      where rows = &lt;fs_agent.store.Store object at 0x1126ef020&gt;.rows
+E        +        where &lt;fs_agent.store.Store object at 0x1126ef020&gt; = &lt;am_harness_host.HarnessHost object at 0x111f43440&gt;.s
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:49: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F02_lost_result_continuation_never_creates_again[\u6838\u5b9e\u6cb9\u8102\u4ea4\u8d27\u65e5\u671f]" time="0.096"><failure message="assert 2 == 1&#10; +  where 2 = len([{'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}])&#10; +    where [{'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '[&quot;ou_a&quot;]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}] = rows('SELECT * FROM action_items')&#10; +      where rows = &lt;fs_agent.store.Store object at 0x1126caf60&gt;.rows&#10; +        where &lt;fs_agent.store.Store object at 0x1126caf60&gt; = &lt;am_harness_host.HarnessHost object at 0x11234aae0&gt;.s">response = (((&lt;am_service.AmSelfService object at 0x112719880&gt;, &lt;fs_agent.gateway.Gateway object at 0x1126ca1b0&gt;, &lt;fs_agent.store...est_conversation_integration.JsonProvider object at 0x1126eca70&gt;), &lt;am_harness_host.HarnessHost object at 0x11234aae0&gt;)
+changed = '核实油脂交货日期'
+
+    @pytest.mark.parametrize('changed',['确认油脂交期 ','核实油脂交货日期'])
+    def test_F02_lost_result_continuation_never_creates_again(response,changed):
+        conv,h=response;pid=project(conv)
+        h.bridge.agent.config=replace(h.bridge.agent.config,goal_tracking=True)
+        tool=h.bridge.registry._tools['create_followup'];original=tool.handler
+        commits=[]
+        def lost(*args):
+            result=original(*args);commits.append(result['item']['id'])
+            raise RuntimeError('SYNTHETIC_RESULT_LOST_AFTER_COMMIT')
+        h.bridge.registry._tools['create_followup']=replace(tool,handler=lost)
+        config=h.bridge.agent.config;h.bridge.agent.config=replace(config,max_rounds=1)
+        execute(response,'为需求75登记跟进：确认油脂交期',[call('create_followup',{'project_id':pid,'description':'确认油脂交期'}),answer('结果待核对')])
+        conv[1].outputs.clear();h.bridge.agent.config=config
+        assert len(h.s.rows('SELECT * FROM action_items'))==1
+        h.bridge.registry._tools['create_followup']=tool
+        conv[1].outputs.extend([call('create_followup',{'project_id':pid,'description':changed}),answer('结果待核对')])
+        h.admit(incoming(response,'继续'));h.run_once()
+&gt;       assert len(h.s.rows('SELECT * FROM action_items'))==1
+E       assert 2 == 1
+E        +  where 2 = len([{'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}])
+E        +    where [{'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}, {'assignees': '["ou_a"]', 'close_evidence': None, 'closed_by': None, 'created': 1800000000.0, ...}] = rows('SELECT * FROM action_items')
+E        +      where rows = &lt;fs_agent.store.Store object at 0x1126caf60&gt;.rows
+E        +        where &lt;fs_agent.store.Store object at 0x1126caf60&gt; = &lt;am_harness_host.HarnessHost object at 0x11234aae0&gt;.s
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:49: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F03_question_does_not_cover_required_fact[question_ref]" time="0.001"><failure message="AssertionError: assert '明天几点提醒你？\n\n尚未完成：明天提醒我的请求操作。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。' is None">attack = 'question_ref'
+
+    @pytest.mark.parametrize('attack',['question_ref','omitted'])
+    def test_F03_question_does_not_cover_required_fact(attack):
+        p,t,e=fact_pipeline({'field':'progress','value':'测试尚未完成'})
+        try:
+            plan=compact(e,[{'kind':'text','intent':'question','text':'明天几点提醒你？','refs':[0] if attack=='question_ref' else [],'next':[0]}],[0] if attack=='omitted' else [])
+&gt;           assert p.validate(plan,e,6000)[0] is None
+E           AssertionError: assert '明天几点提醒你？\n\n尚未完成：明天提醒我的请求操作。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。' is None
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:74: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F03_question_does_not_cover_required_fact[omitted]" time="0.001"><failure message="AssertionError: assert '明天几点提醒你？\n\n尚未完成：明天提醒我的请求操作。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。' is None">attack = 'omitted'
+
+    @pytest.mark.parametrize('attack',['question_ref','omitted'])
+    def test_F03_question_does_not_cover_required_fact(attack):
+        p,t,e=fact_pipeline({'field':'progress','value':'测试尚未完成'})
+        try:
+            plan=compact(e,[{'kind':'text','intent':'question','text':'明天几点提醒你？','refs':[0] if attack=='question_ref' else [],'next':[0]}],[0] if attack=='omitted' else [])
+&gt;           assert p.validate(plan,e,6000)[0] is None
+E           AssertionError: assert '明天几点提醒你？\n\n尚未完成：明天提醒我的请求操作。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。' is None
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:74: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F03_fact_statement_and_legal_question_pass" time="0.001" /><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F04_forecast_metadata_is_a_required_qualifier[\u6839\u636e\u8bb0\u5f55\uff0c\u660e\u5929\u5b8c\u6210\u3002-False]" time="0.001"><failure message="AssertionError: assert True is False&#10; +  where True = bool('根据记录，明天完成。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。')">text = '根据记录，明天完成。', accepted = False
+
+    @pytest.mark.parametrize('text,accepted',[('根据记录，明天完成。',False),('根据记录，预计明天完成。',True)])
+    def test_F04_forecast_metadata_is_a_required_qualifier(text,accepted):
+        p,t,e=fact_pipeline({'field':'forecast','value':'明天完成','assertion_type':'forecast','evidence':{'quote':'预计明天完成'}},'需求75进展如何')
+        try:
+            result=p.validate(compact(e,[{'kind':'text','intent':'answer','text':text,'refs':[0]}]),e,6000)
+&gt;           assert bool(result[0]) is accepted
+E           AssertionError: assert True is False
+E            +  where True = bool('根据记录，明天完成。\n\n上述结果已保留；本轮完整目标是否全部满足，仍需核对。')
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:89: AssertionError</failure></testcase><testcase classname="tests.test_harness_r2_fix2_audit" name="test_F04_forecast_metadata_is_a_required_qualifier[\u6839\u636e\u8bb0\u5f55\uff0c\u9884\u8ba1\u660e\u5929\u5b8c\u6210\u3002-True]" time="0.001"><failure message="assert False is True&#10; +  where False = bool(None)">text = '根据记录，预计明天完成。', accepted = True
+
+    @pytest.mark.parametrize('text,accepted',[('根据记录，明天完成。',False),('根据记录，预计明天完成。',True)])
+    def test_F04_forecast_metadata_is_a_required_qualifier(text,accepted):
+        p,t,e=fact_pipeline({'field':'forecast','value':'明天完成','assertion_type':'forecast','evidence':{'quote':'预计明天完成'}},'需求75进展如何')
+        try:
+            result=p.validate(compact(e,[{'kind':'text','intent':'answer','text':text,'refs':[0]}]),e,6000)
+&gt;           assert bool(result[0]) is accepted
+E           assert False is True
+E            +  where False = bool(None)
+
+/tmp/audit/r2fix2-baseline-bdqc2il4/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_harness_r2_fix2_audit.py:89: AssertionError</failure></testcase></testsuite></testsuites>

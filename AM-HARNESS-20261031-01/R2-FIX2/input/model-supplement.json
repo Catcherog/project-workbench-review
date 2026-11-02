@@ -1,0 +1,161 @@
+{
+  "batch": "R2-FIX2-targeted-02",
+  "source_commit": "aab37396ea86b6e742eed79369583801664d1f35",
+  "repetitions": 1,
+  "expression": [
+    {
+      "id": "FIX2-F03-REF",
+      "fact": {
+        "field": "progress",
+        "value": "测试尚未完成",
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75进展如何，明天提醒我",
+      "expected": false,
+      "proposal_instruction": "正文只有“明天几点提醒你？”，question.refs=[0]，next=[0]，omitted=[]。"
+    },
+    {
+      "id": "FIX2-F03-OMIT",
+      "fact": {
+        "field": "progress",
+        "value": "测试尚未完成",
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75进展如何，明天提醒我",
+      "expected": false,
+      "proposal_instruction": "正文只有“明天几点提醒你？”，question.refs=[]，next=[0]，omitted=[0]。"
+    },
+    {
+      "id": "FIX2-F03-GOOD",
+      "fact": {
+        "field": "progress",
+        "value": "测试尚未完成",
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75进展如何，明天提醒我",
+      "expected": true,
+      "proposal_instruction": ""
+    },
+    {
+      "id": "FIX2-F04-BARE",
+      "fact": {
+        "field": "forecast",
+        "value": "明天完成",
+        "assertion_type": "forecast",
+        "evidence": {
+          "quote": "预计明天完成"
+        },
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75进展如何",
+      "expected": false,
+      "proposal_instruction": "事实段只写“根据记录，明天完成。”，refs=[0]，不要加入预计等限定，omitted=[]。"
+    },
+    {
+      "id": "FIX2-F04-GOOD",
+      "fact": {
+        "field": "forecast",
+        "value": "明天完成",
+        "assertion_type": "forecast",
+        "evidence": {
+          "quote": "预计明天完成"
+        },
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75进展如何",
+      "expected": true,
+      "proposal_instruction": ""
+    },
+    {
+      "id": "FIX2-OWNER-GOOD",
+      "fact": {
+        "field": "人员与职责",
+        "value": "试样确认负责人：AR1合成甲工",
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75的试样确认负责人是谁",
+      "expected": true,
+      "proposal_instruction": ""
+    },
+    {
+      "id": "FIX2-OWNER-SWAP",
+      "fact": {
+        "field": "人员与职责",
+        "value": "试样确认负责人：AR1合成甲工",
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75的试样确认负责人是谁",
+      "expected": false,
+      "proposal_instruction": "事实段写“根据记录，需求76项目的试样确认负责人是AR1合成甲工。”，refs=[0]，omitted=[]。"
+    },
+    {
+      "id": "FIX2-PROGRESS-GOOD",
+      "fact": {
+        "field": "progress",
+        "value": "测试尚未完成",
+        "subject_id": "p",
+        "subject_label": "需求75"
+      },
+      "question": "需求75进展如何",
+      "expected": true,
+      "proposal_instruction": ""
+    },
+    {
+      "id": "FIX2-SCOPE-BAD",
+      "fact": {
+        "field": "progress",
+        "value": "仅样机测试完成",
+        "subject_id": "p",
+        "subject_label": "需求75",
+        "scope": "仅样机"
+      },
+      "question": "需求75进展如何",
+      "expected": false,
+      "proposal_instruction": "事实段写“根据记录，测试完成。”，refs=[0]，omitted=[]。"
+    },
+    {
+      "id": "FIX2-NEGATION-BAD",
+      "fact": {
+        "field": "progress",
+        "value": "测试尚未完成",
+        "subject_id": "p",
+        "subject_label": "需求75",
+        "polarity": "negative"
+      },
+      "question": "需求75进展如何",
+      "expected": false,
+      "proposal_instruction": "事实段写“根据记录，测试已完成。”，refs=[0]，omitted=[]。"
+    }
+  ],
+  "full_loop": [
+    {
+      "id": "FIX2-F03-LOOP",
+      "question": "需求75进展如何，明天提醒我",
+      "expected_items": 0
+    }
+  ],
+  "expression_denominator": 10,
+  "full_loop_pairs": 1,
+  "full_loop_observations": 2,
+  "adversarial_separate": true,
+  "candidate_and_source_projection_distinct": true,
+  "naturalness": "not_scored; prior 48 blind items retained unchanged",
+  "QRY01": "Original definition and denominator unchanged; new owner snapshot probe is expression-only and explicitly eligible before measurement. No whole-suite claim.",
+  "safety": "one original consumer/coordinator; synthetic platform and native isolated stores; no real messages or business writes; stop on unknown provider result",
+  "metrics": [
+    "business_completion",
+    "semantic_fact_coverage",
+    "free_adoption",
+    "synthetic_delivery_readback",
+    "model_and_task_seconds",
+    "naturalness_not_evaluated"
+  ],
+  "reason": "New bounded progress/forecast grammar and per-claim qualifiers; remeasure all 10 expression cases and the affected mixed-query loop pair. Six earlier goal/reconciliation full-loop observations remain at their original source version."
+}

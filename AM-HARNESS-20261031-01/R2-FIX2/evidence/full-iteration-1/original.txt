@@ -1,0 +1,1503 @@
+........................F............................F.................. [  8%]
+..................FF.FFFFFFFFFFFFFFFFF.FFFF.FF.......................... [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 35%]
+........................................................................ [ 44%]
+........................................................................ [ 52%]
+........................................................................ [ 61%]
+........................................................................ [ 70%]
+..............................................................EEEEE..... [ 79%]
+........................................................................ [ 88%]
+.............FFF........................................................ [ 97%]
+........................                                                 [100%]
+==================================== ERRORS ====================================
+___ ERROR at setup of test_api_ignores_environment_proxy_and_sends_no_tools ____
+
+    @pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+>       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:457: in __init__
+    self.server_bind()
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/http/server.py:140: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x10fb50cb0>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:478: PermissionError
+______ ERROR at setup of test_changed_weights_or_response_model_rejected _______
+
+    @pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+>       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:457: in __init__
+    self.server_bind()
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/http/server.py:140: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x10fb27260>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:478: PermissionError
+____ ERROR at setup of test_redirect_is_rejected_without_forwarding_prompt _____
+
+    @pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+>       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:457: in __init__
+    self.server_bind()
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/http/server.py:140: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x10fa462a0>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:478: PermissionError
+____ ERROR at setup of test_disposable_client_pins_model_and_cleans_payload ____
+
+    @pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+>       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:457: in __init__
+    self.server_bind()
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/http/server.py:140: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x10fa477a0>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:478: PermissionError
+______ ERROR at setup of test_timeout_does_not_claim_shared_model_stopped ______
+
+    @pytest.fixture
+    def server():
+        state = {"requests": [], "delay": 0, "digest": DIGEST, "status": 200, "model": MODEL}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def respond(self, value):
+                raw = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except BrokenPipeError:
+                    pass
+            def do_GET(self):
+                if self.path == "/api/version":
+                    self.respond({"version": "0.40.5"})
+                else:
+                    self.respond({"models": [{"name": MODEL, "digest": state["digest"]}]})
+            def do_POST(self):
+                state["requests"].append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                time.sleep(state["delay"])
+                if state["status"] != 200:
+                    self.send_response(state["status"])
+                    self.send_header("Location", "http://example.invalid/forbidden")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.respond({"model": state["model"], "choices": [{"finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "5"}}], "usage": {"completion_tokens": 1}})
+>       httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:457: in __init__
+    self.server_bind()
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/http/server.py:140: in server_bind
+    socketserver.TCPServer.server_bind(self)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <http.server.ThreadingHTTPServer object at 0x10fa45d30>
+
+    def server_bind(self):
+        """Called by constructor to bind the socket.
+    
+        May be overridden.
+    
+        """
+        if self.allow_reuse_address and hasattr(socket, "SO_REUSEADDR"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Since Linux 6.12.9, SO_REUSEPORT is not allowed
+        # on other address families than AF_INET/AF_INET6.
+        if (
+            self.allow_reuse_port and hasattr(socket, "SO_REUSEPORT")
+            and self.address_family in (socket.AF_INET, socket.AF_INET6)
+        ):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+>       self.socket.bind(self.server_address)
+E       PermissionError: [Errno 1] Operation not permitted
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/socketserver.py:478: PermissionError
+=================================== FAILURES ===================================
+______________ test_B07_owner_private_query_does_not_fake_a_group ______________
+
+rig = (<fs_agent.gateway.Gateway object at 0x10e7ae7e0>, <fs_agent.store.Store object at 0x10e7ae900>, <test_gateway.Offline...ect at 0x10e7afb00>, <test_gateway.Clock object at 0x10e7acdd0>, <fs_agent.embedded.EmbeddedPoC object at 0x10e7aee10>)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-309/test_B07_owner_private_query_d0')
+
+    def test_B07_owner_private_query_does_not_fake_a_group(rig,tmp_path):
+     g,s,api,p,clock,e=rig;port=Port();auth=[];port.authorize_user=lambda u:auth.append(u)
+     port.guard=lambda *a:pytest.fail('private query must not call group guard')
+     ledger=GroupLedger(tmp_path,port,lambda *a:pytest.fail('no group sends'),clock=clock)
+     service=AmSelfService(g,ledger,flags={'query':True,'snapshots':True})
+     payload=event('/project 需求75',number=1)
+     assert service.ingest(payload)==(True,True);assert service.step();drain(g)
+     assert any('实际收货尚未核实' in x.get('body','') for x in api.sent)
+     assert auth and all(x=='ou_a' for x in auth)
+     assert not s.rows('SELECT * FROM tasks') and not p.prompts
+     assert service.ingest(event('/progress sample',number=2))==(False,False)
+>    assert service.ingest(event('/project 需求75',number=3,user='ou_b'))==(True,False)
+E    assert (True, True) == (True, False)
+E      
+E      At index 1 diff: True != False
+E      Use -v to get more diff
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py:71: AssertionError
+________ test_D_owner_exact_diff_approval_cannot_enable_disabled_write _________
+
+rig = (<fs_agent.gateway.Gateway object at 0x10f32ed50>, <fs_agent.store.Store object at 0x10f32e870>, <test_gateway.Offline...ect at 0x10f32faa0>, <test_gateway.Clock object at 0x10f32f8c0>, <fs_agent.embedded.EmbeddedPoC object at 0x10f32ffb0>)
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-309/test_D_owner_exact_diff_approv0')
+
+    def test_D_owner_exact_diff_approval_cannot_enable_disabled_write(rig,tmp_path):
+     g,s,api,model,clock,e=rig;port=Port();port.authorize_user=lambda _:None
+     ledger=GroupLedger(tmp_path,port,lambda *a:None,clock=clock)
+     service=AmSelfService(g,ledger,flags={'query':True,'progress_collection':True,'ledger_write':False})
+     sheet=Sheet();service.updates.port=sheet
+     assert service.ingest(event('/update 需求75：上电测试今天完成，报告明天下午提交，低温复测还没做。',number=1))==(True,True)
+     service.step();drain(g)
+     p=s.rows('SELECT * FROM ledger_proposals')[0]
+     assert p['state']=='proposed'
+     c=click(service,g,s,1,'approve:项目进展')
+>    assert service.updates.proposal(p['id'])['state']=='approved' and not sheet.calls
+E    AssertionError: assert ('proposed' == 'approved'
+E      
+E      - approved
+E      + proposed)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_entrypoints.py:51: AssertionError
+_________________ test_UX01_menu_event_to_live_project_detail __________________
+
+ux = (<am_service.AmSelfService object at 0x10f38fe60>, <fs_agent.gateway.Gateway object at 0x10f38d100>, <fs_agent.store.S...Api object at 0x10f38dc10>, <test_gateway.Clock object at 0x10f38d580>, <test_group_ledger.Port object at 0x10f38c2c0>)
+
+    def test_UX01_menu_event_to_live_project_detail(ux):
+        am,g,s,api,clock,_=ux
+        menu={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':'menu_1','event_type':'application.bot.menu_v6'},'event':{'operator':{'operator_id':{'open_id':'ou_a'}},'event_key':'am_work','timestamp':int(clock()*1000)}}
+        assert am.ingest(menu)==(True,True);assert am.ingest(menu)==(True,False)
+        am.step();drain(g)
+        c=latest(ux)
+        g.reminders.port.read=lambda mid:{'chat_id':'oc_dm','sender_id':g.config.bot_open_id}
+>       click(ux,'projects',c=c,overrides={})
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f38fe60>, <fs_agent.gateway.Gateway object at 0x10f38d100>, <fs_agent.store.S...Api object at 0x10f38dc10>, <test_gateway.Clock object at 0x10f38d580>, <test_group_ledger.Port object at 0x10f38c2c0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______ test_menu_rejects_untrusted_actor_or_event_key[ou_other-am_work] _______
+
+ux = (<am_service.AmSelfService object at 0x10f38ca40>, <fs_agent.gateway.Gateway object at 0x10f32e630>, <fs_agent.store.S...Api object at 0x10f32fec0>, <test_gateway.Clock object at 0x10f32ee40>, <test_group_ledger.Port object at 0x10f32fd40>)
+actor = 'ou_other', key = 'am_work'
+
+    @pytest.mark.parametrize('actor,key',[('ou_other','am_work'),('ou_a','/plan 任意指令')])
+    def test_menu_rejects_untrusted_actor_or_event_key(ux,actor,key):
+        am,g,s,api,clock,_=ux
+        p={'header':{'app_id':g.config.app_id,'tenant_key':g.config.tenant_key,'event_id':'bad','event_type':'application.bot.menu_v6'},'event':{'operator':{'operator_id':{'open_id':actor}},'event_key':key,'timestamp':int(clock()*1000)}}
+>       assert am.ingest(p)==(True,False) and not s.rows('SELECT * FROM am_inbox')
+E       assert ((True, True) == (True, False)
+E         
+E         At index 1 diff: True != False
+E         Use -v to get more diff)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:69: AssertionError
+__________ test_UX02_edit_preserves_form_and_invalidates_old_approval __________
+
+ux = (<am_service.AmSelfService object at 0x10f36ffb0>, <fs_agent.gateway.Gateway object at 0x10f38e420>, <fs_agent.store.S...Api object at 0x10f38e210>, <test_gateway.Clock object at 0x10f38d4f0>, <test_group_ledger.Port object at 0x10f38ede0>)
+
+    def test_UX02_edit_preserves_form_and_invalidates_old_approval(ux):
+>       form=reminder_form(ux);click(ux,'preview_reminder',form=values(ux))
+             ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f36ffb0>, <fs_agent.gateway.Gateway object at 0x10f38e420>, <fs_agent.store.S...Api object at 0x10f38e210>, <test_gateway.Clock object at 0x10f38d4f0>, <test_group_ledger.Port object at 0x10f38ede0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+___________ test_UX03_confirmation_replay_creates_one_plan_and_item ____________
+
+ux = (<am_service.AmSelfService object at 0x10f41c950>, <fs_agent.gateway.Gateway object at 0x10f36d9a0>, <fs_agent.store.S...Api object at 0x10f36c830>, <test_gateway.Clock object at 0x10f36c800>, <test_group_ledger.Port object at 0x10f36fef0>)
+
+    def test_UX03_confirmation_replay_creates_one_plan_and_item(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41c950>, <fs_agent.gateway.Gateway object at 0x10f36d9a0>, <fs_agent.store.S...Api object at 0x10f36c830>, <test_gateway.Clock object at 0x10f36c800>, <test_group_ledger.Port object at 0x10f36fef0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_________________ test_UX03_unknown_only_offers_reconciliation _________________
+
+ux = (<am_service.AmSelfService object at 0x10f41e720>, <fs_agent.gateway.Gateway object at 0x10f41ef00>, <fs_agent.store.S...Api object at 0x10f41ecc0>, <test_gateway.Clock object at 0x10f41e3f0>, <test_group_ledger.Port object at 0x10f41e5d0>)
+
+    def test_UX03_unknown_only_offers_reconciliation(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41e720>, <fs_agent.gateway.Gateway object at 0x10f41ef00>, <fs_agent.store.S...Api object at 0x10f41ecc0>, <test_gateway.Clock object at 0x10f41e3f0>, <test_group_ledger.Port object at 0x10f41e5d0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change0] ______________
+
+ux = (<am_service.AmSelfService object at 0x10f41f3e0>, <fs_agent.gateway.Gateway object at 0x10f36c7d0>, <fs_agent.store.S...Api object at 0x10f36d1f0>, <test_gateway.Clock object at 0x10f36f6e0>, <test_group_ledger.Port object at 0x10f36ef90>)
+change = {'people': ['999']}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41f3e0>, <fs_agent.gateway.Gateway object at 0x10f36c7d0>, <fs_agent.store.S...Api object at 0x10f36d1f0>, <test_gateway.Clock object at 0x10f36f6e0>, <test_group_ledger.Port object at 0x10f36ef90>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change1] ______________
+
+ux = (<am_service.AmSelfService object at 0x10f41de50>, <fs_agent.gateway.Gateway object at 0x10f41c9e0>, <fs_agent.store.S...Api object at 0x10f41d310>, <test_gateway.Clock object at 0x10f41c590>, <test_group_ledger.Port object at 0x10f41d5b0>)
+change = {'body': ''}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41de50>, <fs_agent.gateway.Gateway object at 0x10f41c9e0>, <fs_agent.store.S...Api object at 0x10f41d310>, <test_gateway.Clock object at 0x10f41c590>, <test_group_ledger.Port object at 0x10f41d5b0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change2] ______________
+
+ux = (<am_service.AmSelfService object at 0x10f3e5610>, <fs_agent.gateway.Gateway object at 0x10f3c9a90>, <fs_agent.store.S...Api object at 0x10f3c9ac0>, <test_gateway.Clock object at 0x10f3c8290>, <test_group_ledger.Port object at 0x10f3c8110>)
+change = {'when': '明天'}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f3e5610>, <fs_agent.gateway.Gateway object at 0x10f3c9a90>, <fs_agent.store.S...Api object at 0x10f3c9ac0>, <test_gateway.Clock object at 0x10f3c8290>, <test_group_ledger.Port object at 0x10f3c8110>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_form_invalid_values_never_create_plan[change3] ______________
+
+ux = (<am_service.AmSelfService object at 0x10f3c87d0>, <fs_agent.gateway.Gateway object at 0x10f3e6480>, <fs_agent.store.S...Api object at 0x10f36ff50>, <test_gateway.Clock object at 0x10f36eea0>, <test_group_ledger.Port object at 0x10f41e780>)
+change = {'frequency': 'workdays', 'until': '2033-06-01 09:00 +0800'}
+
+    @pytest.mark.parametrize('change',[{'people':['999']},{'body':''},{'when':'明天'},{'frequency':'workdays','until':'2033-06-01 09:00 +0800'}])
+    def test_form_invalid_values_never_create_plan(ux,change):
+>       reminder_form(ux);r=click(ux,'preview_reminder',form=values(ux,**change))
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f3c87d0>, <fs_agent.gateway.Gateway object at 0x10f3e6480>, <fs_agent.store.S...Api object at 0x10f36ff50>, <test_gateway.Clock object at 0x10f36eea0>, <test_group_ledger.Port object at 0x10f41e780>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_UX05_original_progress_message_fingerprint ________________
+
+ux = (<am_service.AmSelfService object at 0x10f38d880>, <fs_agent.gateway.Gateway object at 0x10f38e540>, <fs_agent.store.S...Api object at 0x10f38ecf0>, <test_gateway.Clock object at 0x10f38dbb0>, <test_group_ledger.Port object at 0x10f38c0b0>)
+
+    def test_UX05_original_progress_message_fingerprint(ux):
+>       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f38d880>, <fs_agent.gateway.Gateway object at 0x10f38e540>, <fs_agent.store.S...Api object at 0x10f38ecf0>, <test_gateway.Clock object at 0x10f38dbb0>, <test_group_ledger.Port object at 0x10f38c0b0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+________ test_collection_expiry_and_switch_never_rebind_queued_message _________
+
+ux = (<am_service.AmSelfService object at 0x10f38eb40>, <fs_agent.gateway.Gateway object at 0x10f38f1d0>, <fs_agent.store.S...Api object at 0x10f38f9b0>, <test_gateway.Clock object at 0x10f38dfd0>, <test_group_ledger.Port object at 0x10f38c200>)
+
+    def test_collection_expiry_and_switch_never_rebind_queued_message(ux):
+>       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f38eb40>, <fs_agent.gateway.Gateway object at 0x10f38f1d0>, <fs_agent.store.S...Api object at 0x10f38f9b0>, <test_gateway.Clock object at 0x10f38dfd0>, <test_group_ledger.Port object at 0x10f38c200>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+____________ test_UX06_precheck_file_bound_to_exact_target_and_F08 _____________
+
+ux = (<am_service.AmSelfService object at 0x10f38f8c0>, <fs_agent.gateway.Gateway object at 0x10f3c8d70>, <fs_agent.store.S...Api object at 0x10f3c8e30>, <test_gateway.Clock object at 0x10f3c97f0>, <test_group_ledger.Port object at 0x10f3cb530>)
+
+    def test_UX06_precheck_file_bound_to_exact_target_and_F08(ux):
+>       request(ux,'/menu',1);click(ux,'targets');click(ux,'precheck_form')
+                              ^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f38f8c0>, <fs_agent.gateway.Gateway object at 0x10f3c8d70>, <fs_agent.store.S...Api object at 0x10f3c8e30>, <test_gateway.Clock object at 0x10f3c97f0>, <test_group_ledger.Port object at 0x10f3cb530>)
+page = 'targets'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+___________ test_UX07_wrong_actor_or_chat_cannot_execute[ou_b-oc_dm] ___________
+
+ux = (<am_service.AmSelfService object at 0x10f3e72c0>, <fs_agent.gateway.Gateway object at 0x10f36ff50>, <fs_agent.store.S...Api object at 0x10f36ffb0>, <test_gateway.Clock object at 0x10f36da60>, <test_group_ledger.Port object at 0x10f36cb00>)
+actor = 'ou_b', chat = 'oc_dm'
+
+    @pytest.mark.parametrize('actor,chat',[('ou_b','oc_dm'),('ou_a','oc_other')])
+    def test_UX07_wrong_actor_or_chat_cannot_execute(ux,actor,chat):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f3e72c0>, <fs_agent.gateway.Gateway object at 0x10f36ff50>, <fs_agent.store.S...Api object at 0x10f36ffb0>, <test_gateway.Clock object at 0x10f36da60>, <test_group_ledger.Port object at 0x10f36cb00>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_________ test_UX07_wrong_actor_or_chat_cannot_execute[ou_a-oc_other] __________
+
+ux = (<am_service.AmSelfService object at 0x10f41fb00>, <fs_agent.gateway.Gateway object at 0x10f38ff50>, <fs_agent.store.S...Api object at 0x10f38d190>, <test_gateway.Clock object at 0x10f38e600>, <test_group_ledger.Port object at 0x10f38e6c0>)
+actor = 'ou_a', chat = 'oc_other'
+
+    @pytest.mark.parametrize('actor,chat',[('ou_b','oc_dm'),('ou_a','oc_other')])
+    def test_UX07_wrong_actor_or_chat_cannot_execute(ux,actor,chat):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41fb00>, <fs_agent.gateway.Gateway object at 0x10f38ff50>, <fs_agent.store.S...Api object at 0x10f38d190>, <test_gateway.Clock object at 0x10f38e600>, <test_group_ledger.Port object at 0x10f38e6c0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+____________________ test_UX07_expired_card_cannot_execute _____________________
+
+ux = (<am_service.AmSelfService object at 0x10f41f980>, <fs_agent.gateway.Gateway object at 0x10f3e79b0>, <fs_agent.store.S...Api object at 0x10f3e5580>, <test_gateway.Clock object at 0x10f3e7fb0>, <test_group_ledger.Port object at 0x10f3e53a0>)
+
+    def test_UX07_expired_card_cannot_execute(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41f980>, <fs_agent.gateway.Gateway object at 0x10f3e79b0>, <fs_agent.store.S...Api object at 0x10f3e5580>, <test_gateway.Clock object at 0x10f3e7fb0>, <test_group_ledger.Port object at 0x10f3e53a0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_UX04_group_form_continuous_feedback_two_actors ______________
+
+ux = (<am_service.AmSelfService object at 0x10f4545f0>, <fs_agent.gateway.Gateway object at 0x10f4568a0>, <fs_agent.store.S...Api object at 0x10f457890>, <test_gateway.Clock object at 0x10f456960>, <test_group_ledger.Port object at 0x10f456330>)
+
+    def test_UX04_group_form_continuous_feedback_two_actors(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,people=['0','1']));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f4545f0>, <fs_agent.gateway.Gateway object at 0x10f4568a0>, <fs_agent.store.S...Api object at 0x10f457890>, <test_gateway.Clock object at 0x10f456960>, <test_group_ledger.Port object at 0x10f456330>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______________ test_UX08_search_no_results_and_long_body_readable ______________
+
+ux = (<am_service.AmSelfService object at 0x10f454e30>, <fs_agent.gateway.Gateway object at 0x10f4562d0>, <fs_agent.store.S...Api object at 0x10f454fb0>, <test_gateway.Clock object at 0x10f456ea0>, <test_group_ledger.Port object at 0x10f454ce0>)
+
+    def test_UX08_search_no_results_and_long_body_readable(ux):
+>       request(ux,'/menu',1);click(ux,'projects');click(ux,'search',form={'query':'不会存在的项目'})
+                              ^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f454e30>, <fs_agent.gateway.Gateway object at 0x10f4562d0>, <fs_agent.store.S...Api object at 0x10f454fb0>, <test_gateway.Clock object at 0x10f456ea0>, <test_group_ledger.Port object at 0x10f454ce0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_collection_cross_thread_requires_new_choice _______________
+
+ux = (<am_service.AmSelfService object at 0x10f41e660>, <fs_agent.gateway.Gateway object at 0x10f41f1d0>, <fs_agent.store.S...Api object at 0x10f41e1b0>, <test_gateway.Clock object at 0x10f41f530>, <test_group_ledger.Port object at 0x10f41f2c0>)
+
+    def test_collection_cross_thread_requires_new_choice(ux):
+>       request(ux,'/menu',1,thread_id='thread-a');click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:177: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f41e660>, <fs_agent.gateway.Gateway object at 0x10f41f1d0>, <fs_agent.store.S...Api object at 0x10f41e1b0>, <test_gateway.Clock object at 0x10f41f530>, <test_group_ledger.Port object at 0x10f41f2c0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______________ test_collection_different_project_mention_rejected ______________
+
+ux = (<am_service.AmSelfService object at 0x10f454170>, <fs_agent.gateway.Gateway object at 0x10f3e41a0>, <fs_agent.store.S...Api object at 0x10f3e65a0>, <test_gateway.Clock object at 0x10f3e5df0>, <test_group_ledger.Port object at 0x10f3e73b0>)
+
+    def test_collection_different_project_mention_rejected(ux):
+>       request(ux,'/menu',1);click(ux,'projects',overrides={'next':'collect'});click(ux,'collect')
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f454170>, <fs_agent.gateway.Gateway object at 0x10f3e41a0>, <fs_agent.store.S...Api object at 0x10f3e65a0>, <test_gateway.Clock object at 0x10f3e5df0>, <test_group_ledger.Port object at 0x10f3e73b0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______________________ test_future_cycle_start_respected _______________________
+
+ux = (<am_service.AmSelfService object at 0x10f4f5520>, <fs_agent.gateway.Gateway object at 0x10f454f50>, <fs_agent.store.S...Api object at 0x10f457080>, <test_gateway.Clock object at 0x10f455970>, <test_group_ledger.Port object at 0x10f455c10>)
+
+    def test_future_cycle_start_respected(ux):
+>       reminder_form(ux)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f4f5520>, <fs_agent.gateway.Gateway object at 0x10f454f50>, <fs_agent.store.S...Api object at 0x10f457080>, <test_gateway.Clock object at 0x10f455970>, <test_group_ledger.Port object at 0x10f455c10>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_old_form_is_blocked_after_feature_disabled ________________
+
+ux = (<am_service.AmSelfService object at 0x10f4f5130>, <fs_agent.gateway.Gateway object at 0x10f4f7110>, <fs_agent.store.S...Api object at 0x10f4f7890>, <test_gateway.Clock object at 0x10f4f5b80>, <test_group_ledger.Port object at 0x10f4f7b60>)
+
+    def test_old_form_is_blocked_after_feature_disabled(ux):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux));preview=latest(ux)
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f4f5130>, <fs_agent.gateway.Gateway object at 0x10f4f7110>, <fs_agent.store.S...Api object at 0x10f4f7890>, <test_gateway.Clock object at 0x10f4f5b80>, <test_group_ledger.Port object at 0x10f4f7b60>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_______________ test_precheck_unread_file_is_not_claimed_missing _______________
+
+ux = (<am_service.AmSelfService object at 0x10f50b7a0>, <fs_agent.gateway.Gateway object at 0x10f5090d0>, <fs_agent.store.S...Api object at 0x10f50a540>, <test_gateway.Clock object at 0x10f50ade0>, <test_group_ledger.Port object at 0x10f50aff0>)
+
+    def test_precheck_unread_file_is_not_claimed_missing(ux):
+        from fs_agent.config import BoundaryError
+>       request(ux,'/menu',1);click(ux,'targets');click(ux,'precheck_form');click(ux,'start_precheck',form={'kind':'test','requirements':'交付物清单'})
+                              ^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f50b7a0>, <fs_agent.gateway.Gateway object at 0x10f5090d0>, <fs_agent.store.S...Api object at 0x10f50a540>, <test_gateway.Clock object at 0x10f50ade0>, <test_group_ledger.Port object at 0x10f50aff0>)
+page = 'targets'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_____________ test_project_card_reply_binding_survives_later_query _____________
+
+ux = (<am_service.AmSelfService object at 0x10f4f4c80>, <fs_agent.gateway.Gateway object at 0x10f4f5880>, <fs_agent.store.S...Api object at 0x10f4f5670>, <test_gateway.Clock object at 0x10f4f77d0>, <test_group_ledger.Port object at 0x10f4f78f0>)
+
+    def test_project_card_reply_binding_survives_later_query(ux):
+>       request(ux,'/menu',1);click(ux,'projects');click(ux,'project')
+                              ^^^^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f4f4c80>, <fs_agent.gateway.Gateway object at 0x10f4f5880>, <fs_agent.store.S...Api object at 0x10f4f5670>, <test_gateway.Clock object at 0x10f4f77d0>, <test_group_ledger.Port object at 0x10f4f78f0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_ test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u63d0\u4ea4 {\u6d4b\u8bd5\u62a5\u544a}\uff0c\u53c2\u6570 {"version": 2}\u3002] _
+
+ux = (<am_service.AmSelfService object at 0x10f50b980>, <fs_agent.gateway.Gateway object at 0x10f50bce0>, <fs_agent.store.S...Api object at 0x10f508470>, <test_gateway.Clock object at 0x10f50af90>, <test_group_ledger.Port object at 0x10f508170>)
+body = '请提交 {测试报告}，参数 {"version": 2}。'
+
+    @pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+    def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f50b980>, <fs_agent.gateway.Gateway object at 0x10f50bce0>, <fs_agent.store.S...Api object at 0x10f508470>, <test_gateway.Clock object at 0x10f50af90>, <test_group_ledger.Port object at 0x10f508170>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+_ test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u4fdd\u7559\u53cc\u62ec\u53f7 {{\u6837\u4f8b}}\u3002] _
+
+ux = (<am_service.AmSelfService object at 0x10f3c9760>, <fs_agent.gateway.Gateway object at 0x10f3ca990>, <fs_agent.store.S...Api object at 0x10f3caab0>, <test_gateway.Clock object at 0x10f3cb770>, <test_group_ledger.Port object at 0x10f3cb9e0>)
+body = '请保留双括号 {{样例}}。'
+
+    @pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
+    def test_reminder_form_body_is_literal_through_scheduled_render(ux,body):
+>       reminder_form(ux);click(ux,'preview_reminder',form=values(ux,body=body));click(ux,'confirm_reminder')
+        ^^^^^^^^^^^^^^^^^
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:239: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:46: in reminder_form
+    request(ux,'/menu',1);click(ux,'projects',overrides={'next':'remind'});click(ux,'remind');click(ux,'remind')
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ux = (<am_service.AmSelfService object at 0x10f3c9760>, <fs_agent.gateway.Gateway object at 0x10f3ca990>, <fs_agent.store.S...Api object at 0x10f3caab0>, <test_gateway.Clock object at 0x10f3cb770>, <test_group_ledger.Port object at 0x10f3cb9e0>)
+page = 'projects'
+
+    def click(ux,page,*,form=None,c=None,actor='ou_a',chat='oc_dm',overrides=None):
+        am,g,s,api,clock,_=ux;c=c or latest(ux)
+        actions=json.loads(c['snapshot'])['actions']
+        match=next((key for key,value in actions.items() if value['page']==page and all(value.get(k)==v for k,v in (overrides or {}).items())),None)
+>       assert match is not None,(page,actions)
+E       AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})
+E       assert None is not None
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py:37: AssertionError
+______ test_process_timeout_kills_owned_group_and_preserves_safe_journal _______
+
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-309/test_process_timeout_kills_own0')
+
+    def test_process_timeout_kills_owned_group_and_preserves_safe_journal(tmp_path):
+        runner = ProcessRunner()
+        pids = []
+        with pytest.raises(BoundaryError, match="EXECUTION_TIMEOUT"):
+>           runner.run(["/bin/sleep", "10"], cwd=tmp_path, env={"PATH": "/usr/bin:/bin"}, directory=tmp_path,
+                       timeout=.1, on_start=lambda pgid, identity: pids.append(pgid))
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/provider.py:86: in run
+    identity = process_identity(pgid)
+               ^^^^^^^^^^^^^^^^^^^^^^
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/provider.py:36: in process_identity
+    result = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "uid=,pgid=,lstart="],
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py:548: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py:1026: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: 255 args: ['/bin/ps', '-p', '63396', '-o', 'uid=,pgid=,l...>
+args = ['/bin/ps', '-p', '63396', '-o', 'uid=,pgid=,lstart=']
+executable = b'/bin/ps', preexec_fn = None, close_fds = True, pass_fds = ()
+cwd = None, env = None, startupinfo = None, creationflags = 0, shell = False
+p2cread = -1, p2cwrite = -1, c2pread = 19, c2pwrite = 20, errread = 21
+errwrite = 22, restore_signals = True, gid = None, gids = None, uid = None
+umask = -1, start_new_session = False, process_group = -1
+
+    def _execute_child(self, args, executable, preexec_fn, close_fds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals,
+                       gid, gids, uid, umask,
+                       start_new_session, process_group):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed when '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bin/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread > 2)
+                and (c2pwrite == -1 or c2pwrite > 2)
+                and (errwrite == -1 or errwrite > 2)
+                and not start_new_session
+                and process_group == -1
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask < 0):
+            self._posix_spawn(args, executable, env, restore_signals,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to parent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory allocation.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 fd range.
+        low_fds_to_close = []
+        while errpipe_write < 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_keep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        process_group, gid, gids, uid, umask,
+                        preexec_fn, _USE_VFORK)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising an
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) > 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.format(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_errno:
+                errno_num = int(hex_errno, 16)
+                if err_msg == "noexec:chdir":
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                elif err_msg == "noexec":
+                    err_msg = ""
+                    err_filename = None
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+                if err_filename is not None:
+>                   raise child_exception_type(errno_num, err_msg, err_filename)
+E                   PermissionError: [Errno 1] Operation not permitted: '/bin/ps'
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py:1955: PermissionError
+___________________________ test_process_output_cap ____________________________
+
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-309/test_process_output_cap0')
+
+    def test_process_output_cap(tmp_path):
+        with pytest.raises(BoundaryError, match="OUTPUT_LIMIT"):
+>           ProcessRunner().run(["/usr/bin/yes", "SYNTHETIC"], cwd=tmp_path,
+                                env={"PATH": "/usr/bin:/bin"}, directory=tmp_path, timeout=3)
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/provider.py:86: in run
+    identity = process_identity(pgid)
+               ^^^^^^^^^^^^^^^^^^^^^^
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/provider.py:36: in process_identity
+    result = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "uid=,pgid=,lstart="],
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py:548: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py:1026: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: 255 args: ['/bin/ps', '-p', '63398', '-o', 'uid=,pgid=,l...>
+args = ['/bin/ps', '-p', '63398', '-o', 'uid=,pgid=,lstart=']
+executable = b'/bin/ps', preexec_fn = None, close_fds = True, pass_fds = ()
+cwd = None, env = None, startupinfo = None, creationflags = 0, shell = False
+p2cread = -1, p2cwrite = -1, c2pread = 19, c2pwrite = 20, errread = 21
+errwrite = 22, restore_signals = True, gid = None, gids = None, uid = None
+umask = -1, start_new_session = False, process_group = -1
+
+    def _execute_child(self, args, executable, preexec_fn, close_fds,
+                       pass_fds, cwd, env,
+                       startupinfo, creationflags, shell,
+                       p2cread, p2cwrite,
+                       c2pread, c2pwrite,
+                       errread, errwrite,
+                       restore_signals,
+                       gid, gids, uid, umask,
+                       start_new_session, process_group):
+        """Execute program (POSIX version)"""
+    
+        if isinstance(args, (str, bytes)):
+            args = [args]
+        elif isinstance(args, os.PathLike):
+            if shell:
+                raise TypeError('path-like args is not allowed when '
+                                'shell is true')
+            args = [args]
+        else:
+            args = list(args)
+    
+        if shell:
+            # On Android the default shell is at '/system/bin/sh'.
+            unix_shell = ('/system/bin/sh' if
+                      hasattr(sys, 'getandroidapilevel') else '/bin/sh')
+            args = [unix_shell, "-c"] + args
+            if executable:
+                args[0] = executable
+    
+        if executable is None:
+            executable = args[0]
+    
+        sys.audit("subprocess.Popen", executable, args, cwd, env)
+    
+        if (_USE_POSIX_SPAWN
+                and os.path.dirname(executable)
+                and preexec_fn is None
+                and not close_fds
+                and not pass_fds
+                and cwd is None
+                and (p2cread == -1 or p2cread > 2)
+                and (c2pwrite == -1 or c2pwrite > 2)
+                and (errwrite == -1 or errwrite > 2)
+                and not start_new_session
+                and process_group == -1
+                and gid is None
+                and gids is None
+                and uid is None
+                and umask < 0):
+            self._posix_spawn(args, executable, env, restore_signals,
+                              p2cread, p2cwrite,
+                              c2pread, c2pwrite,
+                              errread, errwrite)
+            return
+    
+        orig_executable = executable
+    
+        # For transferring possible exec failure from child to parent.
+        # Data format: "exception name:hex errno:description"
+        # Pickle is not used; it is complex and involves memory allocation.
+        errpipe_read, errpipe_write = os.pipe()
+        # errpipe_write must not be in the standard io 0, 1, or 2 fd range.
+        low_fds_to_close = []
+        while errpipe_write < 3:
+            low_fds_to_close.append(errpipe_write)
+            errpipe_write = os.dup(errpipe_write)
+        for low_fd in low_fds_to_close:
+            os.close(low_fd)
+        try:
+            try:
+                # We must avoid complex work that could involve
+                # malloc or free in the child process to avoid
+                # potential deadlocks, thus we do all this here.
+                # and pass it to fork_exec()
+    
+                if env is not None:
+                    env_list = []
+                    for k, v in env.items():
+                        k = os.fsencode(k)
+                        if b'=' in k:
+                            raise ValueError("illegal environment variable name")
+                        env_list.append(k + b'=' + os.fsencode(v))
+                else:
+                    env_list = None  # Use execv instead of execve.
+                executable = os.fsencode(executable)
+                if os.path.dirname(executable):
+                    executable_list = (executable,)
+                else:
+                    # This matches the behavior of os._execvpe().
+                    executable_list = tuple(
+                        os.path.join(os.fsencode(dir), executable)
+                        for dir in os.get_exec_path(env))
+                fds_to_keep = set(pass_fds)
+                fds_to_keep.add(errpipe_write)
+                self.pid = _fork_exec(
+                        args, executable_list,
+                        close_fds, tuple(sorted(map(int, fds_to_keep))),
+                        cwd, env_list,
+                        p2cread, p2cwrite, c2pread, c2pwrite,
+                        errread, errwrite,
+                        errpipe_read, errpipe_write,
+                        restore_signals, start_new_session,
+                        process_group, gid, gids, uid, umask,
+                        preexec_fn, _USE_VFORK)
+                self._child_created = True
+            finally:
+                # be sure the FD is closed no matter what
+                os.close(errpipe_write)
+    
+            self._close_pipe_fds(p2cread, p2cwrite,
+                                 c2pread, c2pwrite,
+                                 errread, errwrite)
+    
+            # Wait for exec to fail or succeed; possibly raising an
+            # exception (limited in size)
+            errpipe_data = bytearray()
+            while True:
+                part = os.read(errpipe_read, 50000)
+                errpipe_data += part
+                if not part or len(errpipe_data) > 50000:
+                    break
+        finally:
+            # be sure the FD is closed no matter what
+            os.close(errpipe_read)
+    
+        if errpipe_data:
+            try:
+                pid, sts = os.waitpid(self.pid, 0)
+                if pid == self.pid:
+                    self._handle_exitstatus(sts)
+                else:
+                    self.returncode = sys.maxsize
+            except ChildProcessError:
+                pass
+    
+            try:
+                exception_name, hex_errno, err_msg = (
+                        errpipe_data.split(b':', 2))
+                # The encoding here should match the encoding
+                # written in by the subprocess implementations
+                # like _posixsubprocess
+                err_msg = err_msg.decode()
+            except ValueError:
+                exception_name = b'SubprocessError'
+                hex_errno = b'0'
+                err_msg = 'Bad exception data from child: {!r}'.format(
+                              bytes(errpipe_data))
+            child_exception_type = getattr(
+                    builtins, exception_name.decode('ascii'),
+                    SubprocessError)
+            if issubclass(child_exception_type, OSError) and hex_errno:
+                errno_num = int(hex_errno, 16)
+                if err_msg == "noexec:chdir":
+                    err_msg = ""
+                    # The error must be from chdir(cwd).
+                    err_filename = cwd
+                elif err_msg == "noexec":
+                    err_msg = ""
+                    err_filename = None
+                else:
+                    err_filename = orig_executable
+                if errno_num != 0:
+                    err_msg = os.strerror(errno_num)
+                if err_filename is not None:
+>                   raise child_exception_type(errno_num, err_msg, err_filename)
+E                   PermissionError: [Errno 1] Operation not permitted: '/bin/ps'
+
+/home/am/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py:1955: PermissionError
+__________________ test_os_sandbox_blocks_sibling_task_files ___________________
+
+tmp_path = PosixPath('/tmp/audit/pytest-of-audit/pytest-309/test_os_sandbox_blocks_sibling0')
+
+    def test_os_sandbox_blocks_sibling_task_files(tmp_path):
+        root = tmp_path.resolve()
+        task = root / "task"
+        task.mkdir()
+        secret = root / "synthetic-secret.txt"
+        secret.write_text("synthetic canary only")
+        allowed = task / "synthetic-input.txt"
+        allowed.write_text("synthetic allowed")
+        profile = task / "sandbox.sb"
+        profile.write_text(sandbox_profile(root, task, Path("/bin/cat")))
+        denied = subprocess.run(["/usr/bin/sandbox-exec", "-f", str(profile), "/bin/cat", str(secret)], capture_output=True)
+        permitted = subprocess.run(["/usr/bin/sandbox-exec", "-f", str(profile), "/bin/cat", str(allowed)], capture_output=True)
+        assert denied.returncode != 0 and b"synthetic canary" not in denied.stdout
+>       assert permitted.returncode == 0 and permitted.stdout == b"synthetic allowed"
+E       AssertionError: assert (71 == 0)
+E        +  where 71 = CompletedProcess(args=['/usr/bin/sandbox-exec', '-f', '/tmp/audit/pytest...ask/synthetic-input.txt'], returncode=71, stdout=b'', stderr=b'sandbox-exec: sandbox_apply: Operation not permitted\n').returncode
+
+FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py:66: AssertionError
+=============================== warnings summary ===============================
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+../../../FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35
+  /workspace/am/FS-AGENT-GROK-POC-20261017-01_R1_Studio/.venv/lib/python3.12/site-packages/lark_oapi/ws/client.py:35: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /workspace/am/AM-HARNESS-20261031-01/R2-FIX2/evidence/full-iteration-1/original.xml -
+=========================== short test summary info ============================
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_b.py::test_B07_owner_private_query_does_not_fake_a_group
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_self_entrypoints.py::test_D_owner_exact_diff_approval_cannot_enable_disabled_write
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX01_menu_event_to_live_project_detail
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_menu_rejects_untrusted_actor_or_event_key[ou_other-am_work]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX02_edit_preserves_form_and_invalidates_old_approval
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX03_confirmation_replay_creates_one_plan_and_item
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX03_unknown_only_offers_reconciliation
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change0]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change1]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change2]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_form_invalid_values_never_create_plan[change3]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX05_original_progress_message_fingerprint
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_collection_expiry_and_switch_never_rebind_queued_message
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX06_precheck_file_bound_to_exact_target_and_F08
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX07_wrong_actor_or_chat_cannot_execute[ou_b-oc_dm]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX07_wrong_actor_or_chat_cannot_execute[ou_a-oc_other]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX07_expired_card_cannot_execute
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX04_group_form_continuous_feedback_two_actors
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_UX08_search_no_results_and_long_body_readable
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_collection_cross_thread_requires_new_choice
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_collection_different_project_mention_rejected
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_future_cycle_start_respected
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_old_form_is_blocked_after_feature_disabled
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_precheck_unread_file_is_not_claimed_missing
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_project_card_reply_binding_survives_later_query
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u63d0\u4ea4 {\u6d4b\u8bd5\u62a5\u544a}\uff0c\u53c2\u6570 {"version": 2}\u3002]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux1.py::test_reminder_form_body_is_literal_through_scheduled_render[\u8bf7\u4fdd\u7559\u53cc\u62ec\u53f7 {{\u6837\u4f8b}}\u3002]
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py::test_process_timeout_kills_owned_group_and_preserves_safe_journal
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py::test_process_output_cap
+FAILED FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_provider.py::test_os_sandbox_blocks_sibling_task_files
+ERROR FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py::test_api_ignores_environment_proxy_and_sends_no_tools
+ERROR FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py::test_changed_weights_or_response_model_rejected
+ERROR FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py::test_redirect_is_rejected_without_forwarding_prompt
+ERROR FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py::test_disposable_client_pins_model_and_cleans_payload
+ERROR FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_local_api.py::test_timeout_does_not_claim_shared_model_stopped
+30 failed, 781 passed, 2 warnings, 5 errors in 23.31s
