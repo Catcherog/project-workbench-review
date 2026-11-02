@@ -1,0 +1,445 @@
+{
+  "original_failures": 27,
+  "new_failures": 0,
+  "rows": [
+    {
+      "test": "tests.test_am_self_b.test_B07_owner_private_query_does_not_fake_a_group",
+      "category": "old_ingress_expectation",
+      "same_failure_message": true,
+      "relationship": "旧断言要求入站拒绝；当前查询授权允许先持久受理再核权。新跟进仍严格 owner/app/tenant/chat。",
+      "native_equivalent_checks": [
+        "test_callback_scope_rejected",
+        "test_original_ingress_and_service_handle_confirmation"
+      ],
+      "baseline": {
+        "message": "assert (True, True) == (True, False)\n  \n  At index 1 diff: True != False\n  Use -v to get more diff",
+        "details_sha256": "c075372b74e11b07c8da3671b2ff5daa24f0b13d11c2b7751bdf19a1e9aa1ced"
+      },
+      "final": {
+        "message": "assert (True, True) == (True, False)\n  \n  At index 1 diff: True != False\n  Use -v to get more diff",
+        "details_sha256": "876f1d1255112cea93e90606c860ae614692d6d7598d1b9b563f34afc8bf306e"
+      }
+    },
+    {
+      "test": "tests.test_am_self_entrypoints.test_D_owner_exact_diff_approval_cannot_enable_disabled_write",
+      "category": "disabled_write_approval_state",
+      "same_failure_message": true,
+      "relationship": "旧预期为 approved，实际仍 proposed；本轮未启用写回，新增路径验证无写回或模型动作。",
+      "native_equivalent_checks": [
+        "test_followup_does_not_authorize_ledger_write_or_model_tools"
+      ],
+      "baseline": {
+        "message": "AssertionError: assert ('proposed' == 'approved'\n  \n  - approved\n  + proposed)",
+        "details_sha256": "57e8c208c5815b2471ba0fb273abe9f23b940018b1e787405be74931638011db"
+      },
+      "final": {
+        "message": "AssertionError: assert ('proposed' == 'approved'\n  \n  - approved\n  + proposed)",
+        "details_sha256": "f678bfe0296e9648172af68eb00dc366dd465494ed6160c6b6f1d2e749b22330"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX01_menu_event_to_live_project_detail",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "原导航前置未触达业务断言；新单次跟进入口另测，不宣称该旧用例通过。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "852e0f662c6624c8a00e45c208fa2b8f183aa6aa5be3c2b7d68d821fc440e3eb"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "0a8489e885a5060255748ca9d9e77f5c4b0834092d3b23e4decf22bed92ff00a"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_menu_rejects_untrusted_actor_or_event_key[ou_other-am_work]",
+      "category": "old_ingress_expectation",
+      "same_failure_message": true,
+      "relationship": "旧断言要求入站拒绝；当前查询授权允许先持久受理再核权。新跟进仍严格 owner/app/tenant/chat。",
+      "native_equivalent_checks": [
+        "test_callback_scope_rejected",
+        "test_original_ingress_and_service_handle_confirmation"
+      ],
+      "baseline": {
+        "message": "assert ((True, True) == (True, False)\n  \n  At index 1 diff: True != False\n  Use -v to get more diff)",
+        "details_sha256": "21febcbb7d5c4c196a7936864a1f89caa8624eb87824aec98223599d1e1e6330"
+      },
+      "final": {
+        "message": "assert ((True, True) == (True, False)\n  \n  At index 1 diff: True != False\n  Use -v to get more diff)",
+        "details_sha256": "df4d2153492b5cadaef33c4708c383151d4e304ed7bb27874ab6535f5c3e27f8"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX02_edit_preserves_form_and_invalidates_old_approval",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_nonsend_actions_never_approve",
+        "test_stopped_unsent_can_only_resume_with_new_exact_preview"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "43e0b45f0370a5aac9c807ada17357cc53b6c38608adc19c7e03db76574216f3"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "065e0c4f6d7e8cbb32bdc8fe1bc9a920f2755387ec2ad915f08fc3b0349bae1f"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX03_confirmation_replay_creates_one_plan_and_item",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_actual_card_one_confirmation_native_occurrence_and_replay",
+        "test_native_double_confirmation_concurrent_maps_once"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "3aad835b19387c8fac5486f40d8e5b4afe24a078a2418a0911b8282db3cfbab3"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "405bd7aa25e608744daa77244d8a726a0ee920b73cfa6bbb5c19a5693b0d3ca9"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX03_unknown_only_offers_reconciliation",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_timeout_and_next_round_blocked_no_new_uuid",
+        "test_accepted_read_failure_then_exact_reconcile"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "ecc35ae446aa9ab52cf037dae83bf29adf00d8ee4d18a0141a9c734d535c0214"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "93cb736f927c9377dcc3d24377c8bdc5fe4425abef177dc2808dfdce609e4a00"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_form_invalid_values_never_create_plan[change0]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "原导航前置未触达业务断言；新单次跟进入口另测，不宣称该旧用例通过。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "3a0f5196a3ba9bc7abdcd8b8dd30907aaebc583d2aae61041ac949151490a001"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "6f15ddb0ad21d0f4c0083f3b51fbc4a2824966217008152dc8f7518145ae6511"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_form_invalid_values_never_create_plan[change1]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "原导航前置未触达业务断言；新单次跟进入口另测，不宣称该旧用例通过。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "78190ca0d98b377c9552cdde8cde9fe4a726526d38610c70826882f63d9f723e"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "970b8819b81e05e0e5e3de175bb5fde8b102e76432c0edcb3fcfde5eb08f55c2"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_form_invalid_values_never_create_plan[change2]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "原导航前置未触达业务断言；新单次跟进入口另测，不宣称该旧用例通过。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "59108851d0158f2f5825e7b92f0034a43a718d8f60e2afcc9c944cc29b6cc130"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "63bbec6f7bbdc370285e77fbf5af56842437f9745d7906134d204dbfa2dfd3ab"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_form_invalid_values_never_create_plan[change3]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "原导航前置未触达业务断言；新单次跟进入口另测，不宣称该旧用例通过。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "946f909de8ea3a5890d0ec123d716a0d6696b31f45aa8aaa52d5e7dd0b75c350"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "19c8c5b8784b5876f5f66d78b9572052a60be84cf78a7951f76675549aa7b4fd"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX05_original_progress_message_fingerprint",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "e3fe1ecc25371082e100aa5660b4b7c15038d13542976c3e6a175c64343dddc3"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "28e5db6ccefddc1b1325006e3609685b92173dd744a3201f6099a4210ec6a2bf"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_collection_expiry_and_switch_never_rebind_queued_message",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "d1fb4393a2c15b4476b65cc426f051fb273b06c0fffac42b79b336fcc1664784"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "7f1858bb9a08b1da3cba2ef8d85fef5cbbb28742acc1d1cbef899cdeb9ba8cf9"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX06_precheck_file_bound_to_exact_target_and_F08",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "0c574b8d2835c14852469e98a9c40b9f65402323afdcb2f99428e767cf3528b3"
+      },
+      "final": {
+        "message": "AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "4950d8b010a51db90a304534310702012a250974a3d82c99edd3c3a22518c81b"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX07_wrong_actor_or_chat_cannot_execute[ou_b-oc_dm]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_callback_scope_rejected",
+        "test_expired_actual_card_rejected"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "f71af956a34faaf24630687e8a339d4477f2491dd9897e0f4228547c4f8134f6"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "b30172db420b53c8a5c81dffea044abc3067938c7b63c01423937bd44211b409"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX07_wrong_actor_or_chat_cannot_execute[ou_a-oc_other]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_callback_scope_rejected",
+        "test_expired_actual_card_rejected"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "6aecf9ee129260edf295088047b846124ed466efa4100012bfe034cdd97e75b7"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "9d6d3ff3777b8c4bc09dcac39bb72c38f4b4ce125da9f651a0d30078a521a6f5"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX07_expired_card_cannot_execute",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_callback_scope_rejected",
+        "test_expired_actual_card_rejected"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "cf7adf6bc71f68ba9c5677eb08410b02eccadd014a7aab1c6a7e36372338515a"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "9161af7542fae99dba2a44e5cd1fb55b733fd25435f3a14a9af90feff940fb9c"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX04_group_form_continuous_feedback_two_actors",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "旧群反馈表单入口仍被导航前置阻断；原反馈模块回归通过，新精确回复绑定另测，不能替代双真人群反馈验收。",
+      "native_equivalent_checks": [
+        "test_recipient_exact_reply_acknowledges_but_never_completes"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "9e3f0ae7aff454b694c7de34930e6c2c3560457e1c97fb774eb8c0b2c33512e8"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "fbd4408501724b652f98b00447df3f894de4e81d723f3182ce995d602e5d93da"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_UX08_search_no_results_and_long_body_readable",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "4770c18e9875e23f8932f03c6e1b71d06ea135c11851c554b36e6e610aa39929"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "cbca8a8c6282578497e21cbd87743420199a55616c3de48d4657f6f95c97da11"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_collection_cross_thread_requires_new_choice",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "f29d9df1c9ff06ab0df037e2070d240312c17a004a2606205cc34af1bec6092e"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "3141f351d9d535aaf813e26af0e671a95f4b4fd0369e7e32cc39721efe2a5c3e"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_collection_different_project_mention_rejected",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "fe8951848cd6f7d9006d3118267294cf0036d72a1d8f8ce658b1a83962db2791"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "54650a7df204e5cc3f9dbc1fcd443a9fdf0303ab1f0309d1b497136945fe3f71"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_future_cycle_start_respected",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "bfc5a4a67441d6472c5a55f595cdc182894421a626d2151068b602d16ccba500"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "c3c32e9d39ae4203b983dd0b3b17666182b35984f8029006a4e8be8465ca212e"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_old_form_is_blocked_after_feature_disabled",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_disabled_feature_rejects_old_preview"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "6d299ff5c3f64052698049af01db9c5556f3a07e0e147dfa936836bd4a346bbf"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "2c5df114e256fd84da504985f8fec437fea291b238e535401de6b0ec947506b3"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_precheck_unread_file_is_not_claimed_missing",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "12891d95233f96c24bc77920c1cdc767e6cb429fcdd53c2747c067d1a7aa4d14"
+      },
+      "final": {
+        "message": "AssertionError: ('targets', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'pr...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "696e7c3c0115c1fb2d625498252334558a3956b59f311795f4adef80d4740ab3"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_project_card_reply_binding_survives_later_query",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "采集、文档预检、原查询或周期功能；本轮不改其业务规则，旧导航用例未恢复，不作为本轮功能通过证据。",
+      "native_equivalent_checks": [],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "6b2813740cb7e5b2b1ba165b9580c40297246364a5d655d82e1179a8d783d956"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "b48ff1da5cda6f460b1f42bdf2d2f57e0bd520c58dbf46790fbbde4910d5a9db"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_reminder_form_body_is_literal_through_scheduled_render[\\u8bf7\\u63d0\\u4ea4 {\\u6d4b\\u8bd5\\u62a5\\u544a}\\uff0c\\u53c2\\u6570 {\"version\": 2}\\u3002]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_exact_body_never_interpolated_after_confirmation"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "616e8638ad2fd4b63b54363da425041134c7fa9843c5c1052b2d03226a216dcc"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "36c323836803b32ee730a526e4abb227cf04ddf56ed3af999a1dc9ba1c2c4677"
+      }
+    },
+    {
+      "test": "tests.test_am_ux1.test_reminder_form_body_is_literal_through_scheduled_render[\\u8bf7\\u4fdd\\u7559\\u53cc\\u62ec\\u53f7 {{\\u6837\\u4f8b}}\\u3002]",
+      "category": "old_navigation_precondition",
+      "same_failure_message": true,
+      "relationship": "涉及本轮安全意图；旧导航仍失败，新入口已有对应原服务/存储/模拟平台验证。",
+      "native_equivalent_checks": [
+        "test_exact_body_never_interpolated_after_confirmation"
+      ],
+      "baseline": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "a6b357414f9c9cbe65619aa7a9923e87196c23723abdfa7ccb5ca10cd03240c2"
+      },
+      "final": {
+        "message": "AssertionError: ('projects', {'0': {'origin': {'next': 'project', 'offset': 0, 'page': 'projects', 'query': ''}, 'page': 'project', 'p...e': 'project', 'project': 'abd6747a47a758379a5b326877481d9b'}, '2': {'page': 'recent'}, '3': {'page': 'refresh'}, ...})\nassert None is not None",
+        "details_sha256": "cae944b69818b96b8a18d89ec2b1ca44ffb9daf61cc1571382ff9d64cc88d745"
+      }
+    }
+  ]
+}

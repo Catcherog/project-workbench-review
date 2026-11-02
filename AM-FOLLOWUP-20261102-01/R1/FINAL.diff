@@ -1,0 +1,2901 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/pyproject.toml b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/pyproject.toml
+index ceb70e1c..c16ca470 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/pyproject.toml
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/pyproject.toml
+@@ -17,7 +17,7 @@ dependencies = [
+ fs-agent = "fs_agent.cli:main"
+ 
+ [tool.hatch.build.targets.wheel]
+-packages = ["src/fs_agent", "src/am_doc_engine", "src/am_harness"]
++packages = ["src/fs_agent", "src/am_doc_engine", "src/am_harness", "src/am_followup"]
+ 
+ [tool.pytest.ini_options]
+ testpaths = ["tests"]
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/__init__.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/__init__.py
+new file mode 100644
+index 00000000..a5d0d2d0
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/__init__.py
+@@ -0,0 +1,4 @@
++"""AM-FOLLOWUP-20261102-01 / R1. No network clients or automatic workers."""
++
++__version__ = "0.1.0"
++
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/confirmation.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/confirmation.py
+new file mode 100644
+index 00000000..c611fa59
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/confirmation.py
+@@ -0,0 +1,101 @@
++"""Reuse AM's real delivered-preview binding for one-click batch confirmation.
++
++This is NOT a webhook signature verifier and does not send preview cards. Its
++reader must use the existing AM card/outbox + readback records. It must never
++construct a successful record merely because an LLM says the user saw a draft.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++from datetime import datetime, timedelta, timezone
++import hashlib
++import json
++from typing import Callable
++
++from .followup import Actor, ApprovalRequest, BatchResult, FollowupCoordinator, FollowupError
++
++
++@dataclass(frozen=True)
++class PreviewRowBinding:
++    preview_id: str
++    content_hash: str
++    # Secret token retained in the backend preview, not printed in logs.
++    token: str
++
++
++def manifest_hash(rows: tuple[PreviewRowBinding, ...]) -> str:
++    pairs = sorted((r.preview_id, r.content_hash) for r in rows)
++    return hashlib.sha256(json.dumps(pairs, separators=(",", ":")).encode()).hexdigest()
++
++
++@dataclass(frozen=True)
++class DeliveredPreview:
++    tenant_id: str
++    owner_id: str
++    chat_id: str
++    message_id: str
++    view_id: str
++    rows: tuple[PreviewRowBinding, ...]
++    delivered_at: datetime
++    valid_until: datetime
++    source_record_id: str
++    verified: bool
++
++
++@dataclass(frozen=True)
++class VerifiedCallback:
++    # Construct ONLY after original SDK/event authentication and replay checks.
++    tenant_id: str
++    app_id: str
++    actor_id: str
++    chat_id: str
++    source_message_id: str
++    event_id: str
++    occurred_at: datetime
++    view_id: str
++    manifest_hash: str
++    selected_preview_ids: tuple[str, ...]
++    action: str
++
++
++class ConfirmationBridge:
++    def __init__(self, coordinator: FollowupCoordinator, *, expected_app_id: str,
++                 read_delivered: Callable[[str, str], DeliveredPreview],
++                 clock: Callable[[], datetime] | None = None):
++        if not expected_app_id:
++            raise ValueError("APP_ID_REQUIRED")
++        self.coordinator = coordinator
++        self.app_id, self.read_delivered = expected_app_id, read_delivered
++        self.clock = clock or (lambda: datetime.now(timezone.utc))
++
++    def confirm(self, actor: Actor, callback: VerifiedCallback) -> list[BatchResult]:
++        """One actual user click; rows return independent truthful outcomes."""
++        now = self.clock()
++        if callback.action != "confirm_send_once":
++            raise FollowupError("callback_is_not_send_confirmation")
++        if (callback.tenant_id, callback.actor_id, callback.app_id) != (
++                actor.tenant_id, actor.user_id, self.app_id) or not callback.event_id:
++            raise FollowupError("callback_actor_scope_mismatch")
++        record = self.read_delivered(actor.tenant_id, callback.view_id)
++        if (record.tenant_id, record.owner_id, record.chat_id, record.message_id, record.view_id) != (
++                actor.tenant_id, actor.user_id, callback.chat_id, callback.source_message_id, callback.view_id):
++            raise FollowupError("callback_preview_binding_mismatch")
++        if (record.verified is not True or not record.source_record_id or not record.message_id or
++                any(t.tzinfo is None for t in (record.delivered_at, record.valid_until, callback.occurred_at, now))):
++            raise FollowupError("preview_delivery_not_verified")
++        if (record.valid_until <= now or callback.occurred_at >= record.valid_until or callback.occurred_at < record.delivered_at or
++                callback.occurred_at > now + timedelta(seconds=30)):
++            raise FollowupError("preview_or_callback_time_invalid")
++        if not record.rows or len({r.preview_id for r in record.rows}) != len(record.rows):
++            raise FollowupError("preview_rows_invalid")
++        if callback.manifest_hash != manifest_hash(record.rows):
++            raise FollowupError("displayed_manifest_changed")
++        selected = callback.selected_preview_ids
++        row_map = {r.preview_id:r for r in record.rows}
++        if (not selected or len(set(selected)) != len(selected) or
++                any(i not in row_map for i in selected)):
++            raise FollowupError("selection_not_in_displayed_preview")
++        return self.coordinator.approve_batch(actor, [
++            ApprovalRequest(i, row_map[i].token, row_map[i].content_hash) for i in selected
++        ])
++
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/followup.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/followup.py
+new file mode 100644
+index 00000000..f8206932
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/followup.py
+@@ -0,0 +1,921 @@
++"""One-shot follow-up admission for the existing AM sender.
++
++This module is deliberately not a scheduler or a Feishu client.  The existing
++single AM consumer calls ``dispatch_once`` and its adapter must invoke the
++provided ``before_send`` guard immediately before its existing network send.
++SQLite coordinates local admissions; it cannot make a remote HTTP side effect
++and a local transaction atomic.  Uncertain results therefore retain their
++attention reservations and are never retried by this module.
++
++All ``Actor``, gate and readback values are trusted backend inputs.  None of
++them authenticates an HTTP callback by its Python type alone.  The host must
++verify the original platform callback, owner identity and tenant first.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import hmac
++import json
++import secrets
++import sqlite3
++import uuid
++from contextlib import contextmanager
++from dataclasses import asdict, dataclass
++from datetime import date, datetime, timezone
++from pathlib import Path
++from typing import Callable, Iterator, Mapping, Protocol, Sequence
++from zoneinfo import ZoneInfo
++
++
++class FollowupError(ValueError):
++    """A typed rejection whose code can be translated for the owner."""
++
++    def __init__(self, code: str, detail: str = "") -> None:
++        self.code = code
++        self.detail = detail
++        super().__init__(f"{code}: {detail}" if detail else code)
++
++
++class DispatchBlocked(FollowupError):
++    pass
++
++
++@dataclass(frozen=True)
++class Actor:
++    """Created only by the host's authenticated callback/session adapter."""
++
++    tenant_id: str
++    user_id: str
++    session_id: str
++    expires_at: datetime
++
++
++@dataclass(frozen=True)
++class Target:
++    # ``owner`` means the configured owner, never an arbitrary engineer DM.
++    kind: str
++    target_id: str
++    attention_ids: tuple[str, ...]
++    mention_ids: tuple[str, ...] = ()
++    directory_version: str = ""
++    valid_until: datetime | None = None
++    audience: str = "internal"
++
++
++@dataclass(frozen=True)
++class EvidenceSnapshot:
++    versions: Mapping[str, str]
++    acl_versions: Mapping[str, str]
++    task_version: str
++    disclosure_scopes: tuple[str, ...]
++
++
++@dataclass(frozen=True)
++class SendWindow:
++    not_before: datetime
++    expires_at: datetime
++    # A trusted calendar adapter supplies the finite approved working dates.
++    working_dates: tuple[str, ...]
++    timezone: str = "Asia/Shanghai"
++    local_start: str = "09:00"
++    local_end: str = "18:00"
++    allow_outside_hours: bool = False
++    calendar_version: str = ""
++
++
++@dataclass(frozen=True)
++class Draft:
++    task_id: str
++    purpose: str
++    episode_id: str
++    body: str
++    target: Target
++    evidence: EvidenceSnapshot
++    window: SendWindow
++    producer_id: str = "am"
++    action: str = "send_followup"
++    # Only an unexecuted earlier intent may be explicitly replaced.
++    supersedes_intent_id: str | None = None
++
++
++@dataclass(frozen=True)
++class GateResult:
++    allowed: bool
++    reason: str = ""
++
++
++class EvidenceGate(Protocol):
++    def __call__(self, tenant_id: str, owner_id: str, draft: Draft) -> GateResult:
++        """Check current task, every source/ACL dependency, and disclosure."""
++        ...
++
++
++class RecipientGate(Protocol):
++    def __call__(self, tenant_id: str, target: Target, now: datetime) -> GateResult:
++        """Resolve exact IDs, memberships, directory and app reachability."""
++        ...
++
++
++@dataclass(frozen=True)
++class Preview:
++    preview_id: str
++    content_hash: str
++    token: str
++    expires_at: datetime
++    draft: Draft
++    # Human meaning is fixed; a click approves exactly this one delivery.
++    approval_scope: str = "this_message_once"
++
++
++@dataclass(frozen=True)
++class ApprovalRequest:
++    preview_id: str
++    token: str
++    displayed_hash: str
++
++
++@dataclass(frozen=True)
++class ApprovalResult:
++    preview_id: str
++    intent_id: str
++    status: str  # approved, replay, already_reserved
++    intent_state: str
++    reason: str = ""
++
++
++@dataclass(frozen=True)
++class BatchResult:
++    preview_id: str
++    result: ApprovalResult | None = None
++    error: str | None = None
++
++
++@dataclass(frozen=True)
++class ReadbackEvidence:
++    """Normalized by a trusted adapter from an exact original-AM send record.
++
++    A same-text search result is not sufficient.  ``source_record_id`` points
++    to the host's retained platform readback; the request/action mapping must
++    have been established by the original sender, not inferred from text.
++    """
++
++    request_uuid: str
++    external_action_id: str
++    message_id: str
++    target_kind: str
++    target_id: str
++    body_sha256: str
++    mention_ids: tuple[str, ...]
++    correlation: str  # send_response_message_id | existing_am_action
++    source_record_id: str
++    observed_at: datetime
++
++
++@dataclass(frozen=True)
++class SendOutcome:
++    status: str  # confirmed | accepted | failed | unknown
++    external_action_id: str = ""
++    message_id: str = ""
++    readback: ReadbackEvidence | None = None
++    reason: str = ""
++    definitive_no_send: bool = False
++
++
++@dataclass(frozen=True)
++class DispatchRequest:
++    tenant_id: str
++    owner_id: str
++    intent_id: str
++    request_uuid: str
++    payload_hash: str
++    body_sha256: str
++    generation: int
++    draft: Draft
++
++
++class ExistingAMSender(Protocol):
++    def dispatch(
++        self, request: DispatchRequest, before_send: Callable[[], None]
++    ) -> SendOutcome:
++        """Map to existing AM action, call before_send, send/read back once.
++
++        The adapter must bind ``request_uuid`` to its existing durable action,
++        call ``before_send`` immediately before the provider operation, and
++        preserve the original sender's unknown/reconciliation semantics.  It
++        must not queue an unguarded background send after returning.
++        """
++        ...
++
++
++@dataclass(frozen=True)
++class IntentView:
++    intent_id: str
++    state: str
++    reason: str
++    request_uuid: str
++    payload_hash: str
++    external_action_id: str
++    message_id: str
++    stop_requested: str
++    generation: int
++    crossed_send_boundary: bool
++
++
++@dataclass(frozen=True)
++class StopResult:
++    intent: IntentView
++    effect: str  # unsent_stopped | in_flight_not_recalled | historical_only
++
++
++PURPOSES = frozenset({"request_update", "request_decision", "request_deliverable", "owner_notice"})
++TARGET_KINDS = frozenset({"owner", "recipient_p2p", "group"})
++
++
++def _aware(value: datetime) -> datetime:
++    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
++        raise FollowupError("timezone_required")
++    return value.astimezone(timezone.utc)
++
++
++def _stamp(value: datetime) -> float:
++    return _aware(value).timestamp()
++
++
++def _json(value: object) -> str:
++    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
++
++
++def _digest(value: object) -> str:
++    return hashlib.sha256(_json(value).encode("utf-8")).hexdigest()
++
++
++def _string(value: str, field_name: str) -> None:
++    if not isinstance(value, str) or not value.strip() or len(value) > 512:
++        raise FollowupError("invalid_identifier", field_name)
++
++
++def _draft_dict(draft: Draft) -> dict:
++    result = asdict(draft)
++    result["target"]["valid_until"] = (
++        _aware(draft.target.valid_until).isoformat() if draft.target.valid_until else None
++    )
++    result["window"]["not_before"] = _aware(draft.window.not_before).isoformat()
++    result["window"]["expires_at"] = _aware(draft.window.expires_at).isoformat()
++    return result
++
++
++def _draft_load(raw: str | dict) -> Draft:
++    value = json.loads(raw) if isinstance(raw, str) else raw
++    target = dict(value["target"])
++    target["attention_ids"] = tuple(target["attention_ids"])
++    target["mention_ids"] = tuple(target["mention_ids"])
++    target["valid_until"] = datetime.fromisoformat(target["valid_until"]) if target["valid_until"] else None
++    evidence = dict(value["evidence"])
++    evidence["disclosure_scopes"] = tuple(evidence["disclosure_scopes"])
++    window = dict(value["window"])
++    window["not_before"] = datetime.fromisoformat(window["not_before"])
++    window["expires_at"] = datetime.fromisoformat(window["expires_at"])
++    window["working_dates"] = tuple(window["working_dates"])
++    return Draft(**{**value, "target": Target(**target), "evidence": EvidenceSnapshot(**evidence), "window": SendWindow(**window)})
++
++
++def _body_hash(draft: Draft) -> str:
++    # Approval also covers dependencies/window; readback covers delivered bytes.
++    return hashlib.sha256(draft.body.encode("utf-8")).hexdigest()
++
++
++def _view(row: sqlite3.Row) -> IntentView:
++    return IntentView(
++        intent_id=row["intent_id"], state=row["state"], reason=row["reason"],
++        request_uuid=row["request_uuid"], payload_hash=row["payload_hash"],
++        external_action_id=row["external_action_id"], message_id=row["message_id"],
++        stop_requested=row["stop_requested"], generation=row["generation"],
++        crossed_send_boundary=bool(row["crossed_send_boundary"]),
++    )
++
++
++class FollowupCoordinator:
++    """Persistent one-shot admission shared by all follow-up producers.
++
++    ``owner_ids`` is host configuration, never a callback field.  All existing
++    scheduler and personal-assistant producers must use the same registry and
++    canonical task/episode keys for cross-producer deduplication to hold.
++    """
++
++    def __init__(
++        self,
++        db_path: str | Path,
++        *,
++        signing_key: bytes,
++        owner_ids: Mapping[str, str],
++        evidence_gate: EvidenceGate,
++        recipient_gate: RecipientGate,
++        clock: Callable[[], datetime] | None = None,
++    ) -> None:
++        if not isinstance(signing_key, bytes) or len(signing_key) < 32:
++            raise FollowupError("signing_key_too_short")
++        if str(db_path) == ":memory:":
++            raise FollowupError("durable_database_required")
++        self.db_path = str(db_path)
++        self.signing_key = signing_key
++        self.owner_ids = dict(owner_ids)
++        self.evidence_gate = evidence_gate
++        self.recipient_gate = recipient_gate
++        self.clock = clock or (lambda: datetime.now(timezone.utc))
++        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
++        with self._db() as db:
++            db.executescript("""
++                PRAGMA journal_mode=WAL;
++                CREATE TABLE IF NOT EXISTS followup_episodes (
++                    tenant_id TEXT NOT NULL, episode_id TEXT NOT NULL,
++                    task_id TEXT NOT NULL, purpose TEXT NOT NULL, trigger_key TEXT NOT NULL,
++                    PRIMARY KEY (tenant_id,episode_id),
++                    UNIQUE (tenant_id,task_id,purpose,trigger_key)
++                );
++                CREATE TABLE IF NOT EXISTS followup_previews (
++                    tenant_id TEXT NOT NULL, preview_id TEXT NOT NULL, owner_id TEXT NOT NULL,
++                    draft_json TEXT NOT NULL, content_hash TEXT NOT NULL, token_hash TEXT NOT NULL,
++                    expires_at REAL NOT NULL, state TEXT NOT NULL DEFAULT 'prepared',
++                    intent_id TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL,
++                    PRIMARY KEY (tenant_id,preview_id)
++                );
++                CREATE TABLE IF NOT EXISTS followup_intents (
++                    tenant_id TEXT NOT NULL, intent_id TEXT NOT NULL, owner_id TEXT NOT NULL,
++                    preview_id TEXT NOT NULL, draft_json TEXT NOT NULL, payload_hash TEXT NOT NULL,
++                    request_uuid TEXT NOT NULL, state TEXT NOT NULL,
++                    generation INTEGER NOT NULL DEFAULT 0, claim_token TEXT NOT NULL DEFAULT '',
++                    worker_id TEXT NOT NULL DEFAULT '', stop_requested TEXT NOT NULL DEFAULT '',
++                    reason TEXT NOT NULL DEFAULT '', crossed_send_boundary INTEGER NOT NULL DEFAULT 0,
++                    external_action_id TEXT NOT NULL DEFAULT '', message_id TEXT NOT NULL DEFAULT '',
++                    readback_json TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, updated_at REAL NOT NULL,
++                    PRIMARY KEY (tenant_id,intent_id), UNIQUE(request_uuid)
++                );
++                CREATE TABLE IF NOT EXISTS followup_attention (
++                    tenant_id TEXT NOT NULL, semantic_key TEXT NOT NULL, intent_id TEXT NOT NULL,
++                    PRIMARY KEY (tenant_id,semantic_key)
++                );
++                CREATE TABLE IF NOT EXISTS followup_delivery_barriers (
++                    tenant_id TEXT NOT NULL, barrier_key TEXT NOT NULL, intent_id TEXT NOT NULL,
++                    PRIMARY KEY (tenant_id,barrier_key)
++                );
++                CREATE TABLE IF NOT EXISTS followup_audit (
++                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
++                    tenant_id TEXT NOT NULL, object_id TEXT NOT NULL,
++                    event TEXT NOT NULL, detail TEXT NOT NULL, recorded_at REAL NOT NULL
++                );
++            """)
++
++    @contextmanager
++    def _db(self, write: bool = False) -> Iterator[sqlite3.Connection]:
++        db = sqlite3.connect(self.db_path, isolation_level=None, timeout=10)
++        db.row_factory = sqlite3.Row
++        db.execute("PRAGMA foreign_keys=ON")
++        db.execute("PRAGMA busy_timeout=10000")
++        try:
++            if write:
++                db.execute("BEGIN IMMEDIATE")
++            yield db
++            if write:
++                db.execute("COMMIT")
++        except BaseException:
++            if write and db.in_transaction:
++                db.execute("ROLLBACK")
++            raise
++        finally:
++            db.close()
++
++    def _now(self) -> datetime:
++        return _aware(self.clock())
++
++    def _actor(self, actor: Actor) -> None:
++        _string(actor.tenant_id, "tenant_id")
++        _string(actor.user_id, "user_id")
++        _string(actor.session_id, "session_id")
++        if self.owner_ids.get(actor.tenant_id) != actor.user_id:
++            raise FollowupError("owner_required")
++        if _stamp(actor.expires_at) <= _stamp(self._now()):
++            raise FollowupError("actor_expired")
++
++    def _audit(self, db: sqlite3.Connection, tenant: str, object_id: str, event: str, detail: str = "") -> None:
++        db.execute(
++            "INSERT INTO followup_audit(tenant_id,object_id,event,detail,recorded_at) VALUES(?,?,?,?,?)",
++            (tenant, object_id, event, detail, _stamp(self._now())),
++        )
++
++    def register_episode(self, tenant_id: str, task_id: str, purpose: str, trigger_key: str) -> str:
++        """Backend ingestion only: derive a stable episode from a verified trigger.
++
++        ``trigger_key`` is a canonical new-request/source-event or approved
++        reminder-window key, never an LLM-chosen nonce or a draft version.
++        """
++        for name, value in (("tenant_id", tenant_id), ("task_id", task_id), ("trigger_key", trigger_key)):
++            _string(value, name)
++        if tenant_id not in self.owner_ids or purpose not in PURPOSES:
++            raise FollowupError("invalid_episode_scope")
++        episode_id = "episode_" + _digest([tenant_id, task_id, purpose, trigger_key])[:40]
++        with self._db(write=True) as db:
++            db.execute(
++                "INSERT OR IGNORE INTO followup_episodes VALUES(?,?,?,?,?)",
++                (tenant_id, episode_id, task_id, purpose, trigger_key),
++            )
++        return episode_id
++
++    def _validate_draft(self, actor: Actor, draft: Draft) -> None:
++        for name, value in (("task_id", draft.task_id), ("episode_id", draft.episode_id), ("producer_id", draft.producer_id)):
++            _string(value, name)
++        if draft.purpose not in PURPOSES:
++            raise FollowupError("invalid_purpose")
++        if draft.action != "send_followup":
++            raise FollowupError("unsupported_action")
++        if not isinstance(draft.body, str) or not draft.body.strip() or len(draft.body.encode("utf-8")) > 16000:
++            raise FollowupError("invalid_body")
++        # Mention markup is generated by the host from verified IDs.  The body
++        # is plain text; model text cannot inject a new recipient or @all.
++        if "<at" in draft.body.lower() or "<mention" in draft.body.lower():
++            raise FollowupError("inline_mention_markup_forbidden")
++        target = draft.target
++        if target.kind not in TARGET_KINDS or target.audience != "internal":
++            raise FollowupError("unsupported_target")
++        _string(target.target_id, "target_id")
++        _string(target.directory_version, "directory_version")
++        if not target.attention_ids or len(set(target.attention_ids)) != len(target.attention_ids):
++            raise FollowupError("invalid_attention_targets")
++        for value in target.attention_ids + target.mention_ids:
++            _string(value, "person_id")
++            if value.lower() in {"all", "@all", "everyone"}:
++                raise FollowupError("broadcast_forbidden")
++        if target.kind == "group":
++            if tuple(sorted(target.mention_ids)) != tuple(sorted(target.attention_ids)):
++                raise FollowupError("group_mentions_must_match_attention")
++        elif target.mention_ids or target.attention_ids != (target.target_id,):
++            raise FollowupError("invalid_private_target")
++        if target.kind == "owner" and target.target_id != actor.user_id:
++            raise FollowupError("owner_is_not_engineer_dm")
++        if target.valid_until is None or _stamp(target.valid_until) <= _stamp(self._now()):
++            raise FollowupError("recipient_snapshot_expired")
++        ev = draft.evidence
++        if not ev.versions or set(ev.versions) != set(ev.acl_versions) or not ev.disclosure_scopes:
++            raise FollowupError("incomplete_evidence_snapshot")
++        _string(ev.task_version, "task_version")
++        for values in (ev.versions, ev.acl_versions):
++            for key, value in values.items():
++                _string(key, "dependency_key")
++                _string(value, "dependency_version")
++        window = draft.window
++        if not isinstance(window.allow_outside_hours, bool):
++            raise FollowupError("invalid_quiet_hours_override")
++        if _stamp(window.not_before) >= _stamp(window.expires_at) or _stamp(window.expires_at) <= _stamp(self._now()):
++            raise FollowupError("invalid_send_window")
++        try:
++            ZoneInfo(window.timezone)
++            start = datetime.strptime(window.local_start, "%H:%M").time()
++            end = datetime.strptime(window.local_end, "%H:%M").time()
++            if start >= end or start.strftime("%H:%M") != window.local_start or end.strftime("%H:%M") != window.local_end:
++                raise ValueError("window must not cross midnight")
++            if not window.working_dates or len(set(window.working_dates)) != len(window.working_dates):
++                raise ValueError("finite working dates required")
++            for item in window.working_dates:
++                if date.fromisoformat(item).isoformat() != item:
++                    raise ValueError("noncanonical date")
++        except (ValueError, KeyError) as exc:
++            raise FollowupError("invalid_calendar_window") from exc
++        _string(window.calendar_version, "calendar_version")
++        with self._db() as db:
++            episode = db.execute(
++                "SELECT * FROM followup_episodes WHERE tenant_id=? AND episode_id=?",
++                (actor.tenant_id, draft.episode_id),
++            ).fetchone()
++        if not episode or episode["task_id"] != draft.task_id or episode["purpose"] != draft.purpose:
++            raise FollowupError("unknown_or_mismatched_episode")
++
++    def _gates(self, tenant_id: str, owner_id: str, draft: Draft) -> None:
++        now = self._now()
++        if self.owner_ids.get(tenant_id) != owner_id:
++            raise DispatchBlocked("owner_configuration_changed")
++        if draft.target.valid_until is None or _stamp(draft.target.valid_until) <= _stamp(now):
++            raise DispatchBlocked("recipient_snapshot_expired")
++        for result, label in (
++            (self.evidence_gate(tenant_id, owner_id, draft), "evidence"),
++            (self.recipient_gate(tenant_id, draft.target, now), "recipient"),
++        ):
++            if not isinstance(result, GateResult) or result.allowed is not True:
++                reason = result.reason if isinstance(result, GateResult) else "invalid_gate_response"
++                raise DispatchBlocked(f"{label}_blocked", reason)
++
++    def create_preview(self, actor: Actor, draft: Draft, *, preview_ttl_seconds: int = 600) -> Preview:
++        self._actor(actor)
++        if not 1 <= preview_ttl_seconds <= 1800:
++            raise FollowupError("invalid_preview_ttl")
++        # Snapshot mutable mappings before hashing or passing to collaborators.
++        draft = _draft_load(_json(_draft_dict(draft)))
++        self._validate_draft(actor, draft)
++        self._gates(actor.tenant_id, actor.user_id, draft)
++        now = self._now()
++        expiry = min(_stamp(now) + preview_ttl_seconds, _stamp(draft.window.expires_at))
++        preview_id = "preview_" + uuid.uuid4().hex
++        body = {"tenant_id": actor.tenant_id, "owner_id": actor.user_id, "draft": _draft_dict(draft)}
++        content_hash = _digest(body)
++        nonce = secrets.token_urlsafe(24)
++        signed = _json([actor.tenant_id, actor.user_id, preview_id, content_hash, expiry, nonce])
++        token = nonce + "." + hmac.new(self.signing_key, signed.encode(), hashlib.sha256).hexdigest()
++        with self._db(write=True) as db:
++            db.execute(
++                "INSERT INTO followup_previews(tenant_id,preview_id,owner_id,draft_json,content_hash,token_hash,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?)",
++                (actor.tenant_id, preview_id, actor.user_id, _json(_draft_dict(draft)), content_hash,
++                 hashlib.sha256(token.encode()).hexdigest(), expiry, _stamp(now)),
++            )
++            self._audit(db, actor.tenant_id, preview_id, "preview_created", content_hash)
++        return Preview(preview_id, content_hash, token, datetime.fromtimestamp(expiry, timezone.utc), draft)
++
++    def _check_token(self, actor: Actor, row: sqlite3.Row, token: str, displayed_hash: str) -> None:
++        if row["owner_id"] != actor.user_id:
++            raise FollowupError("preview_owner_mismatch")
++        if not isinstance(displayed_hash, str) or not hmac.compare_digest(row["content_hash"], displayed_hash):
++            raise FollowupError("displayed_preview_changed")
++        if not isinstance(token, str) or len(token) > 256 or "." not in token:
++            raise FollowupError("invalid_approval_token")
++        nonce, signature = token.rsplit(".", 1)
++        signed = _json([actor.tenant_id, actor.user_id, row["preview_id"], row["content_hash"], row["expires_at"], nonce])
++        expected = hmac.new(self.signing_key, signed.encode(), hashlib.sha256).hexdigest()
++        if not hmac.compare_digest(signature, expected) or not hmac.compare_digest(
++            row["token_hash"], hashlib.sha256(token.encode()).hexdigest()
++        ):
++            raise FollowupError("invalid_approval_token")
++        # Detect unexpected stored payload corruption before any authorization.
++        expected_hash = _digest({"tenant_id": actor.tenant_id, "owner_id": actor.user_id, "draft": json.loads(row["draft_json"])})
++        if not hmac.compare_digest(expected_hash, row["content_hash"]):
++            raise FollowupError("stored_preview_changed")
++
++    @staticmethod
++    def _attention_keys(tenant_id: str, draft: Draft) -> tuple[str, ...]:
++        return tuple(sorted(_digest([tenant_id, draft.task_id, draft.purpose, draft.episode_id, person]) for person in draft.target.attention_ids))
++
++    @staticmethod
++    def _barrier_keys(tenant_id: str, draft: Draft) -> tuple[str, ...]:
++        # A new reminder window must not bypass an unresolved older send.  This
++        # key deliberately also excludes episode_id, unlike long-term dedup.
++        return tuple(sorted(_digest([tenant_id, draft.task_id, draft.purpose, person]) for person in draft.target.attention_ids))
++
++    def _other_barriers(self, db: sqlite3.Connection, tenant_id: str, draft: Draft, intent_id: str = "") -> set[str]:
++        return {
++            row["intent_id"] for key in self._barrier_keys(tenant_id, draft)
++            if (row := db.execute(
++                "SELECT intent_id FROM followup_delivery_barriers WHERE tenant_id=? AND barrier_key=?",
++                (tenant_id, key),
++            ).fetchone()) and row["intent_id"] != intent_id
++        }
++
++    @staticmethod
++    def _release_barriers(db: sqlite3.Connection, tenant_id: str, intent_id: str) -> None:
++        db.execute("DELETE FROM followup_delivery_barriers WHERE tenant_id=? AND intent_id=?", (tenant_id, intent_id))
++
++    def approve(self, actor: Actor, preview_id: str, token: str, displayed_hash: str) -> ApprovalResult:
++        self._actor(actor)
++        with self._db() as db:
++            first = db.execute(
++                "SELECT * FROM followup_previews WHERE tenant_id=? AND preview_id=?", (actor.tenant_id, preview_id)
++            ).fetchone()
++        if not first:
++            raise FollowupError("preview_not_found")
++        self._check_token(actor, first, token, displayed_hash)
++        # Replays after a successful approval return the original outcome, even
++        # if the preview TTL passed.  They never renew the send authorization.
++        if first["state"] == "prepared":
++            if first["expires_at"] <= _stamp(self._now()):
++                raise FollowupError("preview_expired")
++            draft = _draft_load(first["draft_json"])
++            self._gates(actor.tenant_id, actor.user_id, draft)
++        self._actor(actor)
++        with self._db(write=True) as db:
++            row = db.execute(
++                "SELECT * FROM followup_previews WHERE tenant_id=? AND preview_id=?", (actor.tenant_id, preview_id)
++            ).fetchone()
++            self._check_token(actor, row, token, displayed_hash)
++            if row["state"] in {"approved", "already_reserved"}:
++                intent = self._intent_row(db, actor.tenant_id, row["intent_id"])
++                return ApprovalResult(preview_id, intent["intent_id"], "replay", intent["state"], "original_authorization_not_renewed")
++            if row["expires_at"] <= _stamp(self._now()):
++                raise FollowupError("preview_expired")
++            draft = _draft_load(row["draft_json"])
++            keys = self._attention_keys(actor.tenant_id, draft)
++            existing = {
++                hit["intent_id"] for key in keys
++                if (hit := db.execute(
++                    "SELECT intent_id FROM followup_attention WHERE tenant_id=? AND semantic_key=?", (actor.tenant_id, key)
++                ).fetchone())
++            }
++            if self._other_barriers(db, actor.tenant_id, draft) - existing:
++                raise FollowupError("prior_delivery_uncertain")
++            if existing and draft.supersedes_intent_id:
++                if existing != {draft.supersedes_intent_id}:
++                    raise FollowupError("supersede_attention_conflict")
++                previous = self._intent_row(db, actor.tenant_id, draft.supersedes_intent_id)
++                if previous["owner_id"] != actor.user_id or previous["crossed_send_boundary"] or previous["state"] not in {"queued", "blocked", "paused", "revoked", "failed"}:
++                    raise FollowupError("cannot_replace_executed_or_claimed_intent")
++                # An exact replacement cannot drop reservations that belonged to
++                # another audience; require the same attention set for R1.
++                previous_keys = {hit[0] for hit in db.execute(
++                    "SELECT semantic_key FROM followup_attention WHERE tenant_id=? AND intent_id=?",
++                    (actor.tenant_id, previous["intent_id"]),
++                )}
++                if previous_keys != set(keys):
++                    raise FollowupError("supersede_audience_changed")
++                db.execute(
++                    "UPDATE followup_intents SET state='superseded',stop_requested='revoke',generation=generation+1,reason='replaced_before_send',updated_at=? WHERE tenant_id=? AND intent_id=?",
++                    (_stamp(self._now()), actor.tenant_id, previous["intent_id"]),
++                )
++                db.execute("DELETE FROM followup_attention WHERE tenant_id=? AND intent_id=?", (actor.tenant_id, previous["intent_id"]))
++                self._audit(db, actor.tenant_id, previous["intent_id"], "superseded", preview_id)
++                existing = set()
++            elif draft.supersedes_intent_id and not existing:
++                raise FollowupError("supersede_target_missing")
++            if existing:
++                # No partial group send: any person's reservation blocks this
++                # entire message, preserving the exact reviewed recipient set.
++                if len(existing) > 1:
++                    raise FollowupError("attention_reserved_by_multiple_intents")
++                existing_id = next(iter(existing))
++                intent = self._intent_row(db, actor.tenant_id, existing_id)
++                db.execute(
++                    "UPDATE followup_previews SET state='already_reserved',intent_id=? WHERE tenant_id=? AND preview_id=?",
++                    (existing_id, actor.tenant_id, preview_id),
++                )
++                self._audit(db, actor.tenant_id, preview_id, "duplicate_attention_blocked", existing_id)
++                return ApprovalResult(preview_id, existing_id, "already_reserved", intent["state"], "new_preview_not_sent_or_substituted")
++            intent_id = "intent_" + uuid.uuid4().hex
++            request_uuid = str(uuid.uuid4())
++            now = _stamp(self._now())
++            db.execute(
++                "INSERT INTO followup_intents(tenant_id,intent_id,owner_id,preview_id,draft_json,payload_hash,request_uuid,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'queued',?,?)",
++                (actor.tenant_id, intent_id, actor.user_id, preview_id, row["draft_json"], row["content_hash"], request_uuid, now, now),
++            )
++            for key in keys:
++                db.execute("INSERT INTO followup_attention VALUES(?,?,?)", (actor.tenant_id, key, intent_id))
++            db.execute("UPDATE followup_previews SET state='approved',intent_id=? WHERE tenant_id=? AND preview_id=?", (intent_id, actor.tenant_id, preview_id))
++            self._audit(db, actor.tenant_id, intent_id, "approved_once", preview_id)
++            return ApprovalResult(preview_id, intent_id, "approved", "queued")
++
++    def approve_batch(self, actor: Actor, requests: Sequence[ApprovalRequest]) -> list[BatchResult]:
++        self._actor(actor)
++        if len(requests) > 50:
++            raise FollowupError("batch_too_large")
++        results: list[BatchResult] = []
++        for item in requests:
++            try:
++                result = self.approve(actor, item.preview_id, item.token, item.displayed_hash)
++                results.append(BatchResult(item.preview_id, result=result))
++            except FollowupError as exc:
++                results.append(BatchResult(item.preview_id, error=exc.code))
++        return results
++
++    def _intent_row(self, db: sqlite3.Connection, tenant_id: str, intent_id: str) -> sqlite3.Row:
++        row = db.execute("SELECT * FROM followup_intents WHERE tenant_id=? AND intent_id=?", (tenant_id, intent_id)).fetchone()
++        if not row:
++            raise FollowupError("intent_not_found")
++        return row
++
++    def get_intent(self, actor: Actor, intent_id: str) -> IntentView:
++        self._actor(actor)
++        with self._db() as db:
++            row = self._intent_row(db, actor.tenant_id, intent_id)
++            if row["owner_id"] != actor.user_id:
++                raise FollowupError("intent_owner_mismatch")
++            return _view(row)
++
++    def audit(self, actor: Actor, object_id: str) -> list[dict]:
++        self._actor(actor)
++        with self._db() as db:
++            return [dict(row) for row in db.execute(
++                "SELECT sequence,event,detail,recorded_at FROM followup_audit WHERE tenant_id=? AND object_id=? ORDER BY sequence",
++                (actor.tenant_id, object_id),
++            )]
++
++    def _window_reason(self, draft: Draft) -> str:
++        now = self._now()
++        if _stamp(now) < _stamp(draft.window.not_before):
++            return "not_before"
++        if _stamp(now) >= _stamp(draft.window.expires_at):
++            return "authorization_expired"
++        local = now.astimezone(ZoneInfo(draft.window.timezone))
++        if local.date().isoformat() not in draft.window.working_dates:
++            return "not_approved_working_date"
++        if not draft.window.allow_outside_hours:
++            label = local.strftime("%H:%M")
++            if not draft.window.local_start <= label < draft.window.local_end:
++                return "quiet_hours"
++        return ""
++
++    def dispatch_once(self, tenant_id: str, intent_id: str, sender: ExistingAMSender, *, worker_id: str) -> IntentView:
++        """Called by the original consumer; it does not start a worker loop."""
++        if tenant_id not in self.owner_ids:
++            raise FollowupError("unknown_tenant")
++        _string(worker_id, "worker_id")
++        claim = secrets.token_hex(24)
++        with self._db(write=True) as db:
++            row = self._intent_row(db, tenant_id, intent_id)
++            if row["state"] != "queued" or row["stop_requested"]:
++                return _view(row)
++            draft = _draft_load(row["draft_json"])
++            expected_hash = _digest({"tenant_id": tenant_id, "owner_id": row["owner_id"], "draft": json.loads(row["draft_json"])})
++            if not hmac.compare_digest(expected_hash, row["payload_hash"]):
++                db.execute("UPDATE followup_intents SET state='blocked',reason='stored_intent_changed',updated_at=? WHERE tenant_id=? AND intent_id=?", (_stamp(self._now()), tenant_id, intent_id))
++                return _view(self._intent_row(db, tenant_id, intent_id))
++            window_reason = self._window_reason(draft)
++            if window_reason:
++                state = "blocked" if window_reason == "authorization_expired" else "queued"
++                db.execute("UPDATE followup_intents SET state=?,reason=?,updated_at=? WHERE tenant_id=? AND intent_id=?", (state, window_reason, _stamp(self._now()), tenant_id, intent_id))
++                return _view(self._intent_row(db, tenant_id, intent_id))
++            if self._other_barriers(db, tenant_id, draft, intent_id):
++                db.execute("UPDATE followup_intents SET reason='prior_delivery_uncertain',updated_at=? WHERE tenant_id=? AND intent_id=?", (_stamp(self._now()), tenant_id, intent_id))
++                return _view(self._intent_row(db, tenant_id, intent_id))
++            for key in self._barrier_keys(tenant_id, draft):
++                db.execute("INSERT OR IGNORE INTO followup_delivery_barriers VALUES(?,?,?)", (tenant_id, key, intent_id))
++            generation = row["generation"] + 1
++            db.execute(
++                "UPDATE followup_intents SET state='claimed',generation=?,claim_token=?,worker_id=?,reason='',updated_at=? WHERE tenant_id=? AND intent_id=?",
++                (generation, claim, worker_id, _stamp(self._now()), tenant_id, intent_id),
++            )
++            request = DispatchRequest(tenant_id, row["owner_id"], intent_id, row["request_uuid"], row["payload_hash"], _body_hash(draft), generation, draft)
++            self._audit(db, tenant_id, intent_id, "claimed", worker_id)
++        guarded = False
++
++        def before_send() -> None:
++            nonlocal guarded
++            if guarded:
++                raise DispatchBlocked("send_guard_already_used")
++            self._gates(tenant_id, request.owner_id, request.draft)
++            reason = self._window_reason(request.draft)
++            if reason:
++                raise DispatchBlocked(reason)
++            with self._db(write=True) as db:
++                current = self._intent_row(db, tenant_id, intent_id)
++                if current["state"] != "claimed" or current["generation"] != generation or current["claim_token"] != claim or current["stop_requested"]:
++                    raise DispatchBlocked("claim_revoked_or_fenced")
++                # The authorization's exact payload must still be the one the
++                # original AM adapter is about to send.
++                if current["payload_hash"] != request.payload_hash or current["draft_json"] != _json(_draft_dict(request.draft)):
++                    raise DispatchBlocked("stored_intent_changed")
++                db.execute(
++                    "UPDATE followup_intents SET state='sending',crossed_send_boundary=1,updated_at=? WHERE tenant_id=? AND intent_id=?",
++                    (_stamp(self._now()), tenant_id, intent_id),
++                )
++                self._audit(db, tenant_id, intent_id, "send_boundary_entered", request.request_uuid)
++            guarded = True
++
++        try:
++            # An early check reduces pointless admission work.  The adapter
++            # still must call before_send immediately before its provider call.
++            self._gates(tenant_id, request.owner_id, request.draft)
++            outcome = sender.dispatch(request, before_send)
++            if not isinstance(outcome, SendOutcome):
++                outcome = SendOutcome("unknown", reason="invalid_adapter_outcome")
++            elif any(not isinstance(value, str) for value in (outcome.status, outcome.external_action_id, outcome.message_id, outcome.reason)):
++                outcome = SendOutcome("unknown", reason="invalid_adapter_outcome_fields")
++            if not guarded and outcome.status != "failed":
++                outcome = SendOutcome("unknown", external_action_id=outcome.external_action_id, reason="adapter_missing_final_gate")
++        except DispatchBlocked as exc:
++            return self._finish_blocked(tenant_id, intent_id, generation, claim, exc.code)
++        except Exception as exc:
++            # Error strings can contain provider tokens/response bodies; retain
++            # the exception class only.  Exact host diagnostics stay upstream.
++            outcome = SendOutcome("unknown", reason="adapter_exception:" + type(exc).__name__)
++        return self._finish(tenant_id, intent_id, generation, claim, request, outcome, guarded)
++
++    def _finish_blocked(self, tenant: str, intent_id: str, generation: int, claim: str, reason: str) -> IntentView:
++        with self._db(write=True) as db:
++            row = self._intent_row(db, tenant, intent_id)
++            if row["generation"] == generation and row["claim_token"] == claim and row["state"] in {"claimed", "sending"}:
++                # If the adapter raised this after the send boundary, delivery
++                # is uncertain.  A local exception cannot prove no remote send.
++                state = "unknown" if row["crossed_send_boundary"] else "blocked"
++                if state == "blocked":
++                    self._release_barriers(db, tenant, intent_id)
++                db.execute("UPDATE followup_intents SET state=?,reason=?,updated_at=? WHERE tenant_id=? AND intent_id=?", (state, reason, _stamp(self._now()), tenant, intent_id))
++                self._audit(db, tenant, intent_id, state, reason)
++            return _view(self._intent_row(db, tenant, intent_id))
++
++    def _valid_readback(self, request: DispatchRequest, readback: ReadbackEvidence | None, action_id: str, message_id: str = "") -> bool:
++        if not isinstance(readback, ReadbackEvidence):
++            return False
++        if not isinstance(readback.mention_ids, (tuple, list)) or any(not isinstance(item, str) for item in readback.mention_ids):
++            return False
++        try:
++            not_future = _stamp(readback.observed_at) <= _stamp(self._now())
++        except (ValueError, TypeError, OverflowError):
++            return False
++        return bool(
++            readback.request_uuid == request.request_uuid
++            and readback.external_action_id and readback.external_action_id == action_id
++            and readback.message_id and (not message_id or readback.message_id == message_id)
++            and readback.target_kind == request.draft.target.kind
++            and readback.target_id == request.draft.target.target_id
++            and readback.body_sha256 == request.body_sha256
++            and tuple(sorted(readback.mention_ids)) == tuple(sorted(request.draft.target.mention_ids))
++            and readback.correlation in {"send_response_message_id", "existing_am_action"}
++            and readback.source_record_id
++            and not_future
++        )
++
++    def _finish(self, tenant: str, intent_id: str, generation: int, claim: str, request: DispatchRequest, outcome: SendOutcome, guarded: bool) -> IntentView:
++        state, reason, readback_json = "unknown", outcome.reason, ""
++        if outcome.status == "confirmed" and guarded:
++            if self._valid_readback(request, outcome.readback, outcome.external_action_id, outcome.message_id):
++                state = "confirmed"
++                data = asdict(outcome.readback)
++                data["observed_at"] = _aware(outcome.readback.observed_at).isoformat()
++                readback_json = _json(data)
++            else:
++                reason = "readback_mismatch_or_missing"
++        elif outcome.status == "failed" and outcome.definitive_no_send is True:
++            state = "failed"
++        elif outcome.status == "accepted":
++            reason = outcome.reason or "awaiting_exact_readback"
++        elif outcome.status not in {"unknown", "failed", "confirmed"}:
++            reason = "invalid_adapter_status"
++        with self._db(write=True) as db:
++            row = self._intent_row(db, tenant, intent_id)
++            if row["generation"] != generation or row["claim_token"] != claim or row["state"] not in {"claimed", "sending"}:
++                return _view(row)
++            db.execute(
++                "UPDATE followup_intents SET state=?,reason=?,external_action_id=?,message_id=?,readback_json=?,updated_at=? WHERE tenant_id=? AND intent_id=?",
++                (state, reason, outcome.external_action_id, outcome.message_id or (outcome.readback.message_id if state == "confirmed" and outcome.readback else ""), readback_json, _stamp(self._now()), tenant, intent_id),
++            )
++            if state in {"confirmed", "failed"}:
++                self._release_barriers(db, tenant, intent_id)
++            self._audit(db, tenant, intent_id, state, reason)
++            return _view(self._intent_row(db, tenant, intent_id))
++
++    def _stop(self, actor: Actor, intent_id: str, action: str) -> StopResult:
++        self._actor(actor)
++        with self._db(write=True) as db:
++            row = self._intent_row(db, actor.tenant_id, intent_id)
++            if row["owner_id"] != actor.user_id:
++                raise FollowupError("intent_owner_mismatch")
++            if row["state"] in {"queued", "claimed", "blocked", "paused", "revoked"} and not row["crossed_send_boundary"]:
++                state = "revoked" if action == "revoke" or row["state"] == "revoked" else "paused"
++                db.execute(
++                    "UPDATE followup_intents SET state=?,stop_requested=?,generation=generation+1,reason='owner_stopped_before_send',updated_at=? WHERE tenant_id=? AND intent_id=?",
++                    (state, action, _stamp(self._now()), actor.tenant_id, intent_id),
++                )
++                self._release_barriers(db, actor.tenant_id, intent_id)
++                effect = "unsent_stopped"
++            else:
++                # Do not rewrite an actual delivery as "revoked" or "unsent".
++                db.execute("UPDATE followup_intents SET stop_requested=?,updated_at=? WHERE tenant_id=? AND intent_id=?", (action, _stamp(self._now()), actor.tenant_id, intent_id))
++                effect = "in_flight_not_recalled" if row["state"] in {"sending", "unknown"} else "historical_only"
++            self._audit(db, actor.tenant_id, intent_id, action, effect)
++            return StopResult(_view(self._intent_row(db, actor.tenant_id, intent_id)), effect)
++
++    def pause(self, actor: Actor, intent_id: str) -> StopResult:
++        return self._stop(actor, intent_id, "pause")
++
++    def revoke(self, actor: Actor, intent_id: str) -> StopResult:
++        return self._stop(actor, intent_id, "revoke")
++
++    def recover_in_flight(self, tenant_id: str, worker_id: str) -> int:
++        """Fence the old worker and mark ambiguous work unknown, never requeue.
++
++        This may run after a restart or a handover.  It does not infer that an
++        external send was absent.  A late old callback cannot reclaim/send a
++        still-claimed intent, and a late completion cannot overwrite recovery.
++        """
++        if tenant_id not in self.owner_ids:
++            raise FollowupError("unknown_tenant")
++        with self._db(write=True) as db:
++            rows = list(db.execute("SELECT * FROM followup_intents WHERE tenant_id=? AND worker_id=? AND state IN ('claimed','sending')", (tenant_id, worker_id)))
++            for row in rows:
++                db.execute(
++                    "UPDATE followup_intents SET state='unknown',generation=generation+1,claim_token='',reason='worker_recovered_requires_reconciliation',updated_at=? WHERE tenant_id=? AND intent_id=?",
++                    (_stamp(self._now()), tenant_id, row["intent_id"]),
++                )
++                self._audit(db, tenant_id, row["intent_id"], "unknown", "worker_recovery")
++            return len(rows)
++
++    def reconcile(self, tenant_id: str, intent_id: str, readback: ReadbackEvidence) -> IntentView:
++        """Trusted original-AM reconciliation callback; no retry/no text search."""
++        if tenant_id not in self.owner_ids:
++            raise FollowupError("unknown_tenant")
++        if not isinstance(readback, ReadbackEvidence):
++            raise FollowupError("readback_mismatch")
++        with self._db(write=True) as db:
++            row = self._intent_row(db, tenant_id, intent_id)
++            if row["state"] not in {"unknown", "confirmed"}:
++                raise FollowupError("reconcile_requires_unknown")
++            draft = _draft_load(row["draft_json"])
++            request = DispatchRequest(tenant_id, row["owner_id"], intent_id, row["request_uuid"], row["payload_hash"], _body_hash(draft), row["generation"], draft)
++            action_id = row["external_action_id"] or readback.external_action_id
++            if not self._valid_readback(request, readback, action_id, row["message_id"]):
++                raise FollowupError("readback_mismatch")
++            if row["state"] == "confirmed":
++                return _view(row)
++            data = asdict(readback)
++            data["observed_at"] = _aware(readback.observed_at).isoformat()
++            db.execute(
++                "UPDATE followup_intents SET state='confirmed',reason='reconciled_exact_message',external_action_id=?,message_id=?,readback_json=?,updated_at=? WHERE tenant_id=? AND intent_id=?",
++                (readback.external_action_id, readback.message_id, _json(data), _stamp(self._now()), tenant_id, intent_id),
++            )
++            self._release_barriers(db, tenant_id, intent_id)
++            self._audit(db, tenant_id, intent_id, "confirmed", "reconciled_exact_message")
++            return _view(self._intent_row(db, tenant_id, intent_id))
++
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/rendering.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/rendering.py
+new file mode 100644
+index 00000000..7c996dd2
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/rendering.py
+@@ -0,0 +1,174 @@
++"""Small, grounded natural-language drafts and code-owned Feishu mentions.
++
++No model call is required for read views or sending. A model may select allowed
++fact IDs, purpose and tone BEFORE approval. This bounded composer cannot perform
++general semantic entailment; arbitrary model prose is deliberately not accepted.
++The existing Qwen extraction path can supply proposals to the evidence layer.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++import hashlib
++import json
++import re
++from typing import Iterable
++
++
++class RenderError(ValueError):
++    pass
++
++
++PURPOSES = {
++    "confirm_start": "想确认一下，测试目前是否已经开始？如果还没开始，主要卡点和预计开测时间是什么？",
++    "confirm_release": "想确认一下，目前是否已经正式发布？如果已经发布，请补充发布记录；如果还没有，预计什么时候完成？",
++    "confirm_external_version": "想确认一下，目前是否已有明确可对外使用的版本？如果还没有，预计什么时候能提供？",
++    "request_estimate": "请帮忙补充这项工作的预计投入和计划处理时间，先给粗略估计也可以。",
++    "clarify_conditions": "请帮忙确认正式执行前的条件是否已落实，并补充仍缺少的条件或意见。",
++    "request_progress": "想确认一下这项工作的当前进展、主要卡点和下一步安排。",
++}
++TONE_PREFIX = {"neutral": "", "warm": "辛苦看一下。", "brief": ""}
++
++
++def _plain(value: str, *, max_length: int) -> str:
++    if not isinstance(value, str) or not value.strip() or len(value) > max_length:
++        raise RenderError("TEXT_OUT_OF_BOUNDS")
++    # Text nodes are the output boundary; control characters and raw mention
++    # syntax are additionally rejected so later transport conversion stays safe.
++    if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", value) or re.search(r"<\s*/?\s*at\b|@all\b", value, re.I):
++        raise RenderError("CONTROL_OR_MENTION_IN_TEXT")
++    return value.strip()
++
++
++@dataclass(frozen=True)
++class DisclosedFact:
++    fact_id: str
++    text: str
++    evidence_ref: str
++    evidence_version: str
++    policy_version: str
++    allowed_audiences: tuple[str, ...]
++    authority: str = "verified"
++
++    def __post_init__(self) -> None:
++        _plain(self.text, max_length=300)
++        if any(not isinstance(s, str) or not s for s in
++               (self.fact_id, self.evidence_ref, self.evidence_version, self.policy_version)):
++            raise RenderError("FACT_PROVENANCE_REQUIRED")
++        if self.authority not in {"verified", "reported"}:
++            raise RenderError("UNCONFIRMED_FACT_NOT_A_SENDABLE_ASSERTION")
++        if not self.allowed_audiences or len(set(self.allowed_audiences)) != len(self.allowed_audiences):
++            raise RenderError("EXPLICIT_DISCLOSURE_SCOPE_REQUIRED")
++
++
++@dataclass(frozen=True)
++class DraftSelection:
++    purpose: str
++    fact_ids: tuple[str, ...] = ()
++    tone: str = "neutral"
++
++
++def parse_selection(raw: str) -> DraftSelection:
++    """Strict tool-free output contract; source text cannot set actions/targets."""
++    if not isinstance(raw, str) or len(raw.encode("utf-8")) > 8192:
++        raise RenderError("MODEL_OUTPUT_TOO_LARGE")
++    def unique(pairs):
++        result = {}
++        for key, value in pairs:
++            if key in result:
++                raise RenderError("DUPLICATE_JSON_KEY")
++            result[key] = value
++        return result
++    try:
++        value = json.loads(raw, object_pairs_hook=unique)
++    except (TypeError, json.JSONDecodeError) as exc:
++        raise RenderError("MODEL_OUTPUT_NOT_JSON") from exc
++    if type(value) is not dict or set(value) != {"purpose", "fact_ids", "tone"}:
++        raise RenderError("MODEL_OUTPUT_SCHEMA")
++    if type(value["purpose"]) is not str or value["purpose"] not in PURPOSES:
++        raise RenderError("PURPOSE_NOT_ALLOWED")
++    if type(value["tone"]) is not str or value["tone"] not in TONE_PREFIX:
++        raise RenderError("TONE_NOT_ALLOWED")
++    ids = value["fact_ids"]
++    if (type(ids) is not list or len(ids) > 3 or
++            any(type(x) is not str or not x or len(x) > 256 for x in ids) or len(set(ids)) != len(ids)):
++        raise RenderError("FACT_IDS_INVALID")
++    return DraftSelection(value["purpose"], tuple(ids), value["tone"])
++
++
++@dataclass(frozen=True)
++class ComposedDraft:
++    body: str
++    fact_ids: tuple[str, ...]
++    dependencies: tuple[tuple[str, str, str], ...]
++    purpose: str
++    audience_key: str
++
++    @property
++    def body_hash(self) -> str:
++        return hashlib.sha256(self.body.encode("utf-8")).hexdigest()
++
++
++def compose(project_title: str, action_title: str, audience_key: str,
++            purpose: str, facts: Iterable[DisclosedFact] = (),
++            selection: DraftSelection | None = None) -> ComposedDraft:
++    """Titles must also be approved for this audience by the caller's policy gate.
++
++    The argument purpose comes from the task, NOT from the LLM. A changed model
++    purpose is rejected rather than silently changing what is being requested.
++    """
++    project_title = _plain(project_title, max_length=80)
++    action_title = _plain(action_title, max_length=160)
++    if purpose not in PURPOSES or not audience_key:
++        raise RenderError("PURPOSE_OR_AUDIENCE_REQUIRED")
++    available = tuple(facts)
++    by_id = {f.fact_id: f for f in available}
++    if len(by_id) != len(available):
++        raise RenderError("DUPLICATE_FACT_ID")
++    selection = selection or DraftSelection(purpose)
++    if selection.purpose != purpose or selection.tone not in TONE_PREFIX or len(selection.fact_ids) > 3:
++        raise RenderError("MODEL_CHANGED_PURPOSE")
++    chosen = []
++    for fact_id in selection.fact_ids:
++        fact = by_id.get(fact_id)
++        if fact is None or audience_key not in fact.allowed_audiences:
++            raise RenderError("FACT_NOT_DISCLOSABLE")
++        chosen.append(fact)
++    lines = [f"关于{project_title}的{action_title}，"]
++    for fact in chosen:
++        lines.append(("目前收到的反馈是：" if fact.authority == "reported" else "") + fact.text.rstrip("。") + "。")
++    lines.append(TONE_PREFIX[selection.tone] + PURPOSES[purpose])
++    body = "".join(lines)
++    return ComposedDraft(body, tuple(f.fact_id for f in chosen),
++                         tuple((f.evidence_ref, f.evidence_version, f.policy_version) for f in chosen),
++                         purpose, audience_key)
++
++
++def feishu_post(body: str, mention_ids: tuple[str, ...] = ()) -> dict:
++    """Build a post with actual code-owned @ nodes; no @all, attachments or cards.
++
++    Input IDs must be resolved open_ids for THIS app; structural validation here
++    is not directory authorization. The recipient gate must prove membership.
++    """
++    body = _plain(body, max_length=4000)
++    if len(mention_ids) > 20 or len(set(mention_ids)) != len(mention_ids):
++        raise RenderError("MENTION_LIST_INVALID")
++    if any(not isinstance(x, str) or not re.fullmatch(r"ou_[A-Za-z0-9_-]{1,128}", x) for x in mention_ids):
++        raise RenderError("VERIFIED_OPEN_IDS_REQUIRED")
++    content = []
++    if mention_ids:
++        content.append([{"tag": "at", "user_id": uid} for uid in mention_ids])
++    content.extend([[{"tag": "text", "text": line}] for line in body.splitlines()])
++    return {"zh_cn": {"title": "", "content": content}}
++
++
++def describe_receipt(state: str, message_id: str | None = None) -> str:
++    if state == "confirmed" and message_id:
++        return "已发出并核对消息记录，正在等对方反馈。"
++    if state in {"unknown", "sending"}:
++        return "发送结果尚未核实，正在核对，暂时不会重发。"
++    if state in {"queued", "approved", "pending"}:
++        return "已确认，等待到达发送时间。"
++    if state in {"paused", "revoked", "cancelled", "blocked"}:
++        return "尚未发送的跟进已停止；已发出的消息会保留记录。"
++    return "暂未确认发送成功。"
++
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/transport_contract.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/transport_contract.py
+new file mode 100644
+index 00000000..9c46a002
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/am_followup/transport_contract.py
+@@ -0,0 +1,132 @@
++"""Feishu envelope and exact readback contracts; NOT a transport client.
++
++Call from the existing BusinessPort. Preserve its SDK client, token management,
++single consumer, retry classification and retained send action. No sockets,
++background loops, credentials, or real messages are created by this module.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++from datetime import datetime
++import json
++from typing import Callable
++
++from .followup import (DispatchRequest, GateResult, ReadbackEvidence, Target)
++from .rendering import feishu_post
++
++
++@dataclass(frozen=True)
++class RecipientPin:
++    tenant_id: str
++    app_id: str
++    kind: str
++    target_id: str
++    exact_chat_id: str
++    directory_version: str
++    valid_until: datetime
++    attention_ids: tuple[str, ...]
++    bot_open_id: str
++    reachable: bool
++    internal: bool
++    members_verified: bool
++
++
++class PinnedRecipientGate:
++    def __init__(self, app_id: str, resolve: Callable[[str, Target, datetime], RecipientPin]):
++        if not app_id:
++            raise ValueError("APP_ID_REQUIRED")
++        self.app_id, self.resolve = app_id, resolve
++
++    def pin(self, tenant_id: str, target: Target, now: datetime) -> RecipientPin:
++        pin = self.resolve(tenant_id, target, now)
++        if (pin.tenant_id, pin.app_id, pin.kind, pin.target_id, pin.directory_version) != (
++                tenant_id, self.app_id, target.kind, target.target_id, target.directory_version):
++            raise ValueError("RECIPIENT_PIN_CHANGED")
++        if (not pin.exact_chat_id or not pin.bot_open_id or pin.reachable is not True or pin.internal is not True or
++                pin.members_verified is not True or pin.valid_until.tzinfo is None or pin.valid_until <= now):
++            raise ValueError("RECIPIENT_UNVERIFIED")
++        if sorted(pin.attention_ids) != sorted(target.attention_ids):
++            raise ValueError("RECIPIENT_PEOPLE_CHANGED")
++        if target.kind == "group" and pin.exact_chat_id != target.target_id:
++            raise ValueError("GROUP_ID_CHANGED")
++        return pin
++
++    def __call__(self, tenant_id: str, target: Target, now: datetime) -> GateResult:
++        try:
++            self.pin(tenant_id, target, now)
++            return GateResult(True)
++        except Exception:
++            return GateResult(False, "recipient_current_scope_unverified")
++
++
++@dataclass(frozen=True)
++class FeishuEnvelope:
++    receive_id_type: str
++    receive_id: str
++    msg_type: str
++    content: str
++    uuid: str
++
++
++def envelope(request: DispatchRequest, pin: RecipientPin) -> FeishuEnvelope:
++    t = request.draft.target
++    if (pin.tenant_id, pin.kind, pin.target_id, pin.directory_version) != (
++            request.tenant_id, t.kind, t.target_id, t.directory_version):
++        raise ValueError("PIN_REQUEST_MISMATCH")
++    # The original caller must first obtain this pin via PinnedRecipientGate.
++    if t.kind == "group":
++        content = feishu_post(request.draft.body, t.mention_ids)
++        return FeishuEnvelope("chat_id", t.target_id, "post",
++                              json.dumps(content, ensure_ascii=False, separators=(",", ":")), request.request_uuid)
++    if t.kind not in {"owner", "recipient_p2p"}:
++        raise ValueError("UNSUPPORTED_TARGET")
++    return FeishuEnvelope("open_id", t.target_id, "text",
++                          json.dumps({"text":request.draft.body}, ensure_ascii=False, separators=(",", ":")), request.request_uuid)
++
++
++@dataclass(frozen=True)
++class SendRecordBinding:
++    # These fields come from the original persistent AM attempt. A text search
++    # cannot create a binding; the action must be linked to this request UUID.
++    request_uuid: str
++    external_action_id: str
++    response_message_id: str
++
++
++@dataclass(frozen=True)
++class NormalizedMessage:
++    # Normalize using the existing ReminderPort reader/semantic_content.
++    tenant_id: str
++    message_id: str
++    chat_id: str
++    sender_id: str
++    sender_type: str
++    deleted: bool
++    plain_body: str
++    mention_ids: tuple[str, ...]
++    source_record_id: str
++    observed_at: datetime
++
++
++def exact_readback(request: DispatchRequest, pin: RecipientPin, binding: SendRecordBinding,
++                   message: NormalizedMessage) -> ReadbackEvidence | None:
++    """Never infer delivery from same text, empty search, or an arbitrary ID."""
++    if (pin.tenant_id, pin.kind, pin.target_id, pin.directory_version) != (
++            request.tenant_id, request.draft.target.kind, request.draft.target.target_id,
++            request.draft.target.directory_version):
++        return None
++    if (not binding.external_action_id or not binding.response_message_id or
++            binding.request_uuid != request.request_uuid or
++            message.message_id != binding.response_message_id or
++            message.tenant_id != request.tenant_id or
++            message.chat_id != pin.exact_chat_id or message.sender_id != pin.bot_open_id or
++            message.sender_type not in {"app", "bot"} or message.deleted or
++            message.plain_body != request.draft.body or
++            sorted(message.mention_ids) != sorted(request.draft.target.mention_ids) or
++            not message.source_record_id or message.observed_at.tzinfo is None):
++        return None
++    return ReadbackEvidence(request.request_uuid, binding.external_action_id, message.message_id,
++                            request.draft.target.kind, request.draft.target.target_id,
++                            request.body_sha256, request.draft.target.mention_ids,
++                            "send_response_message_id", message.source_record_id, message.observed_at)
++
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/business_port.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/business_port.py
+index a3ba193e..77c77035 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/business_port.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/business_port.py
+@@ -14,6 +14,11 @@ class BusinessPort:
+     def __init__(self,gateway,ledger):self.g,self.ledger=gateway,ledger;self.reminder=gateway.reminders.port
+ 
+     def prepare(self,payload,occurrence_id):
++        if payload['target']['kind']=='recipient_p2p':
++            return payload
++        if payload.get('followup_intent') and payload['target']['kind']=='group':
++            from am_followup.rendering import feishu_post
++            return dict(payload,post=feishu_post(payload['body'],tuple(p['id'] for p in payload['target']['payload']['people'])))
+         if payload['target']['kind']=='owner':
+             if payload['target'].get('conversation_text'):return payload
+             if 'briefing_data' not in payload:return payload
+@@ -50,19 +55,27 @@ class BusinessPort:
+         if target['kind']=='owner':
+             if target['user']!=self.g.config.owner:raise BoundaryError('OWNER_TARGET_CHANGED')
+             self.ledger.port.authorize_user(target['user']);return
++        if target['kind']=='recipient_p2p':
++            resolver=getattr(self,'followup_resolver',None)
++            if resolver is None:raise BoundaryError('RECIPIENT_RESOLVER_UNAVAILABLE')
++            if resolver(target)!=target:raise BoundaryError('RECIPIENT_SNAPSHOT_CHANGED')
++            return
++        if target['kind']!='group':raise BoundaryError('EXACT_TARGET_REQUIRED')
+         self.reminder.refresh(target['payload'])
+ 
+-    def send(self,payload,key,guard):
++    def send(self,payload,key,guard,*,before_send=None):
+         from lark_oapi.api.im.v1 import CreateMessageRequest,CreateMessageRequestBody
+         self.refresh(payload)
+         if not guard():raise SendRejected('SCHEDULER_SEND_GUARD')
+-        t=payload['target'];private=t['kind']=='owner'
++        t=payload['target'];private=t['kind'] in ('owner','recipient_p2p')
+         target=t['user'] if private else t['payload']['group']['id']
+         kind='interactive' if payload.get('card') else 'post' if payload.get('post') else 'text'
+         content=payload['card'] if payload.get('card') else payload['post'] if payload.get('post') else {'text':payload['body']}
+         req=(CreateMessageRequest.builder().receive_id_type('open_id' if private else 'chat_id').request_body(
+             CreateMessageRequestBody.builder().receive_id(target).msg_type(kind).content(canonical(content)).uuid(key).build()).build())
+         if not guard():raise SendRejected('SCHEDULER_SEND_GUARD')
++        # A one-shot claim must never be composed into the repeatable guard.
++        if before_send is not None:before_send()
+         try:r=self.g.api.client.im.v1.message.create(req)
+         except Exception:raise SendUnknown('SCHEDULED_SEND_UNKNOWN') from None
+         if not r.success():classify_send_failure(r,'SCHEDULED')
+@@ -71,7 +84,7 @@ class BusinessPort:
+ 
+     def verify(self,payload,m):
+         if m['deleted'] or m['sender_id']!=self.g.config.bot_open_id or m['sender_type'] not in ('app','bot'):return False
+-        t=payload['target'];private=t['kind']=='owner'
++        t=payload['target'];private=t['kind'] in ('owner','recipient_p2p')
+         if not private and m['chat_id']!=t['payload']['group']['id']:return False
+         if private:
+             # The exact owner chat is bound when the subscription is created.
+@@ -86,6 +99,7 @@ class BusinessPort:
+ 
+     def reconcile(self,payload,key,started,message_id=None):
+         if not message_id:
++            if payload.get('followup_intent') or payload['target']['kind']=='recipient_p2p':return None
+             # A bounded bot-originated lookup is permitted only for an already
+             # approved group. No synthetic probe and no inference from absence.
+             if payload['target']['kind']=='owner' or not self.reminder.policy()['reconcile_own_attempts']:return None
+@@ -103,5 +117,6 @@ class BusinessPort:
+         else:
+             reader=getattr(self.reminder,'read_card',self.reminder.read) if payload.get('card') else self.reminder.read
+             message=reader(message_id)
++        if message_id and message.get('message_id')!=message_id:return None
+         if not self.verify(payload,message):return None
+         return {'verified':True,'message_id':message['message_id'],'sent_at':message['created_at']}
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/reminder.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/reminder.py
+index 24a06cee..02b16d71 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/reminder.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/reminder.py
+@@ -451,6 +451,8 @@ class ReminderService:
+         if not self.s.execute("UPDATE reminder_drafts SET state='sending',attempts=attempts+1,send_started=?,error=NULL WHERE id=? AND revision=? AND state='approved' AND approved_hash=content_hash AND expires>? AND cancel_requested=0 AND dispatch_deadline>? AND attempts<3",
+                               (self.s.clock(),d["id"],d["revision"],self.s.clock(),self.s.clock())):return True
+         def guard():
++            shared=getattr(self,'followup_gate',None)
++            if shared is not None and not shared(d):return False
+             return self.enabled and self.g.authorized(origin) and bool(self.s.rows("SELECT 1 FROM reminder_drafts WHERE id=? AND revision=? AND state='sending' AND expires>? AND cancel_requested=0 AND dispatch_deadline>?",
+                                                     (d["id"],d["revision"],self.s.clock(),self.s.clock())))
+         try:
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py
+index 152f2ecb..f305ebdc 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/scheduler.py
+@@ -48,6 +48,7 @@ class Scheduler:
+     def __init__(self,store,items,owner,port,*,calendar=None,enabled=lambda:False,notify=lambda *a:None,briefing=None):
+         self.s,self.items,self.owner,self.port=store,items,owner,port
+         self.calendar=Calendar(calendar);self.enabled=enabled;self.notify=notify;self.briefing=briefing
++        self.followup=None
+         with store.lock:store.conn.executescript('''
+         CREATE TABLE IF NOT EXISTS reminder_plans(
+           id TEXT PRIMARY KEY,version INTEGER NOT NULL,item_id TEXT,owner TEXT NOT NULL,kind TEXT NOT NULL,
+@@ -314,9 +315,15 @@ class Scheduler:
+             with self.s.tx() as c:self.sync_deliveries(c)
+ 
+     def dispatch_one(self,o):
++        if self.followup is not None:
++            handled=self.followup.dispatch_occurrence(o['id'])
++            if handled is not None:return handled
+         with self.s.tx() as c:
+             o=self.occurrence(o['id'],c);p=self.plan(o['plan_id'],c)
+             if o['state'] not in ('ready','confirmed_not_sent'):return False
++            if self.followup is not None and not self.followup.legacy_allowed(c,o):
++                c.execute("UPDATE reminder_occurrences SET state='cancelled',error='SHARED_FOLLOWUP_ADMISSION_REQUIRED' WHERE id=?",(o['id'],))
++                return True
+             if not self.current(c,o,p) or not self.approval_valid(c,o,p) or o['attempts']>=3:
+                 c.execute("UPDATE reminder_occurrences SET state='cancelled',error='CURRENT_STATE_OR_APPROVAL_CHANGED' WHERE id=? AND state IN ('ready','confirmed_not_sent')",(o['id'],));return True
+             if self.blocked(c,o):return False
+@@ -336,6 +343,7 @@ class Scheduler:
+             if not self.enabled():return False
+             with self.s.tx() as c:
+                 current=self.occurrence(o['id'],c);p=self.plan(o['plan_id'],c)
++                if self.followup is not None and not self.followup.legacy_allowed(c,current):return False
+                 return current['state']=='sending' and self.current(c,current,p) and self.approval_valid(c,current,p) and not self.blocked(c,current)
+         try:
+             receipt=self.port.send(payload,o['request_key'],guard)
+@@ -363,6 +371,7 @@ class Scheduler:
+                 c.execute("UPDATE reminder_occurrences SET state='sent',message_id=?,receipt=?,readback_state='verified',error=NULL WHERE id=? AND state IN ('sent','unknown')",(receipt['message_id'],canonical(receipt),ident))
+                 c.execute("UPDATE am_briefing_deliveries SET state='verified' WHERE occurrence_id=?",(ident,))
+                 c.execute("UPDATE am_briefing_delivery_attempts SET state='verified' WHERE occurrence_id=?",(ident,))
++            if self.followup is not None:self.followup.reconciled(ident)
+             return True
+         except Exception:
+             if o['reconcile_attempts']>=5:self.s.execute("UPDATE reminder_occurrences SET readback_state='needs_review' WHERE id=?",(ident,))
+@@ -370,6 +379,7 @@ class Scheduler:
+ 
+     def step(self):
+         # Reconciliation continues even when new execution is disabled.
++        if self.followup is not None:self.followup.recover_adoptions()
+         for o in self.s.rows("SELECT id FROM reminder_occurrences WHERE state IN ('unknown','sent') AND (readback_state IS NULL OR readback_state!='verified') AND reconcile_attempts<6 AND next_reconcile<=? LIMIT 1",(self.s.clock(),)):
+             self.reconcile(o['id'])
+         scanned=self.scan()
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_native.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_native.py
+new file mode 100644
+index 00000000..3757de43
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_native.py
+@@ -0,0 +1,364 @@
++"""Native SQLite/services and real SDK request construction; simulated platform only."""
++import copy
++import json
++from dataclasses import replace
++from types import SimpleNamespace as NS
++from concurrent.futures import ThreadPoolExecutor
++import pytest
++
++from test_am_self_fix1 import service, am_rig, base_rig
++from test_gateway import event,drain
++from fs_agent.business_port import BusinessPort
++from fs_agent.config import BoundaryError
++from fs_agent.feishu import SendRejected, SendUnknown
++from fs_agent.project_catalog import canonical,digest
++from am_followup.followup import FollowupError, ApprovalRequest
++from am_info_sync.models import Source,Observation
++from am_info_sync.store import Store as InfoStore
++from am_info_sync.facts import FactEngine
++
++
++@pytest.fixture
++def native(service,tmp_path):
++    am,g,s,api,clock,ledger_port=service
++    f=am.followup
++    f.port=BusinessPort(g,am.ledger);am.scheduler.port=f.port;f.port.followup_resolver=f.refresh_p2p
++    row={'id':'om_owner','app':g.config.app_id,'tenant':g.config.tenant_key,'user':g.config.owner,
++         'chat':'oc_dm','chat_type':'p2p','created':clock(),'expires':clock()+86400,'kind':'text','body':'/followup'}
++    project=am.projects(row)[0]
++    reader=InfoStore(tmp_path/'information.db',clock=lambda:int(clock()*1000));facts=FactEngine(reader)
++    source=Source('th2-ledger','ledger_snapshot','ledger-demo',g.config.tenant_key,g.config.owner,
++        output_chats=('oc_reminder',),enabled=True,start_ms=0,settings={'subject_id':project['key'],
++        'fact_mappings':{'ledger_record':{'value_path':['record'],'quote_path':['quote']}}})
++    reader.register_source(source)
++    obs=Observation(source.source_id,project['key'],'v1',int(clock()*1000),text='样机已到仓，计划开测，尚未核实实际开测。',
++        payload={'record':{'todo':'确认开测'},'quote':'样机已到仓，计划开测，尚未核实实际开测。'})
++    reader.record(obs);facts.process(obs,[])
++    am.information=NS(store=reader,service=NS(facts=facts,sync_engine=NS(adapters={})),ledger=NS(read=lambda **kw:None))
++    target={'bot':g.reminders.port.bot_info,'group':g.reminders.port.group_info,'people':g.reminders.port.people[:1]}
++    item=am.items.create(am.owner,'native-item',project_ref=project['key'],description='确认开测',requirements='实际开测证据',assignees=['ou_engineer_a'],source={'target':target})
++    members=copy.deepcopy(g.reminders.port.people)
++    def get(uri,query=None):
++        if uri.endswith('/members'):return {'items':[{'member_id':p['id'],'member_id_type':'open_id','tenant_key':g.config.tenant_key,'name':p['name']} for p in members],'has_more':False}
++        user=uri.rsplit('/',1)[-1]
++        return {'user':{'open_id':user,'name':'工程师甲' if user=='ou_engineer_a' else '本人','department_ids':['od-demo'],'status':{'is_activated':True}}}
++    ledger_port.get=get
++    remote={};calls=[];fault={'send':False,'read':False,'wrong_id':False}
++    inbound={'message_id':'om_engineer','chat_id':'oc_engineer','sender_id':'ou_engineer_a','sender_type':'user','msg_type':'text','content':{'text':'hello'},'deleted':False,'created_at':clock()}
++    remote['om_engineer']=inbound
++    s.execute("INSERT INTO am_inbox VALUES(?,?,?,?,?,?,?,?,?,?,'done',NULL)",('om_engineer',g.config.app_id,g.config.tenant_key,'ou_engineer_a','oc_engineer','p2p',clock(),clock()+86400,'hello','text'))
++    def create(req):
++        p=req.request_body;mid='om_send_'+p.uuid
++        calls.append((p.receive_id,p.msg_type,json.loads(p.content),p.uuid))
++        remote[mid]={'message_id':mid,'chat_id':'oc_engineer' if p.receive_id=='ou_engineer_a' else p.receive_id,
++            'sender_id':g.config.bot_open_id,'sender_type':'app','msg_type':p.msg_type,'content':json.loads(p.content),
++            'mentions':[],'deleted':False,'created_at':clock()}
++        if fault['send']:raise TimeoutError('synthetic response loss')
++        return NS(success=lambda:True,data=NS(message_id=mid))
++    api.client=NS(im=NS(v1=NS(message=NS(create=create))))
++    def read(mid):
++        if fault['read']:raise RuntimeError('synthetic read failure')
++        if mid in remote:
++            result=copy.deepcopy(remote[mid])
++            if fault['wrong_id']:result['message_id']='om_wrong'
++            return result
++        out=s.rows('SELECT * FROM outbox WHERE message_id=?',(mid,))[0]
++        return {'message_id':mid,'chat_id':out['chat'],'sender_id':g.config.bot_open_id,'sender_type':'app','msg_type':'interactive',
++            'content':json.loads(out['body']),'deleted':False,'created_at':out['created']}
++    g.reminders.port.read=read;g.reminders.port.read_card=read
++    yield NS(am=am,g=g,s=s,api=api,clock=clock,f=f,row=row,item=item,reader=reader,facts=facts,source=source,obs=obs,calls=calls,remote=remote,fault=fault,members=members)
++    reader.close()
++
++
++def preview(n,channel='group'):
++    nonce=n.f.preview_card(n.row,n.item['id'],channel);drain(n.g)
++    return n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0]
++
++def click(n,c,action='confirm_send_once',**overrides):
++    row=dict(n.row,id='callback_'+str(len(n.s.rows('SELECT * FROM followup_audit'))),kind='card')
++    row.update(overrides)
++    row['body']=canonical({'value':{'flow':'am_self','nonce':c['nonce'],'action':action},'source_message':c['message_id']})
++    card,a=n.am.validate_card(row)
++    return n.am.handle_business_card(row,card,a)
++
++
++def test_actual_card_one_confirmation_native_occurrence_and_replay(native):
++    n=native;c=preview(n)
++    assert not n.calls and not n.s.rows('SELECT * FROM reminder_occurrences')
++    assert '已确认' in click(n,c)
++    click(n,c)
++    assert len(n.s.rows('SELECT * FROM reminder_plans'))==1
++    assert len(n.s.rows('SELECT * FROM reminder_occurrences'))==1
++    n.am.scheduler.dispatch();n.am.scheduler.dispatch()
++    o=n.s.rows('SELECT * FROM reminder_occurrences')[0]
++    assert o['state']=='sent' and o['readback_state']=='verified' and len(n.calls)==1
++    assert n.am.items.get(n.item['id'])['state']=='waiting'
++    assert n.s.rows('SELECT state FROM followup_intents')[0]['state']=='confirmed'
++
++
++def test_p2p_and_group_share_business_attention(native):
++    n=native;first=preview(n);click(n,first);n.am.scheduler.dispatch()
++    second=preview(n,'recipient_p2p');assert '未发送' in click(n,second)
++    n.am.scheduler.dispatch();assert len(n.calls)==1
++
++
++def test_recipient_p2p_preserves_owner_and_exact_chat(native):
++    n=native;c=preview(n,'recipient_p2p');click(n,c);n.am.scheduler.dispatch()
++    assert n.calls[0][0]=='ou_engineer_a' and n.g.config.owner=='ou_a'
++    o=n.s.rows('SELECT * FROM reminder_occurrences')[0];assert o['readback_state']=='verified'
++    payload=json.loads(o['payload']);m=copy.deepcopy(n.remote[o['message_id']]);m['chat_id']='oc_wrong'
++    assert not n.f.port.verify(payload,m)
++    with pytest.raises(BoundaryError,match='OWNER_TARGET_CHANGED'):n.f.port.refresh({'target':{'kind':'owner','user':'ou_engineer_a'}})
++
++
++@pytest.mark.parametrize('change',['source','acl','policy','item','audience','body'])
++def test_precise_dependency_changes_stop_approved_action(native,change):
++    n=native;c=preview(n);click(n,c)
++    if change=='source':n.reader.record(replace(n.obs,version='v2',occurred_at_ms=n.obs.occurred_at_ms+1,text='新的依据'),authoritative=True)
++    if change=='acl':n.reader.register_source(replace(n.source,readers=('user:ou_other',)))
++    if change=='policy':n.s.execute('UPDATE followup_disclosures SET revision=revision+1')
++    if change=='item':n.am.items.change(n.am.owner,'pause',n.item['id'],1,'pause')
++    if change=='audience':n.members.append({'id':'ou_new','name':'新成员'})
++    if change=='body':
++        o=n.s.rows('SELECT * FROM reminder_occurrences')[0];p=json.loads(o['payload']);p['body']='篡改正文'
++        n.s.execute('UPDATE reminder_occurrences SET payload=? WHERE id=?',(canonical(p),o['id']))
++    n.am.scheduler.dispatch();assert not n.calls
++
++
++def test_unrelated_source_does_not_cancel(native):
++    n=native;c=preview(n);click(n,c)
++    n.reader.register_source(replace(n.source,source_id='unrelated',remote_id='other',settings={'subject_id':'other'}))
++    n.am.scheduler.dispatch();assert len(n.calls)==1
++
++
++@pytest.mark.parametrize('action',['view','modify','stop'])
++def test_nonsend_actions_never_approve(native,action):
++    n=native;c=preview(n);click(n,c,action)
++    assert not n.s.rows('SELECT * FROM followup_intents') and not n.calls
++    if action!='view':
++        with pytest.raises(FollowupError):click(n,c)
++
++
++@pytest.mark.parametrize('field,value',[('user','ou_other'),('chat','oc_wrong'),('tenant','other'),('app','other')])
++def test_callback_scope_rejected(native,field,value):
++    n=native;c=preview(n)
++    with pytest.raises((BoundaryError,FollowupError)):click(n,c,**{field:value})
++    assert not n.calls and not n.s.rows('SELECT * FROM followup_intents')
++
++
++def test_preview_without_delivery_cannot_confirm(native):
++    n=native;nonce=n.f.preview_card(n.row,n.item['id']);c=n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0]
++    with pytest.raises(BoundaryError):click(n,c)
++    assert not n.calls
++
++
++def test_returned_wrong_message_id_is_unknown(native):
++    n=native;c=preview(n);click(n,c);n.fault['wrong_id']=True;n.am.scheduler.dispatch()
++    assert len(n.calls)==1 and n.s.rows('SELECT state FROM followup_intents')[0]['state']=='unknown'
++
++
++def test_timeout_and_next_round_blocked_no_new_uuid(native):
++    n=native;c=preview(n);click(n,c);n.fault['send']=True;n.am.scheduler.dispatch()
++    assert len(n.calls)==1 and n.s.rows('SELECT state FROM followup_intents')[0]['state']=='unknown'
++    n.fault['send']=False
++    # A second backend-approved episode cannot bypass the unresolved send.
++    p,t=n.f.prepare(n.row,n.item['id'],'recipient_p2p')
++    episode=n.f.coordinator.register_episode(tenant_id=n.f.tenant,task_id=p.draft.task_id,purpose=p.draft.purpose,trigger_key='verified_new_request')
++    p=n.f.coordinator.create_preview(n.f.actor(n.row),replace(p.draft,episode_id=episode))
++    with pytest.raises(FollowupError,match='prior_delivery_uncertain'):n.f.coordinator.approve(n.f.actor(n.row),p.preview_id,p.token,p.content_hash)
++    n.am.scheduler.dispatch();assert len(n.calls)==1
++
++
++def test_accepted_read_failure_then_exact_reconcile(native):
++    n=native;c=preview(n);click(n,c)
++    original=n.f.port.reconcile;n.f.port.reconcile=lambda *a:None
++    n.am.scheduler.dispatch();o=n.s.rows('SELECT * FROM reminder_occurrences')[0]
++    assert o['state']=='sent' and n.s.rows('SELECT state FROM followup_intents')[0]['state']=='unknown'
++    n.f.port.reconcile=original;n.am.scheduler.reconcile(o['id'],manual=True)
++    assert n.s.rows('SELECT state FROM followup_intents')[0]['state']=='confirmed' and len(n.calls)==1
++
++
++def test_guard_order_one_shot_and_final_old_guard_rejection(native):
++    n=native;t=n.f.p2p('ou_engineer_a');p={'target':t,'body':'合成正文'};order=[]
++    n.f.port.send(p,'fixed',lambda:order.append('old') or True,before_send=lambda:order.append('new'))
++    assert order==['old','old','new'] and len(n.calls)==1
++    order=[]
++    def guard():order.append('old');return len(order)==1
++    with pytest.raises(SendRejected):n.f.port.send(p,'fixed2',guard,before_send=lambda:order.append('new'))
++    assert order==['old','old'] and len(n.calls)==1
++
++
++def test_context_delivery_does_not_submit_execution_item(native):
++    n=native;n.f.bind(n.row,n.item['id']);refs=json.loads(n.f.semantic(n.item['id'])['refs']);ids=[r['fact_id'] for r in refs]
++    n.f.record_claim(n.row,n.item['id'],'plan_delivery','delivered',ids)
++    view=n.f.view(n.item['id'])
++    assert view['fields']['plan_delivery']=='delivered' and not view['business_completed'] and view['business_state']=='waiting'
++    with pytest.raises(BoundaryError,match='DELIVERABLE_MISMATCH'):n.f.record_claim(n.row,n.item['id'],'delivery','delivered',ids,subject_key='plan')
++    assert n.am.items.get(n.item['id'])['state']=='waiting'
++
++
++def test_missing_import_fields_retained_as_candidate(native):
++    n=native;payload={'producer':'personal','external_id':'one','identity':{},'item':{'description':'记录估时'},'fact_ids':[],'history':[],'history_complete':False}
++    ident=n.f.import_candidate(n.row,payload)
++    with pytest.raises(BoundaryError):n.f.adopt_candidate(n.row,ident)
++    assert n.s.rows('SELECT state FROM followup_candidates')[0]['state']=='candidate'
++    assert len(n.s.rows('SELECT * FROM action_items'))==1 and not n.calls
++
++
++def test_native_legacy_unknown_blocks_even_changed_channel(native):
++    n=native;n.f.bind(n.row,n.item['id'])
++    n.s.execute('UPDATE action_semantics SET legacy_history=? WHERE item_id=?',(canonical([{'state':'legacy_unknown','action':'old-attempt'}]),n.item['id']))
++    with pytest.raises(FollowupError,match='evidence_blocked'):n.f.prepare(n.row,n.item['id'],'recipient_p2p')
++    assert not n.calls
++
++
++def test_original_ingress_and_service_handle_confirmation(native):
++    n=native;c=preview(n,'recipient_p2p')
++    value={'header':{'app_id':n.g.config.app_id,'tenant_key':n.g.config.tenant_key,'event_id':'native-callback','event_type':'card.action.trigger'},
++      'event':{'operator':{'open_id':n.am.owner},'context':{'open_chat_id':'oc_dm','open_message_id':c['message_id']},
++               'action':{'value':{'flow':'am_self','nonce':c['nonce'],'action':'confirm_send_once'}}}}
++    assert n.am.ingest(value)==(True,True)
++    assert n.am.ingest(value)==(True,False)
++    n.am.step();assert n.s.rows("SELECT state,error FROM am_inbox WHERE id='native-callback'")==[{'state':'done','error':None}]
++    n.am.scheduler.step();assert len(n.calls)==1
++
++
++def test_recipient_exact_reply_acknowledges_but_never_completes(native):
++    n=native;c=preview(n,'recipient_p2p');click(n,c);n.am.scheduler.dispatch()
++    o=n.s.rows('SELECT * FROM reminder_occurrences')[0]
++    e=event('收到',number=123,user='ou_engineer_a',chat='oc_engineer')
++    e['event']['message'].update(parent_id=o['message_id'],create_time=str(int(n.clock()*1000)))
++    assert n.am.ingest(e)==(True,True)
++    assert n.am.ingest(e)==(True,False)
++    n.am.step()
++    assert n.s.rows('SELECT kind FROM followup_reply_links')==[{'kind':'acknowledged'}]
++    assert n.am.items.get(n.item['id'])['state']=='waiting'
++    e=event('已交付全部完成',number=124,user='ou_engineer_a',chat='oc_engineer')
++    e['event']['message'].update(parent_id=o['message_id'],create_time=str(int(n.clock()*1000)))
++    n.am.ingest(e);n.am.step()
++    assert n.am.items.get(n.item['id'])['state']=='waiting'
++
++
++def test_same_item_second_alias_retains_new_unknown_history(native):
++    n=native;n.f.bind(n.row,n.item['id'])
++    n.f.bind(n.row,n.item['id'],producer='personal',external_id='external',history=[{'state':'legacy_unknown'}])
++    assert len(n.s.rows('SELECT * FROM action_items'))==1
++    with pytest.raises(FollowupError):n.f.prepare(n.row,n.item['id'])
++
++
++def test_p2p_read_access_does_not_grant_disclosure(native):
++    n=native;n.reader.register_source(replace(n.source,output_chats=()))
++    with pytest.raises(BoundaryError,match='DISCLOSURE_NOT_GRANTED'):n.f.prepare(n.row,n.item['id'],'recipient_p2p')
++
++
++def test_native_plan_pause_between_approval_and_boundary(native):
++    n=native;c=preview(n);click(n,c)
++    p=n.s.rows('SELECT * FROM reminder_plans')[0]
++    n.am.scheduler.control(n.am.owner,'pause-native',p['id'],p['version'],'pause')
++    n.am.scheduler.dispatch();assert not n.calls
++
++
++def test_expired_actual_card_rejected(native):
++    n=native;c=preview(n);n.s.execute('UPDATE am_cards SET expires=? WHERE nonce=?',(n.clock()-1,c['nonce']))
++    with pytest.raises(BoundaryError):click(n,c)
++
++
++def test_unknown_restart_does_not_reset_or_resend(native):
++    n=native;c=preview(n);click(n,c);n.fault['send']=True;n.am.scheduler.dispatch()
++    from am_followup_host import FollowupHost
++    restarted=FollowupHost(n.am)
++    restarted.recover_adoptions();n.am.scheduler.dispatch()
++    assert len(n.calls)==1 and n.s.rows('SELECT state FROM followup_intents')[0]['state']=='unknown'
++
++
++def test_stopped_unsent_can_only_resume_with_new_exact_preview(native):
++    n=native;c=preview(n);click(n,c);click(n,c,'stop')
++    n.am.scheduler.dispatch();assert not n.calls
++    newer=preview(n);click(n,newer);n.am.scheduler.dispatch()
++    assert len(n.calls)==1
++    assert len(n.s.rows('SELECT * FROM reminder_occurrences'))==2
++
++
++def test_full_exact_new_request_can_follow_confirmed_but_not_repeat_old_round(native):
++    n=native;c=preview(n);click(n,c);n.am.scheduler.dispatch()
++    nonce=n.f.preview_card(dict(n.row,id='new-owner-request'),n.item['id'],'recipient_p2p',new_round=True)
++    drain(n.g);new=n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0]
++    click(n,new);n.am.scheduler.dispatch();assert len(n.calls)==2
++
++
++def test_followup_does_not_authorize_ledger_write_or_model_tools(native):
++    n=native;before=dict(n.am.flags);c=preview(n);click(n,c);n.am.scheduler.dispatch()
++    assert n.am.flags==before and not n.am.flags['ledger_write']
++    assert not n.s.rows('SELECT * FROM ledger_write_attempts')
++    assert not n.s.rows('SELECT * FROM tasks')
++
++
++def test_explicit_system_validation_stays_out_of_real_project(native):
++    n=native
++    from am_info_sync.ingest import record_offline
++    n.am.information.service.offline=lambda *a,**kw:record_offline(n.reader,*a,**kw)
++    item=n.f.validation_item(n.row,'oc_reminder','ou_engineer_a','group')
++    again=n.f.validation_item(n.row,'oc_reminder','ou_engineer_a','group')
++    assert item['id']==again['id'] and item['project_ref'].startswith('validation:')
++    assert item['project_ref']!=n.item['project_ref']
++    n.f.preview_card(n.row,item['id'],body='[AM联调测试] 不涉及真实业务。')
++    assert not n.calls and not n.s.rows('SELECT * FROM followup_intents')
++
++
++@pytest.mark.parametrize('body',['请提交 {测试报告}，参数 {"version": 2}。','请保留双括号 {{样例}}。'])
++def test_exact_body_never_interpolated_after_confirmation(native,body):
++    n=native;nonce=n.f.preview_card(n.row,n.item['id'],'recipient_p2p',body=body);drain(n.g)
++    c=n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0];click(n,c);n.am.scheduler.dispatch()
++    assert n.calls[0][2]=={'text':body}
++
++
++def test_disabled_feature_rejects_old_preview(native):
++    n=native;c=preview(n);n.am.flags['scheduler']=False
++    with pytest.raises(BoundaryError):click(n,c)
++    n.am.scheduler.dispatch();assert not n.calls
++
++
++def test_atomic_adoption_failure_recovers_original_identity(native):
++    import sqlite3
++    n=native;c=preview(n)
++    with n.s.lock:n.s.conn.execute("CREATE TRIGGER fail_adoption BEFORE INSERT ON followup_adoptions BEGIN SELECT RAISE(ABORT,'synthetic interruption'); END")
++    with pytest.raises(sqlite3.IntegrityError):click(n,c)
++    original=n.s.rows('SELECT request_uuid FROM followup_intents')[0]['request_uuid']
++    assert not n.s.rows('SELECT * FROM reminder_occurrences') and not n.s.rows('SELECT * FROM reminder_plans')
++    with n.s.lock:n.s.conn.execute('DROP TRIGGER fail_adoption')
++    n.f.recover_adoptions();n.f.recover_adoptions();n.am.scheduler.dispatch()
++    assert len(n.calls)==1 and n.calls[0][3]==original
++
++
++def test_native_double_confirmation_concurrent_maps_once(native):
++    n=native;c=preview(n)
++    with ThreadPoolExecutor(2) as pool:list(pool.map(lambda _:click(n,c),range(2)))
++    n.am.scheduler.dispatch()
++    assert len(n.calls)==1 and len(n.s.rows('SELECT * FROM reminder_occurrences'))==1
++
++
++def test_expired_private_anchor_is_not_reread_or_revived(native):
++    n=native;n.s.execute("UPDATE am_inbox SET expires=? WHERE id='om_engineer'",(n.clock()-1,))
++    n.g.reminders.port.read=lambda mid:pytest.fail('must not re-read expired original content')
++    with pytest.raises(BoundaryError,match='PRIVATE_CHAT_UNVERIFIED'):n.f.p2p('ou_engineer_a')
++
++
++def test_redacted_contact_name_uses_verified_member_id_not_guess(native):
++    n=native;old=n.am.ledger.port.get
++    def get(uri,query=None):
++        result=old(uri,query)
++        if 'user' in result:result['user'].pop('name',None)
++        return result
++    n.am.ledger.port.get=get
++    p=n.f.profile('ou_engineer_a')
++    assert p['name']=='工程师甲' and p['name_source']=='verified_existing_group_member'
++    with pytest.raises(BoundaryError,match='NAME_UNVERIFIED'):n.f.profile('ou_not_a_group_member')
++
++
++def test_followup_preview_uses_original_platform_preserved_render_binding(native):
++    from fs_agent.card_ui import bind_rendered_card
++    n=native;c=preview(n)
++    out=n.s.rows('SELECT body FROM outbox WHERE id=?',(c['outbox_id'],))[0]
++    rendered=json.loads(out['body'])
++    assert rendered['schema']=='2.0' and rendered==bind_rendered_card(rendered)
++    assert rendered['body']['elements'][0]['element_id'].startswith('uxv_')
+diff --git a/local-qwen3.8/feishu-bridge/am_business.py b/local-qwen3.8/feishu-bridge/am_business.py
+index 823ef9ca..0b34ea35 100644
+--- a/local-qwen3.8/feishu-bridge/am_business.py
++++ b/local-qwen3.8/feishu-bridge/am_business.py
+@@ -26,6 +26,8 @@ class BusinessCommands:
+         self.items=ActionItems(self.s,self.owner)
+         self.scheduler=Scheduler(self.s,self.items,self.owner,BusinessPort(self.g,self.ledger),calendar=calendar,
+                                  enabled=lambda:self.flags['scheduler'],notify=self.business_notification,briefing=self.briefing_payload)
++        from am_followup_host import FollowupHost
++        self.followup=FollowupHost(self)
+ 
+     def owner_origin(self):
+         rows=self.s.rows("SELECT * FROM am_inbox WHERE user=? AND chat_type='p2p' ORDER BY created DESC LIMIT 1",(self.owner,))
+@@ -47,12 +49,14 @@ class BusinessCommands:
+         else:self.notify(row,self.occurrence_text(o))
+ 
+     def occurrence_text(self,o):
++        if json.loads(o['payload']).get('followup_intent'):return self.followup.status(o)
+         p=json.loads(o['payload']);target=p['target'];who=target['user'] if target['kind']=='owner' else target['payload']['group']['name']+'；'+'、'.join(x['name'] for x in target['payload']['people'])
+         return f"发送实例 {o['id']}\n准确目标：{who}\n正文：{p['body']}\n计划时刻：{datetime.fromtimestamp(o['scheduled_at'],TZ):%Y-%m-%d %H:%M:%S}\n执行截止：{datetime.fromtimestamp(o['deadline'],TZ):%Y-%m-%d %H:%M:%S}\n状态：{o['state']}；回读：{o['readback_state'] or '尚未发送'}\n消息发送成功不代表事项完成。"
+ 
+     def plan_preview_text(self,p):
+         target=json.loads(p['target']);rule=json.loads(p['rule'])
+-        who='本人私聊' if target['kind']=='owner' else target['payload']['group']['name']+'；'+'、'.join(x['name'] for x in target['payload']['people'])
++        who=('本人私聊' if target['kind']=='owner' else target['name']+'（机器人私聊）' if target['kind']=='recipient_p2p'
++             else target['payload']['group']['name']+'；'+'、'.join(x['name'] for x in target['payload']['people']))
+         body=self.scheduler.render(p,self.items.get(p['item_id']))['body'] if p['item_id'] else ''
+         content='项目变化及待办' if 'todos' in self.briefing_types(p) else '项目变化'
+         lines=['目标：'+who,'完整正文：\n'+(body or content+'（每次读取本人授权范围内记录）'),
+@@ -82,6 +86,11 @@ class BusinessCommands:
+ 
+     def handle_business_card(self,row,c,action):
+         if row['user']!=self.owner:raise BoundaryError('OWNER_ONLY')
++        if c['flow']=='followup':return self.followup.card_action(row,c,action)
++        if c['flow']=='followup_import':
++            if action!='adopt':raise BoundaryError('CARD_ACTION_NOT_SUPPORTED')
++            item=self.followup.adopt_candidate(row,c['object_id'])
++            return self.ux_item(row,item['id'])
+         snapshot=json.loads(c['snapshot'])
+         if c['flow']=='retention' and action=='clean':
+             result=self.items.apply_cleanup(row['user'],'cleanup/'+c['nonce'],snapshot['candidates'],snapshot['days'])
+@@ -194,6 +203,7 @@ class BusinessCommands:
+         return '\n\n'.join(parts),[c['id'] for c in events]
+ 
+     def business_command(self,row):
++        if row['body'].strip().startswith('/followup'):return True,self.followup.command(row)
+         q=row['body'];parts=[x.strip() for x in q.replace('|','｜').split('｜')]
+         first=parts[0]
+         if first.startswith('/mapping'):
+diff --git a/local-qwen3.8/feishu-bridge/am_followup_host.py b/local-qwen3.8/feishu-bridge/am_followup_host.py
+new file mode 100644
+index 00000000..c89da809
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/am_followup_host.py
+@@ -0,0 +1,733 @@
++"""Follow-up admission inside the original AM service and original Scheduler.
++
++Items, facts, model calls, callbacks and network sends retain their original owners.
++The tables here contain identity, semantic evidence, disclosure and adoption only.
++No worker, network client, model provider or authoritative task store is created.
++"""
++from dataclasses import asdict
++from datetime import datetime, timezone, timedelta
++import hashlib
++import json
++import re
++import secrets
++import uuid
++import os
++from pathlib import Path
++
++from fs_agent.config import BoundaryError
++from fs_agent.feishu import SendRejected, SendUnknown
++from fs_agent.project_catalog import canonical, digest
++from fs_agent.card_ui import card_readback_matches
++from fs_agent.scheduler import TZ
++from am_followup.followup import (Actor, Target, Draft, EvidenceSnapshot, SendWindow,
++    FollowupCoordinator, FollowupError, DispatchBlocked, GateResult, SendOutcome,
++    ReadbackEvidence, _draft_load)
++from am_followup.confirmation import (ConfirmationBridge, DeliveredPreview,
++    PreviewRowBinding, VerifiedCallback, manifest_hash)
++from am_followup.rendering import PURPOSES
++from am_followup_sources import FollowupSources
++
++
++def utc(stamp):return datetime.fromtimestamp(stamp,timezone.utc)
++
++
++class FollowupHost:
++    def __init__(self, am):
++        self.am,self.s,self.owner=am,am.s,am.owner
++        self.tenant,self.app=am.g.config.tenant_key,am.g.config.app_id
++        self.scheduler=am.scheduler;self.port=self.scheduler.port
++        self.sources=FollowupSources(self)
++        with self.s.lock:self.s.conn.executescript('''
++        CREATE TABLE IF NOT EXISTS action_aliases(
++          tenant TEXT NOT NULL,producer TEXT NOT NULL,external_id TEXT NOT NULL,item_id TEXT NOT NULL,
++          canonical_id TEXT NOT NULL,decision TEXT NOT NULL,PRIMARY KEY(tenant,producer,external_id));
++        CREATE TABLE IF NOT EXISTS action_semantics(
++          item_id TEXT PRIMARY KEY,canonical_id TEXT UNIQUE NOT NULL,identity TEXT NOT NULL,
++          version INTEGER NOT NULL,deliverable_key TEXT NOT NULL,refs TEXT NOT NULL,claims TEXT NOT NULL,
++          legacy_history TEXT NOT NULL,created REAL NOT NULL);
++        CREATE TABLE IF NOT EXISTS followup_candidates(
++          id TEXT PRIMARY KEY,producer TEXT NOT NULL,external_id TEXT NOT NULL,payload TEXT NOT NULL,
++          state TEXT NOT NULL,created REAL NOT NULL,UNIQUE(producer,external_id));
++        CREATE TABLE IF NOT EXISTS followup_disclosures(
++          id TEXT PRIMARY KEY,item_id TEXT NOT NULL,body_hash TEXT NOT NULL,target_hash TEXT NOT NULL,
++          refs TEXT NOT NULL,revision INTEGER NOT NULL,state TEXT NOT NULL,actor TEXT NOT NULL,created REAL NOT NULL);
++        CREATE TABLE IF NOT EXISTS followup_bindings(
++          preview_id TEXT PRIMARY KEY,item_id TEXT NOT NULL,native_target TEXT NOT NULL,
++          snapshot TEXT NOT NULL,token TEXT NOT NULL,content_hash TEXT NOT NULL,nonce TEXT,invalidated INTEGER NOT NULL DEFAULT 0);
++        CREATE TABLE IF NOT EXISTS followup_adoptions(
++          intent_id TEXT PRIMARY KEY,item_id TEXT NOT NULL,plan_id TEXT UNIQUE NOT NULL,
++          occurrence_id TEXT UNIQUE NOT NULL,request_uuid TEXT UNIQUE NOT NULL);
++        CREATE TABLE IF NOT EXISTS followup_reply_links(
++          message_id TEXT PRIMARY KEY,item_id TEXT NOT NULL,occurrence_id TEXT NOT NULL,
++          actor TEXT NOT NULL,kind TEXT NOT NULL,created REAL NOT NULL);
++        CREATE TABLE IF NOT EXISTS action_semantic_history(
++          item_id TEXT NOT NULL,version INTEGER NOT NULL,claims TEXT NOT NULL,refs TEXT NOT NULL,
++          actor TEXT NOT NULL,event_id TEXT NOT NULL,PRIMARY KEY(item_id,version));
++        CREATE TABLE IF NOT EXISTS followup_legacy_reminders(
++          draft_id TEXT PRIMARY KEY,item_id TEXT NOT NULL,decision TEXT NOT NULL);
++        ''')
++        with self.s.tx() as c:
++            old=c.execute("SELECT value FROM meta WHERE key='followup_signing_key'").fetchone()
++            key=old[0] if old else secrets.token_hex(32)
++            c.execute("INSERT OR IGNORE INTO meta VALUES('followup_signing_key',?)",(key,))
++            path=c.execute('PRAGMA database_list').fetchone()[2]
++        self.coordinator=FollowupCoordinator(path,signing_key=bytes.fromhex(key),owner_ids={self.tenant:self.owner},
++            evidence_gate=self.evidence_gate,recipient_gate=self.recipient_gate,clock=lambda:utc(self.s.clock()))
++        self.confirmation=ConfirmationBridge(self.coordinator,expected_app_id=self.app,
++            read_delivered=self.read_delivered,clock=lambda:utc(self.s.clock()))
++        self.scheduler.followup=self
++        self.port.followup_resolver=self.refresh_p2p
++        self.am.g.reminders.followup_gate=self.legacy_reminder_allowed
++        self.operator_queue=Path(path).parent/'followup-operator'
++        if self.operator_queue.is_symlink():raise BoundaryError('FOLLOWUP_OPERATOR_DIRECTORY_INVALID')
++        self.operator_queue.mkdir(mode=0o700,exist_ok=True)
++        self.operator_queue.chmod(0o700)
++        # Only former in-flight claims, never queued work, are fenced on service start.
++        for r in self.s.rows("SELECT DISTINCT worker_id FROM followup_intents WHERE state IN ('claimed','sending')"):
++            self.coordinator.recover_in_flight(self.tenant,r['worker_id'])
++
++    def actor(self,row):
++        if (row.get('app'),row.get('tenant'),row.get('user'),row.get('chat_type'))!=(self.app,self.tenant,self.owner,'p2p') or row.get('expires',0)<=self.s.clock():
++            raise BoundaryError('FOLLOWUP_OWNER_SCOPE_REQUIRED')
++        self.am.ledger.port.authorize_user(self.owner)
++        if not self.am.flags['items'] or not self.am.flags['scheduler']:raise BoundaryError('FOLLOWUP_NOT_ENABLED')
++        return Actor(self.tenant,self.owner,row['id'],utc(min(row['expires'],self.s.clock()+600)))
++
++    def semantic(self,item_id):
++        rows=self.s.rows('SELECT * FROM action_semantics WHERE item_id=?',(item_id,))
++        if not rows:raise BoundaryError('FOLLOWUP_ITEM_UNBOUND')
++        return rows[0]
++
++    def bind(self,row,item_id,*,identity=None,refs=None,producer='am',external_id=None,history=None,deliverable_key=''):
++        self.actor(row);item=self.am.items.get(item_id)
++        if item['owner']!=self.owner:raise BoundaryError('OWNER_ONLY')
++        identity=identity or {'tenant':self.tenant,'project':item['project_ref'],'object':item_id,'action':'request_update','cycle':'original'}
++        if set(identity)!={'tenant','project','object','action','cycle'} or identity['tenant']!=self.tenant or identity['project']!=item['project_ref'] or any(not isinstance(v,str) or not v.strip() for v in identity.values()):
++            raise BoundaryError('FOLLOWUP_IDENTITY_INVALID')
++        canonical_id='task_'+digest(identity)
++        existing=self.s.rows('SELECT * FROM action_semantics WHERE item_id=?',(item_id,))
++        if existing:
++            if identity!=json.loads(existing[0]['identity']):raise BoundaryError('FOLLOWUP_IDENTITY_CHANGED')
++            canonical_id=existing[0]['canonical_id']
++        else:
++            refs=refs or self.sources.defaults(item['project_ref'])
++            # Validate caller-supplied references against original FactEngine output.
++            refs=self.sources.resolve(item['project_ref'],[r['fact_id'] for r in refs])
++        with self.s.tx() as c:
++            previous=c.execute('SELECT * FROM action_aliases WHERE tenant=? AND producer=? AND external_id=?',
++                (self.tenant,producer,external_id or item_id)).fetchone()
++            if previous and (previous['canonical_id']!=canonical_id or previous['item_id']!=item_id):raise BoundaryError('FOLLOWUP_ALIAS_ALREADY_BOUND')
++            other=c.execute('SELECT item_id FROM action_semantics WHERE canonical_id=?',(canonical_id,)).fetchone()
++            if other and other[0]!=item_id:raise BoundaryError('FOLLOWUP_CANONICAL_ALREADY_BOUND')
++            c.execute('INSERT OR IGNORE INTO action_semantics VALUES(?,?,?,1,?,?,?, ?,?)',
++                (item_id,canonical_id,canonical(identity),deliverable_key,canonical(refs or []),'{}',canonical(history or []),self.s.clock()))
++            if existing and history:
++                merged=json.loads(existing[0]['legacy_history'])
++                for entry in history:
++                    if entry not in merged:merged.append(entry)
++                c.execute('UPDATE action_semantics SET legacy_history=?,version=version+1 WHERE item_id=?',
++                    (canonical(merged),item_id))
++            c.execute('INSERT OR IGNORE INTO action_aliases VALUES(?,?,?,?,?,?)',
++                (self.tenant,producer,external_id or item_id,item_id,canonical_id,row['id']))
++        return self.semantic(item_id)
++
++    def import_candidate(self,row,value):
++        self.actor(row)
++        required={'producer','external_id','identity','item','fact_ids','history','history_complete'}
++        if type(value) is not dict or set(value)!=required or not isinstance(value['history'],list) or type(value['history_complete']) is not bool:
++            raise BoundaryError('FOLLOWUP_IMPORT_SCHEMA')
++        if any(not isinstance(value[k],str) or not value[k] or len(value[k])>200 for k in ('producer','external_id')):raise BoundaryError('FOLLOWUP_IMPORT_IDENTITY')
++        # Imports are candidates until an exact association is reviewed. History
++        # omission stays explicit and cannot be interpreted as never sent.
++        ident=digest([self.tenant,value['producer'],value['external_id']])
++        old=self.s.rows('SELECT * FROM followup_candidates WHERE id=?',(ident,))
++        if old and old[0]['payload']!=canonical(value):raise BoundaryError('FOLLOWUP_IMPORT_CHANGED')
++        self.s.execute("INSERT OR IGNORE INTO followup_candidates VALUES(?,?,?,?,'candidate',?)",
++            (ident,value['producer'],value['external_id'],canonical(value),self.s.clock()))
++        return ident
++
++    def adopt_candidate(self,row,ident):
++        self.actor(row)
++        found=self.s.rows('SELECT * FROM followup_candidates WHERE id=?',(ident,))
++        if not found:raise BoundaryError('FOLLOWUP_CANDIDATE_MISSING')
++        value=json.loads(found[0]['payload']);fields=value['item'];identity=value['identity']
++        projects=self.am.projects(row)
++        if not any(p['key']==identity.get('project') and p.get('identity_status')=='verified' for p in projects):raise BoundaryError('FOLLOWUP_PROJECT_UNRESOLVED')
++        if not fields.get('assignees'):raise BoundaryError('FOLLOWUP_ASSIGNEES_UNRESOLVED')
++        for user in fields['assignees']:self.am.ledger.port.authorize_user(user)
++        refs=self.sources.resolve(identity['project'],value['fact_ids'])
++        canonical_id='task_'+digest(identity)
++        rows=self.s.rows('SELECT item_id FROM action_semantics WHERE canonical_id=?',(canonical_id,))
++        if rows:item=self.am.items.get(rows[0]['item_id'])
++        else:
++            item=self.am.items.create(self.owner,'followup-import/'+canonical_id,project_ref=identity['project'],
++                description=fields['description'],requirements=fields.get('requirements',''),assignees=fields['assignees'],
++                source={'producer':value['producer'],'external_id':value['external_id'],'fact_ids':value['fact_ids']},
++                deadline=fields.get('deadline'),deadline_kind=fields.get('deadline_kind','unspecified'))
++        history=list(value['history'])
++        # Unverified imported receipts never establish non-delivery or release
++        # a barrier. Native receipts are bound explicitly, never by text search.
++        for h in history:
++            if not isinstance(h,dict):raise BoundaryError('FOLLOWUP_HISTORY_INVALID')
++            native=self.s.rows("SELECT * FROM reminder_occurrences WHERE id=? AND item_id=?",(h.get('occurrence_id'),item['id']))
++            if not native or native[0]['state']!='sent' or native[0]['readback_state']!='verified':
++                h['state']='legacy_unknown'
++            else:h.update(state='sent',message_id=native[0]['message_id'])
++        if not value['history_complete']:history.append({'state':'legacy_unknown','reason':'history_incomplete'})
++        self.bind(row,item['id'],identity=identity,refs=refs,producer=value['producer'],external_id=value['external_id'],history=history,
++                  deliverable_key=fields.get('deliverable_key',''))
++        self.s.execute("UPDATE followup_candidates SET state='adopted' WHERE id=?",(ident,))
++        return item
++
++    def record_claim(self,row,item_id,field,value,fact_ids,*,subject_key='',reply_to=None,expected_version=None):
++        self.actor(row);sem=self.semantic(item_id);item=self.am.items.get(item_id)
++        enums={'execution':{'unknown','planned','in_progress','blocked','done','cancelled'},
++               'response':{'pending','acknowledged','not_required'},'delivery':{'pending','delivered','unknown'},
++               'acceptance':{'pending','accepted','rejected','not_required'}}
++        context={'plan_delivery','sample_arrival','release_materials','planned_start','actual_start','planned_release','actual_release','approval','test_overview','external_release','deadline_text','blocker'}
++        if field not in enums and field not in context:raise BoundaryError('FOLLOWUP_FIELD_INVALID')
++        if field in enums and value not in enums[field]:raise BoundaryError('FOLLOWUP_VALUE_INVALID')
++        if field=='delivery' and (not sem['deliverable_key'] or subject_key!=sem['deliverable_key']):raise BoundaryError('FOLLOWUP_DELIVERABLE_MISMATCH')
++        claims=json.loads(sem['claims'])
++        if field in claims and claims[field]['value']!=value and expected_version!=sem['version']:
++            raise BoundaryError('FOLLOWUP_CONFLICT_REVIEW_REQUIRED')
++        if field=='response' and value=='acknowledged' and (not reply_to or claims.get('response',{}).get('request')!=reply_to):raise BoundaryError('FOLLOWUP_RESPONSE_UNBOUND')
++        if field=='acceptance' and item['verifier']!=row['user']:raise BoundaryError('VERIFICATION_EVIDENCE_REQUIRED')
++        refs=self.sources.resolve(item['project_ref'],fact_ids)
++        claim={'value':value,'fact_ids':fact_ids,'subject_key':subject_key,'request':reply_to,'reviewed_by':row['user'],'event':row['id']}
++        # Owner-selected evidence is explicit semantic review, not automatic LLM acceptance.
++        claims[field]=claim
++        merged={r['fact_id']:r for r in json.loads(sem['refs'])}
++        merged.update({r['fact_id']:r for r in refs})
++        with self.s.tx() as c:
++            changed=c.execute('UPDATE action_semantics SET claims=?,refs=?,version=version+1 WHERE item_id=? AND version=?',
++                (canonical(claims),canonical(list(merged.values())),item_id,sem['version'])).rowcount
++            if not changed:raise BoundaryError('FOLLOWUP_SEMANTICS_CHANGED')
++            c.execute('INSERT INTO action_semantic_history VALUES(?,?,?,?,?,?)',
++                (item_id,sem['version']+1,canonical(claims),canonical(list(merged.values())),row['user'],row['id']))
++        # Even a reviewed done claim never bypasses ActionItems.change(close).
++        return self.view(item_id)
++
++    def view(self,item_id):
++        item=self.am.items.get(item_id);sem=self.semantic(item_id);claims=json.loads(sem['claims'])
++        facts={f['fact_id']:f for f in self.sources.facts(item['project_ref'])['facts']}
++        usable={k for k,f in facts.items() if f['evidence']['raw_available']}
++        fields={k:v['value'] for k,v in claims.items() if set(v['fact_ids'])<=usable}
++        invalid=[k for k,v in claims.items() if not set(v['fact_ids'])<=usable]
++        stale=[k for k,v in claims.items() if any(facts.get(fid,{}).get('stale',True) for fid in v['fact_ids'])]
++        return {'item_id':item_id,'canonical_id':sem['canonical_id'],'fields':fields,'needs_review':invalid,
++                'stale_fields':stale,'source_times_ms':{fid:f['evidence']['occurred_at_ms'] for fid,f in facts.items() if fid in {r['fact_id'] for r in json.loads(sem['refs'])}},
++                'business_state':item['state'],'business_completed':item['state']=='closed' and bool(item['close_evidence']),
++                'source_refs':json.loads(sem['refs']),'followups':self.s.rows('SELECT o.id,o.state,o.readback_state FROM reminder_occurrences o WHERE o.item_id=?',(item_id,))}
++
++    def profile(self,user):
++        if not isinstance(user,str) or not re.fullmatch(r'ou_[A-Za-z0-9_-]+',user):raise BoundaryError('FOLLOWUP_RECIPIENT_ID')
++        self.am.ledger.port.authorize_user(user)
++        p=self.am.ledger.port.get('/open-apis/contact/v3/users/'+user,{'user_id_type':'open_id','department_id_type':'open_department_id'}).get('user',{})
++        if p.get('open_id')!=user:raise BoundaryError('FOLLOWUP_RECIPIENT_UNVERIFIED')
++        result={k:p.get(k) for k in ('open_id','name','department_ids','status')}
++        if not result['name']:
++            names=set()
++            for group_id in self.am.g.reminders.port.policy()['outbound_group_ids']:
++                self.am.g.reminders.port.group(group_id)
++                names.update(m['name'] for m in self.am.g.reminders.port.members(group_id) if m['id']==user and m.get('name'))
++            if len(names)!=1:raise BoundaryError('FOLLOWUP_RECIPIENT_NAME_UNVERIFIED')
++            result['name']=next(iter(names))
++            result['name_source']='verified_existing_group_member'
++        return result
++
++    def p2p(self,user):
++        profile=self.profile(user)
++        # Existing platform-authenticated inbound messages establish the bot DM.
++        # No contact discovery, new conversation probe, or user-to-user DM read.
++        rows=self.s.rows("SELECT * FROM am_inbox WHERE app=? AND tenant=? AND user=? AND chat_type='p2p' AND kind='text' AND expires>? ORDER BY created DESC LIMIT 1",(self.app,self.tenant,user,self.s.clock()))
++        if not rows:
++            rows=self.s.rows("SELECT * FROM inbox WHERE app=? AND tenant=? AND user=? AND chat_type='p2p' AND message_id IS NOT NULL AND expires>? ORDER BY received DESC LIMIT 1",(self.app,self.tenant,user,self.s.clock()))
++        if not rows:raise BoundaryError('FOLLOWUP_BOT_PRIVATE_CHAT_UNVERIFIED')
++        row=rows[0];mid=row.get('message_id') or row['id']
++        m=self.am.g.reminders.port.read(mid)
++        if m['message_id']!=mid or m['chat_id']!=row['chat'] or m['sender_id']!=user or m['sender_type']!='user':raise BoundaryError('FOLLOWUP_PRIVATE_CHAT_IDENTITY')
++        return {'kind':'recipient_p2p','user':user,'chat':row['chat'],'name':profile['name'],
++                'tenant':self.tenant,'app':self.app,'directory_version':digest(profile),'anchor_message':mid}
++
++    def refresh_p2p(self,target):
++        fresh=self.p2p(target['user'])
++        # A newer inbound message in the same verified DM does not invalidate the target.
++        fresh['anchor_message']=target['anchor_message']
++        if any(fresh.get(k)!=target.get(k) for k in fresh):raise BoundaryError('FOLLOWUP_RECIPIENT_CHANGED')
++        return target
++
++    def group(self,item):
++        source=json.loads(item['source']);base=source.get('target')
++        if not base:raise BoundaryError('FOLLOWUP_EXACT_GROUP_REQUIRED')
++        group=self.am.g.reminders.port.group(base['group']['id']);bot=self.am.g.reminders.port.bot()
++        members=self.am.g.reminders.port.members(group['id']);by_id={p['id']:p for p in members}
++        ids=json.loads(item['assignees'])
++        if any(i not in by_id for i in ids):raise BoundaryError('FOLLOWUP_ASSIGNEE_LEFT')
++        for user in ids:self.profile(user)
++        # Pin the full audience, not merely the mentioned engineers.
++        audience=self.full_members(group['id'])
++        from fs_agent.reminder_content import normalized_payload
++        p=normalized_payload(item['id'],bot,group,[by_id[i] for i in ids],'待确认正文')
++        return {'kind':'group','payload':p,'conversation_text':True,'audience_version':digest(audience)}
++
++    def full_members(self,chat):
++        token=None;seen=set();members=[]
++        for _ in range(30):
++            q={'member_id_type':'open_id','page_size':'100'}
++            if token:q['page_token']=token
++            data=self.am.ledger.port.get('/open-apis/im/v1/chats/'+chat+'/members',q)
++            if data.get('trigger_security_conf_limit'):raise BoundaryError('FOLLOWUP_GROUP_AUDIENCE_INCOMPLETE')
++            for m in data.get('items',[]):
++                if m.get('member_id_type')!='open_id' or m.get('tenant_key')!=self.tenant:raise BoundaryError('FOLLOWUP_EXTERNAL_AUDIENCE')
++                members.append((m['member_id'],m.get('name','')))
++            if not data.get('has_more'):return sorted(members)
++            token=data.get('page_token')
++            if not token or token in seen:break
++            seen.add(token)
++        raise BoundaryError('FOLLOWUP_GROUP_AUDIENCE_INCOMPLETE')
++
++    def recipient_gate(self,tenant,target,now):
++        try:
++            if tenant!=self.tenant:raise BoundaryError('FOLLOWUP_TENANT')
++            rows=self.s.rows('SELECT native_target FROM followup_bindings')
++            matches=[json.loads(r['native_target']) for r in rows if digest(json.loads(r['native_target']))==target.directory_version]
++            if not matches:raise BoundaryError('FOLLOWUP_TARGET_UNBOUND')
++            native=matches[0]
++            self.port.refresh({'target':native})
++            if native['kind']=='group' and digest(self.full_members(native['payload']['group']['id']))!=native['audience_version']:raise BoundaryError('FOLLOWUP_AUDIENCE_CHANGED')
++            actual=native['user'] if native['kind']=='recipient_p2p' else native['payload']['group']['id']
++            ids=(native['user'],) if native['kind']=='recipient_p2p' else tuple(p['id'] for p in native['payload']['people'])
++            if native['kind']!=target.kind or actual!=target.target_id or tuple(sorted(ids))!=tuple(sorted(target.attention_ids)):raise BoundaryError('FOLLOWUP_RECIPIENT_MISMATCH')
++            return GateResult(True)
++        except Exception as e:return GateResult(False,str(e) if isinstance(e,BoundaryError) else type(e).__name__)
++
++    def disclosure(self,ref,target,body):
++        rows=self.s.rows("SELECT * FROM followup_disclosures WHERE body_hash=? AND target_hash=? AND state='current'",(digest(body),digest(target)))
++        for r in rows:
++            if r['actor']==self.owner and ref in json.loads(r['refs']):return digest([r['id'],r['revision'],r['refs']])
++        return None
++
++    def evidence_gate(self,tenant,owner,draft):
++        try:
++            if (tenant,owner)!=(self.tenant,self.owner):raise BoundaryError('FOLLOWUP_OWNER_SCOPE_REQUIRED')
++            rows=self.s.rows('SELECT * FROM followup_bindings WHERE content_hash=?',(draft.evidence.versions.get('binding'),))
++            if len(rows)!=1:raise BoundaryError('FOLLOWUP_BINDING_MISSING')
++            b=rows[0];snap=json.loads(b['snapshot']);sem=self.semantic(b['item_id']);item=self.am.items.get(b['item_id'])
++            if b['invalidated'] or item['paused'] or item['state'] in ('closed','cancelled'):raise BoundaryError('FOLLOWUP_STOPPED')
++            if snap['body']!=draft.body or snap['canonical_id']!=draft.task_id:raise BoundaryError('FOLLOWUP_BODY_OR_TASK_CHANGED')
++            if draft.evidence.task_version!=digest([item['version'],sem['version']]):raise BoundaryError('FOLLOWUP_TASK_VERSION_CHANGED')
++            refs=json.loads(sem['refs']);target=json.loads(b['native_target'])
++            if refs!=snap['refs']:raise BoundaryError('FOLLOWUP_DEPENDENCY_SET_CHANGED')
++            live=self.sources.snapshot(item['project_ref'],refs,target,draft.body,live=True)
++            if live!=snap['dependencies']:raise BoundaryError('FOLLOWUP_DEPENDENCY_CHANGED')
++            expected=EvidenceSnapshot(dict(live['versions'],binding=b['content_hash']),dict(live['acl_versions'],binding=b['content_hash']),
++                                      digest([item['version'],sem['version']]),(digest(target),))
++            if draft.evidence!=expected:raise BoundaryError('FOLLOWUP_EVIDENCE_INCOMPLETE')
++            if self.legacy_uncertain(item['id'],sem):raise BoundaryError('FOLLOWUP_PRIOR_DELIVERY_UNCERTAIN')
++            for adopted in self.s.rows('SELECT a.occurrence_id FROM followup_adoptions a JOIN followup_intents i ON i.intent_id=a.intent_id WHERE i.preview_id=?',(b['preview_id'],)):
++                o=self.scheduler.occurrence(adopted['occurrence_id']);p=self.scheduler.plan(o['plan_id'])
++                if o['cancel_requested'] or p['state']!='active' or p['version']!=o['plan_version']:
++                    raise BoundaryError('FOLLOWUP_NATIVE_PLAN_STOPPED')
++            return GateResult(True)
++        except Exception as e:return GateResult(False,str(e) if isinstance(e,BoundaryError) else type(e).__name__)
++
++    def legacy_uncertain(self,item_id,sem=None):
++        sem=sem or self.semantic(item_id)
++        if any(r.get('state') in ('unknown','sending','accepted','legacy_unknown') for r in json.loads(sem['legacy_history'])):return True
++        if self.s.rows("SELECT d.id FROM followup_legacy_reminders m JOIN reminder_drafts d ON d.id=m.draft_id WHERE m.item_id=? AND (d.state IN ('sending','unknown') OR d.state='sent' AND COALESCE(d.readback_state,'pending')!='verified')",(item_id,)):return True
++        return bool(self.s.rows("SELECT o.id FROM reminder_occurrences o LEFT JOIN followup_adoptions a ON a.occurrence_id=o.id WHERE o.item_id=? AND a.intent_id IS NULL AND (o.state IN ('sending','unknown') OR o.state='sent' AND COALESCE(o.readback_state,'pending')!='verified')",(item_id,)))
++
++    def prepare(self,row,item_id,channel='group',*,purpose='request_progress',recipient=None,body=None,new_round=False):
++        actor=self.actor(row);item=self.am.items.get(item_id)
++        if not self.s.rows('SELECT 1 FROM action_semantics WHERE item_id=?',(item_id,)):self.bind(row,item_id)
++        sem=self.semantic(item_id)
++        if not new_round:
++            known=any(h.get('state')=='sent' for h in json.loads(sem['legacy_history']))
++            known=known or bool(self.s.rows("SELECT o.id FROM reminder_occurrences o LEFT JOIN followup_adoptions a ON a.occurrence_id=o.id WHERE o.item_id=? AND a.intent_id IS NULL AND o.state='sent'",(item_id,)))
++            known=known or bool(self.s.rows("SELECT d.id FROM followup_legacy_reminders m JOIN reminder_drafts d ON d.id=m.draft_id WHERE m.item_id=? AND d.state='sent'",(item_id,)))
++            if known:raise BoundaryError('FOLLOWUP_PRIOR_ROUND_REVIEW_REQUIRED')
++        if purpose not in PURPOSES:raise BoundaryError('FOLLOWUP_PURPOSE_INVALID')
++        if channel=='group':target=self.group(item)
++        elif channel=='recipient_p2p':
++            ids=json.loads(item['assignees'])
++            recipient=recipient or (ids[0] if len(ids)==1 else None)
++            if recipient not in ids:raise BoundaryError('FOLLOWUP_EXACT_ASSIGNEE_REQUIRED')
++            target=self.p2p(recipient)
++            original_group=json.loads(item['source']).get('target',{}).get('group',{}).get('id')
++            if original_group:target['disclosure_group']=original_group
++        else:raise BoundaryError('FOLLOWUP_CHANNEL_INVALID')
++        body=body or '关于“'+item['description']+'”，'+PURPOSES[purpose]
++        if not isinstance(body,str) or not body.strip() or len(body)>4000 or re.search(r'<\s*(?:at|mention)\b',body,re.I):raise BoundaryError('FOLLOWUP_BODY_INVALID')
++        refs=json.loads(sem['refs'])
++        # This is the disclosure proposal accompanying the exact owner preview;
++        # activation of a send still requires the delivered-preview confirmation.
++        policy=digest([item_id,refs,target,body])
++        self.s.execute("INSERT OR IGNORE INTO followup_disclosures VALUES(?,?,?,?,?,1,'current',?,?)",
++            (policy,item_id,digest(body),digest(target),canonical(refs),self.owner,self.s.clock()))
++        dependencies=self.sources.snapshot(item['project_ref'],refs,target,body,live=True)
++        snapshot={'body':body,'refs':refs,'dependencies':dependencies,'canonical_id':sem['canonical_id']}
++        placeholder='capture_'+uuid.uuid4().hex;binding=digest([snapshot,target,item['version'],sem['version'],placeholder])
++        self.s.execute("INSERT INTO followup_bindings VALUES(?,?,?,?,?,?,NULL,0)",
++            (placeholder,item_id,canonical(target),canonical(snapshot),'',binding))
++        # The placeholder is a binding capture, not an executable preview.
++        target_id=target['user'] if channel=='recipient_p2p' else target['payload']['group']['id']
++        attention=(target['user'],) if channel=='recipient_p2p' else tuple(p['id'] for p in target['payload']['people'])
++        now=self.s.clock();until=now+600
++        episode=self.coordinator.register_episode(tenant_id=self.tenant,task_id=sem['canonical_id'],purpose='request_update',
++            trigger_key='owner_request:'+row['id'] if new_round else 'native_item_decision:'+str(item['decision_version']))
++        replacement=None
++        for old in self.s.rows("SELECT * FROM followup_intents WHERE tenant_id=? AND crossed_send_boundary=0 AND state IN ('blocked','paused','revoked','failed') ORDER BY created_at DESC",(self.tenant,)):
++            prior=_draft_load(old['draft_json'])
++            if prior.task_id==sem['canonical_id'] and prior.episode_id==episode and set(prior.target.attention_ids)==set(attention):
++                replacement=old['intent_id'];break
++        # Explicit single immediate window displayed below; no recurring/business-day claim.
++        window=SendWindow(utc(now),utc(until),(datetime.fromtimestamp(now,TZ).date().isoformat(),),
++                          allow_outside_hours=True,calendar_version='owner_exact_single_window')
++        draft=Draft(sem['canonical_id'],'request_update',episode,body,
++            Target(channel,target_id,attention,attention if channel=='group' else (),digest(target),utc(until)),
++            EvidenceSnapshot(dict(dependencies['versions'],binding=binding),dict(dependencies['acl_versions'],binding=binding),
++                             digest([item['version'],sem['version']]),(digest(target),)),window,supersedes_intent_id=replacement)
++        try:preview=self.coordinator.create_preview(actor,draft)
++        except Exception:
++            self.s.execute('DELETE FROM followup_bindings WHERE preview_id=?',(placeholder,));raise
++        self.s.execute('UPDATE followup_bindings SET preview_id=?,token=? WHERE preview_id=?',(preview.preview_id,preview.token,placeholder))
++        return preview,target
++
++    def preview_card(self,row,item_id,channel='group',**kwargs):
++        preview,target=self.prepare(row,item_id,channel,**kwargs)
++        who=(target['name']+'（机器人私聊）') if channel=='recipient_p2p' else target['payload']['group']['name']+'；@ '+'、'.join(p['name'] for p in target['payload']['people'])
++        text='对象：'+who+'\n正文：\n'+preview.draft.body+'\n次数：本次 1 条\n时间：确认后立即发送（含当前时段），预览有效至 '+preview.expires_at.astimezone(TZ).strftime('%H:%M:%S')+'\n后续：核对发送记录，等待反馈；结果未知时不重发。\n不附文件；发送和回复均不代表业务完成。'
++        if preview.draft.supersedes_intent_id:text+='\n确认本次将替代之前已停止、且尚未发送的跟进。'
++        rows=(PreviewRowBinding(preview.preview_id,preview.content_hash,preview.token),)
++        snapshot={'preview_id':preview.preview_id,'manifest':manifest_hash(rows),'rows':[[preview.preview_id,preview.content_hash]],'body':preview.draft.body,'target':target}
++        nonce=self.am.card(row,object_id=preview.preview_id,version=1,snapshot=snapshot,title='本次跟进',body=text,
++            actions=[('confirm_send_once','确认并发送本次'),('view','查看依据'),('modify','修改'),('stop','暂不跟进')],
++            flow='followup',expires=preview.expires_at.timestamp())
++        self.s.execute('UPDATE followup_bindings SET nonce=? WHERE preview_id=?',(nonce,preview.preview_id))
++        return nonce
++
++    def read_delivered(self,tenant,view):
++        cards=self.s.rows("SELECT * FROM am_cards WHERE nonce=? AND flow='followup'",(view,))
++        if tenant!=self.tenant or len(cards)!=1:raise FollowupError('preview_not_delivered')
++        c=cards[0];outputs=self.s.rows("SELECT * FROM outbox WHERE id=? AND state='sent'",(c['outbox_id'],))
++        if not c['message_id'] or len(outputs)!=1 or outputs[0]['message_id']!=c['message_id']:raise FollowupError('preview_not_delivered')
++        out=outputs[0];m=self.am.g.reminders.port.read_card(c['message_id'])
++        expected=json.loads(out['body'])
++        if (m['message_id']!=c['message_id'] or m['chat_id']!=c['chat'] or m['sender_id']!=self.am.g.config.bot_open_id
++                or m['sender_type'] not in ('app','bot') or m['msg_type']!='interactive' or m['deleted']
++                or not card_readback_matches(json.loads(m['content']) if isinstance(m['content'],str) else m['content'],expected)):
++            raise FollowupError('preview_delivery_not_verified')
++        b=self.s.rows('SELECT * FROM followup_bindings WHERE preview_id=?',(c['object_id'],))[0]
++        if b['invalidated']:raise FollowupError('preview_invalidated')
++        snap=json.loads(c['snapshot']);pairs=snap['rows']
++        rows=tuple(PreviewRowBinding(p[0],p[1],b['token']) for p in pairs)
++        return DeliveredPreview(self.tenant,c['actor'],c['chat'],c['message_id'],view,rows,utc(m['created_at']),utc(c['expires']),out['id'],True)
++
++    def card_action(self,row,card,action):
++        actor=self.actor(row);b=self.s.rows('SELECT * FROM followup_bindings WHERE preview_id=?',(card['object_id'],))[0]
++        if action=='view':
++            view=self.view(b['item_id'])
++            return '事项：'+self.am.items.get(b['item_id'])['description']+'\n证据条数：'+str(len(view['source_refs']))+'\n'+('部分依据已变化，需重核。' if view['needs_review'] else '实际发送前仍会核对来源版本、对象及披露范围。')+'\n业务完成：'+('已核验关闭' if view['business_completed'] else '尚未核验完成')
++        if action in ('stop','modify'):
++            self.s.execute('UPDATE followup_bindings SET invalidated=1 WHERE preview_id=?',(card['object_id'],))
++            intents=self.s.rows('SELECT intent_id FROM followup_intents WHERE preview_id=?',(card['object_id'],))
++            for i in intents:self.coordinator.revoke(actor,i['intent_id'])
++            if action=='modify':
++                self.edit_form(row,b['item_id'],json.loads(b['native_target'])['kind'],json.loads(b['snapshot'])['body'])
++                return None
++            return '原预览已停止。请重新选择对象和正文生成预览。' if not intents else '已停止未发送部分；已进入发送过程的结果保留核对。'
++        if action!='confirm_send_once':raise BoundaryError('FOLLOWUP_CONFIRM_ACTION_REQUIRED')
++        body=json.loads(row['body']);snapshot=json.loads(card['snapshot'])
++        callback=VerifiedCallback(self.tenant,self.app,row['user'],row['chat'],body['source_message'],row['id'],utc(row['created']),
++            card['nonce'],snapshot['manifest'],(card['object_id'],),action)
++        results=self.confirmation.confirm(actor,callback)
++        lines=[]
++        for r in results:
++            if r.error:
++                lines.append('未发送：'+{'prior_delivery_uncertain':'此前的发送结果尚未核实。',
++                    'evidence_blocked':'依据、权限或事项状态已变化，请重新核对。','recipient_blocked':'对象或可见范围需要重新核对。',
++                    'preview_expired':'这份预览已过期，请生成新预览。'}.get(r.error,'本次确认未通过，请重新查看完整预览。'));continue
++            if r.result.status=='already_reserved':lines.append('本轮已有跟进记录，本次新内容未发送。');continue
++            o=self.adopt(r.result.intent_id)
++            lines.append('已确认本次发送，等待原 AM 执行。' if o['state']=='ready' else self.status(o))
++        return '\n'.join(lines)
++
++    def adopt(self,intent_id):
++        i=self.s.rows('SELECT * FROM followup_intents WHERE intent_id=? AND tenant_id=?',(intent_id,self.tenant))[0]
++        b=self.s.rows('SELECT * FROM followup_bindings WHERE preview_id=?',(i['preview_id'],))[0]
++        draft=_draft_load(i['draft_json']);target=json.loads(b['native_target'])
++        plan='fu_plan_'+intent_id;occ='fu_send_'+intent_id;now=self.s.clock()
++        payload={'body':draft.body,'target':target,'item_id':b['item_id'],'item_version':self.am.items.get(b['item_id'])['version'],'followup_intent':intent_id}
++        payload=self.port.prepare(payload,occ)
++        expiry=draft.window.expires_at.timestamp();scheduled=draft.window.not_before.timestamp()
++        with self.s.tx() as c:
++            old=c.execute('SELECT * FROM followup_adoptions WHERE intent_id=?',(intent_id,)).fetchone()
++            if old:return self.scheduler.occurrence(old['occurrence_id'],c)
++            # Only the exact approved native version can be adopted. A crash here
++            # rolls back plan, approval, occurrence and mapping together.
++            current=self.am.items.get(b['item_id'],c);sem=self.semantic(b['item_id'])
++            if digest([current['version'],sem['version']])!=draft.evidence.task_version:raise BoundaryError('FOLLOWUP_ITEM_CHANGED')
++            approval='fu_approval_'+intent_id
++            rule=canonical({'at':scheduled,'quiet_policy':'exact'})
++            c.execute("INSERT INTO reminder_plans VALUES(?,1,?,?,'once',?,?,?,'[]','preview_each','active',?,?,600,?,?,NULL,?)",
++                (plan,b['item_id'],self.owner,rule,canonical(target),draft.body,float('inf'),expiry,approval,digest(payload),now))
++            c.execute('INSERT INTO action_approvals VALUES(?,?,?,?,?,?,?,?,?)',(approval,'occurrence',occ,1,self.owner,canonical(payload),digest(payload),expiry,now))
++            c.execute("INSERT INTO reminder_occurrences(id,plan_id,plan_version,scheduled_at,item_id,item_version,approval_id,payload,hash,request_key,deadline,state,attempts,next_attempt) VALUES(?,?,1,?,?,?,?,?,?,?,?,'ready',0,0)",
++                (occ,plan,scheduled,b['item_id'],current['version'],approval,canonical(payload),digest(payload),i['request_uuid'],expiry))
++            c.execute('INSERT INTO followup_adoptions VALUES(?,?,?,?,?)',(intent_id,b['item_id'],plan,occ,i['request_uuid']))
++            return self.scheduler.occurrence(occ,c)
++
++    def recover_adoptions(self):
++        self.operator_step()
++        for i in self.s.rows("SELECT f.intent_id FROM followup_intents f LEFT JOIN followup_adoptions a ON a.intent_id=f.intent_id WHERE f.state='queued' AND a.intent_id IS NULL AND f.tenant_id=?",(self.tenant,)):
++            try:self.adopt(i['intent_id'])
++            except Exception:pass  # retained admission, never a fresh key or send
++
++    def operator_step(self):
++        """Explicit same-account local import/inspection, in the original loop.
++
++        No operation accepts send approval or claims to be a platform callback.
++        Preview sends only to configured owner; target messages still need the
++        actual delivered card callback. Results stay in the private service dir.
++        """
++        paths=sorted(self.operator_queue.glob('*.request.json'))[:1]
++        if not paths:return False
++        p=paths[0];st=p.lstat()
++        if p.is_symlink() or st.st_uid!=os.getuid() or st.st_mode&0o077 or st.st_size>64000:return False
++        claim=p.with_suffix('.claimed')
++        try:p.rename(claim)
++        except FileNotFoundError:return False
++        result={'ok':False,'new_engineer_sends':0}
++        try:
++            request=json.loads(claim.read_text())
++            if type(request) is not dict or request.get('expires_at',0)<=self.s.clock():raise BoundaryError('FOLLOWUP_OPERATOR_EXPIRED')
++            origin=self.am.owner_origin()
++            if origin is None:raise BoundaryError('FOLLOWUP_OWNER_CHAT_UNAVAILABLE')
++            row=dict(origin,id='local-followup/'+p.stem,kind='text',app=self.app,tenant=self.tenant,user=self.owner,chat_type='p2p',created=self.s.clock())
++            self.actor(row);op=request.get('operation')
++            if op=='inspect':
++                projects=self.am.projects(row)
++                groups=[self.am.g.reminders.port.group(g) for g in self.am.g.reminders.port.policy()['outbound_group_ids']]
++                result.update(projects=[{'key':x['key'],'title':x['title'],'identity_status':x['identity_status']} for x in projects],groups=groups,
++                    items=self.s.rows("SELECT id,project_ref,description,assignees,state FROM action_items WHERE state NOT IN ('closed','cancelled')"))
++                for group in groups:
++                    group['people']=self.am.g.reminders.port.members(group['id'])
++            elif op=='preview':
++                nonce=self.preview_card(row,request['item_id'],request.get('channel','group'),body=request.get('body'),recipient=request.get('recipient'))
++                result.update(nonce=nonce,preview_queued=True)
++            elif op=='validation_preview':
++                item=self.validation_item(row,request['group_id'],request['recipient'],request['channel'])
++                body=('[AM联调测试] 这是一条经本人确认后发送的群内测试提醒，无需处理真实项目事项。收到后可回复“收到”。'
++                      if request['channel']=='group' else '[AM联调测试] 这是一条经本人确认后发送的机器人私聊测试消息，无需处理真实项目事项。收到后可回复“收到”。')
++                nonce=self.preview_card(row,item['id'],request['channel'],body=body,recipient=request['recipient'])
++                result.update(item_id=item['id'],nonce=nonce,preview_queued=True,synthetic_business_content=True)
++            elif op=='import':
++                result['candidate_id']=self.import_candidate(row,request['candidate'])
++            else:raise BoundaryError('FOLLOWUP_OPERATOR_OPERATION_INVALID')
++            result['ok']=True
++        except Exception as exc:result['error']=str(exc) if isinstance(exc,(BoundaryError,FollowupError)) else type(exc).__name__
++        result['finished_at']=self.s.clock()
++        out=p.with_name(p.name.replace('.request.json','.result.json'))
++        fd=os.open(out,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
++        with os.fdopen(fd,'w') as stream:json.dump(result,stream,ensure_ascii=False)
++        return True
++
++    def validation_item(self,row,group_id,recipient,channel):
++        """Explicit local operator request only; isolated synthetic business identity.
++
++        Reuses ActionItems/FactEngine in the original process. Never attaches a
++        synthetic result to a real project or an existing business action.
++        """
++        self.actor(row)
++        if channel not in ('group','recipient_p2p') or recipient==self.owner:raise BoundaryError('FOLLOWUP_VALIDATION_TARGET')
++        group=self.am.g.reminders.port.group(group_id);bot=self.am.g.reminders.port.bot()
++        people=[p for p in self.am.g.reminders.port.members(group_id) if p['id']==recipient]
++        if len(people)!=1:raise BoundaryError('FOLLOWUP_VALIDATION_TARGET')
++        self.profile(recipient)
++        if channel=='recipient_p2p':self.p2p(recipient)
++        from am_info_sync.models import Source,Principal
++        info=self.sources.info;subject='validation:AM-FOLLOWUP-20261102-01:'+channel
++        source_id='followup-validation:'+channel
++        source=Source(source_id,'manual',subject,self.tenant,self.owner,enabled=True,output_chats=(group_id,),
++            settings={'subject_id':subject,'host_managed':True,'retain_derived':False})
++        info.store.register_source(source)
++        text='AM-FOLLOWUP R1 系统联调测试，不属于真实业务项目；仅核对消息渠道与回执。'
++        recorded=info.service.offline(source_id,Principal(self.owner,self.tenant),text,subject,
++            [{'field':'validation_scope','value':text,'quote':text,'confirmed':True}],idempotency_key='r1-validation')
++        observation=info.store.get_observation(source_id,recorded['object_id'],recorded['version'])
++        processed=info.service.facts.process(observation,[],extractor_version='explicit-system-validation-v1')
++        item=self.am.items.create(self.owner,'AM-FOLLOWUP-R1-validation/'+channel,project_ref=subject,
++            description='AM 联调测试（'+('群内 @' if channel=='group' else '机器人私聊')+'）',requirements='仅测试发送与回读，不代表业务完成',
++            assignees=[recipient],source={'kind':'synthetic_validation','project_title':'AM 系统联调测试',
++                'target':{'bot':bot,'group':group,'people':people}},deadline_kind='unspecified')
++        refs=self.sources.resolve(subject,processed['fact_ids'])
++        self.bind(row,item['id'],refs=refs)
++        return item
++
++    def legacy_allowed(self,c,o):
++        # Once an item has joined shared admission, all its old scheduled sends
++        # are fenced. Their receipts remain visible and their unknowns block us.
++        return not c.execute('SELECT 1 FROM action_semantics WHERE item_id=?',(o['item_id'],)).fetchone()
++
++    def legacy_reminder_allowed(self,draft):
++        return not self.s.rows('SELECT 1 FROM followup_legacy_reminders WHERE draft_id=?',(draft['id'],))
++
++    def bind_legacy_reminder(self,row,item_id,draft_id):
++        self.actor(row);self.semantic(item_id)
++        d=self.am.g.reminders._internal(draft_id);origin=json.loads(d['origin'])
++        if (origin['app'],origin['tenant'],origin['user'])!=(self.app,self.tenant,self.owner):raise BoundaryError('FOLLOWUP_LEGACY_SCOPE')
++        old=self.s.rows('SELECT item_id FROM followup_legacy_reminders WHERE draft_id=?',(draft_id,))
++        if old and old[0]['item_id']!=item_id:raise BoundaryError('FOLLOWUP_LEGACY_ALREADY_BOUND')
++        self.s.execute('INSERT OR IGNORE INTO followup_legacy_reminders VALUES(?,?,?)',(draft_id,item_id,row['id']))
++
++    def edit_form(self,row,item_id,channel,body):
++        self.actor(row);item=self.am.items.get(item_id)
++        fields={'body':{'label':'完整发送正文','kind':'input','required':True,'default':body},
++                'channel':{'label':'发送方式','kind':'select_static','required':True,'options':[('group','原项目群 @'),('recipient_p2p','工程师机器人私聊')],'default':channel}}
++        people=[self.profile(u) for u in json.loads(item['assignees'])]
++        fields['recipient']={'label':'私聊对象（群聊仍按原负责人集合）','kind':'select_static','required':False,
++                            'options':[(p['open_id'],p['name']) for p in people],'default':people[0]['open_id'] if len(people)==1 else None}
++        return self.am.ux_page(row,'修改本次跟进','修改后重新核对完整预览。',[],fields=fields,
++            submit=('查看新预览',{'page':'followup_edit_submit'}),data={'item':item_id})
++
++    def ingest_reply(self,payload):
++        h=payload.get('header',{});e=payload.get('event',{});m=e.get('message',{});sender=e.get('sender',{})
++        if (h.get('app_id'),h.get('tenant_key'),h.get('event_type'))!=(self.app,self.tenant,'im.message.receive_v1'):return None
++        if sender.get('sender_type')!='user' or sender.get('tenant_key')!=self.tenant or not m.get('parent_id'):return None
++        found=self.s.rows('SELECT o.* FROM reminder_occurrences o JOIN followup_adoptions a ON a.occurrence_id=o.id WHERE o.message_id=?',(m['parent_id'],))
++        if len(found)!=1:return None
++        o=found[0];p=json.loads(o['payload']);target=p['target'];user=sender.get('sender_id',{}).get('open_id')
++        chat=target['chat'] if target['kind']=='recipient_p2p' else target['payload']['group']['id']
++        if user not in json.loads(self.am.items.get(o['item_id'])['assignees']) or m.get('chat_id')!=chat:return None
++        from fs_agent.message_text import normalize_message
++        text=normalize_message(m,bot_open_id=self.am.g.config.bot_open_id,max_chars=4000).text.strip()
++        created=int(m['create_time'])/1000
++        if created+86400<=self.s.clock() or created>self.s.clock()+60:return True,False
++        value={'occurrence':o['id'],'source_message':m['parent_id'],'text':text}
++        with self.s.tx() as c:
++            inserted=c.execute("INSERT OR IGNORE INTO am_inbox VALUES(?,?,?,?,?,?,?,?,?,?,'received',NULL)",
++                (m['message_id'],self.app,self.tenant,user,chat,m['chat_type'],created,created+86400,canonical(value),'followup_reply')).rowcount
++        return True,bool(inserted)
++
++    def reply(self,row):
++        v=json.loads(row['body']);o=self.scheduler.occurrence(v['occurrence']);p=json.loads(o['payload']);target=p['target']
++        if target['kind']=='recipient_p2p':self.refresh_p2p(target)
++        else:self.am.ledger.port.guard(row['chat'],row['user'])
++        if row['user'] not in json.loads(self.am.items.get(o['item_id'])['assignees']) or v['source_message']!=o['message_id']:raise BoundaryError('FOLLOWUP_REPLY_UNBOUND')
++        kind='acknowledged' if v['text'].strip().lower() in ('收到','好的','了解','ok','谢谢') else 'reported_update'
++        self.s.execute('INSERT OR IGNORE INTO followup_reply_links VALUES(?,?,?,?,?,?)',
++            (row['id'],o['item_id'],o['id'],row['user'],kind,self.s.clock()))
++        # Preserve the original responder/verifier separation. Unstructured
++        # claims about delivery/completion remain evidence, not state changes.
++        if kind=='acknowledged':
++            self.am.items.feedback(row['user'],'followup-reply/'+row['id'],o['item_id'],o['item_version'],'received','',
++                {'message_id':row['id'],'occurrence':o['id']},submission_key=row['id'])
++        return None
++
++    def dispatch_occurrence(self,ident):
++        mappings=self.s.rows('SELECT * FROM followup_adoptions WHERE occurrence_id=?',(ident,))
++        if not mappings:return None
++        mapping=mappings[0];o=self.scheduler.occurrence(ident)
++        if o['state'] not in ('ready','confirmed_not_sent'):return False
++        def guard():
++            if not self.scheduler.enabled():return False
++            with self.s.tx() as c:
++                fresh=self.scheduler.occurrence(ident,c);p=self.scheduler.plan(fresh['plan_id'],c)
++                return fresh['state']=='sending' and self.scheduler.current(c,fresh,p) and self.scheduler.approval_valid(c,fresh,p)
++        host=self
++        class Sender:
++            def dispatch(self,request,before_send):
++                payload=json.loads(o['payload'])
++                if request.request_uuid!=o['request_key'] or request.draft.body!=payload['body'] or request.intent_id!=payload['followup_intent']:
++                    raise DispatchBlocked('native_mapping_changed')
++                with host.s.tx() as c:
++                    fresh=host.scheduler.occurrence(ident,c);p=host.scheduler.plan(fresh['plan_id'],c)
++                    if not host.scheduler.current(c,fresh,p) or not host.scheduler.approval_valid(c,fresh,p):raise DispatchBlocked('native_approval_changed')
++                    if fresh['state'] not in ('ready','confirmed_not_sent'):raise DispatchBlocked('native_already_claimed')
++                    c.execute("UPDATE reminder_occurrences SET state='sending',send_started=?,attempts=attempts+1 WHERE id=?",(host.s.clock(),ident))
++                try:
++                    receipt=host.port.send(payload,o['request_key'],guard,before_send=before_send)
++                    if not receipt.get('message_id'):raise SendUnknown('RECEIPT_MISSING')
++                    host.s.execute("UPDATE reminder_occurrences SET state='sent',message_id=?,receipt=?,readback_state='pending' WHERE id=?",(receipt['message_id'],canonical(receipt),ident))
++                    rb=host.port.reconcile(payload,o['request_key'],host.s.clock(),receipt['message_id'])
++                    if rb and rb.get('verified') is True and rb.get('message_id')==receipt['message_id']:
++                        host.s.execute("UPDATE reminder_occurrences SET readback_state='verified' WHERE id=?",(ident,))
++                        return SendOutcome('confirmed',ident,receipt['message_id'],host.readback(ident,request))
++                    return SendOutcome('accepted',ident,receipt['message_id'])
++                except SendRejected:
++                    host.s.execute("UPDATE reminder_occurrences SET state='cancelled',error='DEFINITELY_NOT_SENT' WHERE id=?",(ident,))
++                    return SendOutcome('failed',ident,reason='native_send_rejected',definitive_no_send=True)
++                except DispatchBlocked:raise
++                except Exception:
++                    host.s.execute("UPDATE reminder_occurrences SET state='unknown',readback_state='pending',error='SEND_UNKNOWN' WHERE id=? AND state='sending'",(ident,))
++                    return SendOutcome('unknown',ident)
++        intent=self.coordinator.dispatch_once(self.tenant,mapping['intent_id'],Sender(),worker_id='original_am_scheduler')
++        if intent.state in ('blocked','paused','revoked','failed'):
++            self.s.execute("UPDATE reminder_occurrences SET state='cancelled',error=? WHERE id=? AND state IN ('ready','sending','confirmed_not_sent')",(intent.reason,ident))
++        elif intent.state=='unknown':
++            self.s.execute("UPDATE reminder_occurrences SET state='unknown',readback_state='pending' WHERE id=? AND state='sending'",(ident,))
++        self.am.business_notification('occurrence_result',ident)
++        return True
++
++    def readback(self,ident,request=None):
++        o=self.scheduler.occurrence(ident);p=json.loads(o['payload']);i=self.s.rows('SELECT * FROM followup_intents WHERE intent_id=?',(p['followup_intent'],))[0]
++        d=_draft_load(i['draft_json'])
++        if not o['message_id'] or o['readback_state']!='verified':return None
++        return ReadbackEvidence(o['request_key'],ident,o['message_id'],d.target.kind,d.target.target_id,
++            hashlib.sha256(d.body.encode()).hexdigest(),d.target.mention_ids,'send_response_message_id','native:'+ident,utc(self.s.clock()))
++
++    def reconciled(self,ident):
++        o=self.scheduler.occurrence(ident);p=json.loads(o['payload'])
++        if not p.get('followup_intent'):return
++        rb=self.readback(ident)
++        if rb:self.coordinator.reconcile(self.tenant,p['followup_intent'],rb)
++
++    def status(self,o):
++        if o['state']=='sent' and o['readback_state']=='verified':return '已发出并核对消息记录，正在等对方反馈。'
++        if o['state'] in ('unknown','sending','sent'):return '发送结果尚未核实，正在核对，暂时不会重发。'
++        if o['state']=='cancelled':return '本次未继续发送；请核对最新依据与对象后重新预览。'
++        return '本次跟进已登记，等待执行。'
++
++    def command(self,row):
++        self.actor(row);q=row['body'].strip()
++        if q.startswith('/followup 导入 '):
++            ident=self.import_candidate(row,json.loads(q[len('/followup 导入 '):]))
++            return '已保存候选，尚未建立事项或发送消息。候选编号：'+ident
++        parts=q.split('｜');head=parts[0].split()
++        if len(head)>=3 and head[1] in ('预览','新一轮'):
++            channel='recipient_p2p' if len(head)>3 and head[3]=='私聊' else 'group'
++            self.preview_card(row,head[2],channel,body=parts[1] if len(parts)==2 else None,new_round=head[1]=='新一轮')
++            return None
++        if len(head)==3 and head[1]=='查看':return canonical(self.view(head[2]))
++        if len(head)==3 and head[1]=='候选':
++            records=self.s.rows('SELECT * FROM followup_candidates WHERE id=?',(head[2],))
++            if not records:raise BoundaryError('FOLLOWUP_CANDIDATE_MISSING')
++            v=json.loads(records[0]['payload'])
++            self.am.card(row,object_id=head[2],version=1,snapshot=v,title='核对候选关联',body=canonical(v),
++                actions=[('adopt','确认所示事项与历史关联')],flow='followup_import')
++            return None
++        if q=='/followup':return self.dashboard(row)
++        return ('在事项详情点击“让 AM 群内跟进”或“让 AM 私聊跟进”，核对完整预览后一次确认。\n'
++                '/followup 预览 事项ID 群聊|私聊｜完整正文\n生成预览不会向工程师发送。')
++
++    def dashboard(self,row):
++        self.actor(row)
++        needs=[];following=[];context=[];actions=[]
++        for item in self.s.rows("SELECT * FROM action_items WHERE owner=? AND state NOT IN ('closed','cancelled') ORDER BY created DESC LIMIT 12",(self.owner,)):
++            receipts=self.s.rows('SELECT * FROM reminder_occurrences WHERE item_id=? ORDER BY scheduled_at DESC LIMIT 1',(item['id'],))
++            text=item['description']
++            if receipts and receipts[0]['state'] in ('ready','sending','unknown','sent'):
++                following.append(text+'：'+self.status(receipts[0]))
++            else:needs.append(text+'：'+('已暂停' if item['paused'] else '下一步与负责人待确认预览'))
++            actions.append((text[:28],{'page':'item','item':item['id']}))
++            if self.s.rows('SELECT 1 FROM action_semantics WHERE item_id=?',(item['id'],)):
++                view=self.view(item['id'])
++                if view['fields']:context.append(text+'：'+canonical(view['fields']))
++                if view['needs_review']:needs.append(text+'：依据已变化，相关字段待核。')
++                elif view['stale_fields']:context.append(text+'：保留此前已核实内容，新增变化尚未核实。')
++        candidates=self.s.rows("SELECT id FROM followup_candidates WHERE state='candidate'")
++        if candidates:needs.append(str(len(candidates))+' 条导入候选待核对项目、负责人及历史。')
++        text='需要你决定\n'+('\n'.join(needs) or '当前没有已登记的待决定事项。')+'\n\nAM 跟进中\n'+('\n'.join(following) or '当前没有已登记的跟进。')+'\n\n供你了解\n'+('\n'.join(context) or '尚无已核实的补充进展。')
++        text+='\n\n仅展示当前已登记事项，不代表所有来源已同步。'
++        return self.am.ux_page(row,'待办与进展',text,actions)
+diff --git a/local-qwen3.8/feishu-bridge/am_followup_sources.py b/local-qwen3.8/feishu-bridge/am_followup_sources.py
+new file mode 100644
+index 00000000..b9ae5df5
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/am_followup_sources.py
+@@ -0,0 +1,115 @@
++"""Exact dependencies over the existing information service, never a second fact DB."""
++import json
++from fs_agent.config import BoundaryError
++from fs_agent.project_catalog import canonical, digest
++from am_info_sync.models import Principal
++from am_info_sync.policy import can_read
++
++
++class FollowupSources:
++    def __init__(self, host):
++        self.host = host
++
++    @property
++    def info(self):
++        info = self.host.am.information
++        if info is None:raise BoundaryError('FOLLOWUP_INFORMATION_UNAVAILABLE')
++        return info
++
++    def facts(self, project):
++        h = self.host
++        return self.info.service.facts.query(project, Principal(h.owner, h.tenant))
++
++    def resolve(self, project, fact_ids):
++        facts = {f['fact_id']: f for f in self.facts(project)['facts']}
++        if not fact_ids or len(set(fact_ids)) != len(fact_ids):raise BoundaryError('FOLLOWUP_EVIDENCE_REQUIRED')
++        refs = []
++        for key in fact_ids:
++            f = facts.get(key)
++            if not f or not f['evidence']['raw_available']:raise BoundaryError('FOLLOWUP_EVIDENCE_UNAVAILABLE')
++            refs.append({'fact_id':key, **{k:f['evidence'][k] for k in ('source_id','object_id','version')},
++                         'authority':f['authority'], 'field':f['field'], 'value_hash':digest(f['value'])})
++        return refs
++
++    def defaults(self, project):
++        # Only the authoritative ledger row; no project-wide message association.
++        facts = self.facts(project)['facts']
++        selected = [f['fact_id'] for f in facts if f['field']=='ledger_record'
++                    and f['evidence']['source_id']=='th2-ledger' and f['authority']=='source_confirmed']
++        if len(selected)!=1:raise BoundaryError('FOLLOWUP_EXACT_EVIDENCE_REQUIRED')
++        return self.resolve(project, selected)
++
++    def refresh(self, refs):
++        info = self.info
++        for ref in refs:
++            source=info.store.get_source(ref['source_id'])
++            if not can_read(source,Principal(self.host.owner,self.host.tenant)) or info.store.source_status(source.source_id)['availability']=='denied':
++                raise BoundaryError('FOLLOWUP_SOURCE_ACCESS_CHANGED')
++        if any(r['source_id']=='th2-ledger' for r in refs):
++            if info.ledger is None:raise BoundaryError('FOLLOWUP_SOURCE_READER_MISSING')
++            info.ledger.read(force=True)
++        seen=set()
++        for ref in refs:
++            pair=(ref['source_id'],ref['object_id'])
++            if pair in seen:continue
++            seen.add(pair)
++            source=info.store.get_source(ref['source_id'])
++            if source.source_id=='th2-ledger' or source.kind=='manual':continue
++            adapter=info.service.sync_engine.adapters.get(source.kind)
++            fetch=getattr(adapter,'fetch_message',None)
++            if fetch is None:raise BoundaryError('FOLLOWUP_LIVE_SOURCE_UNSUPPORTED')
++            before=source.to_dict()
++            page=fetch(source,ref['object_id'])
++            if page.next_cursor is not None or len(page.observations)!=1:raise BoundaryError('FOLLOWUP_LIVE_SOURCE_INCOMPLETE')
++            obs=page.observations[0]
++            if (obs.source_id,obs.object_id)!=pair:raise BoundaryError('FOLLOWUP_LIVE_SOURCE_IDENTITY')
++            if info.store.get_source(source.source_id).to_dict()!=before:raise BoundaryError('FOLLOWUP_SOURCE_CHANGED_DURING_READ')
++            info.store.record(obs,authoritative=True)
++
++    def snapshot(self, project, refs, target, body, *, live=False):
++        if live:self.refresh(refs)
++        info=self.info;h=self.host
++        current={f['fact_id']:f for f in self.facts(project)['facts']}
++        versions={};acls={};coverage={};policies={}
++        with info.store.transaction() as db:
++            for ref in refs:
++                f=current.get(ref['fact_id'])
++                if not f or digest(f['value'])!=ref['value_hash']:raise BoundaryError('FOLLOWUP_FACT_CHANGED')
++                if any(f['evidence'][k]!=ref[k] for k in ('source_id','object_id','version')):raise BoundaryError('FOLLOWUP_SOURCE_VERSION_CHANGED')
++                if not f['evidence']['raw_available']:raise BoundaryError('FOLLOWUP_RAW_EXPIRED')
++                source=info.store.get_source(ref['source_id'])
++                if not can_read(source,Principal(h.owner,h.tenant)):raise BoundaryError('FOLLOWUP_SOURCE_ACCESS_CHANGED')
++                row=db.execute('SELECT * FROM objects WHERE source_id=? AND object_id=?',(ref['source_id'],ref['object_id'])).fetchone()
++                obs=info.store.get_observation(ref['source_id'],ref['object_id'],ref['version'])
++                if not row or row['state']!='active' or row['current_version']!=ref['version'] or obs is None or obs.deleted or obs.completeness!='complete':
++                    raise BoundaryError('FOLLOWUP_SOURCE_NOT_CURRENT')
++                # Disclosure is a separate explicit binding. Missing field/body/audience
++                # authorization cannot be manufactured from read access or from a model.
++                policy=h.disclosure(ref, target, body)
++                if policy is None:raise BoundaryError('FOLLOWUP_DISCLOSURE_REQUIRED')
++                if target['kind']=='group' and target['payload']['group']['id'] not in source.output_chats:
++                    raise BoundaryError('FOLLOWUP_GROUP_SOURCE_DISCLOSURE')
++                if target['kind']=='recipient_p2p':
++                    user=target['user'];group=target.get('disclosure_group')
++                    explicit=source.settings.get('followup_policy',{})
++                    direct=(user==source.owner_user_id or 'user:'+user in source.readers)
++                    policy_allowed=(isinstance(explicit,dict) and bool(explicit.get('revision'))
++                        and user in explicit.get('recipients',[]) and ref['field'] in explicit.get('fields',[])
++                        and 'request_update' in explicit.get('purposes',[]))
++                    group_subset=False
++                    if group and group in source.output_chats:
++                        group_subset=user in {u for u,_ in h.full_members(group)}
++                    if not (direct or policy_allowed or group_subset):raise BoundaryError('FOLLOWUP_PRIVATE_DISCLOSURE_NOT_GRANTED')
++                if source.settings.get('sensitivity')=='private' or source.settings.get('followup_disclosure') is False:
++                    raise BoundaryError('FOLLOWUP_PRIVATE_SOURCE')
++                key=digest([ref['source_id'],ref['object_id']])
++                versions[key]=digest(obs.to_dict())
++                settings={k:v for k,v in source.settings.items() if k not in ('subject_ids','subject_id')}
++                acls[key]=digest([source.tenant_id,source.owner_user_id,source.readers,source.output_chats,source.enabled,source.start_ms,settings])
++                gaps=[dict(r) for r in db.execute("SELECT kind,object_id FROM gaps WHERE source_id=? AND state='open' AND (object_id IS NULL OR object_id=?)",(source.source_id,ref['object_id']))]
++                pending=[dict(r) for r in db.execute("SELECT kind,state,payload_json FROM jobs WHERE kind IN ('event','review_message') AND state NOT IN ('done','cancelled')")
++                         if json.loads(r['payload_json']).get('source_id')==source.source_id and json.loads(r['payload_json']).get('object_id')==ref['object_id']]
++                if gaps or pending:raise BoundaryError('FOLLOWUP_REQUIRED_COVERAGE_UNRESOLVED')
++                coverage[key]=digest([source.source_id,ref['object_id'],gaps,pending])
++                policies[key]=policy
++        return {'versions':versions,'acl_versions':acls,'coverage':coverage,'policies':policies}
+diff --git a/local-qwen3.8/feishu-bridge/am_service.py b/local-qwen3.8/feishu-bridge/am_service.py
+index b28c1b1c..090ce928 100644
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -101,7 +101,7 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+         if text.strip()=='/query-probe':return True
+         if text.strip() in ENTRY_TEXT:return True
+         if text.strip() in ('/am','/menu','/help','/status'):return True
+-        if text.startswith(('/project','/changes','/todo','/briefing','/item','/plan','/update','/precheck','/mapping')):return True
++        if text.startswith(('/project','/changes','/todo','/briefing','/item','/plan','/update','/precheck','/mapping','/followup')):return True
+         if text.startswith('/progress ') and text.strip()!='/progress sample':return True
+         if text.startswith(('今天我需要跟进什么','我的待办','查看变化','项目变化','变化简报','订阅简报','取消订阅','新增跟进','查看跟进','更新需求')):return True
+         if text.startswith('哪些项目') and re.search('待确认|未明确|缺少|资料',text):return True
+@@ -121,6 +121,8 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+ 
+     def _ingest(self,payload):
+         try:
++            followup_reply=self.followup.ingest_reply(payload)
++            if followup_reply is not None:return followup_reply
+             meta=None;collection=None
+             h,e=payload['header'],payload['event'];config=self.g.config
+             if h['app_id']!=config.app_id or h['tenant_key']!=config.tenant_key:return False,False
+@@ -258,6 +260,10 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+                   'value':{'flow':'am_self','nonce':nonce,'action':action}} for index,(action,label) in enumerate(actions)]
+         card={'config':{'wide_screen_mode':True},'header':{'title':{'tag':'plain_text','content':title}},
+               'elements':[{'tag':'div','text':{'tag':'plain_text','content':body}},{'tag':'action','actions':buttons}]}
++        if flow in ('followup','followup_import'):
++            from fs_agent.card_ui import card as native_card,paragraph,button,bind_rendered_card
++            card=bind_rendered_card(native_card(title,[paragraph(body)]+[
++                button(label,{'flow':'am_self','nonce':nonce,'action':action}) for action,label in actions]))
+         with self.s.tx() as c:
+             out=self.notify(row,card=card,kind='card',object_id=object_id,version=version,hash=fingerprint,conn=c)
+             c.execute('INSERT INTO am_cards VALUES(?,?,?,?,?,?,?,?,?,?,NULL)',(nonce,flow,object_id,version,row['user'],row['chat'],canonical(snapshot),fingerprint,expiry,out))
+@@ -444,6 +450,7 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+         return '\n\n'.join(lines)
+ 
+     def handle(self,row):
++        if row['kind']=='followup_reply':return self.followup.reply(row)
+         if self.information is not None and row['kind']=='text' and (row['body'].strip()=='/info' or row['body'].strip().startswith('/info ')):
+             return self.information.respond(row)
+         if row['kind']=='group_query':return self.group_query_answer(row)
+@@ -595,6 +602,7 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+                 if row['_query_read']:row['_query_grant']=self.query_grant(row)
+                 elif row['chat_type']=='group':self.ledger.port.guard(row['chat'],row['user'])
+                 elif row['user']==self.owner:self.ledger.port.authorize_user(row['user'])
++                elif row['kind']=='followup_reply':self.ledger.port.authorize_user(row['user'])
+                 elif row['kind']!='card':raise BoundaryError('OWNER_ONLY')
+             row['_request_authorization']=(tuple(row.get(k) for k in ('app','tenant','user','chat')),time.monotonic())
+             text=self.handle(row)
+diff --git a/local-qwen3.8/feishu-bridge/am_ux.py b/local-qwen3.8/feishu-bridge/am_ux.py
+index 2e32961c..c9a34eb6 100644
+--- a/local-qwen3.8/feishu-bridge/am_ux.py
++++ b/local-qwen3.8/feishu-bridge/am_ux.py
+@@ -299,7 +299,7 @@ class UxMixin:
+         page_flags={'preview_reminder':'scheduler','confirm_reminder':'scheduler','plan':'scheduler','plan_control':'scheduler','reconcile':'scheduler','subscribe':'scheduler','subscription_preview':'scheduler','subscription_confirm':'scheduler','start_precheck':'precheck','precheck_continue':'precheck','precheck_form':'precheck','item_change':'items','item_action_form':'items','item':'items','briefing':'snapshots'}
+         if a['page'] in page_flags and not self.flags[page_flags[a['page']]]:raise BoundaryError('FEATURE_NOT_ENABLED')
+         # Navigation buttons do not require the form's mandatory fields.
+-        submit=a['page'] in ('search','preview_reminder','start_precheck','subscription_preview','item_change')
++        submit=a['page'] in ('search','preview_reminder','start_precheck','subscription_preview','item_change','followup_edit_submit')
+         saved=snapshot['data']
+         if submit and saved.get('draft') and isinstance(body.get('form_value'),dict):
+             d,old=self.ux_draft(row,saved['draft'],saved['version'])
+@@ -364,6 +364,13 @@ class UxMixin:
+         return self.ux_more_action(row,a,values,data)
+ 
+     def ux_more_action(self,row,a,values=None,data=None):
++        if a['page']=='followup_dashboard':return self.followup.dashboard(row)
++        if a['page']=='followup_edit_submit':
++            self.followup.preview_card(row,data['item'],values['channel'],body=values['body'],recipient=values.get('recipient'))
++            return None
++        if a['page']=='followup_preview':
++            self.followup.preview_card(row,a['item'],a['channel'])
++            return None
+         page=a['page'];values=values or {};data=data or {}
+         if page=='more':return self.ux_page(row,'更多','选择要查看或设置的内容。',[('提醒计划',{'page':'plans'}),('变化简报',{'page':'briefing'}),('简报订阅',{'page':'subscribe'}),('资料预检',{'page':'targets'}),('文稿整理',{'page':'documents'}),('运行状态',{'page':'status'}),('帮助',{'page':'help'}),('返回首页',{'page':'home'})])
+         if page in ('status','help','briefing'):
+diff --git a/local-qwen3.8/feishu-bridge/am_views.py b/local-qwen3.8/feishu-bridge/am_views.py
+index 86effd66..d70e6942 100644
+--- a/local-qwen3.8/feishu-bridge/am_views.py
++++ b/local-qwen3.8/feishu-bridge/am_views.py
+@@ -111,6 +111,7 @@ class ViewsMixin:
+             if group==bucket:rows.append(dict(item,display_status=status))
+         selected,page,label=paging(rows,page,3)
+         lines=[labels[bucket]+' · '+label];actions=[(f'{label}（{counts[k]}）',{'page':'work','bucket':k}) for k,label in labels.items()]
++        if self.flags['items'] and self.flags['scheduler']:actions.append(('待办与进展',{'page':'followup_dashboard'}))
+         for i,item in enumerate(selected,1):
+             source=json.loads(item['source']);people=source.get('target',{}).get('people',[])
+             names='、'.join(p['name'] for p in people) or '负责人待核对'
+@@ -132,6 +133,9 @@ class ViewsMixin:
+         item=self.items.get(ident)
+         if item['owner']!=row['user']:raise BoundaryError('OWNER_ONLY')
+         actions=[('跟进操作',{'page':'item_actions','item':ident}),('反馈记录',{'page':'history','item':ident}),('完整事项',{'page':'item_full','item':ident}),('我的跟进',{'page':'work'})]
++        if self.flags['items'] and self.flags['scheduler'] and item['state'] not in ('closed','cancelled'):
++            actions[0:0]=[('让 AM 群内跟进',{'page':'followup_preview','item':ident,'channel':'group'}),
++                          ('让 AM 私聊跟进',{'page':'followup_preview','item':ident,'channel':'recipient_p2p'})]
+         last=self.s.rows('SELECT id FROM item_feedback WHERE item_id=? AND applied=1 ORDER BY rowid DESC LIMIT 1',(ident,))
+         if last:actions.insert(0,('反馈已阅',{'page':'feedback_seen','item':ident,'version':item['version'],'feedback':last[0]['id']}))
+         return self.ux_page(row,'事项详情',self.ux_item_text(item),actions)
+diff --git a/local-qwen3.8/feishu-bridge/health.py b/local-qwen3.8/feishu-bridge/health.py
+index 4059390c..a87f3cc7 100644
+--- a/local-qwen3.8/feishu-bridge/health.py
++++ b/local-qwen3.8/feishu-bridge/health.py
+@@ -30,6 +30,9 @@ def loaded_manifest(bridge,config):
+     package=Path(fs_agent.__file__).parent
+     files={}
+     roots=[(folder,'feishu-bridge'),(package,'fs_agent')]
++    if getattr(getattr(bridge,'am_self',None),'followup',None) is not None:
++        import am_followup
++        roots.append((Path(am_followup.__file__).parent,'am_followup'))
+     if getattr(getattr(bridge,'am_self',None),'conversation',None) is not None:
+         import am_conversation
+         roots.append((Path(am_conversation.__file__).parent,'am_conversation'))
