@@ -1,0 +1,1323 @@
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_navigation.py
+@@ -0,0 +1,188 @@
++"""Owner navigation and data-free recovery with original AM runtime classes.
++
++SQLite and routing are real; the platform in native is simulated. These checks
++do not establish the cause or the recovery of the observed production failure.
++"""
++import json
++from dataclasses import replace
++from types import SimpleNamespace as NS
++
++import pytest
++
++from test_followup_native import native, service, am_rig, base_rig, click
++from test_followup_owner_validation import setup_owner
++from test_gateway import event, drain
++from fs_agent.config import BoundaryError
++
++
++def conversation():
++    def unexpected(*args, **kwargs):
++        raise AssertionError('Exact owner navigation must not enter conversation')
++    return NS(wants=lambda text: True, group_conversations=True,
++              cleanup=lambda: None, process=unexpected)
++
++
++@pytest.mark.parametrize('text', ['我的跟进', '我的跟进？', '我的跟进?', '我的跟进。'])
++def test_exact_owner_entry_uses_original_view_without_model_or_source_refresh(native, monkeypatch, text):
++    n=native;n.am.conversation=conversation();rendered=[];authorized=[]
++    original=n.am.ledger.port.authorize_user
++    def authorize(user):
++        authorized.append(user)
++        return original(user)
++    def unexpected(*args, **kwargs):
++        raise AssertionError('The local work view must not refresh project sources')
++    monkeypatch.setattr(n.am.ledger.port,'authorize_user',authorize)
++    monkeypatch.setattr(n.am,'projects',unexpected)
++    monkeypatch.setattr(n.am,'query_projects',unexpected)
++    monkeypatch.setattr(n.am,'ux_work',lambda row:rendered.append(dict(row)))
++    incoming=event(text,number=1001,user=n.am.owner,chat=n.row['chat'])
++    assert n.am.ingest(incoming)==(True,True)
++    ident=incoming['event']['message']['message_id']
++    assert n.s.rows('SELECT kind FROM am_inbox WHERE id=?',(ident,))[0]['kind']=='text'
++    n.am.step()
++    assert n.s.rows('SELECT state,error FROM am_inbox WHERE id=?',(ident,))==[{'state':'done','error':None}]
++    assert len(rendered)==1 and rendered[0]['_readonly_request'] is True
++    assert rendered[0]['_view_kind']=='navigation'
++    assert n.am.owner in authorized
++    assert not n.calls and not n.s.rows('SELECT * FROM followup_intents')
++
++
++def test_exact_entry_does_not_expand_non_owner_navigation(native, monkeypatch):
++    n=native;n.am.conversation=conversation()
++    incoming=event('我的跟进',number=1002,user='ou_engineer_a',chat='oc_engineer')
++    assert n.am.ingest(incoming)==(True,True)
++    ident=incoming['event']['message']['message_id']
++    assert n.s.rows('SELECT kind FROM am_inbox WHERE id=?',(ident,))[0]['kind']=='conversation'
++    with pytest.raises(BoundaryError,match='OWNER_ONLY'):
++        n.am.handle(dict(n.row,user='ou_engineer_a',body='我的跟进'))
++    assert not n.calls
++
++
++@pytest.mark.parametrize('thread_key',['parent_id','root_id'])
++def test_unmatched_threaded_input_keeps_conversation_route(native,thread_key):
++    n=native;n.am.conversation=conversation()
++    incoming=event('我的跟进',number=1003,user=n.am.owner,chat=n.row['chat'])
++    incoming['event']['message'][thread_key]='om_unrelated'
++    assert n.am.ingest(incoming)==(True,True)
++    ident=incoming['event']['message']['message_id']
++    assert n.s.rows('SELECT kind FROM am_inbox WHERE id=?',(ident,))[0]['kind']=='conversation'
++
++
++def test_active_collection_keeps_its_input(native,monkeypatch):
++    n=native;n.am.conversation=conversation()
++    monkeypatch.setattr(n.am,'ux_collection_at_receipt',lambda row:{'token':'active-collection'})
++    incoming=event('我的跟进',number=1004,user=n.am.owner,chat=n.row['chat'])
++    assert n.am.ingest(incoming)==(True,True)
++    ident=incoming['event']['message']['message_id']
++    assert n.s.rows('SELECT kind FROM am_inbox WHERE id=?',(ident,))[0]['kind']=='collection'
++    assert json.loads(n.s.rows('SELECT context FROM am_ux_receipts WHERE id=?',(ident,))[0]['context'])=={'token':'active-collection'}
++
++
++def test_exact_entry_respects_items_flag(native):
++    n=native;n.am.flags['items']=False
++    with pytest.raises(BoundaryError,match='ITEMS_NOT_ENABLED'):
++        n.am.handle(dict(n.row,body='我的跟进'))
++    assert not n.calls
++
++
++def test_exact_threaded_owner_reply_is_not_swallowed_by_navigation(native):
++    n=native;setup_owner(n)
++    item=n.f.validation_item(n.row,'oc_reminder',n.am.owner,'recipient_p2p',owner_self_test=True)
++    nonce=n.f.preview_card(n.row,item['id'],'recipient_p2p',recipient=n.am.owner,body='[合成导航检查] 请回复本消息。')
++    drain(n.g)
++    card=n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0]
++    click(n,card);n.am.scheduler.dispatch()
++    occurrence=n.s.rows('SELECT * FROM reminder_occurrences WHERE item_id=?',(item['id'],))[0]
++    incoming=event('我的跟进',number=1005,user=n.am.owner,chat=n.row['chat'])
++    incoming['event']['message'].update(parent_id=occurrence['message_id'],create_time=str(int(n.clock()*1000)))
++    assert n.am.ingest(incoming)==(True,True)
++    ident=incoming['event']['message']['message_id']
++    assert n.s.rows('SELECT kind FROM am_inbox WHERE id=?',(ident,))[0]['kind']=='followup_reply'
++    n.am.step()
++    assert n.s.rows('SELECT kind FROM followup_reply_links WHERE message_id=?',(ident,))==[{'kind':'reported_update'}]
++    assert len(n.calls)==1 and n.am.items.get(item['id'])['state']=='waiting'
++
++
++def test_stale_source_result_stays_rejected_but_static_recovery_can_render(native):
++    n=native
++    row=dict(n.row,_source_access_version='old-epoch',_query_read=True,_query_grant=['*'],
++             _snapshot_version='old-snapshot',_snapshot_meta={'private':'do-not-copy'},
++             _interaction='old-interaction',_view_version=5,_immutable_output=True,
++             _business_event='sensitive-approval')
++    before=len(n.s.rows('SELECT * FROM outbox'))
++    with pytest.raises(BoundaryError,match='SOURCE_ACCESS_CHANGED'):
++        n.am.notify(row,text='private-source-value')
++    assert len(n.s.rows('SELECT * FROM outbox'))==before
++    n.am.ux_error(row,'SOURCE_ACCESS_CHANGED')
++    out=n.s.rows('SELECT * FROM outbox ORDER BY rowid DESC LIMIT 1')[0]
++    snapshot=json.loads(n.s.rows('SELECT snapshot FROM am_cards WHERE outbox_id=?',(out['id'],))[0]['snapshot'])
++    assert set(a['page'] for a in snapshot['actions'].values())=={'work','projects'}
++    assert snapshot['fields'] is None and not snapshot['envelope']['facts']
++    assert 'do-not-copy' not in out['body'] and 'private-source-value' not in out['body']
++    assert 'old-snapshot' not in json.dumps(snapshot) and 'sensitive-approval' not in json.dumps(snapshot)
++    assert n.am.query_delivery_authorized(out) is True
++    assert out['expires']<=row['expires']
++    assert row['_source_access_version']=='old-epoch'
++    assert not n.s.rows('SELECT * FROM followup_intents') and not n.calls
++    # The same stale result still fails after the recovery view was created.
++    with pytest.raises(BoundaryError,match='SOURCE_ACCESS_CHANGED'):
++        n.am.notify(row,text='private-source-value')
++
++
++def _claim(n,text,item=None,fact_ids=None):
++    item=item or n.item
++    refs=n.f.sources.resolve(item['project_ref'],fact_ids) if fact_ids else n.f.sources.defaults(item['project_ref'])
++    n.f.bind(n.row,item['id'],refs=refs)
++    n.f.record_claim(n.row,item['id'],'blocker',text,[r['fact_id'] for r in refs])
++
++
++def test_dashboard_does_not_relabel_pre_revocation_content_with_new_epoch(native,monkeypatch):
++    n=native;_claim(n,'protected-before-revocation')
++    original=n.am.ux_page
++    def revoke_after_projection(row,title,text,actions,**kwargs):
++        assert not n.reader.conn.in_transaction
++        assert not n.s.conn.in_transaction
++        assert 'protected-before-revocation' in text
++        n.reader.register_source(replace(n.source,enabled=False))
++        return original(row,title,text,actions,**kwargs)
++    monkeypatch.setattr(n.am,'ux_page',revoke_after_projection)
++    with pytest.raises(BoundaryError,match='SOURCE_ACCESS_CHANGED'):
++        n.f.dashboard(n.row)
++    assert all('protected-before-revocation' not in r['body'] for r in n.s.rows('SELECT body FROM outbox'))
++    assert not n.calls
++
++
++def test_dashboard_delivery_rechecks_epoch_and_uses_raw_expiry(native):
++    n=native;_claim(n,'retention-bound-progress')
++    deadline=n.clock()+45
++    with n.reader.transaction() as db:
++        db.execute('UPDATE observations SET raw_expires_at_ms=? WHERE source_id=?',
++                   (int(deadline*1000),n.source.source_id))
++    n.f.dashboard(n.row)
++    out=n.s.rows('SELECT * FROM outbox ORDER BY rowid DESC LIMIT 1')[0]
++    assert out['expires']<=deadline
++    assert n.am.query_delivery_authorized(out) is True
++    n.reader.register_source(replace(n.source,enabled=False))
++    assert n.am.query_delivery_authorized(out) is False
++    assert not n.calls
++
++
++def test_dashboard_one_revoked_source_does_not_hide_unrelated_progress(native,monkeypatch):
++    n=native;_claim(n,'revoked-progress')
++    source=replace(n.source,source_id='other-current-source',remote_id='other-current-remote')
++    n.reader.register_source(source)
++    obs=replace(n.obs,source_id=source.source_id,object_id='other-current-object')
++    n.reader.record(obs);processed=n.facts.process(obs,[])
++    item=n.am.items.create(n.am.owner,'other-dashboard-item',project_ref=n.item['project_ref'],
++        description='独立事项',requirements='查看依据',assignees=['ou_engineer_a'],source=json.loads(n.item['source']))
++    _claim(n,'still-readable-progress',item,processed['fact_ids'])
++    n.reader.register_source(replace(n.source,enabled=False))
++    rendered=[]
++    monkeypatch.setattr(n.am,'ux_page',lambda row,title,text,actions:rendered.append((dict(row),text)))
++    n.f.dashboard(n.row)
++    assert len(rendered)==1
++    assert 'revoked-progress' not in rendered[0][1]
++    assert 'still-readable-progress' in rendered[0][1]
++    assert '依据已变化' in rendered[0][1]
++    assert not n.calls
++
+--- a/local-qwen3.8/feishu-bridge/am_followup_host.py
++++ b/local-qwen3.8/feishu-bridge/am_followup_host.py
+@@ -481,9 +481,9 @@
+                 expected_version=snap['semantic_version'],force_review=True)
+         return '已重审本事项的当前依据。旧发送预览已失效；请查看事项并生成新的完整预览。发送结果未明的历史仍需对账。'
+ 
+-    def view(self,item_id):
++    def view(self,item_id,*,connection=None):
+         item=self.am.items.get(item_id);sem=self.semantic(item_id);claims=json.loads(sem['claims'])
+-        facts={f['fact_id']:f for f in self.sources.facts(item['project_ref'])['facts']}
++        facts={f['fact_id']:f for f in self.sources.facts(item['project_ref'],connection=connection)['facts']}
+         usable={k for k,f in facts.items() if f['evidence']['raw_available']}
+         fields={k:v['value'] for k,v in claims.items() if set(v['fact_ids'])<=usable}
+         invalid=[k for k,v in claims.items() if not set(v['fact_ids'])<=usable]
+@@ -1114,7 +1114,30 @@
+ 
+     def dashboard(self,row):
+         self.actor(row)
++        # Resolve identity before the information fence. Projection reads take
++        # the same AM mutex -> Information transaction order as final sending;
++        # rendering/outbox work happens only after this scope has been released.
++        render_row=dict(row,_query_read=True,_query_grant=self.am.query_grant(row))
++        info=self.am.information
++        with self.s.lock:
++            if info is None:
++                text,actions,expiry=self._dashboard_content()
++            else:
++                with info.store.transaction() as information_db:
++                    text,actions,expiry=self._dashboard_content(information_db)
++                    version=info.store.access_version()
++                if row.get('_source_access_version',version)!=version:
++                    raise BoundaryError('SOURCE_ACCESS_CHANGED')
++                render_row['_source_access_version']=version
++        if expiry is not None:
++            render_row['expires']=min(render_row['expires'],expiry)
++            if render_row['expires']<=self.s.clock():raise BoundaryError('FOLLOWUP_RAW_EXPIRED')
++        return self.am.ux_page(render_row,'待办与进展',text,actions)
++
++    def _dashboard_content(self,information_db=None):
++        """Pure local projection; no identity lookup, model, or external calls."""
+         needs=[];following=[];context=[];actions=[]
++        expiry=None
+         for item in self.s.rows("SELECT * FROM action_items WHERE owner=? AND state NOT IN ('closed','cancelled') ORDER BY created DESC LIMIT 12",(self.owner,)):
+             receipts=self.s.rows('SELECT * FROM reminder_occurrences WHERE item_id=? ORDER BY scheduled_at DESC LIMIT 1',(item['id'],))
+             text=item['description']
+@@ -1123,8 +1146,20 @@
+             else:needs.append(text+'：'+('已暂停' if item['paused'] else '下一步与负责人待确认预览'))
+             actions.append((text[:28],{'page':'item','item':item['id']}))
+             if self.s.rows('SELECT 1 FROM action_semantics WHERE item_id=?',(item['id'],)):
+-                view=self.view(item['id'])
++                if information_db is None:
++                    needs.append(text+'：当前来源不可读取，补充进展待核。')
++                    continue
++                view=self.view(item['id'],connection=information_db)
+                 if view['fields']:
++                    sem=self.semantic(item['id']);claims=json.loads(sem['claims'])
++                    shown_facts={fact for key in view['fields'] for fact in claims[key]['fact_ids']}
++                    for ref in json.loads(sem['refs']):
++                        if ref['fact_id'] not in shown_facts:continue
++                        raw=information_db.execute('SELECT raw_expires_at_ms FROM observations WHERE source_id=? AND object_id=? AND version=?',
++                            (ref['source_id'],ref['object_id'],ref['version'])).fetchone()
++                        if raw is None:raise BoundaryError('FOLLOWUP_RAW_EXPIRED')
++                        expires=raw[0]/1000
++                        expiry=min(expiry,expires) if expiry is not None else expires
+                     names={'execution':'执行','response':'回应','delivery':'本项交付','acceptance':'验收','plan_delivery':'方案交付',
+                            'sample_arrival':'样机到货','release_materials':'发布材料','planned_start':'计划开测','actual_start':'实际开测',
+                            'planned_release':'计划发布','actual_release':'实际发布','approval':'审批','test_overview':'测试概述',
+@@ -1140,4 +1175,4 @@
+         if candidates:needs.append(str(len(candidates))+' 条导入候选待核对项目、负责人及历史。')
+         text='需要你决定\n'+('\n'.join(needs) or '当前没有已登记的待决定事项。')+'\n\nAM 跟进中\n'+('\n'.join(following) or '当前没有已登记的跟进。')+'\n\n供你了解\n'+('\n'.join(context) or '尚无已核实的补充进展。')
+         text+='\n\n仅展示当前已登记事项，不代表所有来源已同步。'
+-        return self.am.ux_page(row,'待办与进展',text,actions)
++        return text,actions,expiry
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -24,6 +24,10 @@
+ from query_rules import deterministic_intent,identifiers,resolve_identifiers,fields_for,choice_number
+ 
+ DEFAULT_FLAGS={'query':False,'snapshots':False,'items':False,'scheduler':False,'progress_collection':False,'ledger_write':False,'attachments':False,'precheck':False}
++
++# Exact owner navigation, not a natural-language task classifier. Threaded
++# replies and active collection input keep their existing routing below.
++FOLLOWUP_ENTRY_TEXT=frozenset(('我的跟进','我的跟进？','我的跟进?','我的跟进。'))
+ 
+ 
+ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixin,DocumentViewsMixin,BriefingMixin,ViewsMixin,UxMixin,BusinessCommands,UpdateCommands):
+@@ -96,6 +100,7 @@
+                 'message_type':message['message_type'],'content_fingerprint':digest(content),'fingerprint_kind':'raw-content-v1'}
+ 
+     def wants(self,text):
++        if text.strip() in FOLLOWUP_ENTRY_TEXT:return True
+         if self.information is not None and (text == '/info' or text.startswith('/info ')):return True
+         if self.conversation is not None and self.conversation.wants(text):return True
+         if text.strip()=='/query-probe':return True
+@@ -197,8 +202,10 @@
+                     from am_query import field_followup
+                     focus=self.s.rows('SELECT 1 FROM am_sessions WHERE scope=? AND focus IS NOT NULL AND expires>?',(self.scope(session),self.s.clock()))
+                     if not (pending and choice_number(text)) and not (field_followup(text) and (focus or meta.get('parent'))):return False,False
++                followup_navigation=(user==self.owner and text in FOLLOWUP_ENTRY_TEXT
++                                     and not meta.get('parent') and not meta.get('root'))
+                 row={'id':m['message_id'],'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],
+-                     'chat_type':'p2p','created':int(m['create_time'])/1000,'kind':'collection' if collection else 'conversation' if self.conversation is not None and self.conversation.wants(text) else 'text',
++                     'chat_type':'p2p','created':int(m['create_time'])/1000,'kind':'collection' if collection else 'text' if followup_navigation else 'conversation' if self.conversation is not None and self.conversation.wants(text) else 'text',
+                      'body':canonical(json.loads(m['content']) if isinstance(m['content'],str) else m['content']) if m['message_type']=='file' else text}
+             else:return False,False
+             row['expires']=min(row['created'],self.s.clock())+86400
+@@ -475,6 +482,12 @@
+             if hasattr(self,'handle_business_card'):return self.handle_business_card(row,c,action)
+             raise BoundaryError('CARD_FEATURE_NOT_READY')
+         q=row['body'].strip()
++        if q in FOLLOWUP_ENTRY_TEXT and row['user']==self.owner and row['chat_type']=='p2p':
++            source_meta=self.source_meta(row)
++            if not source_meta.get('parent') and not source_meta.get('root'):
++                if not self.flags['items']:raise BoundaryError('ITEMS_NOT_ENABLED')
++                row['_view_kind']='navigation';row['_resume_navigation']=True
++                return self.ux_work(row)
+         if q=='/query-probe':return self.prepare_query_probe(row)
+         if q in ('/am','/menu'):return self.ux_home(row)
+         if q in ENTRY_TEXT:return self.ux_projects(row)
+@@ -529,7 +542,7 @@
+         if row['kind']=='menu':return row['body'] in ('home','projects','more')
+         if row['kind']=='text':
+             q=row['body'].strip()
+-            return q in ('/menu','/am','/help','/status','/briefing','/changes','/todo','变化简报','查看变化','项目变化','我的待办') or q.startswith('/project') or deterministic_intent(q)=='project'
++            return q in FOLLOWUP_ENTRY_TEXT or q in ('/menu','/am','/help','/status','/briefing','/changes','/todo','变化简报','查看变化','项目变化','我的待办') or q.startswith('/project') or deterministic_intent(q)=='project'
+         if row['kind']=='card':
+             body=json.loads(row['body']);value=body['value']
+             cards=self.s.rows("SELECT * FROM am_cards WHERE nonce=? AND flow='ux'",(value.get('nonce'),))
+--- a/local-qwen3.8/feishu-bridge/am_ux.py
++++ b/local-qwen3.8/feishu-bridge/am_ux.py
+@@ -313,7 +313,7 @@
+         values=self.ux_form_values(snapshot,body) if submit else {}
+         data=dict(snapshot['data'],nonce=c['nonce']);page=a['page']
+         current=self.s.rows('SELECT kind FROM am_interactions WHERE id=?',(snapshot.get('interaction_id'),))
+-        if page in ('home','projects','refresh') and current and current[0]['kind']=='recovery':
++        if page in ('home','projects','refresh','work') and current and current[0]['kind']=='recovery':
+             row.pop('_interaction',None);row.pop('_view_version',None);row.pop('_snapshot_version',None)
+             row['_view_kind']='navigation';row['_resume_navigation']=True
+         if page=='reconcile_navigation':return self.navigation_recovery(row,a['interaction'],check=True)
+@@ -448,6 +448,17 @@
+         return self.ux_page(row,title,text,actions+[('返回首页',{'page':'home'}),('更多',{'page':'more'})])
+ 
+     def ux_error(self,row,code):
++        if code=='SOURCE_ACCESS_CHANGED' and row['user']==self.owner and row['chat_type']=='p2p':
++            # Source-bearing output remains rejected. Only a newly constructed,
++            # fixed recovery view may drop that stale read fence. It contains
++            # no prior text, facts, source values, form fields or approval action.
++            # Do not relabel the failed payload with a newer source epoch.
++            recovery={k:row[k] for k in ('id','app','tenant','user','chat','chat_type','created','expires','kind','body')}
++            recovery.update(_view_kind='recovery',_query_read=False,_query_denial=True,
++                            _interaction=digest(['source-access-recovery',self.scope(row),row['id']]))
++            return self.ux_page(recovery,'资料已变化',
++                '这次读取期间资料范围发生变化，旧结果未展示。请重新打开跟进或项目查询；已有事项和发送记录保留，发送仍需有效预览确认。',
++                [('重新打开我的跟进',{'page':'work'}),('项目查询',{'page':'projects'})])
+         row['_view_kind']='recovery'
+         if code in ('VIEW_DELIVERY_UNKNOWN','VIEW_DELIVERY_REJECTED'):
+             ident=row.get('_blocked_interaction') or row.get('_interaction')
+--- a/local-qwen3.8/feishu-bridge/info_extraction.py
++++ b/local-qwen3.8/feishu-bridge/info_extraction.py
+@@ -2,7 +2,7 @@
+ import json
+ import uuid
+ from am_info_sync.extraction import ExtractionError, _unique_object, _invalid_number
+-from am_info_sync.facts import validate_candidate
++from am_info_sync.facts import FactValidationError, validate_candidate
+ from am_info_sync.models import canonical
+ from info_semantics import FIELDS, coverage_report
+ 
+@@ -17,7 +17,7 @@
+ 
+ 
+ class BoundedCoordinatorExtractor:
+-    version='am-native-bounded-v3'
++    version='am-native-bounded-v4'
+     def __init__(self, coordinator, context_provider, may_run=lambda:True):
+         self.coordinator=coordinator
+         self.context_provider=context_provider
+@@ -40,9 +40,12 @@
+                 '逐项保留以下不同信息：回应收到/OK/了解用response；审批结果用review；明确计划用plan+reported；'
+                 '到仓、材料交付、方案发出、稿件齐备用delivery或context，不能当成执行完成；实际执行用progress；'
+                 '实际开测待核、可用性未知、业务核验待完成用acceptance；披露禁令用constraint；'
++                '没有开测或发布记录可用progress或acceptance；审批没有撤回的范围说明可用review或constraint。'
+                 '行动请求（含记录预计投入、撤除旧提醒）用action_request+proposal，均只记为待核候选，不执行。'
+                 '每种明确维度都保留，value保留原文的关键短语、否定和待核用语，不用释义替代它们。'
++                '否定与更正保留完整说法；转述保留工程师说等来源归属；条件与其结果必须同在一项quote和value，不能拆成无条件承诺。'
+                 '项目明确未定的请求不能因为上下文只有一个项目就归入它，complete=false等待核对。'
++                '混合多项目资料也不能省略归属未明的句子后声称complete=true；无法归属时整段等待核对。'
+                 '不编造日期和人员，不把计划或附件等同于验收。time_basis为observed_at时日期只是读取时间，相对日期保留原话，不换算为绝对日期。每项简洁，最多6项；若不能完整表达所有明确事实，complete=false。'
+                 '无事实时complete=true且candidates为空。\n'+canonical({'context':context,'text':observation.text}))
+         response=self.coordinator.complete(prompt,run_id=uuid.uuid4().hex,
+@@ -55,20 +58,46 @@
+         if (type(value) is not dict or set(value)!={'complete','candidates'}
+                 or type(value['complete']) is not bool or type(value['candidates']) is not list
+                 or len(value['candidates'])>6):raise ExtractionError('invalid_output_schema')
+-        if not value['complete']:raise ExtractionError('semantic_budget_incomplete',retryable=False)
+         result=[]
+         keys={'subject_id','field','value','quote','assertion_type'}
++        # The source may permit a wider scope than this individual extraction.
++        # Check the supplied context boundary as well; one context project is
++        # not permission to assign explicitly unresolved statements to it.
++        allowed=context.get('allowed_subject_ids')
++        if allowed is not None and (type(allowed) is not list
++                or any(type(subject) is not str or not subject for subject in allowed)):
++            raise ExtractionError('invalid_subject_context',retryable=False)
+         for item in value['candidates']:
+             if type(item) is not dict or set(item)!=keys:raise ExtractionError('invalid_output_schema')
+-            if (item['field'] not in FIELDS or type(item['value']) is not str
+-                    or type(item['quote']) is not str or len(item['value'])>600
+-                    or not 1<=len(item['quote'])<=600):raise ExtractionError('invalid_output_schema')
++            if (type(item['subject_id']) is not str or not item['subject_id'].strip()
++                    or len(item['subject_id'])>256 or type(item['field']) is not str
++                    or item['field'] not in FIELDS or type(item['value']) is not str
++                    or type(item['quote']) is not str or not 1<=len(item['value'])<=600
++                    or not 1<=len(item['quote'])<=600 or type(item['assertion_type']) is not str
++                    or item['assertion_type'] not in {'reported','forecast','proposal'}):
++                raise ExtractionError('invalid_output_schema')
++            if allowed is not None and item['subject_id'] not in allowed:
++                raise ExtractionError('subject_outside_context',retryable=False)
+             if item['assertion_type']=='forecast' and item['field']=='plan':
+                 item=dict(item,field='forecast')
+             candidate=dict(item,source_id=observation.source_id,object_id=observation.object_id,version=observation.version)
+-            result.append(validate_candidate(candidate,observation))
+-        report=coverage_report(observation.text,result)
++            try:
++                result.append(validate_candidate(candidate,observation))
++            except FactValidationError as error:
++                raise ExtractionError(error.code,retryable=False) from None
++        titles=tuple(subject['title'] for subject in context.get('subjects',[])
++                     if type(subject) is dict and type(subject.get('title')) is str)
++        bindings=tuple((subject['title'],subject['subject_id'])
++                       for subject in context.get('subjects',[])
++                       if type(subject) is dict and type(subject.get('title')) is str
++                       and subject['title'] and type(subject.get('subject_id')) is str)
++        report=coverage_report(observation.text,result,subject_titles=titles,subject_bindings=bindings)
+         self.last_call['coverage']=report
+         if report['issues']:
+             raise ExtractionError('semantic_coverage_incomplete:'+','.join(report['issues']),retryable=False)
++        if not value['complete']:
++            # No budget diagnosis is justified solely by a model's boolean.
++            # Known source ambiguity was already given the precise code above;
++            # all other incomplete outputs retain a neutral visible gap.
++            raise ExtractionError('semantic_model_incomplete',retryable=False)
+         return result
+--- a/local-qwen3.8/feishu-bridge/info_semantics.py
++++ b/local-qwen3.8/feishu-bridge/info_semantics.py
+@@ -36,12 +36,12 @@
+ RULES = (
+     SignalRule('response', r'(?:回复|回应|答复)\s*[“"：:]?\s*(?:收到|OK\b|了解|知道了|好的|明白)', ('response',)),
+     SignalRule('approval', r'审批(?:已经|已)?通过', ('review',)),
+-    SignalRule('approval_not_withdrawn', r'不是审批撤回', ('review',)),
++    SignalRule('approval_not_withdrawn', r'不是审批撤回', ('review', 'constraint')),
+     SignalRule('not_project_acceptance', r'不代表(?:项目)?完成', ('acceptance', 'constraint')),
+     SignalRule('retire_reminder_request', r'(?:旧的)?待提审提醒可以撤除', ('action_request',), 'proposal'),
+     SignalRule('plan', r'计划(?:今天|明天|本周|下周|本月|下月|周[一二三四五六日天])[^，。；;\n]{1,35}', ('plan',)),
+     SignalRule('execution', r'正在测试|仍在测试中|实际已开测|已开始测试', ('progress',)),
+-    SignalRule('execution_evidence_missing', r'(?:没有|未)(?:提供)?(?:实际)?(?:开测|发布)(?:记录|证据)', ('progress',)),
++    SignalRule('execution_evidence_missing', r'(?:没有|未)(?:提供)?(?:实际)?(?:开测|发布)(?:记录|证据)', ('progress', 'acceptance')),
+     SignalRule('acceptance_pending', r'实际是否开测尚待核实|可用性尚未确定|业务核验尚未完成|正式可对外使用的版本待确认', ('acceptance',)),
+     SignalRule('delivery', r'样机已到仓|材料已交付|稿件与版本已经齐备|测试方案已经发出|已经有测试概述', ('delivery', 'context')),
+     SignalRule('disclosure_constraint', r'(?:仍)?禁止对外(?:发送|披露)', ('constraint',)),
+@@ -53,30 +53,236 @@
+     return re.sub(r'\s+', '', value).casefold()
+ 
+ 
+-def coverage_report(text, candidates):
++# These are grammar/scope markers, not a catalogue of accepted business facts.
++# They establish a bounded rejection contract only. In particular, an unknown
++# idiom or a passed report is never evidence of semantic correctness.
++_BUSINESS = re.compile(
++    r'完成|通过|交付|到仓|入库|到货|收到|发出|提交|测试|开测|发布|验收|'
++    r'审核|审批|评审|计划|预计|延期|延迟|阻塞|撤回|提醒')
++_NEGATIVE = re.compile(r'否认|未(?=[^来])|没(?=[\u4e00-\u9fff])|不(?=[\u4e00-\u9fff])|无(?=[\u4e00-\u9fff])')
++_CONDITION = re.compile(r'如果|假如|假设|倘若|除非|只有|只要|仅当|'
++    r'若(?=[^。；;\n]{1,60}[，,])|以[^。；;\n]{1,50}为前提|'
++    r'[^，,。；;\n]{1,50}(?:之后|之前|后|前)(?:才|方可|方能|再|可|允许)|'
++    r'[^，,。；;\n]{1,50}(?:才可以|才能|方可|方能)')
++_ATTRIBUTION = re.compile(r'(?:据[^，,。；;\n]{1,24}(?:所说|反馈|报告)|'
++    r'[^，,。；;\n“”"：:]{1,24}(?:表示|反馈|声称|(?<!名)称(?!谓|重|号)|说(?!明|法|服)|澄清|告知))')
++_UNRESOLVED_SUBJECT = re.compile(
++    r'(?:项目|主体)(?=、|，|和|及|均未|未明|尚未)[^。；;\n]{0,48}(?:未明确|不明确)|'
++    r'(?:归属|指代)(?:尚)?(?:待核实|待核对|未明|不明|不清|不确定)|'
++    r'(?:没有|未|尚未)(?:说明|明确|确定)[^。；;\n]{0,28}(?:哪个项目|项目归属|对应项目)')
++_LEADING_CONNECTOR = re.compile(r'^(?:(?:但(?:是)?|然而|而且|并且|以及|并|也|目前|现在|当前)\s*)+')
++
++
++def _units(text):
++    """Return source offsets; commas inside quoted text retain their scope."""
++    start = 0
++    quote = None
++    closing = {'“': '”', '「': '」', '『': '』', '‘': '’'}
++    for index, char in enumerate(text):
++        if quote:
++            if char == quote:
++                quote = None
++        elif char in closing:
++            quote = closing[char]
++        elif char == '"':
++            quote = '"'
++        elif char in '，,。；;！!？?\n':
++            if text[start:index].strip():
++                yield start, index, text[start:index]
++            start = index + 1
++    if text[start:].strip():
++        yield start, len(text), text[start:]
++
++
++def _core(text, subject_titles):
++    value = text.strip()
++    for title in sorted(subject_titles, key=len, reverse=True):
++        if title and value.startswith(title):
++            value = value[len(title):].lstrip(' ：:')
++            break
++    return _LEADING_CONNECTOR.sub('', value)
++
++
++def _preserves(fragment, candidate):
++    anchor = _normal(fragment)
++    return (bool(anchor) and anchor in _normal(candidate['quote'])
++            and anchor in _normal(candidate['value']))
++
++
++def _protected_spans(text, subject_titles):
++    """Return offset-bound scopes; these never leave the transient check."""
++    spans = []
++    for start, _, original in _units(text):
++        core = _core(original, subject_titles)
++        if not _BUSINESS.search(core):
++            continue
++        offset = start + original.find(core)
++        if _NEGATIVE.search(core):
++            spans.append((offset, offset + len(core), core, 'negation'))
++        if _ATTRIBUTION.search(core):
++            spans.append((offset, offset + len(core), core, 'attribution'))
++    for part in re.finditer(r'[^。；;！!？?\n]+', text):
++        sentence = part.group()
++        core = _core(sentence, subject_titles)
++        condition = _CONDITION.search(core)
++        if condition and _BUSINESS.search(core[condition.start():]):
++            fragment = core[condition.start():].rstrip()
++            offset = part.start() + sentence.find(core) + condition.start()
++            spans.append((offset, offset + len(fragment), fragment, 'condition'))
++        attribution = _ATTRIBUTION.match(core)
++        if attribution and re.match(r'\s*[，,:：]', core[attribution.end():]):
++            tail = core[attribution.end():].lstrip(' ，,:：')
++            claim = re.split(r'[，,]', tail, maxsplit=1)[0]
++            if _BUSINESS.search(claim):
++                end = core.find(claim, attribution.end()) + len(claim)
++                offset = part.start() + sentence.find(core)
++                spans.append((offset, offset + end, core[:end], 'attribution'))
++    return spans
++
++
++def _source_span_issues(text, candidates, subject_titles, protected_spans):
++    """Protect source scope without manufacturing claims or changing fields.
++
++    A protected clause must occur together in one candidate's evidence AND
++    value. Splitting 'if X, then Y' or quoting only 'done' from a correction
++    does not satisfy that contract. Diagnostics contain codes/counts only.
++    """
++    issues = set()
++    business_units = 0
++    for start, end, original in _units(text):
++        core = _core(original, subject_titles)
++        predicates = list(_BUSINESS.finditer(original))
++        if not predicates:
++            continue
++        business_units += 1
++        # Cover each explicit business clause independently. This schema has
++        # verbatim quotes, not model-selected source offsets; repeated identical
++        # wording cannot by itself establish the intended project identity.
++        # Commands in source data still cannot become executable authority;
++        # an unrepresented command is a review gap, not an execution request.
++        if not any(
++            any(start <= occurrence.start() and occurrence.end() <= end
++                and any(occurrence.start() <= start + p.start()
++                        and start + p.end() <= occurrence.end()
++                        and _normal(p.group()) in _normal(candidate['value'])
++                        for p in predicates)
++                for occurrence in re.finditer(re.escape(candidate['quote']), text))
++            or (original in candidate['quote']
++                and any(_normal(p.group()) in _normal(candidate['value']) for p in predicates))
++            for candidate in candidates):
++            issues.add('source_clause_uncovered')
++        # The original exact-anchor rule already checks these whole phrases.
++        # Avoid emitting a redundant second code for the same violation.
++        exact_rule = any(_normal(m.group()) == _normal(core)
++                         for rule in RULES for m in re.finditer(rule.pattern, core, re.I))
++        if _NEGATIVE.search(core) and not exact_rule:
++            if not any(_preserves(core, candidate) for candidate in candidates):
++                issues.add('negation_or_correction_uncovered')
++        if _ATTRIBUTION.search(core):
++            if not any(_preserves(core, candidate) for candidate in candidates):
++                issues.add('attribution_uncovered')
++        # A formal review result remains a review, irrespective of whether it
++        # is positive or negative. Lack of execution evidence, by contrast,
++        # may validly be displayed in progress or acceptance.
++        is_correction = bool(re.search(r'(?:说法|表述|结论|记录|消息).*(?:不成立|错误|有误|不实)', core))
++        if (_NEGATIVE.search(core) and re.search(r'评审|审批|审核', core)
++                and re.search(r'通过|撤回|否决|驳回', core) and not is_correction):
++            review_fields = {'review', 'constraint'} if re.search(r'不是|不代表|并非', core) else {'review'}
++            if not any(candidate['field'] in review_fields and _preserves(core, candidate)
++                       for candidate in candidates):
++                issues.add('review_dimension')
++        if re.search(r'(?:尚未|仍未|并未|没有|未)(?:开始测试|开测)', core):
++            if not any(candidate['field'] == 'progress' and _preserves(core, candidate)
++                       for candidate in candidates):
++                issues.add('execution_dimension')
++    for _, _, fragment, kind in protected_spans:
++        if kind == 'condition':
++            if not any(_preserves(fragment, candidate) for candidate in candidates):
++                issues.add('condition_scope_uncovered')
++        elif kind == 'attribution':
++            if not any(_preserves(fragment, candidate) for candidate in candidates):
++                issues.add('attribution_uncovered')
++    # One correct candidate cannot shield a second, scope-stripped candidate.
++    # Every quote touching a protected scope must preserve that scope in its
++    # own quote AND value. Repeated identical quotes are deliberately treated
++    # conservatively because this output schema has no occurrence selector.
++    for candidate in candidates:
++        occurrences = list(re.finditer(re.escape(candidate['quote']), text))
++        for start, end, fragment, _ in protected_spans:
++            if any(occurrence.start() < end and start < occurrence.end()
++                   for occurrence in occurrences) and not _preserves(fragment, candidate):
++                issues.add('candidate_scope_incomplete')
++    if _UNRESOLVED_SUBJECT.search(text):
++        # There is no subject-free candidate in the current persisted schema.
++        # Preserve the entire observation as a visible review gap. Do not
++        # fabricate a subject id or quietly drop the ambiguous clause.
++        issues.add('subject_unresolved')
++    return issues, business_units
++
++
++def _mentioned_subjects(text, bindings):
++    """Longest literal titles win over their own substrings, never fuzzy ids."""
++    matches = []
++    for title, subject_id in bindings:
++        for occurrence in re.finditer(re.escape(title), text):
++            matches.append((occurrence.start(), occurrence.end(), subject_id))
++    return {subject_id for start, end, subject_id in matches
++            if not any(other_start <= start and end <= other_end
++                       and (other_start, other_end) != (start, end)
++                       for other_start, other_end, _ in matches)}
++
++
++def _subject_binding_issues(text, candidates, bindings):
++    issues = set()
++    if not bindings:
++        return issues
++    units = list(_units(text))
++    for candidate in candidates:
++        explicit = _mentioned_subjects(candidate['quote'], bindings)
++        possible = set(explicit)
++        if not explicit:
++            # The quote may omit a leading title. Use only the literal title
++            # in the same source unit, never a guessed conversational pronoun.
++            for occurrence in re.finditer(re.escape(candidate['quote']), text):
++                for start, end, unit in units:
++                    if start <= occurrence.start() and occurrence.end() <= end:
++                        possible.update(_mentioned_subjects(unit, bindings))
++        if len(possible) > 1:
++            issues.add('subject_binding_ambiguous')
++        elif possible and candidate['subject_id'] not in possible:
++            issues.add('subject_binding_mismatch')
++    return issues
++
++
++def coverage_report(text, candidates, *, subject_titles=(), subject_bindings=()):
+     """Return only codes/counts; never raw text or inferred business facts."""
+     missing = set()
+     matched = 0
++    protected_spans = _protected_spans(text, subject_titles)
+     for rule in RULES:
+         for match in re.finditer(rule.pattern, text, re.IGNORECASE):
+             matched += 1
++            # A positive phrase inside a correction or conditional clause is
++            # governed by the whole clause, not an independent positive fact.
++            # The scope checks below still require its exact preservation.
++            if rule.code in {'approval', 'plan', 'execution', 'delivery'} and any(
++                    kind in {'negation', 'condition'} and start <= match.start()
++                    and match.end() <= end for start, end, _, kind in protected_spans):
++                continue
+             anchor = _normal(match.group())
+             if not any(c['field'] in rule.fields
+                        and c['assertion_type'] == rule.assertion_type
+                        and anchor in _normal(c['quote'])
+                        and anchor in _normal(c['value']) for c in candidates):
+                 missing.add(rule.code)
+-    # A direct request with explicitly unresolved project identity must remain
+-    # a source-level review gap even if one project happens to be in context.
+-    unresolved = bool(re.search(
+-        r'(?:项目|主体)(?=、|，|和|及|均未|未明|尚未)[^。；;\n]{0,48}(?:未明确|不明确)', text))
+-    if unresolved and any(re.search(r.pattern, text, re.IGNORECASE)
+-                          for r in RULES if r.code == 'action_request'):
+-        missing.add('subject_unresolved')
++    protected, business_units = _source_span_issues(text, candidates, subject_titles, protected_spans)
++    missing.update(protected)
++    missing.update(_subject_binding_issues(text, candidates, subject_bindings))
+     for candidate in candidates:
+         if (candidate['field'] == 'forecast') != (candidate['assertion_type'] == 'forecast'):
+             missing.add('forecast_dimension')
+-    return {'check': 'explicit_anchor_coverage_v1', 'matched_signals': matched,
++    return {'check': 'source_span_coverage_v2', 'matched_signals': matched,
++            'business_units_checked': business_units,
+             'issues': sorted(missing), 'semantic_acceptance': 'requires_review'}
+ 
+ 
+@@ -119,8 +325,18 @@
+             detail = row['detail']
+             if detail.startswith('semantic_coverage_incomplete'):
+                 reason = '明确业务信息未完整保留或分类需核对'
+-                if 'subject_unresolved' in detail:
+-                    reason = '行动请求的项目归属尚未明确'
++                if any(code in detail for code in ('subject_unresolved', 'subject_binding_ambiguous', 'subject_binding_mismatch')):
++                    reason = '资料中的项目归属尚未明确，需要核对'
++                elif 'negation_or_correction_uncovered' in detail:
++                    reason = '资料中的否定或更正未完整保留，需要核对'
++                elif 'condition_scope_uncovered' in detail:
++                    reason = '条件与后续结果未完整保留，需要核对'
++                elif 'attribution_uncovered' in detail:
++                    reason = '转述者与原话未一起保留，需要核对'
++                elif 'candidate_scope_incomplete' in detail:
++                    reason = '候选引用脱离了原文的条件、否定或转述范围，需要核对'
++            elif detail == 'semantic_model_incomplete':
++                reason = '模型未完整提取这段资料，需要核对；尚未确定具体原因'
+             elif detail == 'semantic_budget_incomplete':
+                 reason = '本次资料超出单轮完整提取范围'
+             elif detail == 'raw_evidence_unavailable':
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/test_info_semantic_scopes.py
+@@ -0,0 +1,303 @@
++"""R1-FIX2 source-scope contracts; mock replay is not fresh Qwen evidence."""
++from copy import deepcopy
++import json
++from pathlib import Path
++from types import SimpleNamespace as NS
++from unittest.mock import Mock
++
++import pytest
++
++from am_info_sync.extraction import ExtractionError, ExtractionWorker
++from am_info_sync.facts import FactEngine
++from am_info_sync.models import Observation, Principal, Source
++from am_info_sync.store import Store
++from info_extraction import BoundedCoordinatorExtractor
++from info_semantics import coverage_report, pending_reviews
++
++
++FROZEN = json.loads((Path(__file__).parent / 'tests/fixtures/qwen_followup_frozen_fix1.json').read_text())
++CASES = {case['case']: case for case in FROZEN['cases']}
++
++
++def fact(field, text, *, subject='synthetic-project', assertion='reported', value=None):
++    return {'subject_id': subject, 'field': field, 'quote': text,
++            'value': text if value is None else value, 'assertion_type': assertion}
++
++
++def make_extractor(output, *, subjects=None):
++    subjects = subjects or [{'subject_id': 'synthetic-project', 'title': '演示项目'}]
++    coordinator = Mock()
++    coordinator.complete.return_value = NS(text=json.dumps(output, ensure_ascii=False))
++    extractor = BoundedCoordinatorExtractor(coordinator, lambda obs: {
++        'subjects': subjects, 'allowed_subject_ids': [s['subject_id'] for s in subjects]})
++    return extractor, coordinator
++
++
++def observe(text):
++    return Observation('synthetic', 'om_test', 'v1', 100, text=text)
++
++
++@pytest.mark.parametrize(('name', 'code'), [
++    ('NEGATION', 'negation_or_correction_uncovered'),
++    ('MULTIPROJECT', 'subject_unresolved'),
++    ('F12', 'subject_unresolved'),
++    ('F15', 'attribution_uncovered'),
++    ('CONDITION', 'review_dimension'),
++])
++def test_frozen_problem_outputs_create_explicit_failure_not_silent_acceptance(name, code):
++    case = CASES[name]
++    extractor, coordinator = make_extractor(case['output'], subjects=case['subjects'])
++    with pytest.raises(ExtractionError, match=code) as error:
++        extractor(observe(case['input']))
++    assert error.value.retryable is False
++    assert coordinator.complete.call_count == 1
++    assert coordinator.complete.call_args.kwargs['native_chat'] is True
++    assert coordinator.complete.call_args.kwargs['max_tokens'] == 1024
++    assert case['input'] not in json.dumps(extractor.last_call, ensure_ascii=False)
++    assert extractor.last_call['coverage']['semantic_acceptance'] == 'requires_review'
++
++
++@pytest.mark.parametrize('name', ['F07', 'F09'])
++def test_equivalent_evidence_and_constraint_fields_pass_without_rewriting_model(name):
++    case = CASES[name]
++    original = deepcopy(case['output'])
++    extractor, _ = make_extractor(case['output'], subjects=case['subjects'])
++    result = extractor(observe(case['input']))
++    assert len(result) == 3
++    assert case['output'] == original
++    assert [c['field'] for c in result] == [c['field'] for c in original['candidates']]
++    assert extractor.last_call['coverage']['issues'] == []
++
++
++def test_corrected_negation_and_attribution_can_fit_six_candidates():
++    values = [
++        fact('delivery', '负责人澄清：材料并未交付'),
++        fact('review', '审批没有通过'),
++        fact('review', '也没有撤回审批', value='没有撤回审批'),
++        fact('context', '之前的“已经完成”说法不成立'),
++        fact('response', '只确认收到了提醒'),
++        fact('acceptance', '业务验收仍未进行'),
++    ]
++    extractor, _ = make_extractor({'complete': True, 'candidates': values})
++    assert len(extractor(observe(CASES['NEGATION']['input']))) == 6
++
++
++def test_condition_is_preserved_and_dimensions_can_be_corrected_by_model():
++    output = deepcopy(CASES['CONDITION']['output'])
++    output['candidates'][1]['field'] = 'review'
++    output['candidates'][3]['field'] = 'progress'
++    extractor, _ = make_extractor(output)
++    assert len(extractor(observe(CASES['CONDITION']['input']))) == 4
++
++
++@pytest.mark.parametrize(('text', 'safe', 'unsafe'), [
++    ('尚未完成', fact('progress', '尚未完成'), fact('progress', '完成', value='已完成')),
++    ('设备到场后才能测试', fact('constraint', '设备到场后才能测试'),
++        fact('progress', '测试', value='测试已开始')),
++    ('如果设备到场，明天开始测试', fact('plan', '如果设备到场，明天开始测试'),
++        fact('progress', '明天开始测试')),
++    ('工程师说材料已交付', fact('delivery', '工程师说材料已交付'), fact('delivery', '材料已交付')),
++])
++def test_one_complete_candidate_cannot_shield_a_scope_stripped_second_candidate(text, safe, unsafe):
++    extractor, _ = make_extractor({'complete': True, 'candidates': [safe, unsafe]})
++    with pytest.raises(ExtractionError, match='candidate_scope_incomplete'):
++        extractor(observe(text))
++
++
++@pytest.mark.parametrize(('text', 'field'), [
++    ('只有审批通过后才允许发布', 'constraint'),
++    ('之前的“审批已经通过”说法不成立', 'context'),
++    ('之前的“计划本周发布”说法不成立', 'context'),
++    ('设备到场后才能测试', 'constraint'),
++    ('评审通过后方可发出测试报告', 'constraint'),
++    ('审批通过才可以交付材料', 'constraint'),
++])
++def test_positive_anchors_inside_scope_do_not_demand_a_second_unconditional_claim(text, field):
++    extractor, _ = make_extractor({'complete': True, 'candidates': [fact(field, text)]})
++    assert len(extractor(observe(text))) == 1
++
++
++@pytest.mark.parametrize('text', ['评审通过后方可发出测试报告', '审批通过才可以交付材料'])
++def test_postcondition_connectors_cannot_be_dropped_from_value(text):
++    extractor, _ = make_extractor({'complete': True,
++        'candidates': [fact('progress', text, value='测试报告发出，材料已经交付')]})
++    with pytest.raises(ExtractionError, match='condition_scope_uncovered'):
++        extractor(observe(text))
++
++
++@pytest.mark.parametrize('text', ['尚未通过评审', '评审不通过'])
++def test_inverted_or_alternative_negative_review_needs_review_dimension(text):
++    extractor, _ = make_extractor({'complete': True, 'candidates': [fact('progress', text)]})
++    with pytest.raises(ExtractionError, match='review_dimension'):
++        extractor(observe(text))
++    corrected, _ = make_extractor({'complete': True, 'candidates': [fact('review', text)]})
++    assert len(corrected(observe(text))) == 1
++
++
++@pytest.mark.parametrize('quote', ['演示甲项目材料已交付', '材料已交付'])
++def test_literal_project_title_cannot_be_reassigned_to_another_allowed_subject(quote):
++    subjects = [{'subject_id': 'a', 'title': '演示甲项目'}, {'subject_id': 'b', 'title': '演示乙项目'}]
++    extractor, _ = make_extractor({'complete': True,
++        'candidates': [fact('delivery', quote, subject='b')]}, subjects=subjects)
++    with pytest.raises(ExtractionError, match='subject_binding_mismatch'):
++        extractor(observe('演示甲项目材料已交付'))
++
++
++def test_correct_multi_project_literal_bindings_are_accepted():
++    subjects = [{'subject_id': 'a', 'title': '演示甲项目'}, {'subject_id': 'b', 'title': '演示乙项目'}]
++    extractor, _ = make_extractor({'complete': True, 'candidates': [
++        fact('delivery', '演示甲项目材料已交付', subject='a'),
++        fact('delivery', '演示乙项目样机已到仓', subject='b'),
++    ]}, subjects=subjects)
++    assert len(extractor(observe('演示甲项目材料已交付，演示乙项目样机已到仓'))) == 2
++
++
++def test_duplicated_bare_quote_in_different_project_units_needs_review():
++    subjects = [{'subject_id': 'a', 'title': '演示甲项目'}, {'subject_id': 'b', 'title': '演示乙项目'}]
++    extractor, _ = make_extractor({'complete': True,
++        'candidates': [fact('delivery', '材料已交付', subject='a')]}, subjects=subjects)
++    with pytest.raises(ExtractionError, match='subject_binding_ambiguous'):
++        extractor(observe('演示甲项目材料已交付，演示乙项目材料已交付'))
++
++
++def test_attributed_delivery_remains_unconfirmed_after_fact_engine():
++    text = CASES['F15']['input']
++    values = [fact('delivery', '工程师说材料已交付'), fact('acceptance', '业务核验尚未完成')]
++    extractor, _ = make_extractor({'complete': True, 'candidates': values})
++    obs = observe(text)
++    store = Store(':memory:', clock=lambda: 1000)
++    try:
++        store.register_source(Source('synthetic', 'im_chat', 'chat', 'tenant', 'owner',
++            enabled=True, settings={'subject_id': 'synthetic-project'}))
++        store.record(obs)
++        engine = FactEngine(store)
++        engine.process(obs, extractor(obs), extractor_version=extractor.version)
++        facts = engine.query('synthetic-project', Principal('owner', 'tenant'))['facts']
++        assert len(facts) == 2
++        assert all(f['authority'] == 'unconfirmed' and not f['protected'] for f in facts)
++        assert any('工程师说' in f['value'] for f in facts)
++    finally:
++        store.close()
++
++
++@pytest.mark.parametrize(('text', 'candidate'), [
++    ('材料并未交付', fact('delivery', '材料并未交付', value='材料已交付')),
++    ('之前的“已经完成”说法不成立', fact('progress', '已经完成')),
++    ('如果设备到场，明天开始测试', fact('plan', '明天开始测试')),
++    ('如果设备到场，明天开始测试', fact('plan', '如果设备到场，明天开始测试', value='明天开始测试')),
++    ('工程师说材料已交付', fact('delivery', '材料已交付')),
++    ('负责人表示材料已交付', fact('delivery', '负责人表示材料已交付', value='材料已交付')),
++    ('工程师说，材料已交付', fact('delivery', '材料已交付')),
++    ('材料没交付', fact('delivery', '交付', value='材料已交付')),
++    ('材料不交付', fact('delivery', '交付', value='材料已交付')),
++    ('材料无交付记录', fact('delivery', '交付', value='材料已交付')),
++])
++def test_full_quote_or_short_positive_value_cannot_hide_lost_scope(text, candidate):
++    extractor, _ = make_extractor({'complete': True, 'candidates': [candidate]})
++    with pytest.raises(ExtractionError, match='semantic_coverage_incomplete'):
++        extractor(observe(text))
++
++
++@pytest.mark.parametrize('text', [
++    '负责人说它已经完成，但没有说明指哪个项目。',
++    '它明天提交，项目归属待核实。',
++    '请把预计投入记下来。项目、负责人均未明确。',
++])
++def test_explicit_ambiguous_subject_is_visible_even_with_complete_false(text):
++    extractor, _ = make_extractor({'complete': False, 'candidates': []})
++    with pytest.raises(ExtractionError, match='subject_unresolved'):
++        extractor(observe(text))
++
++
++def test_model_incomplete_does_not_invent_budget_reason():
++    extractor, _ = make_extractor({'complete': False,
++        'candidates': [fact('progress', '仍在测试中')]})
++    with pytest.raises(ExtractionError, match='^semantic_model_incomplete$'):
++        extractor(observe('仍在测试中'))
++    assert extractor.last_call['coverage']['issues'] == []
++
++
++def test_empty_business_extraction_cannot_claim_complete():
++    extractor, _ = make_extractor({'complete': True, 'candidates': []})
++    with pytest.raises(ExtractionError, match='source_clause_uncovered'):
++        extractor(observe('设计文档明天提交'))
++
++
++def test_omitted_positive_business_clause_is_not_hidden_by_another_candidate():
++    extractor, _ = make_extractor({'complete': True,
++        'candidates': [fact('delivery', '样机已到仓')]})
++    with pytest.raises(ExtractionError, match='source_clause_uncovered'):
++        extractor(observe('样机已到仓；设计文档明天提交。'))
++
++
++def test_unrecognized_language_remains_explicitly_unvalidated():
++    report = coverage_report('This needs specialist interpretation.', [])
++    assert report['matched_signals'] == report['business_units_checked'] == 0
++    assert report['semantic_acceptance'] == 'requires_review'
++
++
++@pytest.mark.parametrize(('text', 'value'), [
++    ('测试说明已提交', '说明已提交'), ('仪器名称已提交', '名称已提交'),
++])
++def test_explanation_and_name_nouns_are_not_misread_as_reported_speech(text, value):
++    extractor, _ = make_extractor({'complete': True,
++        'candidates': [fact('delivery', text, value=value)]})
++    assert len(extractor(observe(text))) == 1
++
++
++@pytest.mark.parametrize('change', [
++    {'field': []}, {'assertion_type': []}, {'assertion_type': 'approved'},
++    {'subject_id': []}, {'subject_id': ''}, {'value': ''}, {'quote': False},
++])
++def test_malformed_candidates_have_safe_schema_errors(change):
++    value = fact('progress', '仍在测试中')
++    value.update(change)
++    extractor, _ = make_extractor({'complete': True, 'candidates': [value]})
++    with pytest.raises(ExtractionError, match='^invalid_output_schema$'):
++        extractor(observe('仍在测试中'))
++
++
++def test_context_subject_allowlist_is_checked_before_fact_creation():
++    extractor, _ = make_extractor({'complete': True, 'candidates': [
++        fact('progress', '仍在测试中', subject='other-project')]})
++    with pytest.raises(ExtractionError, match='^subject_outside_context$'):
++        extractor(observe('仍在测试中'))
++
++
++def test_nonverbatim_quote_becomes_nonretryable_safe_error():
++    extractor, _ = make_extractor({'complete': True,
++        'candidates': [fact('progress', '已经完成')]})
++    with pytest.raises(ExtractionError, match='^quote_not_verbatim$') as error:
++        extractor(observe('仍在测试中'))
++    assert not error.value.retryable
++
++
++def test_truncated_model_json_is_not_accepted():
++    extractor, coordinator = make_extractor({'complete': True, 'candidates': []})
++    coordinator.complete.return_value.text = '{"complete":true,"candidates":['
++    with pytest.raises(ExtractionError, match='^invalid_json_output$'):
++        extractor(observe('仍在测试中'))
++
++
++@pytest.mark.parametrize(('name', 'reason'), [
++    ('NEGATION', '否定或更正'), ('MULTIPROJECT', '项目归属尚未明确'),
++    ('F12', '项目归属尚未明确'), ('F15', '转述者与原话'),
++])
++def test_rejected_source_stays_visible_with_no_partial_candidates(name, reason):
++    case = CASES[name]
++    extractor, _ = make_extractor(case['output'], subjects=case['subjects'])
++    store = Store(':memory:', clock=lambda: 1000)
++    try:
++        store.register_source(Source('synthetic', 'im_chat', 'chat', 'tenant', 'owner',
++            enabled=True, settings={'subject_ids': [s['subject_id'] for s in case['subjects']]}))
++        store.record(observe(case['input']))
++        result = ExtractionWorker(store, extractor).run_once()
++        assert result['status'] == 'failed'
++        assert store.conn.execute('SELECT COUNT(*) FROM fact_candidates').fetchone()[0] == 0
++        review = pending_reviews(store, Principal('owner', 'tenant'))
++        assert review['total'] == 1
++        assert reason in review['items'][0]['reason']
++        assert review['items'][0]['text'] == case['input']
++        assert case['input'] not in store.conn.execute('SELECT detail FROM gaps').fetchone()[0]
++    finally:
++        store.close()
+--- a/local-qwen3.8/feishu-bridge/test_info_semantics.py
++++ b/local-qwen3.8/feishu-bridge/test_info_semantics.py
+@@ -39,7 +39,8 @@
+             ('review', '这不是审批撤回'), ('acceptance', '不代表项目完成')],
+     'F11': [('progress', '正在测试'), ('acceptance', '可用性尚未确定'), ('response', '回复了解')],
+     'F14': [('delivery', '稿件与版本已经齐备'), ('plan', '计划本周发布'), ('progress', '没有实际发布记录')],
+-    'F15': [('delivery', '材料已交付'), ('acceptance', '业务核验尚未完成')],
++    # R1-FIX2: preserve reported speaker; the frozen real output stays unchanged.
++    'F15': [('delivery', '工程师说材料已交付'), ('acceptance', '业务核验尚未完成')],
+     'INJ': [('progress', '仍在测试中')],
+ }
+ 
+@@ -101,7 +102,8 @@
+ def test_a_full_quote_cannot_hide_a_missing_negative_in_value():
+     value = candidate('acceptance', '业务核验尚未完成')
+     value['value'] = '业务核验完成'
+-    assert coverage_report('业务核验尚未完成', [value])['issues'] == ['acceptance_pending']
++    assert coverage_report('业务核验尚未完成', [value])['issues'] == [
++        'acceptance_pending', 'candidate_scope_incomplete']
+ 
+ 
+ def test_acknowledgment_spacing_and_case_are_preserved_without_false_rejection():
+--- a/local-qwen3.8/feishu-bridge/test_info_sources.py
++++ b/local-qwen3.8/feishu-bridge/test_info_sources.py
+@@ -68,7 +68,7 @@
+         self.assertEqual(len(kwargs['run_id']),32)
+     def test_incomplete_model_output_is_not_published(self):
+         coordinator=Mock();coordinator.complete.return_value=NS(text='{"complete":false,"candidates":[]}')
+-        with self.assertRaisesRegex(Exception,'semantic_budget_incomplete'):
++        with self.assertRaisesRegex(Exception,'semantic_model_incomplete'):
+             BoundedCoordinatorExtractor(coordinator,lambda o:{})(Observation('s','o','v',1,text='资料'))
+ 
+ if __name__=='__main__':unittest.main()
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/tests/fixtures/qwen_followup_frozen_fix1.json
+@@ -0,0 +1,263 @@
++{
++  "source_review_sha": "68efbab9b11c26ea5bdd64c23be63079160cdc68",
++  "source_path": "AM-FOLLOWUP-20261102-01/R1-FIX1/evidence/qwen-native",
++  "type": "frozen_previous_real_outputs_no_new_model_calls",
++  "cases": [
++    {
++      "case": "NEGATION",
++      "input": "演示项目负责人澄清：材料并未交付，审批没有通过，也没有撤回审批；之前的“已经完成”说法不成立。只确认收到了提醒，业务验收仍未进行。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-project",
++          "title": "演示项目"
++        }
++      ],
++      "output": {
++        "complete": true,
++        "candidates": [
++          {
++            "subject_id": "synthetic-project",
++            "field": "delivery",
++            "value": "材料并未交付",
++            "quote": "材料并未交付",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "review",
++            "value": "审批没有通过",
++            "quote": "审批没有通过",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "review",
++            "value": "没有撤回审批",
++            "quote": "也没有撤回审批",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "response",
++            "value": "只确认收到了提醒",
++            "quote": "只确认收到了提醒",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "acceptance",
++            "value": "业务验收仍未进行",
++            "quote": "业务验收仍未进行",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    },
++    {
++      "case": "MULTIPROJECT",
++      "input": "演示甲项目已收到样机，演示乙项目方案仍未发出。负责人说“它已经完成了，明天提交”，但没有说明指哪个项目或什么材料；该句话归属待核实。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-a",
++          "title": "演示甲项目"
++        },
++        {
++          "subject_id": "synthetic-b",
++          "title": "演示乙项目"
++        }
++      ],
++      "output": {
++        "complete": true,
++        "candidates": [
++          {
++            "subject_id": "synthetic-a",
++            "field": "delivery",
++            "value": "已收到样机",
++            "quote": "演示甲项目已收到样机",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-b",
++            "field": "delivery",
++            "value": "方案仍未发出",
++            "quote": "演示乙项目方案仍未发出",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    },
++    {
++      "case": "F12",
++      "input": "请把这项工作的预计投入记下来。项目、负责人和承诺截止日期均未明确。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-project",
++          "title": "演示项目"
++        }
++      ],
++      "output": {
++        "complete": false,
++        "candidates": [
++          {
++            "subject_id": "synthetic-project",
++            "field": "action_request",
++            "value": "请把这项工作的预计投入记下来",
++            "quote": "请把这项工作的预计投入记下来",
++            "assertion_type": "proposal"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "context",
++            "value": "项目、负责人和承诺截止日期均未明确",
++            "quote": "项目、负责人和承诺截止日期均未明确",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    },
++    {
++      "case": "F15",
++      "input": "演示项目工程师说材料已交付，但业务核验尚未完成。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-project",
++          "title": "演示项目"
++        }
++      ],
++      "output": {
++        "complete": true,
++        "candidates": [
++          {
++            "subject_id": "synthetic-project",
++            "field": "delivery",
++            "value": "材料已交付",
++            "quote": "材料已交付",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "acceptance",
++            "value": "业务核验尚未完成",
++            "quote": "业务核验尚未完成",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    },
++    {
++      "case": "CONDITION",
++      "input": "演示项目只有在安全评审通过后才允许对外发送报告；目前评审尚未通过。若设备周五到场，下周才可能开始测试；实际尚未开测。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-project",
++          "title": "演示项目"
++        }
++      ],
++      "output": {
++        "complete": true,
++        "candidates": [
++          {
++            "subject_id": "synthetic-project",
++            "field": "constraint",
++            "value": "只有在安全评审通过后才允许对外发送报告",
++            "quote": "只有在安全评审通过后才允许对外发送报告",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "progress",
++            "value": "目前评审尚未通过",
++            "quote": "目前评审尚未通过",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "forecast",
++            "value": "若设备周五到场，下周才可能开始测试",
++            "quote": "若设备周五到场，下周才可能开始测试",
++            "assertion_type": "forecast"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "acceptance",
++            "value": "实际尚未开测",
++            "quote": "实际尚未开测",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    },
++    {
++      "case": "F07",
++      "input": "演示项目测试方案已经发出。负责人回复 OK。没有提供实际开测记录。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-project",
++          "title": "演示项目"
++        }
++      ],
++      "output": {
++        "complete": true,
++        "candidates": [
++          {
++            "subject_id": "synthetic-project",
++            "field": "delivery",
++            "value": "测试方案已经发出",
++            "quote": "演示项目测试方案已经发出。",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "response",
++            "value": "负责人回复 OK",
++            "quote": "负责人回复 OK。",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "acceptance",
++            "value": "没有提供实际开测记录",
++            "quote": "没有提供实际开测记录。",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    },
++    {
++      "case": "F09",
++      "input": "演示项目本次审批已经通过，旧的待提审提醒可以撤除。这不是审批撤回，也不代表项目完成。",
++      "subjects": [
++        {
++          "subject_id": "synthetic-project",
++          "title": "演示项目"
++        }
++      ],
++      "output": {
++        "complete": true,
++        "candidates": [
++          {
++            "subject_id": "synthetic-project",
++            "field": "review",
++            "value": "本次审批已经通过",
++            "quote": "演示项目本次审批已经通过",
++            "assertion_type": "reported"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "action_request",
++            "value": "旧的待提审提醒可以撤除",
++            "quote": "旧的待提审提醒可以撤除",
++            "assertion_type": "proposal"
++          },
++          {
++            "subject_id": "synthetic-project",
++            "field": "constraint",
++            "value": "这不是审批撤回，也不代表项目完成",
++            "quote": "这不是审批撤回，也不代表项目完成",
++            "assertion_type": "reported"
++          }
++        ]
++      }
++    }
++  ]
++}

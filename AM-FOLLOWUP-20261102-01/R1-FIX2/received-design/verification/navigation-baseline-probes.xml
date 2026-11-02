@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.923" timestamp="2026-11-02T17:31:17.798514+08:00" hostname="50147cfc8c3c"><testcase classname="tests.test_followup_navigation" name="test_stale_source_result_stays_rejected_but_static_recovery_can_render" time="0.471"><failure message="fs_agent.config.BoundaryError: SOURCE_ACCESS_CHANGED">native = namespace(am=&lt;am_service.AmSelfService object at 0x7f3a4d2dd340&gt;, g=&lt;fs_agent.gateway.Gateway object at 0x7f3a4d19bbc0... False, 'wrong_id': False}, members=[{'id': 'ou_engineer_a', 'name': '工程师甲'}, {'id': 'ou_engineer_b', 'name': '工程师乙'}])
+
+    def test_stale_source_result_stays_rejected_but_static_recovery_can_render(native):
+        n=native
+        row=dict(n.row,_source_access_version='old-epoch',_query_read=True,_query_grant=['*'],
+                 _snapshot_version='old-snapshot',_snapshot_meta={'private':'do-not-copy'},
+                 _interaction='old-interaction',_view_version=5,_immutable_output=True,
+                 _business_event='sensitive-approval')
+        before=len(n.s.rows('SELECT * FROM outbox'))
+        with pytest.raises(BoundaryError,match='SOURCE_ACCESS_CHANGED'):
+            n.am.notify(row,text='private-source-value')
+        assert len(n.s.rows('SELECT * FROM outbox'))==before
+&gt;       n.am.ux_error(row,'SOURCE_ACCESS_CHANGED')
+
+am_source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_navigation.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+baseline/local-qwen3.8/feishu-bridge/am_ux.py:465: in ux_error
+    return self.ux_page(row,'本次未完成',messages.get(code,'当前操作未完成，请返回后重试；已有记录保留。'),actions)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+baseline/local-qwen3.8/feishu-bridge/am_presentation.py:164: in ux_page
+    out=self.notify(row,card=rendered,kind=data.get('notice_kind','card'),object_id=nonce,version=version,hash=fingerprint,conn=c,event_key=data.get('business_event'))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;am_service.AmSelfService object at 0x7f3a4d2dd340&gt;
+row = {'_business_event': 'sensitive-approval', '_immutable_output': True, '_interaction': 'old-interaction', '_query_grant': ['*'], ...}
+text = None
+
+    def notify(self,row,text=None,*,card=None,kind='status',object_id=None,version=None,hash=None,conn=None,event_key=None):
+        if conn is None:
+            with self.s.tx() as c:return self.notify(row,text,card=card,kind=kind,object_id=object_id,version=version,hash=hash,conn=c,event_key=event_key)
+        notice_key=digest([event_key,row['app'],row['tenant'],row['user'],kind]) if event_key else None
+        if notice_key:
+            old=conn.execute('SELECT outbox_id FROM am_notice_keys WHERE notice_key=?',(notice_key,)).fetchone()
+            if old:return old[0]
+        source_version=row.get('_source_access_version')
+        if self.information is not None:
+            current=self.information.store.access_version()
+&gt;           if source_version is not None and source_version!=current:raise BoundaryError('SOURCE_ACCESS_CHANGED')
+                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           fs_agent.config.BoundaryError: SOURCE_ACCESS_CHANGED
+
+baseline/local-qwen3.8/feishu-bridge/am_service.py:233: BoundaryError</failure></testcase><testcase classname="tests.test_followup_navigation" name="test_dashboard_does_not_relabel_pre_revocation_content_with_new_epoch" time="0.443"><failure message="Failed: DID NOT RAISE &lt;class 'fs_agent.config.BoundaryError'&gt;">native = namespace(am=&lt;am_service.AmSelfService object at 0x7f3a4d0317c0&gt;, g=&lt;fs_agent.gateway.Gateway object at 0x7f3a4d19aed0... False, 'wrong_id': False}, members=[{'id': 'ou_engineer_a', 'name': '工程师甲'}, {'id': 'ou_engineer_b', 'name': '工程师乙'}])
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7f3a4d202ab0&gt;
+
+    def test_dashboard_does_not_relabel_pre_revocation_content_with_new_epoch(native,monkeypatch):
+        n=native;_claim(n,'protected-before-revocation')
+        original=n.am.ux_page
+        def revoke_after_projection(row,title,text,actions,**kwargs):
+            assert not n.reader.conn.in_transaction
+            assert not n.s.conn.in_transaction
+            assert 'protected-before-revocation' in text
+            n.reader.register_source(replace(n.source,enabled=False))
+            return original(row,title,text,actions,**kwargs)
+        monkeypatch.setattr(n.am,'ux_page',revoke_after_projection)
+&gt;       with pytest.raises(BoundaryError,match='SOURCE_ACCESS_CHANGED'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE &lt;class 'fs_agent.config.BoundaryError'&gt;
+
+am_source/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_navigation.py:149: Failed</failure></testcase></testsuite></testsuites>
