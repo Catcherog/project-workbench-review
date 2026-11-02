@@ -65,6 +65,22 @@ with sqlite3.connect((config.root / 'state/gateway.sqlite3').resolve().as_uri() 
                 report.update(bounded_window_complete=not data.has_more,
                               matching_messages_in_window=len(matches),
                               matched_only_exact_message=not data.has_more and len(matches) == 1 and matches[0].message_id == occurrence['message_id'])
+            elif payload['target']['kind'] == 'recipient_p2p':
+                # Only this explicitly requested owner test, in its already
+                # verified bot DM. Unrelated messages are never saved.
+                assert preview.get('owner_self_test') is True
+                assert payload['target']['user'] == card['actor'] == config.owner
+                assert payload['target']['chat'] == card['chat']
+                assert 0 <= time.time() - occurrence['send_started'] < 86400
+                request = (ListMessageRequest.builder().container_id_type('chat')
+                           .container_id(payload['target']['chat'])
+                           .start_time(str(int(occurrence['send_started']) - 2))
+                           .end_time(str(int(time.time()) + 1)).page_size(50).build())
+                data = reminder._data(api.client.im.v1.message.list(request))
+                matches = [m for m in data.items or [] if port.verify(payload, reminder._message(m))]
+                report.update(bounded_window_complete=not data.has_more,
+                              matching_messages_in_window=len(matches),
+                              matched_only_exact_message=not data.has_more and len(matches) == 1 and matches[0].message_id == occurrence['message_id'])
         feedback = db.execute('SELECT kind,applied FROM item_feedback WHERE item_id=?', (preview['item_id'],)).fetchall()
         report['feedback'] = [dict(row) for row in feedback]
         report['reply_links'] = db.execute('SELECT count(*) FROM followup_reply_links WHERE item_id=?', (preview['item_id'],)).fetchone()[0]

@@ -20,7 +20,7 @@ for rel in sorted([*manifest['files'],'MANIFEST.json']):
  entries.append({'path':rel,'blob':blob,'sha256':digest,'mode':mode})
 env=dict(os.environ,GIT_INDEX_FILE=str((U/'index').resolve()),GIT_AUTHOR_NAME='Project Review',GIT_AUTHOR_EMAIL='noreply@users.noreply.github.com',GIT_COMMITTER_NAME='Project Review',GIT_COMMITTER_EMAIL='noreply@users.noreply.github.com')
 def git(*a,input=None):return call(['git','--git-dir',str(B),*a],env=env,input=input)
-message=U/'message.txt';message.write_text('AM Followup R1-FIX1: integrate GPT delta and verify original runtime\n\nPreserve R4 and original safeguards. Record dependency fencing, transactional adoption, recovery, source review and feedback; verify original regressions and 13 real Qwen scenarios with remaining semantic gaps. Keep real preview, authenticated callback recovery, unique group send and owner UAT evidence separate from pending independent-person and business acceptance.\n')
+message=U/'message.txt';message.write_text('AM Followup R1-FIX1: verify owner private send and mobile feedback\n\nRecord one owner-approved private followup, two exact replies, one feedback record per reply and independently read-back mobile history. Preserve expired-card rejection and unthreaded-message boundaries. Runtime source is unchanged; model accuracy, independent-person and business acceptance remain incomplete.\n')
 for _ in range(3):
  parent=api('git/ref/heads/main')['object']['sha']
  subprocess.run(['git','--git-dir',str(B),'fetch','--quiet','--depth=1','origin',parent],check=True,capture_output=True)

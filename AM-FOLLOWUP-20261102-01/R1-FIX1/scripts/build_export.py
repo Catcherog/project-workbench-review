@@ -43,7 +43,7 @@ save('SOURCE_SHA256.json',json.dumps({'source_commit':HEAD,'base_source':BASE,'b
  'base_review_directory':'AM-HARNESS-20261031-01/R4','kind':'incremental_overlay','files':sources},indent=2)+'\n')
 save('FINAL.diff',git('diff',BASE,HEAD))
 save('OWNER_VALIDATION.diff',git('diff','c79384511b01fca9219d277f615d27f53b770db8',HEAD))
-for name in ('00_当前交接.md','01_集成与复现.md','02_原失败分类.md','03_分层验收.md','04_模型观察.md'):
+for name in ('00_当前交接.md','01_集成与复现.md','02_原失败分类.md','03_分层验收.md','04_模型观察.md','06_本人私聊联调回读.md'):
  save(name,(T/name).read_text())
 for path in (T/'scripts').glob('*.py'):save('scripts/'+path.name,path.read_text())
 pkg=T/'input/AM-FOLLOWUP-20261102-01_R1-FIX1-GPT'
