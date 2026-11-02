@@ -1,0 +1,703 @@
+diff --git a/am-style-r5/src/am_style_r5/cli.py b/am-style-r5/src/am_style_r5/cli.py
+index 1ad0de08..8b77b652 100644
+--- a/am-style-r5/src/am_style_r5/cli.py
++++ b/am-style-r5/src/am_style_r5/cli.py
+@@ -184,6 +184,9 @@ def _parser():
+         p.add_argument("--" + name, required=True)
+     p.add_argument("--python"); p.add_argument("--run-dir")
+     p.add_argument("--host-src"); p.add_argument("--training-root")
++    p.add_argument("--holdout-cases", help="Private eval-freeze case bundle; supply all three holdout paths together")
++    p.add_argument("--holdout-declaration", help="Human unused-for-tuning declaration bound to this case manifest")
++    p.add_argument("--holdout-original", help="Retained original whose bytes match source_evidence_sha256")
+     for command in ("pilot-preflight", "pilot-command", "pilot-execute"):
+         p = sub.add_parser(command); p.add_argument("--plan", required=True)
+         if command == "pilot-execute": p.add_argument("--execute", action="store_true")
+@@ -256,7 +259,9 @@ def main(argv=None):
+             if bool(args.host_src) != bool(args.training_root): raise R5Error("Supply both host source roots")
+             roots = {"am_style": args.host_src, "training": args.training_root} if args.host_src else None
+             result = prepare_pilot(args.snapshot, args.mechanics, args.manifest, args.output,
+-                python_executable=args.python, run_dir=args.run_dir, runtime_source_roots=roots)
++                python_executable=args.python, run_dir=args.run_dir, runtime_source_roots=roots,
++                holdout_cases_path=args.holdout_cases, holdout_declaration_path=args.holdout_declaration,
++                holdout_original_path=args.holdout_original)
+         elif command == "pilot-preflight":
+             from .pilot import preflight_pilot
+             result = preflight_pilot(args.plan)
+@@ -334,7 +339,9 @@ def main(argv=None):
+         if command in {"eval-qwen", "eval-mlx"}:
+             return 0 if result.get("status") == "completed" else 2
+         if command == "pilot-preflight":
+-            return 0 if result.get("ready_for_launch") is True else 2
++            # Metadata preparation remains useful without holdout or a resource
++            # lease. Execution commands enforce their separate, fresh gate.
++            return 0 if result.get("metadata_ready") is True else 2
+         return 0
+     except (R5Error, ValueError, KeyError, TypeError, OSError) as exc:
+         print("R5 blocked: " + str(exc), file=sys.stderr)
+diff --git a/am-style-r5/src/am_style_r5/holdout_gate.py b/am-style-r5/src/am_style_r5/holdout_gate.py
+new file mode 100644
+index 00000000..4507a330
+--- /dev/null
++++ b/am-style-r5/src/am_style_r5/holdout_gate.py
+@@ -0,0 +1,178 @@
++"""Bind a private, declared holdout before a pilot can produce executable argv.
++
++This gate uses the actual gold snapshot and frozen cases, without inventing an
++SFT adapter or an evaluation model arm.  It checks retained evidence bytes and
++the operator's declaration; neither a hash nor an ``origin`` field authenticates
++a person or proves that undisclosed tuning did not occur.
++"""
++from __future__ import annotations
++
++from copy import deepcopy
++from datetime import datetime, timezone
++import hashlib
++from pathlib import Path
++
++from am_style.data import assert_split_integrity
++
++from .common import R5Error, check_seal, loads, object_hash, require_sha, seal
++from .evaluation import _exclusion_snapshot, freeze_cases
++
++
++GATE_SCHEMA = "am-style-r5-pilot-holdout-gate/1"
++PLAN_SCHEMA = "am-style-r5-pilot-plan/1"
++_INPUT_ERRORS = (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError)
++
++
++def _nonempty(value, label):
++    if not isinstance(value, str) or not value.strip():
++        raise R5Error("missing " + label)
++    return value
++
++
++def _timestamp(value, label):
++    value = _nonempty(value, label)
++    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
++    if stamp.tzinfo is None or stamp.utcoffset() is None:
++        raise R5Error(label + " must include a timezone")
++    return stamp.astimezone(timezone.utc)
++
++
++def _read_file(path, label):
++    path = Path(path).expanduser()
++    if not path.is_absolute():
++        raise R5Error(label + " must be an absolute path")
++    path = path.resolve()
++    if not path.is_file():
++        raise R5Error("missing " + label)
++    raw = path.read_bytes()
++    if not raw.strip():
++        raise R5Error("empty " + label)
++    # Parse and hash the same read; do not bind a pre-read hash to later bytes.
++    return raw, {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest()}
++
++
++def _json_evidence(raw, label):
++    try:
++        return loads(raw.decode("utf-8"))
++    except (ValueError, TypeError) as exc:
++        # Duplicate keys or malformed JSON may themselves contain private text.
++        raise R5Error("invalid " + label + " JSON") from exc
++
++
++def _plan_context(plan):
++    if not isinstance(plan, dict) or plan.get("schema") != PLAN_SCHEMA:
++        raise R5Error("invalid pilot plan for holdout binding")
++    return object_hash({key: value for key, value in plan.items()
++                        if key not in {"sha256", "holdout_gate"}})
++
++
++def _build_binding(plan, cases_path, declaration_path, original_path, bound_at):
++    context_sha = _plan_context(plan)
++    binding_time = _timestamp(bound_at, "holdout binding time")
++    if binding_time > datetime.now(timezone.utc):
++        raise R5Error("holdout binding time is in the future")
++
++    snapshot_ref = plan["snapshot"]
++    snapshot_path = Path(snapshot_ref["path"])
++    if not snapshot_path.is_absolute():
++        raise R5Error("snapshot must be an absolute path")
++    exclusion = _exclusion_snapshot(snapshot_path)
++    if (exclusion["snapshot_file_sha256"] != require_sha(snapshot_ref.get("sha256"), "snapshot file SHA")
++            or exclusion["snapshot_content_sha256"] != require_sha(plan.get("snapshot_content_sha256"), "snapshot content SHA")):
++        raise R5Error("holdout exclusion differs from the actual pilot gold snapshot")
++
++    cases_raw, cases_ref = _read_file(cases_path, "frozen independent holdout")
++    bundle = _json_evidence(cases_raw, "frozen holdout")
++    if not isinstance(bundle, dict) or bundle.get("schema_version") != "am-r5-frozen-cases/1":
++        raise R5Error("holdout must be a frozen case bundle produced by eval-freeze")
++    frozen = freeze_cases(bundle)
++    train_groups = sorted({row["group_id"] for row in exclusion["records"] if row["split"] == "train"})
++    dev_groups = sorted({row["group_id"] for row in exclusion["records"] if row["split"] == "dev"})
++    excluded_groups = set(train_groups) | set(dev_groups)
++    held_rows = []
++    for case in frozen["cases"]:
++        if (case["split"] != "sealed_test"
++                or case.get("independent_test_eligible", case.get("independent")) is not True
++                or case.get("public_exposed", case.get("public_example")) is not False):
++            raise R5Error("pilot holdout must contain only private independent sealed_test cases")
++        if case["group_id"] in excluded_groups:
++            raise R5Error("holdout group overlaps the actual pilot train/dev snapshot")
++        held_rows.append({"id": "holdout:" + case["case_id"], "group_id": case["group_id"],
++                          "parent_group_id": case.get("parent_group_id", case["group_id"]),
++                          "split": "sealed_test", "prompt": case["student_wire_messages"],
++                          "fact_entities": deepcopy(case.get("fact_entities", []))})
++    try:
++        assert_split_integrity(exclusion["records"] + held_rows)
++    except ValueError as exc:
++        raise R5Error("holdout leaks the actual pilot train/dev prompts or groups") from exc
++
++    declaration_raw, declaration_ref = _read_file(declaration_path, "holdout declaration")
++    declaration = _json_evidence(declaration_raw, "holdout declaration")
++    if (not isinstance(declaration, dict) or declaration.get("origin", "human") != "human"
++            or declaration.get("not_used_for_tuning") is not True
++            or declaration.get("case_manifest_sha256") != frozen["case_manifest_sha256"]):
++        raise R5Error("a case-bound human unused-for-tuning declaration is required")
++    _nonempty(declaration.get("declared_by"), "holdout declaration author")
++    declared_at = _timestamp(declaration.get("declared_at"), "holdout declaration time")
++    if declared_at > binding_time:
++        raise R5Error("holdout declaration must not be later than its binding")
++    _, original_ref = _read_file(original_path, "holdout declaration original")
++    if require_sha(declaration.get("source_evidence_sha256"), "declaration original SHA") != original_ref["sha256"]:
++        raise R5Error("holdout declaration original SHA does not match the retained file")
++
++    return seal({"schema": GATE_SCHEMA, "bound_at_utc": bound_at,
++        "plan_context_sha256": context_sha,
++        "snapshot": {"path": exclusion["path"], "sha256": exclusion["snapshot_file_sha256"]},
++        "snapshot_content_sha256": exclusion["snapshot_content_sha256"],
++        "training_files_sha256": exclusion["files_sha256"],
++        "cases": cases_ref, "case_bundle_sha256": frozen["sha256"],
++        "case_manifest_sha256": frozen["case_manifest_sha256"],
++        "case_count": frozen["case_count"], "holdout_group_count": len(frozen["groups"]),
++        "training_group_count": len(train_groups), "development_group_count": len(dev_groups),
++        "group_partition_sha256": object_hash({"holdout": frozen["groups"], "train": train_groups, "dev": dev_groups}),
++        "declaration": declaration_ref, "declaration_content_sha256": object_hash(declaration),
++        "declaration_original": original_ref, "not_used_for_tuning": True,
++        "sample_status": "independent_declared",
++        "identity_limit": "retained_bytes_and_declared_provenance_are_checked; hashes_do_not_authenticate_people_or_independence"})
++
++
++def bind_holdout(plan, *, cases_path=None, declaration_path=None, original_path=None):
++    """Return an immutable input binding, or None for metadata-only preparation.
++
++    The three evidence paths must be supplied together. No model, subprocess,
++    service mutation, training artifact or human approval is created here.
++    """
++    supplied = [value is not None for value in (cases_path, declaration_path, original_path)]
++    if not any(supplied):
++        return None
++    if not all(supplied):
++        raise R5Error("supply holdout cases, declaration and declaration original together")
++    try:
++        return _build_binding(plan, cases_path, declaration_path, original_path,
++                              datetime.now(timezone.utc).isoformat())
++    except R5Error:
++        raise
++    except _INPUT_ERRORS as exc:
++        raise R5Error("invalid holdout input evidence (" + type(exc).__name__ + ")") from exc
++
++
++def verify_holdout(plan):
++    """Freshly rederive the gate from actual files; never trust a cached green flag."""
++    try:
++        gate = plan.get("holdout_gate") if isinstance(plan, dict) else None
++        if not isinstance(gate, dict):
++            raise R5Error("pilot execution requires frozen independent holdout, human declaration and retained original")
++        check_seal(gate)
++        if gate.get("schema") != GATE_SCHEMA:
++            raise R5Error("unsupported pilot holdout gate")
++        if gate.get("plan_context_sha256") != _plan_context(plan):
++            raise R5Error("pilot plan changed after the holdout binding")
++        rebuilt = _build_binding(plan, gate["cases"]["path"], gate["declaration"]["path"],
++                                 gate["declaration_original"]["path"], gate["bound_at_utc"])
++        if rebuilt != gate:
++            raise R5Error("holdout cases, declaration, original or gold binding changed")
++        return gate
++    except R5Error:
++        raise
++    except _INPUT_ERRORS as exc:
++        raise R5Error("invalid or missing pilot holdout evidence (" + type(exc).__name__ + ")") from exc
+diff --git a/am-style-r5/src/am_style_r5/pilot.py b/am-style-r5/src/am_style_r5/pilot.py
+index 34065af2..34df4ecf 100644
+--- a/am-style-r5/src/am_style_r5/pilot.py
++++ b/am-style-r5/src/am_style_r5/pilot.py
+@@ -162,12 +162,13 @@ def _interpreter_record(executable=None):
+     return {"path": str(p), "sha256": file_hash(p), "resolved_path": str(p.resolve())}
+ 
+ 
+-def _check_output(path, manifest, *, evidence_roots=()):
++def _check_output(path, manifest, *, evidence_roots=(), evidence_files=()):
+     path = _absolute(path, "new output directory")
+     if path.exists() or path.is_symlink():
+         raise R5Error("output directory already exists; use a new run identity")
+     path = path.resolve()
+-    protected = [Path(manifest["local_model_path"]).resolve(), *map(Path, evidence_roots)]
++    protected = [Path(manifest["local_model_path"]).resolve(),
++                 *map(Path, evidence_roots), *map(Path, evidence_files)]
+     service = manifest["service"]
+     protected.extend(Path(service[key]).resolve().parent for key in ("lease_file", "gateway_db", "chat_db"))
+     protected.extend(Path(name).resolve().parent for name in service["protected_config_files"])
+@@ -210,7 +211,8 @@ loaded = any(name == "mlx" or name.startswith("mlx.") for name in sys.modules)
+ if loaded:
+     blockers.append({"check":"metadata_only","reason":"MLX was unexpectedly imported"})
+ print(json.dumps({"schema":"am-style-r5-pilot-probe/1","checks":checks,
+-    "r4_preflight":report,"blockers":blockers,"ready_for_launch":not blockers,
++    "r4_preflight":report,"blockers":blockers,"metadata_ready":not blockers,
++    "ready_for_launch":False,"readiness_scope":"metadata_only_resources_not_checked",
+     "code_sha256":code_hashes(),"model_loaded":False,"mlx_imported":loaded,
+     "training_executed":False,"interpreter":sys.executable,
+     "contracts_path":str(Path(sys.modules["training.mlx_r4_contracts"].__file__).resolve()),
+@@ -242,32 +244,46 @@ def _run_probe(manifest_path, config_path, binding, interpreter, expected_code):
+ 
+ 
+ def prepare_pilot(snapshot_path, mechanics_result_path, manifest_path, output_dir,
+-                  *, python_executable=None, run_dir=None, runtime_source_roots=None):
++                  *, python_executable=None, run_dir=None, runtime_source_roots=None,
++                  holdout_cases_path=None, holdout_declaration_path=None,
++                  holdout_original_path=None):
+     """Write a sealed plan; resource/model/training work remains unexecuted.
+ 
+ Use explicit host source roots first on the real machine. Defaults select the
+ bundled R4 snapshot for offline reproduction or an explicitly chosen isolated
+-run, never silently replacing newer host code.
++run, never silently replacing newer host code.  The optional holdout paths must
++be supplied together; omitting all three permits metadata preparation only.
+ """
++    holdout_paths = (holdout_cases_path, holdout_declaration_path, holdout_original_path)
++    if any(value is not None for value in holdout_paths) and not all(value is not None for value in holdout_paths):
++        raise R5Error("supply holdout cases, declaration and declaration original together")
+     snapshot_path, snapshot = _snapshot(snapshot_path)
+     result_path, manifest_path, request, manifest = _original_mechanics(mechanics_result_path, manifest_path)
+     binding = _source_binding(runtime_source_roots)
+     interpreter = _interpreter_record(python_executable)
+     evidence_roots = (snapshot_path.parent, result_path.parent)
+-    output = _check_output(output_dir, manifest, evidence_roots=evidence_roots)
+-    run = _check_output(run_dir or output / "run", manifest, evidence_roots=evidence_roots)
++    # Protect each additional evidence file without reserving its whole parent:
++    # existing layouts keep holdout files and sibling plan directories together.
++    evidence_files = tuple(_absolute(path, "holdout evidence").resolve()
++                           for path in holdout_paths if path is not None)
++    output = _check_output(output_dir, manifest, evidence_roots=evidence_roots, evidence_files=evidence_files)
++    run = _check_output(run_dir or output / "run", manifest, evidence_roots=evidence_roots, evidence_files=evidence_files)
+     if run == output or output.is_relative_to(run):
+         raise R5Error("run output must not contain the plan directory")
+     config = _config(snapshot_path, snapshot, request, result_path)
+     output.mkdir(parents=True, exist_ok=False)
+     config_path = output / "pilot.config.json"
+     write_json(config_path, config)
+-    plan = seal({"schema": PLAN_SCHEMA, "snapshot": _file_record(snapshot_path),
++    plan = {"schema": PLAN_SCHEMA, "snapshot": _file_record(snapshot_path),
+         "snapshot_content_sha256": snapshot["sha256"], "manifest": _file_record(manifest_path),
+         "mechanics_result": _file_record(result_path), "config": _file_record(config_path),
+         "runtime_source_binding": binding, "python_interpreter": interpreter,
+         "run_directory": str(run), "training_executed": False,
+-        "production_changed": False, "quality_conclusion": "not_established"})
++        "production_changed": False, "quality_conclusion": "not_established"}
++    from .holdout_gate import bind_holdout
++    plan["holdout_gate"] = bind_holdout(plan, cases_path=holdout_cases_path,
++        declaration_path=holdout_declaration_path, original_path=holdout_original_path)
++    plan = seal(plan)
+     write_json(output / "plan.json", plan)
+     report = preflight_pilot(output / "plan.json")
+     write_json(output / "preflight.json", report)
+@@ -297,35 +313,79 @@ def _checked_plan(plan_path):
+     interpreter = _interpreter_record(plan["python_interpreter"]["path"])
+     if interpreter != plan["python_interpreter"]:
+         raise R5Error("Python interpreter changed since preparation")
++    gate = plan.get("holdout_gate")
++    holdout_files = () if gate is None else tuple(
++        _absolute(gate[name]["path"], "holdout evidence").resolve()
++        for name in ("cases", "declaration", "declaration_original"))
+     _check_output(plan["run_directory"], manifest,
+-                  evidence_roots=(snapshot_path.parent, result_path.parent))
++                  evidence_roots=(snapshot_path.parent, result_path.parent), evidence_files=holdout_files)
+     return plan, manifest_path, config_path, request
+ 
+ 
+ def preflight_pilot(plan_path):
+-    """Re-read immutable inputs and run the real R4 metadata contracts fresh."""
+-    blockers, probe = [], None
++    """Check metadata and holdout evidence separately; never claim resource readiness.
++
++    An old or metadata-only plan may pass metadata checks while its execution
++    gate remains blocked.  Actual resource locking and the unchanged 24 GiB
++    requirement still belong to the original R4 worker.
++    """
++    metadata_blockers, probe, plan = [], None, None
+     try:
+         plan, manifest, config, request = _checked_plan(plan_path)
+         probe = _run_probe(manifest, config, plan["runtime_source_binding"],
+                            plan["python_interpreter"], request["code_sha256"])
+-        blockers.extend(probe["blockers"])
+-    except (R5Error, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
+-        blockers.append({"check": "immutable_inputs_or_original_probe", "reason": str(exc)})
++        metadata_blockers.extend(probe["blockers"])
++    except (R5Error, OSError, ValueError, KeyError, TypeError, AttributeError, subprocess.TimeoutExpired) as exc:
++        metadata_blockers.append({"check": "immutable_inputs_or_original_probe", "reason": str(exc)})
++    gate_blockers, gate = [], None
++    try:
++        from .holdout_gate import verify_holdout
++        if plan is None:
++            raise R5Error("valid immutable pilot inputs are required before checking holdout evidence")
++        gate = verify_holdout(plan)
++    except (R5Error, OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
++        gate_blockers.append({"check": "independent_holdout", "reason": str(exc)})
+     return seal({"schema": "am-style-r5-pilot-preflight/1",
+         "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+-        "ready_for_launch": not blockers, "blockers": blockers, "original_probe": probe,
++        "metadata_ready": not metadata_blockers, "metadata_blockers": metadata_blockers,
++        "execution_gate": {"status": "passed" if gate is not None else "blocked",
++            "scope": "independent_holdout_inputs_only", "blockers": gate_blockers,
++            "binding_sha256": gate["sha256"] if gate else None,
++            "case_count": gate["case_count"] if gate else None},
++        "ready_for_launch": False,
++        "readiness_scope": "metadata_and_holdout_inputs_only; R4_resources_not_checked",
++        "resource_gate": {"status": "not_checked", "owner": "original_R4_execution"},
++        "blockers": metadata_blockers + gate_blockers, "original_probe": probe,
+         "training_executed": False, "model_loaded": False,
+         "resource_lease_acquired": False, "production_changed": False,
+         "quality_conclusion": "not_established"})
+ 
+ 
++def _execution_inputs(plan_path):
++    """Fail before any subprocess when a plan has no valid independent holdout."""
++    try:
++        from .holdout_gate import verify_holdout
++        checked = _checked_plan(plan_path)
++        gate = verify_holdout(checked[0])
++        return checked, gate
++    except (R5Error, OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
++        raise R5Error("pilot is blocked: " + str(exc)) from exc
++
++
+ def execution_argv(plan_path):
+     """Return a structured command after a NEW check; never run it here."""
++    # This first, entirely local pass prevents old plans and cached green flags
++    # from reaching even the metadata subprocess without the required evidence.
++    initial_checked, initial_gate = _execution_inputs(plan_path)
+     report = preflight_pilot(plan_path)
+-    if not report["ready_for_launch"]:
++    if report.get("metadata_ready") is not True or report.get("execution_gate", {}).get("status") != "passed":
+         raise R5Error("pilot is blocked: " + "; ".join(x["reason"] for x in report["blockers"]))
+-    plan, manifest, config, _ = _checked_plan(plan_path)
++    # Re-read after the probe too; a file changed during a metadata check must
++    # not be grandfathered by its earlier success report.
++    (plan, manifest, config, _), gate = _execution_inputs(plan_path)
++    if (plan != initial_checked[0] or gate != initial_gate
++            or report["execution_gate"].get("binding_sha256") != gate["sha256"]):
++        raise R5Error("pilot is blocked: plan or holdout binding changed during the metadata probe")
+     return {"argv": [plan["python_interpreter"]["path"], "-m", "training.mlx_r4",
+                      "--manifest", str(manifest), "--config", str(config),
+                      "--output", plan["run_directory"], "--execute"],
+@@ -333,4 +393,5 @@ def execution_argv(plan_path):
+             "env": _environment(plan["runtime_source_binding"]),
+             "inherit_environment": True, "shell": False,
+             "preflight_sha256": report["sha256"], "training_executed": False,
++            "holdout_gate_sha256": gate["sha256"], "resource_status": "not_checked",
+             "note": "Start explicitly in the real environment; the unchanged R4 worker rechecks its data, code, lease, resources and original model identity."}
+diff --git a/am-style-r5/tests/test_holdout_gate.py b/am-style-r5/tests/test_holdout_gate.py
+new file mode 100644
+index 00000000..4cf58862
+--- /dev/null
++++ b/am-style-r5/tests/test_holdout_gate.py
+@@ -0,0 +1,299 @@
++"""Offline FIX1 contracts only; all people/declarations/cases here are fixtures.
++
++No fixture is exported as a real human approval or an independent business test.
++Mechanics/probe mocks isolate the new gate; no MLX, training, service or message
++execution occurs in this suite.
++"""
++from contextlib import redirect_stderr, redirect_stdout
++from copy import deepcopy
++from datetime import datetime, timedelta, timezone
++import io
++import json
++from pathlib import Path
++import tempfile
++import unittest
++from unittest.mock import patch
++
++from am_style.contracts import SpeechFrame, StylePolicy
++from am_style.prompt import build_messages, coordinator_messages
++from am_style.render import make_frame
++from am_style_r5 import pilot
++from am_style_r5.cli import main
++from am_style_r5.common import R5Error, canonical, file_hash, read_json, seal, write_json
++from am_style_r5.evaluation import freeze_cases
++from am_style_r5.holdout_gate import bind_holdout, verify_holdout
++from am_style_r5.scenarios import calibration_specs
++from test_pilot import _snapshot, _synthetic_request
++
++
++def _replace_json(path, value):
++    path.write_text(canonical(value) + "\n", encoding="utf-8")
++
++
++def _case(frame=None, policy=None):
++    policy = policy or StylePolicy(realization="free")
++    frame = frame or make_frame(binding={"turn_id": "private-unit-holdout", "scope_id": "unit-fixture",
++        "outcome_hash": "8" * 64, "source_revision": "temporary-fixture", "revision": 0, "cancel_epoch": 0},
++        expires_at=2000000000, question="归档中的签字是否已经覆盖退货授权？", family="control", policy=policy,
++        facts=[{"id": "signature-scope", "kind": "statement", "value":
++            "仓库归档的是退件签收单，只证明已接收物件，未包含退货审批编号、批准者或核准数量；财务系统没有付款记录，不能由签收推断已获退货或退款授权。"}])
++    logical = build_messages(frame, policy)
++    return {"case_id": "UNIT-HOLDOUT-ONLY", "group_id": "unit-private-signature-scope", "split": "sealed_test",
++            "frame": frame.data, "style_policy": policy.as_dict(), "logical_messages": logical,
++            "student_wire_messages": coordinator_messages(logical),
++            "review_context": "SYNTHETIC UNIT FIXTURE ONLY: a receipt is not a refund approval.",
++            "independent_test_eligible": True, "public_exposed": False}
++
++
++class HoldoutGateTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory(prefix="r5-fix1-gate-unit-")
++        self.addCleanup(self.temp.cleanup)
++        self.root = Path(self.temp.name).resolve()
++        self.snapshot_path, self.snapshot = _snapshot(self.root, accepted=True)
++        self.work = self.root / "work"
++        self.work.mkdir()
++        self.base_plan = {"schema": pilot.PLAN_SCHEMA,
++            "snapshot": {"path": str(self.snapshot_path), "sha256": file_hash(self.snapshot_path)},
++            "snapshot_content_sha256": self.snapshot["sha256"],
++            "run_directory": str(self.work / "unused-run"), "training_executed": False}
++        self.manifest = {"local_model_path": str(self.root / "model"), "service": {
++            "lease_file": str(self.root / "service/lease"), "gateway_db": str(self.root / "service/gateway.db"),
++            "chat_db": str(self.root / "service/chat.db"),
++            "protected_config_files": {str(self.root / "service/config.json"): "1" * 64}}}
++        self.mechanics = self.root / "mechanics/result.json"
++        self.manifest_path = self.root / "mechanics/manifest.json"
++        write_json(self.mechanics, {"fixture": "NOT_REAL_MECHANICS"})
++        write_json(self.manifest_path, self.manifest)
++        self.request = _synthetic_request()
++        self.request["code_sha256"] = {"fixture": "NOT_A_REAL_PROBE"}
++
++    def evidence(self, *, cases=None, name="", declaration_changes=None):
++        root = self.work / name
++        root.mkdir(parents=True, exist_ok=True)
++        cases_path, declaration_path, original_path = (root / "holdout.frozen.json",
++            root / "declaration.json", root / "declaration-original.txt")
++        frozen = freeze_cases(cases or [_case()])
++        write_json(cases_path, frozen)
++        original_path.write_text("SYNTHETIC UNIT TEST ORIGINAL. No real human declaration is asserted.\n", encoding="utf-8")
++        declaration = {"case_manifest_sha256": frozen["case_manifest_sha256"], "not_used_for_tuning": True,
++            "declared_by": "UNIT_TEST_FIXTURE_NOT_THE_USER",
++            "declared_at": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
++            "source_evidence_sha256": file_hash(original_path)}
++        declaration.update(declaration_changes or {})
++        write_json(declaration_path, declaration)
++        return {"cases_path": cases_path, "declaration_path": declaration_path, "original_path": original_path}
++
++    def bound_plan(self, evidence=None):
++        plan = deepcopy(self.base_plan)
++        plan["holdout_gate"] = bind_holdout(plan, **(evidence or self.evidence()))
++        return seal(plan)
++
++    def original_mock(self):
++        return patch("am_style_r5.pilot._original_mechanics", return_value=(
++            self.mechanics, self.manifest_path, self.request, self.manifest))
++
++    def probe_mock(self, **kwargs):
++        return patch("am_style_r5.pilot._run_probe", return_value={"blockers": [],
++            "metadata_ready": True, "training_executed": False, "model_loaded": False}, **kwargs)
++
++    def prepare(self, *, evidence=None, name="pilot-plan"):
++        kwargs = {} if evidence is None else {"holdout_cases_path": evidence["cases_path"],
++            "holdout_declaration_path": evidence["declaration_path"], "holdout_original_path": evidence["original_path"]}
++        with self.original_mock(), self.probe_mock():
++            return pilot.prepare_pilot(self.snapshot_path, self.mechanics, self.manifest_path,
++                                       self.work / name, **kwargs)
++
++    def test_valid_binding_rederives_without_adapter_or_private_text_in_plan(self):
++        # The original R5 declaration schema has no required origin field.
++        plan = self.bound_plan()
++        gate = verify_holdout(plan)
++        self.assertEqual(gate["case_count"], 1)
++        self.assertEqual(gate["snapshot_content_sha256"], self.snapshot["sha256"])
++        self.assertNotIn("arms", gate)
++        self.assertNotIn("adapter_sha256", gate)
++        self.assertNotIn("UNIT_TEST_FIXTURE_NOT_THE_USER", canonical(gate))
++        self.assertNotIn("归档中的签字", canonical(gate))
++        self.assertNotIn("SYNTHETIC UNIT TEST ORIGINAL", canonical(gate))
++        self.assertIn("do_not_authenticate", gate["identity_limit"])
++
++    def test_omitted_evidence_allows_metadata_preparation_and_preflight_exit_zero(self):
++        prepared = self.prepare()
++        report = prepared["preflight"]
++        self.assertTrue(report["metadata_ready"])
++        self.assertEqual(report["execution_gate"]["status"], "blocked")
++        self.assertFalse(report["ready_for_launch"])
++        self.assertEqual(report["resource_gate"]["status"], "not_checked")
++        stream = io.StringIO()
++        with self.original_mock(), self.probe_mock(), redirect_stdout(stream):
++            code = main(["pilot-preflight", "--plan", prepared["plan_path"]])
++        self.assertEqual(code, 0)
++        self.assertTrue(json.loads(stream.getvalue())["metadata_ready"])
++
++    def test_legacy_plan_and_cached_green_flags_cannot_reach_any_subprocess(self):
++        prepared = self.prepare()
++        path = Path(prepared["plan_path"])
++        plan = read_json(path)
++        plan.pop("holdout_gate")
++        plan.update(ready_for_launch=True, initial_preflight={"passed": True})
++        _replace_json(path, seal(plan))
++        with self.original_mock(), self.probe_mock():
++            self.assertTrue(pilot.preflight_pilot(path)["metadata_ready"])
++        for command in ("pilot-command", "pilot-execute"):
++            args = [command, "--plan", str(path)] + (["--execute"] if command == "pilot-execute" else [])
++            with self.subTest(command=command), self.original_mock(), \
++                    patch("am_style_r5.cli.subprocess.run") as child, redirect_stderr(io.StringIO()):
++                self.assertEqual(main(args), 2)
++                child.assert_not_called()
++
++    def test_partial_holdout_paths_fail_before_plan_creation(self):
++        with self.assertRaisesRegex(R5Error, "together"):
++            pilot.prepare_pilot(self.snapshot_path, self.mechanics, self.manifest_path,
++                self.work / "partial", holdout_cases_path=self.work / "cases.json")
++        self.assertFalse((self.work / "partial").exists())
++        with self.assertRaisesRegex(R5Error, "together"):
++            bind_holdout(self.base_plan, cases_path=self.work / "cases.json")
++
++    def test_case_declaration_original_and_snapshot_byte_changes_are_rejected(self):
++        evidence = self.evidence()
++        plan = self.bound_plan(evidence)
++        for path in (*evidence.values(), self.snapshot_path):
++            original = path.read_bytes()
++            with self.subTest(path=path.name):
++                path.write_bytes(original + b"\n")
++                with self.assertRaises(R5Error):
++                    verify_holdout(plan)
++                path.write_bytes(original)
++        self.assertEqual(verify_holdout(plan), plan["holdout_gate"])
++
++    def test_resealed_plan_change_does_not_reuse_old_gate(self):
++        plan = self.bound_plan()
++        plan["run_directory"] = str(self.work / "different-run")
++        with self.assertRaisesRegex(R5Error, "plan changed"):
++            verify_holdout(seal(plan))
++
++    def test_case_group_overlap_with_actual_gold_is_rejected(self):
++        for split in ("train", "dev"):
++            spec = next(s for s in calibration_specs() if s["split"] == split)
++            case = _case()
++            case["group_id"] = spec["group_id"]
++            with self.subTest(split=split), self.assertRaisesRegex(R5Error, "group overlaps"):
++                bind_holdout(self.base_plan, **self.evidence(cases=[case], name="overlap-" + split))
++
++    def test_near_duplicate_in_new_group_still_rejected(self):
++        for split in ("train", "dev"):
++            spec = deepcopy(next(s for s in calibration_specs() if s["split"] == split))
++            spec["frame"]["question"] += "呀"
++            case = _case(SpeechFrame.freeze(spec["frame"]), StylePolicy(**spec["style_policy"]))
++            case["group_id"] = "unit-held-near-copy-" + split
++            with self.subTest(split=split), self.assertRaisesRegex(R5Error, "leaks"):
++                bind_holdout(self.base_plan, **self.evidence(cases=[case], name="near-" + split))
++
++    def test_public_calibration_or_unqualified_cases_are_not_independent_holdout(self):
++        for index, changes in enumerate(({"public_exposed": True}, {"independent_test_eligible": False},
++                                         {"split": "calibration"})):
++            case = _case()
++            case.update(changes)
++            with self.subTest(changes=changes), self.assertRaisesRegex(R5Error, "private independent"):
++                bind_holdout(self.base_plan, **self.evidence(cases=[case], name="public-" + str(index)))
++
++    def test_case_bound_declaration_and_actual_original_hash_are_required(self):
++        changes = [{"not_used_for_tuning": False}, {"source_evidence_sha256": "0" * 64},
++                   {"case_manifest_sha256": "0" * 64}, {"origin": "model"}, {"declared_by": ""}]
++        for index, change in enumerate(changes):
++            with self.subTest(change=change), self.assertRaises(R5Error):
++                bind_holdout(self.base_plan, **self.evidence(name="declaration-" + str(index), declaration_changes=change))
++
++    def test_missing_original_and_malformed_inputs_raise_r5_error(self):
++        evidence = self.evidence()
++        evidence["original_path"].unlink()
++        with self.assertRaisesRegex(R5Error, "missing holdout declaration original"):
++            bind_holdout(self.base_plan, **evidence)
++        evidence["declaration_path"].write_text('{"PRIVATE-DO-NOT-LOG":1,"PRIVATE-DO-NOT-LOG":2}', encoding="utf-8")
++        with self.assertRaises(R5Error) as caught:
++            bind_holdout(self.base_plan, **evidence)
++        self.assertNotIn("PRIVATE-DO-NOT-LOG", str(caught.exception))
++        with self.assertRaises(R5Error):
++            verify_holdout({"holdout_gate": True})
++
++    def test_declaration_timestamp_has_timezone_and_precedes_binding(self):
++        for index, stamp in enumerate(("2026-11-02T00:00:00", "bad-time",
++                                       (datetime.now(timezone.utc) + timedelta(days=1)).isoformat())):
++            with self.subTest(stamp=stamp), self.assertRaises(R5Error):
++                bind_holdout(self.base_plan, **self.evidence(name="time-" + str(index),
++                                                            declaration_changes={"declared_at": stamp}))
++
++    def test_resealed_bundle_still_rechecks_frame_and_wire_prompt(self):
++        evidence = self.evidence()
++        bundle = read_json(evidence["cases_path"])
++        bundle["cases"][0]["frame"]["question"] = "修改事实却保留旧输入？"
++        _replace_json(evidence["cases_path"], seal(bundle))
++        with self.assertRaisesRegex(R5Error, "disagree"):
++            bind_holdout(self.base_plan, **evidence)
++
++    def test_valid_gate_returns_original_trainer_command_but_not_resource_clearance(self):
++        evidence = self.evidence()
++        prepared = self.prepare(evidence=evidence)
++        self.assertEqual(prepared["preflight"]["execution_gate"]["status"], "passed")
++        with self.original_mock(), self.probe_mock(), patch("am_style_r5.cli.subprocess.run") as child:
++            command = pilot.execution_argv(prepared["plan_path"])
++            child.assert_not_called()
++        self.assertEqual(command["argv"][1:3], ["-m", "training.mlx_r4"])
++        self.assertIn("--execute", command["argv"])
++        self.assertEqual(command["resource_status"], "not_checked")
++        self.assertFalse(command["training_executed"])
++        self.assertEqual(command["holdout_gate_sha256"], prepared["plan"]["holdout_gate"]["sha256"])
++
++    def test_mutation_during_metadata_probe_blocks_cli_training_subprocess(self):
++        evidence = self.evidence()
++        prepared = self.prepare(evidence=evidence)
++        def changed_during_probe(*args):
++            evidence["original_path"].write_text("Changed original after the first gate read.\n", encoding="utf-8")
++            return {"blockers": [], "metadata_ready": True, "training_executed": False}
++        with self.original_mock(), patch("am_style_r5.pilot._run_probe", side_effect=changed_during_probe), \
++                patch("am_style_r5.cli.subprocess.run") as child, redirect_stderr(io.StringIO()):
++            code = main(["pilot-execute", "--plan", prepared["plan_path"], "--execute"])
++        self.assertEqual(code, 2)
++        child.assert_not_called()
++
++    def test_consistent_plan_rebind_during_probe_cannot_reuse_stale_metadata(self):
++        evidence = self.evidence()
++        prepared = self.prepare(evidence=evidence)
++        path = Path(prepared["plan_path"])
++        def rebound_during_probe(*args):
++            changed = read_json(path)
++            changed["run_directory"] = str(self.work / "another-run")
++            changed["holdout_gate"] = bind_holdout(changed, **evidence)
++            _replace_json(path, seal(changed))
++            return {"blockers": [], "metadata_ready": True, "training_executed": False}
++        with self.original_mock(), patch("am_style_r5.pilot._run_probe", side_effect=rebound_during_probe), \
++                patch("am_style_r5.cli.subprocess.run") as child, redirect_stderr(io.StringIO()):
++            code = main(["pilot-execute", "--plan", prepared["plan_path"], "--execute"])
++        self.assertEqual(code, 2)
++        child.assert_not_called()
++
++    def test_holdout_files_allow_sibling_outputs_but_cannot_be_output_directories(self):
++        evidence = self.evidence()
++        prepared = self.prepare(evidence=evidence)
++        self.assertEqual(Path(prepared["plan_path"]).parent.parent, self.work)
++        with self.assertRaises(R5Error):
++            pilot._check_output(evidence["cases_path"], self.manifest, evidence_files=evidence.values())
++        with self.assertRaises(R5Error):
++            pilot._check_output(evidence["cases_path"] / "run", self.manifest, evidence_files=evidence.values())
++
++    def test_cli_passes_complete_holdout_paths_without_starting_training(self):
++        evidence = self.evidence()
++        stream = io.StringIO()
++        with self.original_mock(), self.probe_mock(), patch("am_style_r5.cli.subprocess.run") as child, redirect_stdout(stream):
++            code = main(["pilot-plan", "--snapshot", str(self.snapshot_path), "--mechanics", str(self.mechanics),
++                "--manifest", str(self.manifest_path), "--output", str(self.work / "cli-plan"),
++                "--holdout-cases", str(evidence["cases_path"]), "--holdout-declaration", str(evidence["declaration_path"]),
++                "--holdout-original", str(evidence["original_path"])])
++            child.assert_not_called()
++        self.assertEqual(code, 0)
++        plan = read_json(self.work / "cli-plan/plan.json")
++        self.assertEqual(verify_holdout(plan)["case_count"], 1)
++
++
++if __name__ == "__main__":
++    unittest.main()

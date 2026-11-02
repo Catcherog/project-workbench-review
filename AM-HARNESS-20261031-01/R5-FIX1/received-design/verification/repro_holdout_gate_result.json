@@ -1,0 +1,32 @@
+{
+  "scope": "synthetic_control_flow_reproduction_only",
+  "fixture_counts": {
+    "train": 24,
+    "dev": 8,
+    "train_groups": 14,
+    "dev_groups": 5
+  },
+  "holdout_files_created": 0,
+  "holdout_fields_in_plan": [],
+  "metadata_ready": true,
+  "execution_argv_returned": true,
+  "cli_attempted_trainer_subprocess": 1,
+  "cli_exit_code_under_interception": 0,
+  "real_subprocesses_started": 0,
+  "model_loaded": false,
+  "training_executed": false,
+  "mocked_checks": [
+    "pilot._original_mechanics (assumes original R4 mechanics and manifest are valid)",
+    "pilot._run_probe (assumes original machine metadata contracts pass)",
+    "cli.subprocess.run (intercepts the final launch; no process is created)"
+  ],
+  "unmocked_checks": [
+    "gold snapshot export and verification from original synthetic test fixture",
+    "train/dev counts and immutable snapshot/config bindings",
+    "R4 runtime source fingerprints and selected Python fingerprint",
+    "plan seal, readback, protected output checks and CLI argument routing"
+  ],
+  "mechanics_stub_calls": 6,
+  "metadata_probe_stub_calls": 3,
+  "conclusion": "Without any frozen holdout, current pilot-execute reaches its trainer launch when other prerequisites are assumed valid."
+}
