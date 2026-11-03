@@ -1,0 +1,75 @@
+{
+  "schema": "am.resource-window-verification.v1",
+  "executed_on": "2026-11-03",
+  "environment": "cloud Linux; not the user's Mac",
+  "unit_contracts": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "passed": 34,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "parsers, allowed commands, real temporary file locks, state machine failures/recovery, real temporary SQLite fence",
+    "log": "verification/unit-contracts.log"
+  },
+  "original_host_integration": {
+    "status": "passed",
+    "scenario": "existing Store + ModelCoordinator admission fence",
+    "source_sha256": {
+      "fs_agent/store.py": "3db4d4ec9d27f6dfa32234d2b3a375c3ea2be3c14ab0ed2fe4c48cd581abfd0a",
+      "fs_agent/model_coordinator.py": "e9a433c75b9d2fc920ca0b8d9f43bbca50656ecca4b520c0f9b2186ff5bae3de",
+      "fs_agent/provider.py": "ddf60b4bc7950efdbca62eaac63ca956c2859d3a619463f8474beb98e469dc91",
+      "fs_agent/config.py": "93eb1dbd5d69040dc4ef9de3f17379df35552c257cb455f150d1bd8a2452078b"
+    },
+    "native_models_called": 0,
+    "synthetic_provider_calls": 2,
+    "native_coordinator_blocked_calls": 2,
+    "state": "temporary_sqlite_and_lock_only",
+    "original_service_modified": false,
+    "log": "verification/original-host-integration.json"
+  },
+  "unchanged_R4_compatibility": {
+    "status": "passed_with_synthetic_metrics",
+    "empty_loaded_models_at_24_GiB": "accepted_by_original_check_metrics",
+    "empty_loaded_models_at_23_99_GiB": "ResourcePause_from_original_check_metrics",
+    "production_lock_acquired": false,
+    "training_started": false
+  },
+  "unsupported_platform_probe": {
+    "command": "python3 -m am_training_window.mac_probe snapshot",
+    "exit_code": 2,
+    "result": "unsupported_platform",
+    "system_commands_executed": 0
+  },
+  "unverified": [
+    "Actual Mac memory/pressure/swap values and released capacity",
+    "Actual llama.cpp manager suspend/restore port",
+    "Original consumer health and all native inference paths honoring the fence",
+    "Metadata service staying online while only the exact Q8 runner is unloaded",
+    "Native R5/R4 pilot execution, worker exit, fit/reload and Q8 restore",
+    "Human effect evaluation and business acceptance"
+  ],
+  "original_claim_integration": {
+    "status": "passed",
+    "source_sha256": {
+      "Store": "738ded41c12c7a56782edc4129de4defa068bf725613b5e49ca4972302829fde",
+      "DurableStore": "24083eb8faa8c3a093d3119b5daffb9446ac0579d42ab5af9163ba166103c912",
+      "TaskRuntime": "4d1364cc59c0baa366951110700dd20ac260b163822dc2b4af8557e0a6c51319"
+    },
+    "scenarios": [
+      "original legacy task remains queued with attempts=0",
+      "original durable task remains queued and lane idle",
+      "historical MODEL_PAUSED quarantine path is never entered",
+      "original R4 pending queries retain both jobs",
+      "busy window has no model unload or provider pause",
+      "already-running multi-step task completes during drain",
+      "authenticated cancellation still changes only its intended task"
+    ],
+    "native_model_calls": 0,
+    "trainer_attempts": 0,
+    "synthetic_provider_calls": 1,
+    "original_service_modified": false,
+    "scope": "temporary database and original patched classes only",
+    "log": "verification/original-claim-integration.json"
+  },
+  "diagnostic_authorization": "temporary exact-Q8 unload and restore only; no permanent disable, upgrade or model substitution",
+  "diagnostic_trainer_attempts": 0
+}
