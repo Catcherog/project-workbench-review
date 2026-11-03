@@ -1,0 +1,136 @@
+{
+  "review_copy_only": true,
+  "not_executable": true,
+  "original_file_sha256": "470ffca208bd090ae9bb7d24dfd7aeb17bcf41c286d75ba5f8a78a8a1c739ba0",
+  "original_bytes": 5963,
+  "artifact": {
+    "schema": "am-style-mlx-r4-request/1",
+    "manifest": {
+      "schema": "am-style-mlx-r4-base/1",
+      "scope": "independent_official_HF_text_branch",
+      "repo": "Qwen/Qwen3.8-27B",
+      "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+      "production_equivalence_verified": false,
+      "local_model_path": "/SOURCE/SFT训练/R6-FIX1_20261021_01/models/mlx-4bit",
+      "official_source_manifest": {
+        "path": "/SOURCE/SFT训练/R6-FIX1_20261021_01/provenance/official_download_manifest.json",
+        "sha256": "5eaa9f8e2fe612a41b53131629a541aaae18c3b630028f8c2be4ba1e3555c16e"
+      },
+      "quantized_source_manifest": {
+        "path": "/SOURCE/SFT训练/R6-FIX1_20261021_01/provenance/quantized_base_manifest.json",
+        "sha256": "e05f01bf5874ab6a01f179d753df9d79f95f71ee2850a8b6ec634dec41741858"
+      },
+      "files": {
+        "README.md": {
+          "bytes": 81,
+          "sha256": "748c964f9b7e5f2c3770ce013bbc0153be7c54311d9692c343b6188eefe77ac6"
+        },
+        "chat_template.jinja": {
+          "bytes": 8952,
+          "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+        },
+        "config.json": {
+          "bytes": 4089,
+          "sha256": "5255de91766beaec591d69b361b7292cb5a8a138ea505353e2a283cc7effa256"
+        },
+        "generation_config.json": {
+          "bytes": 202,
+          "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e"
+        },
+        "model-00001-of-00003.safetensors": {
+          "bytes": 5328325648,
+          "sha256": "075eac5fbba3951bc4870c1ac65d684c32e0abb24284201bd27f49df56735963"
+        },
+        "model-00002-of-00003.safetensors": {
+          "bytes": 5354185130,
+          "sha256": "6c99c446987a432beb1f6ef7d6fde6db02682f1ebe1a913760953140e0fa4e47"
+        },
+        "model-00003-of-00003.safetensors": {
+          "bytes": 4450532735,
+          "sha256": "0e267246064a1e635077dd05e22181f5eda44a1fa8a67dcf46c903f858bbe35b"
+        },
+        "model.safetensors.index.json": {
+          "bytes": 189789,
+          "sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+        },
+        "tokenizer.json": {
+          "bytes": 19989339,
+          "sha256": "a5cd9732badce41de57e6efce8302930ded1c1188c5f81feb2bd6c24c4a1941f"
+        },
+        "tokenizer_config.json": {
+          "bytes": 1501,
+          "sha256": "86f01837a638275f2d3479804e79802aaff0e3ccef15e5f29dd6afbe6551daed"
+        }
+      },
+      "mlx_lm_source_commit": "93e6d4a6447b3080861985947f0820e76fcb957d",
+      "package_versions": {
+        "mlx": "0.32.4",
+        "mlx-lm": "0.32.2",
+        "transformers": "5.20.2",
+        "tokenizers": "0.23.3",
+        "psutil": "7.2.2"
+      },
+      "service": {
+        "lease_file": "/LOCAL_STATE/bridge/poc/state/model-coordinator.lock",
+        "gateway_db": "/LOCAL_STATE/bridge/poc/state/gateway.sqlite3",
+        "chat_db": "/LOCAL_STATE/bridge/state/chat.sqlite3",
+        "protected_config_files": {
+          "/LOCAL_STATE/bridge/config.json": "5ae551fb39d39b690a4dadcf10f96a3d0c753141fe60e25fc4f484b1612efe2f",
+          "/LOCAL_STATE/bridge/poc/config/environment.json": "d8e1e8c9ab55cfe86237c20eea7b4e4d7a2a313df57c944b7c2dab5106d249b1"
+        },
+        "expected_model": "qwen3.8:27b-bartowski-q8_0",
+        "expected_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef"
+      }
+    },
+    "config": {
+      "schema": "am-style-mlx-r4-run/1",
+      "quality_tier": "gold",
+      "epochs": 1,
+      "seed": 221,
+      "adapted_layers": 2,
+      "lora": {
+        "rank": 8,
+        "scale": 2,
+        "dropout": 0,
+        "keys": [
+          "self_attn.q_proj",
+          "self_attn.k_proj",
+          "self_attn.v_proj",
+          "self_attn.o_proj",
+          "linear_attn.in_proj_qkv",
+          "linear_attn.in_proj_z",
+          "linear_attn.in_proj_a",
+          "linear_attn.in_proj_b",
+          "linear_attn.out_proj"
+        ]
+      },
+      "learning_rate": 1e-05,
+      "weight_decay": 0.01,
+      "optimizer_bias_correction": false,
+      "max_length": 1024,
+      "worker_timeout_seconds": 300,
+      "runtime_prompt_builder_sha256": "dbcb85423d599d68d229403bd91b3007c6eb87053b8b1fc01b37be4a597637b8",
+      "style_policy_version": "muyi-style/3.0-draft.1",
+      "host_contract_version": "am-terminal-presenter/3.0.1+coordinator-native-envelope/1",
+      "train_file": "/SOURCE/AM-HARNESS-20261031-01/R5/private/feedback-003/gold-cli-001/sft.train.jsonl",
+      "dev_file": "/SOURCE/AM-HARNESS-20261031-01/R5/private/feedback-003/gold-cli-001/sft.dev.jsonl",
+      "stage": "pilot",
+      "gradient_accumulation": 4,
+      "train_sha256": "459d27c2a5aed233f43a1b4816a616c42798bbc694220f13280f57395d9f8f93",
+      "dev_sha256": "131e9407585ebbc0db0e34a0e6067df135d437363228fdbc02bc78dd491b3087",
+      "mechanics_result": {
+        "path": "/SOURCE/AM-HARNESS-20261031-01/R4/private/mlx-mechanics-002/result.json",
+        "sha256": "bf4ac5775e61e9626fb92460a49b197045a4b2d310090e70a39257e9dda6d7b6"
+      }
+    },
+    "code_sha256": {
+      "training/mlx_r4.py": "995597d907f2057b440b294f26a0014136ff20763ac2228ac466632253d50fcb",
+      "training/mlx_r4_contracts.py": "defa00d406a9e25a561aa0c8c4e4870e4098236623ad1296323ef381a2cdf97a",
+      "training/mlx_r4_runtime.py": "784db08698097c4031bb9dbabe2a4b1e8559b9ce767c72f65cab1bc5eff35074",
+      "training/mlx_r4_resources.py": "943d3aadd1a7aa56fa7b32f5e73d244feec7f3f5afe2fa21fc7e2a6fa209a0a5",
+      "training/mlx_r4_kernels/chunk_gated_delta.py": "7be6f87a740f71f5c5a3d0f3981ec680d8e5bf4c5123b1da4a1c001fa5487c27",
+      "training/common.py": "5fb6d034139f14d10de3d4c015dc67ac8ea19076c99a131235a6eb4688f7bfe3",
+      "am_style/prompt.py": "dbcb85423d599d68d229403bd91b3007c6eb87053b8b1fc01b37be4a597637b8"
+    }
+  }
+}

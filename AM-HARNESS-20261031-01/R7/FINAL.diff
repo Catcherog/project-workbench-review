@@ -1,0 +1,1348 @@
+diff --git a/am-integrated-r6/README.md b/am-integrated-r6/README.md
+index 7cb2b154..a7b2221a 100644
+--- a/am-integrated-r6/README.md
++++ b/am-integrated-r6/README.md
+@@ -26,3 +26,17 @@ python3 /absolute/current/repo/am-integrated-r6/tools/run_validation.py --repo /
+ `TrainingWindow.diagnostic()` 无 trainer 参数，可先回答临时释放 Q8 是否有足够内存；`train()` 在暂停 Q8 前和启动前都重查原 R5，并交还原 R4 在原锁内做资源检查。原24 GiB／5 GiB／swap增长1 GiB策略、原训练参数与模型身份不变。
+ 
+ 新增回归案例均属于已暴露开发素材，不是新gold、用户评价或独立holdout。训练、效果人评、宿主接入和业务验收分别记录。
++
++## R7 原机训练与评测控制
++
++当前原机另设私有 `training-window-r7` 请求目录，仍由同一个 bridge 消费者执行。原 `resource-window-r6` 只接受 diagnostic／recover，契约保持。两种控制共用原 Store、ModelCoordinator、维护围栏及锁，不并行开启窗口。
++
++`tools/training_control.py` 提供 train、eval-mlx、cancel、recover、inspect；写入请求须带 `--execute`。train 绑定具体 R7 私有 plan、真实文件 SHA、UUID、run 目录和最多 3600 秒的请求有效期。eval-mlx 另绑定已完成的 pilot plan、三组评测 plan 和 arm。请求重复或输入改变均拒绝；独立材料不齐时不会卸载 Q8。请求文件写入成功仅表示已提交，不代表已训练。
++
++执行回调使用计划中的 Python 与原 `am-style-r5/run.py`，显式指定当前宿主和训练源码。R4 fit／reload 仍各自取得原 OriginalLease，训练实现、mechanics 哈希和 24／5 GiB、22 GiB、swap 规则保持。空闲时已卸载的 Q8 在同一围栏和原锁内精确补载，再建立卸载窗口。
++
++监督记录真实 CLI、R4 parent、fit／reload（评测则为 MLX worker）的 PID、PGID、OS 创建时间、完整参数和源码绑定。完整模型需求覆盖普通聊天、harness、AM／source_wait、群查询、信息提取及私有模型探针；原路由判定为纯 I/O 的导航、采集和投递继续处理。原 R4 内部的既有队列规则没有放宽。
++
++取消时先冻结已核验的启动进程组，停止属于该请求的各独立 worker，再核验全部组消失。进程身份或停止状态未知时保持 recovery_required；不恢复 Q8，不清除其他原因的暂停。原机重启后的 recover 从持久化进程记录重建检查，只恢复原服务，从不续训。
++
++恢复命令使用实际提交回执中的 request_id：`tools/training_control.py recover --request-id <原请求UUID> --execute`。取消使用同一工具的 cancel；inspect 只读。脚本须用原计划绑定的 Python 运行。真实训练仍须通过未修改的独立测试声明门禁；隔离进程测试不能当作训练或业务验收。
+diff --git a/am-integrated-r6/am_training_window/host.py b/am-integrated-r6/am_training_window/host.py
+index b308303a..4632b47b 100644
+--- a/am-integrated-r6/am_training_window/host.py
++++ b/am-integrated-r6/am_training_window/host.py
+@@ -12,6 +12,7 @@ from __future__ import annotations
+ 
+ from dataclasses import replace
+ import math
++import time
+ from typing import Callable, Protocol
+ import uuid
+ 
+@@ -134,13 +135,18 @@ class ExistingCoordinatorHost:
+             raise WindowError("maintenance_window_not_owned")
+         # Existing in-process work owns this exact lock. Cross-process work is
+         # checked by the original file lock immediately before lifecycle change.
+-        acquired = self.coordinator.lock.acquire(timeout=self.drain_timeout)
+-        if not acquired:
+-            raise WindowError("existing_inference_not_drained")
+-        self.coordinator.lock.release()
+-        observed = self.inspect()
+-        if observed.active_inference or observed.pending_business:
+-            raise WindowError("native_business_or_inference_still_pending")
++        deadline = time.monotonic() + self.drain_timeout
++        while True:
++            acquired = self.coordinator.lock.acquire(timeout=max(0, deadline-time.monotonic()))
++            if not acquired:
++                raise WindowError("existing_inference_not_drained")
++            self.coordinator.lock.release()
++            observed = self.inspect()
++            if not observed.active_inference and not observed.pending_business:
++                break
++            if time.monotonic() >= deadline:
++                raise WindowError("native_business_or_inference_still_pending")
++            time.sleep(min(.1, max(0, deadline-time.monotonic())))
+         self.fence.seal(window_id)
+ 
+     def suspend_exact_model(self, window_id, binding):
+diff --git a/am-integrated-r6/am_training_window/native_eval.py b/am-integrated-r6/am_training_window/native_eval.py
+new file mode 100644
+index 00000000..88d9b8c7
+--- /dev/null
++++ b/am-integrated-r6/am_training_window/native_eval.py
+@@ -0,0 +1,141 @@
++"""Same fenced memory/stop window for the original R5 MLX evaluation runner."""
++from __future__ import annotations
++
++import os
++from pathlib import Path
++import subprocess
++import time
++
++from .native_r5 import OriginalPilotExecutor
++from .process_guard import BoundProcessGuard, digest, private_json
++from .window import ExecutionObservation, GateObservation, WindowError
++
++
++class OriginalEvaluationGate:
++    def __init__(self, plan, pilot_plan, arm, output):
++        self.plan, self.pilot_plan, self.output = map(Path, (plan, pilot_plan, output))
++        self.arm = arm
++
++    def checked(self):
++        from am_style_r5.common import read_json, check_seal, object_hash
++        from am_style_r5.evaluation import validate_plan
++        from am_style_r5.holdout_gate import verify_holdout
++        from am_style_r5.pilot import _source_binding, _interpreter_record
++        from am_style_r5.runners import (validate_sft_run, _mlx_identity, _fresh_output,
++                                        _execution_sources, MLX_SETTINGS)
++        pilot = check_seal(read_json(self.pilot_plan))
++        evaluation = validate_plan(read_json(self.plan))
++        held = verify_holdout(pilot)
++        if (evaluation['mode'] != 'real' or evaluation['case_manifest_sha256'] != held['case_manifest_sha256']
++                or self.arm not in ('mlx_base', 'mlx_sft')
++                or evaluation['arms'][self.arm]['generation_settings'] != MLX_SETTINGS):
++            raise WindowError('evaluation_not_bound_to_actual_pilot_holdout')
++        sources = _source_binding(pilot['runtime_source_binding']['roots'])
++        if sources != pilot['runtime_source_binding'] or _interpreter_record(pilot['python_interpreter']['path']) != pilot['python_interpreter']:
++            raise WindowError('evaluation_runtime_changed')
++        if digest(pilot['manifest']['path']) != pilot['manifest']['sha256']:
++            raise WindowError('evaluation_manifest_changed')
++        manifest = read_json(pilot['manifest']['path'])
++        selected = validate_sft_run(pilot['run_directory'], manifest)
++        _mlx_identity(evaluation, 'mlx_sft', manifest, selected)
++        _mlx_identity(evaluation, 'mlx_base', manifest, None)
++        _fresh_output(self.output, manifest, additional_roots=(pilot['run_directory'],))
++        binding = object_hash({'evaluation': evaluation['sha256'], 'pilot': pilot['sha256'],
++            'selected': selected, 'output': str(self.output), 'arm': self.arm,
++            'execution_sources': _execution_sources()})
++        return pilot, evaluation, binding
++
++    def __call__(self):
++        return GateObservation(True, self.checked()[2])
++
++
++class OriginalMlxEvalExecutor(OriginalPilotExecutor):
++    def __init__(self, plan, pilot_plan, arm, output, evidence, **options):
++        super().__init__(plan, evidence, **options)
++        self.gate = OriginalEvaluationGate(plan, pilot_plan, arm, output)
++        self.arm = arm
++        self.run_directory = Path(output)
++
++    def __call__(self):
++        if self.process is not None or self.cli_start_attempts:
++            raise WindowError('evaluation_callback_already_used')
++        self.check_request_binding()
++        pilot, evaluation, binding = self.gate.checked()
++        self.check_request_binding()
++        from am_style_r5 import pilot as pilot_module
++        from am_style_r5.common import read_json
++        from am_style_r5.runners import _validate_worker_completion, _parent_interruption
++        package = Path(pilot_module.__file__).resolve().parents[2]
++        _, env, _ = self.command(self.plan, pilot)
++        python = pilot['python_interpreter']['path']
++        argv = [python, str(package/'run.py'), 'eval-mlx', '--plan', str(self.plan),
++                '--manifest', pilot['manifest']['path'], '--arm', self.arm,
++                '--output', str(self.run_directory), '--worker-timeout', '300', '--execute']
++        if self.arm == 'mlx_sft':
++            argv += ['--sft-run', pilot['run_directory']]
++        commands = {'cli': argv, 'mlx_worker': [python, '-m', 'am_style_r5.runners',
++                    '--mlx-worker', str(self.run_directory/'request.json'), '--execute']}
++        self.evidence.mkdir(parents=True, mode=0o700, exist_ok=True)
++        if self.evidence.is_symlink():
++            raise WindowError('evaluation_evidence_symlink')
++        self.evidence.chmod(0o700)
++        reason = self.supervise()
++        if reason:
++            raise WindowError('evaluation_cancelled_before_cli:' + reason)
++        self.check_request_binding()
++        self.guard = BoundProcessGuard.create(self.evidence/'processes.json', python=python,
++            commands=commands, request_id=self.request_id, plan_path=self.plan,
++            run_directory=self.run_directory, sources={'runtime': pilot['runtime_source_binding'],
++                'run.py': digest(package/'run.py'), 'native_eval.py': digest(__file__)})
++        started = time.time(); deadline = min(self.expires_at or started+360, started+360)
++        reason = None; code = None
++        log = self.evidence/'original-cli.log'
++        try:
++            fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++            with os.fdopen(fd, 'wb') as stream:
++                self.cli_start_attempts += 1
++                self.process = subprocess.Popen(argv, cwd=package, env=env, stdin=subprocess.DEVNULL,
++                    stdout=stream, stderr=subprocess.STDOUT, start_new_session=True, shell=False)
++                self.guard.refresh()
++                while self.process.poll() is None:
++                    self.guard.refresh(); reason = self.supervise()
++                    if time.time() >= deadline:
++                        reason = 'evaluation_request_or_window_expired'
++                    if reason:
++                        self.guard.stop(reason, reap=self.process.poll); break
++                    time.sleep(.25)
++                code = self.process.poll()
++        except BaseException as exc:
++            reason = 'evaluation_supervision_exception:' + type(exc).__name__
++            if self.process is not None:
++                self.guard.stop(reason, reap=self.process.poll); code = self.process.poll()
++            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
++                raise
++        parent_path = self.run_directory/'parent-result.json'
++        if parent_path.is_file() and not parent_path.is_symlink():
++            parent = read_json(parent_path)
++            if parent.get('plan_sha256') != evaluation['sha256'] or parent.get('arm') != self.arm:
++                raise WindowError('evaluation_parent_binding')
++            self.guard.report_result_groups([{'attempted': True, 'pid': parent.get('pid')}])
++        stopped = self.stopped()
++        complete = code == 0 and stopped and reason is None
++        request_path = self.run_directory/'request.json'
++        if complete:
++            _validate_worker_completion(self.run_directory, read_json(request_path))
++        elif stopped and request_path.is_file() and not (self.run_directory/'parent-interruption-record.json').exists():
++            # Preserve any full outputs and the first interrupted attempt. The
++            # original collector retains all remaining cases as missing.
++            _parent_interruption(self.run_directory, read_json(request_path),
++                'cancelled' if reason else 'failed', reason or 'original_runner_failed', stopped=True)
++        process_snapshot = self.evidence/'processes-at-return.json'
++        private_json(process_snapshot, self.guard.data, exclusive=True)
++        result = {'schema': 'am-r7-mlx-window-execution/1', 'request_id': self.request_id,
++                  'plan_sha256': digest(self.plan), 'binding_sha256': binding, 'arm': self.arm,
++                  'command': argv, 'started': started, 'finished': time.time(),
++                  'cli_pid': self.process.pid if self.process else None, 'cli_returncode': code,
++                  'stop_confirmed': stopped, 'stop_reason': reason,
++                  'status': 'completed' if complete else 'blocked_or_failed',
++                  'process_ledger_sha256': digest(process_snapshot),
++                  'process_ledger_snapshot': process_snapshot.name, 'log_sha256': digest(log)}
++        path = self.evidence/'execution.json'; private_json(path, result, exclusive=True)
++        return ExecutionObservation(result['status'], stopped, digest(path))
+diff --git a/am-integrated-r6/am_training_window/native_r5.py b/am-integrated-r6/am_training_window/native_r5.py
+index a8ad7901..07c7d812 100644
+--- a/am-integrated-r6/am_training_window/native_r5.py
++++ b/am-integrated-r6/am_training_window/native_r5.py
+@@ -13,6 +13,7 @@ import subprocess
+ import time
+ import uuid
+ 
++from .process_guard import BoundProcessGuard, digest, private_json
+ from .r5_gate import OriginalR5InputGate
+ from .window import ExecutionObservation, WindowError
+ 
+@@ -38,63 +39,130 @@ def phase_stop_proof(result, check_group=group_gone):
+ 
+ 
+ class OriginalPilotExecutor:
+-    def __init__(self, plan_path, evidence_directory):
++    def __init__(self, plan_path, evidence_directory, *, request_id=None, supervise=None,
++                 expires_at=None, expected_plan_sha256=None):
+         self.plan=Path(plan_path)
+         self.evidence=Path(evidence_directory)
+         if not self.plan.is_absolute() or not self.evidence.is_absolute():raise ValueError('absolute original paths required')
+         self.process=None;self.run_directory=None;self.result=None;self.cli_start_attempts=0
++        self.request_id=request_id or str(uuid.uuid4())
++        uuid.UUID(self.request_id)
++        self.supervise=supervise or (lambda: None)
++        self.expires_at=expires_at
++        self.expected_plan_sha256=expected_plan_sha256
++        self.guard=None
++
++    def check_request_binding(self):
++        if self.expires_at is not None and time.time() >= self.expires_at:
++            raise WindowError('execution_request_expired')
++        if self.expected_plan_sha256 is not None and digest(self.plan) != self.expected_plan_sha256:
++            raise WindowError('execution_request_plan_changed')
+ 
+     def stopped(self):
+         # Called independently by TrainingWindow before any Q8 restoration.
+         if self.process is None:return self.cli_start_attempts==0
+-        if self.process.poll() is None:return False
+-        if not group_gone(self.process.pid):return False
+-        if self.result is None:
+-            # A denied original CLI created no run. Otherwise absence of result
+-            # is an unknown worker state, even if the parent has exited.
+-            return self.run_directory is not None and not self.run_directory.exists()
+-        return phase_stop_proof(self.result)
++        self.process.poll()
++        return self.guard is not None and self.guard.stopped()
++
++    @staticmethod
++    def command(plan_path, plan):
++        from am_style_r5 import pilot
++        root=Path(pilot.__file__).resolve().parents[2]
++        script=root/'run.py'
++        if not script.is_file():raise WindowError('original_r5_run_entry_missing')
++        roots=plan['runtime_source_binding']['roots']
++        env=dict(os.environ, AM_R5_HOST_SRC=roots['am_style'],
++                 AM_R5_TRAINING_ROOT=roots['training'],
++                 PYTHONPATH=os.pathsep.join((str(root/'src'),roots['am_style'],roots['training'])),
++                 PYTHONDONTWRITEBYTECODE='1')
++        argv=[plan['python_interpreter']['path'],str(script),'pilot-execute','--plan',str(plan_path),'--execute']
++        return argv,env,root
+ 
+     def __call__(self):
+         if self.process is not None or self.cli_start_attempts:raise WindowError('pilot_callback_already_used')
++        self.check_request_binding()
+         OriginalR5InputGate(self.plan)()  # Missing inputs do not even spawn a CLI.
++        self.check_request_binding()
+         from am_style_r5 import pilot
+         from am_style_r5.common import read_json
+         plan=read_json(self.plan)
+         self.run_directory=Path(plan['run_directory'])
+         if self.run_directory.exists():raise WindowError('original_run_directory_already_exists')
+         python=plan['python_interpreter']['path']
+-        package_root=Path(pilot.__file__).resolve().parents[1]
+         self.evidence.mkdir(mode=0o700,parents=True,exist_ok=True)
+         if self.evidence.is_symlink():raise WindowError('execution_evidence_symlink')
+-        label=uuid.uuid4().hex;log=self.evidence/(label+'.log')
+-        env=dict(os.environ,PYTHONPATH=str(package_root),PYTHONDONTWRITEBYTECODE='1')
+-        command=[python,'-m','am_style_r5','pilot-execute','--plan',str(self.plan),'--execute']
++        self.evidence.chmod(0o700)
++        reason=self.supervise()
++        if reason:raise WindowError('execution_cancelled_before_cli:'+reason)
++        self.check_request_binding()
++        log=self.evidence/'original-cli.log'
++        command,env,package_root=self.command(self.plan,plan)
++        commands={'cli':command,'r4_parent':[python,'-m','training.mlx_r4','--manifest',plan['manifest']['path'],
++            '--config',plan['config']['path'],'--output',str(self.run_directory),'--execute']}
++        for phase in ('fit','reload'):
++            commands[phase]=[python,'-m','training.mlx_r4','--worker',phase,
++                             '--request',str(self.run_directory/'request.json'),'--execute']
++        self.guard=BoundProcessGuard.create(self.evidence/'processes.json',python=python,
++            commands=commands,request_id=self.request_id,plan_path=self.plan,run_directory=self.run_directory,
++            sources={'runtime':plan['runtime_source_binding'],
++                     'run.py':digest(package_root/'run.py'),'native_r5.py':digest(__file__),
++                     'process_guard.py':digest(Path(__file__).with_name('process_guard.py'))})
+         started=time.time()
++        deadline=min(self.expires_at or started+660,started+660)
++        stop_reason=None;code=None
+         fd=os.open(log,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+-        with os.fdopen(fd,'wb') as stream:
+-            self.cli_start_attempts+=1
+-            self.process=subprocess.Popen(command,cwd=package_root,env=env,stdin=subprocess.DEVNULL,
+-                stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
+-            # The unchanged R4 owns the reviewed fit/reload timeout policy.
+-            # On interruption the caller retains maintenance until stopped().
+-            code=self.process.wait()
++        try:
++            with os.fdopen(fd,'wb') as stream:
++                self.cli_start_attempts+=1
++                self.process=subprocess.Popen(command,cwd=package_root,env=env,stdin=subprocess.DEVNULL,
++                    stdout=stream,stderr=subprocess.STDOUT,start_new_session=True,shell=False)
++                self.guard.refresh()
++                while self.process.poll() is None:
++                    self.guard.refresh()
++                    stop_reason=self.supervise()
++                    if time.time()>=deadline:stop_reason='request_or_total_window_expired'
++                    if stop_reason:
++                        self.guard.stop(stop_reason,reap=self.process.poll)
++                        break
++                    time.sleep(.25)
++                code=self.process.poll()
++        except BaseException as exc:
++            stop_reason='supervision_exception:'+type(exc).__name__
++            if self.process is not None:
++                self.guard.stop(stop_reason,reap=self.process.poll)
++                code=self.process.poll()
++            if isinstance(exc,(KeyboardInterrupt,SystemExit)):raise
+         result_path=self.run_directory/'result.json'
+         result_hash=None
+         if result_path.is_file() and not result_path.is_symlink() and result_path.stat().st_mtime>=started:
+             self.result=read_json(result_path)
+             if self.result.get('schema')!='am-style-mlx-r4-result/1':raise WindowError('original_r4_result_schema')
+             result_hash=hashlib.sha256(result_path.read_bytes()).hexdigest()
++            self.guard.report_result_groups(self.result.get('phases',[]))
+         stopped=self.stopped()
+-        completed=(code==0 and stopped and self.result is not None and self.result.get('mechanics_closed') is True
++        completed=(not stop_reason and code==0 and stopped and self.result is not None and self.result.get('mechanics_closed') is True
+                    and [p.get('phase') for p in self.result['phases']]==['fit','reload']
+                    and all(p.get('attempted') is True and p.get('status')=='completed' for p in self.result['phases']))
++        validated=None
++        if completed:
++            from am_style_r5.runners import validate_sft_run
++            try:
++                validated=validate_sft_run(self.run_directory,read_json(plan['manifest']['path']))
++                if read_json(self.run_directory/'request.json')['config']!=read_json(plan['config']['path']):
++                    raise WindowError('actual_request_differs_from_bound_plan')
++            except Exception as exc:
++                completed=False;stop_reason='completed_result_validation:'+str(exc)
++        process_snapshot=self.evidence/'processes-at-return.json'
++        private_json(process_snapshot,self.guard.data,exclusive=True)
+         evidence={'schema':'am-original-r5-execution-observation/1','started':started,'finished':time.time(),
++            'request_id':self.request_id,'plan_sha256':digest(self.plan),'command':command,
++            'source_environment':{k:env[k] for k in ('AM_R5_HOST_SRC','AM_R5_TRAINING_ROOT')},
++            'process_ledger_sha256':digest(process_snapshot),'process_ledger_snapshot':process_snapshot.name,
++            'stop_reason':stop_reason,'validated_pilot':validated,
+             'cli_pid':self.process.pid,'cli_returncode':code,'cli_start_attempts':self.cli_start_attempts,
+             'original_r4_result_sha256':result_hash,'original_phases':None if self.result is None else self.result.get('phases'),
+             'original_cli_group_gone':group_gone(self.process.pid),'independent_worker_groups_gone':stopped,
+             'status':'completed' if completed else 'blocked_or_failed','log_sha256':hashlib.sha256(log.read_bytes()).hexdigest()}
+-        raw=(json.dumps(evidence,ensure_ascii=False,sort_keys=True,indent=2)+'\n').encode()
+-        path=self.evidence/(label+'.json');fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+-        with os.fdopen(fd,'wb') as stream:stream.write(raw)
+-        return ExecutionObservation(evidence['status'],stopped,hashlib.sha256(raw).hexdigest())
++        path=self.evidence/'execution.json'
++        private_json(path,evidence,exclusive=True)
++        return ExecutionObservation(evidence['status'],stopped,digest(path))
+diff --git a/am-integrated-r6/am_training_window/process_guard.py b/am-integrated-r6/am_training_window/process_guard.py
+new file mode 100644
+index 00000000..f718c2c5
+--- /dev/null
++++ b/am-integrated-r6/am_training_window/process_guard.py
+@@ -0,0 +1,217 @@
++"""Durable, exact-command process supervision around unchanged R4 workers.
++
++The selected training Python supplies its existing psutil dependency. The live
++bridge needs only the standard library. No process-name kill, shell, or trainer
++patch is used. Restart recovery reads the same launch intent and identities.
++"""
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++from pathlib import Path
++import signal
++import subprocess
++import time
++import uuid
++
++from .window import WindowError
++
++
++def digest(path):
++    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
++
++
++def private_json(path, value, *, exclusive=False):
++    path = Path(path)
++    raw = (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
++    temp = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
++    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++    try:
++        with os.fdopen(fd, "wb") as stream:
++            stream.write(raw); stream.flush(); os.fsync(stream.fileno())
++        if exclusive:
++            os.link(temp, path)
++            temp.unlink()
++        else:
++            if path.is_symlink():
++                raise WindowError("private_evidence_symlink")
++            os.replace(temp, path)
++        directory = os.open(path.parent, os.O_RDONLY)
++        try:
++            os.fsync(directory)
++        finally:
++            os.close(directory)
++    finally:
++        if temp.exists():
++            temp.unlink()
++
++
++# Read argv and process creation time from the OS, not a trainer success flag.
++# Return only this run's exact commands and members of its recorded groups.
++_SCAN = r'''
++import json,os,sys,psutil
++q=json.load(sys.stdin); table={}; errors=[]
++for p in psutil.process_iter():
++    try:
++        with p.oneshot():
++            if p.uids().real!=os.getuid():continue
++            a=p.cmdline(); pg=os.getpgid(p.pid)
++            table[p.pid]={'pid':p.pid,'ppid':p.ppid(),'pgid':pg,'uid':p.uids().real,
++                'start_time':p.create_time(),'argv':a,'status':p.status()}
++    except psutil.NoSuchProcess:pass
++    except (psutil.AccessDenied,PermissionError):errors.append(p.pid)
++    except ProcessLookupError:pass
++def same(a,b):
++    return bool(a and b and os.path.realpath(a[0])==os.path.realpath(b[0]) and a[1:]==b[1:])
++matches=[]; groups=set(q['groups']); old=set(q['pids'])
++for p in table.values():
++    roles=[k for k,a in q['commands'].items() if same(p['argv'],a)]
++    if roles:
++        p['role']=roles[0]; matches.append(p); groups.add(p['pgid'])
++selected=[p for p in table.values() if p['pgid'] in groups or p['pid'] in old]
++print(json.dumps({'matches':matches,'members':selected,'unreadable_recorded_pids':list(old&set(errors))}))
++'''
++
++
++class BoundProcessGuard:
++    def __init__(self, path, data):
++        self.path, self.data = Path(path), data
++
++    @classmethod
++    def create(cls, path, *, python, commands, request_id, plan_path, run_directory, sources):
++        data = {"schema": "am-r7-process-ledger/1", "request_id": request_id,
++                "plan_path": str(plan_path), "plan_sha256": digest(plan_path),
++                "run_directory": str(run_directory), "python": str(python),
++                "python_sha256": digest(python), "commands": commands,
++                "launch_intent_at": time.time(), "sources": sources,
++                "processes": [], "reported_groups": [], "events": [], "stop_requested": False}
++        private_json(path, data, exclusive=True)
++        return cls(path, data)
++
++    @classmethod
++    def load(cls, path):
++        path = Path(path)
++        st = path.lstat()
++        if path.is_symlink() or st.st_uid != os.getuid() or st.st_mode & 0o077:
++            raise WindowError("process_ledger_not_private")
++        data = json.loads(path.read_text())
++        if data.get("schema") != "am-r7-process-ledger/1":
++            raise WindowError("process_ledger_schema")
++        uuid.UUID(data["request_id"])
++        if digest(data["python"]) != data["python_sha256"]:
++            raise WindowError("process_probe_interpreter_changed")
++        return cls(path, data)
++
++    def write(self):
++        private_json(self.path, self.data)
++
++    def refresh(self):
++        query = {"commands": self.data["commands"],
++                 "groups": list({p["pgid"] for p in self.data["processes"]} | set(self.data["reported_groups"])),
++                 "pids": [p["pid"] for p in self.data["processes"]]}
++        done = subprocess.run([self.data["python"], "-c", _SCAN], input=json.dumps(query),
++                              text=True, capture_output=True, timeout=5, check=True,
++                              env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
++        view = json.loads(done.stdout)
++        if view["unreadable_recorded_pids"]:
++            raise WindowError("recorded_process_identity_unreadable")
++        known = {p["pid"]: p for p in self.data["processes"]}
++        for p in view["matches"]:
++            if p["start_time"] < self.data["launch_intent_at"] - .02:
++                raise WindowError("matching_process_predates_this_launch")
++            if p["role"] in {"cli", "fit", "reload", "mlx_worker"} and p["pgid"] != p["pid"]:
++                raise WindowError("expected_independent_session_missing")
++            if p["pid"] in known and not self.same_identity(known[p["pid"]], p):
++                raise WindowError("recorded_pid_reused")
++            if p["pid"] not in known:
++                self.data["processes"].append(p.copy()); known[p["pid"]] = p
++        # Children such as sysctl share their verified parent's process group.
++        # Keep their OS identity too; a later unrelated process is not adopted.
++        changed = True
++        while changed:
++            changed = False
++            for p in view["members"]:
++                parent = known.get(p["ppid"])
++                if p["pid"] not in known and parent and p["start_time"] >= parent["start_time"] and p["pgid"] == parent["pgid"]:
++                    child = dict(p, role="descendant")
++                    self.data["processes"].append(child); known[p["pid"]] = child; changed = True
++        for p in view["members"]:
++            if p["pid"] in known and not self.same_identity(known[p["pid"]], p):
++                raise WindowError("recorded_pid_reused")
++        self.data["last_scan_at"] = time.time()
++        self.data["live_identities"] = view["members"]
++        self.write()
++        return view
++
++    @staticmethod
++    def same_identity(old, new):
++        return all(old.get(k) == new.get(k) for k in ("pid", "pgid", "uid", "start_time", "argv"))
++
++    def report_result_groups(self, phases):
++        for phase in phases:
++            pid = phase.get("pid")
++            if phase.get("attempted") is True and type(pid) is int and pid > 1:
++                self.data["reported_groups"] = sorted(set(self.data["reported_groups"]) | {pid})
++        self.write()
++
++    def stopped(self):
++        view = self.refresh()
++        if view["matches"] or view["members"]:
++            return False
++        groups = {p["pgid"] for p in self.data["processes"]} | set(self.data["reported_groups"])
++        for pgid in groups:
++            try:
++                os.killpg(pgid, 0)
++            except ProcessLookupError:
++                continue
++            except PermissionError:
++                return False
++            return False
++        # A crash before a worker identity was captured is not a stop proof.
++        if Path(self.data["run_directory"]).exists() and not self.data["reported_groups"] and not any(
++                p["role"] in {"fit", "reload", "mlx_worker"} for p in self.data["processes"]):
++            return False
++        return True
++
++    def signal_group(self, pgid, sig):
++        view = self.refresh()
++        members = [p for p in view["members"] if p["pgid"] == pgid]
++        known = {p["pid"]: p for p in self.data["processes"]}
++        if not members:
++            return
++        if any(p["pid"] not in known or not self.same_identity(known[p["pid"]], p) for p in members):
++            raise WindowError("unverified_process_group_member_no_signal")
++        if pgid <= 1 or pgid == os.getpgrp():
++            raise WindowError("refuse_controller_or_system_process_group")
++        self.data["events"].append({"at": time.time(), "pgid": pgid, "signal": int(sig),
++                                    "verified_pids": [p["pid"] for p in members]})
++        self.write()  # Intent is durable before the signal.
++        try:
++            os.killpg(pgid, sig)
++        except ProcessLookupError:
++            pass
++
++    def stop(self, reason, *, reap=lambda: None):
++        self.data.update(stop_requested=True, stop_reason=reason)
++        self.write()
++        self.refresh()
++        parents = {p["pgid"] for p in self.data["processes"] if p["role"] in {"cli", "r4_parent"}}
++        # Freeze the launchers first so cancellation cannot race a fresh reload.
++        for pgid in parents:
++            self.signal_group(pgid, signal.SIGSTOP)
++        self.refresh()
++        workers = {p["pgid"] for p in self.data["processes"] if p["role"] in {"fit", "reload", "mlx_worker"}}
++        for pgid in workers:
++            self.signal_group(pgid, signal.SIGTERM)
++        time.sleep(.25)
++        for pgid in workers | parents:
++            self.signal_group(pgid, signal.SIGKILL)
++        deadline = time.monotonic() + 8
++        while time.monotonic() < deadline:
++            reap()
++            if self.stopped():
++                self.data["stop_confirmed_at"] = time.time(); self.write()
++                return True
++            time.sleep(.1)
++        return False
+diff --git a/am-integrated-r6/am_training_window/window.py b/am-integrated-r6/am_training_window/window.py
+index 277e32c5..f06d3c34 100644
+--- a/am-integrated-r6/am_training_window/window.py
++++ b/am-integrated-r6/am_training_window/window.py
+@@ -234,7 +234,7 @@ class TrainingWindow:
+                 gate = fresh_gate()
+                 _check_gate(gate)
+                 self.journal.write("input_ready", input_binding=gate.binding_sha256)
+-            _check_host(self.host.inspect(), self.binding, None, model="present")
++            _check_host(self.host.inspect(), self.binding, None)
+             # Intent is durable before attempting the fence, so partial failures
+             # can be reconciled using the exact window owner on the real host.
+             self.journal.write("fencing")
+@@ -243,6 +243,14 @@ class TrainingWindow:
+             # This is only the original coordinator lock, without R4's >=24 GiB
+             # entry check, because freeing memory is the purpose of this phase.
+             with self.original_lock():
++                # The original Q8 may have expired while idle. Establish its
++                # exact identity under the SAME fence/lock before unloading.
++                observed = self.host.inspect()
++                _check_host(observed, self.binding, self.owner, idle=True)
++                if not observed.loaded_models:
++                    self.journal.write("preloading_original_model", suspend_attempted=True)
++                    self.host.restore_exact_model(self.owner, self.binding)
++                    self.journal.write("original_model_preloaded")
+                 _check_host(self.host.inspect(), self.binding, self.owner, idle=True, model="present")
+                 before = dict(self.probe())
+                 self.journal.data["observations"]["before_unload"] = before
+@@ -290,16 +298,17 @@ class TrainingWindow:
+                 # Busy/preparation failure before any unload: leave existing
+                 # running business alone and release only our admission marker.
+                 # Taking its model lock here would block the very task draining.
+-                _check_host(observed, self.binding, self.owner, model="present")
++                _check_host(observed, self.binding, self.owner)
+                 self._cleanup_record("unchanged_verified", restore_verified=True)
+                 self.host.open_admission(self.owner)
+-                _check_host(self.host.inspect(), self.binding, None, model="present")
++                _check_host(self.host.inspect(), self.binding, None)
+                 return True
+             if observed.fence_owner is None and (not self.journal.data["suspend_attempted"] or self.journal.data["restore_verified"]):
+                 # Pre-input failure has no side effects. Verify, don't mutate.
+                 if self.journal.data["trainer_invoked"] and (trainer_stopped is None or trainer_stopped() is not True):
+                     raise WindowError("trainer_stop_unconfirmed_no_model_reload")
+-                _check_host(observed, self.binding, None, model="present")
++                _check_host(observed, self.binding, None,
++                            model="present" if self.journal.data["suspend_attempted"] else None)
+                 self._cleanup_record("unchanged_verified", restore_verified=True)
+                 return True
+             if self.journal.data["trainer_invoked"] and (trainer_stopped is None or trainer_stopped() is not True):
+diff --git a/am-integrated-r6/tests/integration/test_r7_training_control.py b/am-integrated-r6/tests/integration/test_r7_training_control.py
+new file mode 100644
+index 00000000..547187cc
+--- /dev/null
++++ b/am-integrated-r6/tests/integration/test_r7_training_control.py
+@@ -0,0 +1,176 @@
++"""Training control wiring uses synthetic ports; no actual fit is claimed."""
++import json
++from pathlib import Path
++from types import SimpleNamespace
++import time
++import uuid
++import sqlite3
++import threading
++
++import am_training_control as control
++from am_training_window.native_r5 import OriginalPilotExecutor
++from am_training_window.process_guard import digest
++from am_training_window.window import HostBinding, ModelIdentity
++
++
++def make_request(tmp_path, monkeypatch):
++    monkeypatch.setattr(control, 'REPO', tmp_path)
++    host = object.__new__(control.NativeTrainingControl)
++    host.root = tmp_path/'control'; host.root.mkdir()
++    host.plan_scope = tmp_path/'private'; host.plan_scope.mkdir()
++    host.last_queue_classification = {'model_demand': {}}
++    plan_dir = host.plan_scope/'plan'; plan_dir.mkdir()
++    plan = plan_dir/'plan.json'
++    plan.write_text(json.dumps({'runtime_source_binding': {'roots': {
++        'am_style': str(tmp_path/'am-conversation-r1/src'), 'training': str(tmp_path/'am-style-r3')}},
++        'manifest': {'path': str(tmp_path/'AM-HARNESS-20261031-01/R4/private/mlx-base.json')},
++        'run_directory': str(host.plan_scope/'run-001')}))
++    request = {'operation': 'train', 'request_id': str(uuid.uuid4()), 'expires_at': time.time()+60,
++               'plan': str(plan), 'plan_sha256': digest(plan), 'run_id': 'run-001'}
++    return host, request
++
++
++def test_train_request_reaches_original_window_and_duplicate_never_relaunches(tmp_path, monkeypatch):
++    host, request = make_request(tmp_path, monkeypatch)
++    calls = []
++    monkeypatch.setattr(control, 'OriginalR5InputGate', lambda path: lambda: calls.append('fresh_gate'))
++    binding = HostBinding('test-instance', 'b'*64, ModelIdentity('original', 'a'*64), 'llamacpp')
++    monkeypatch.setattr(host, 'setup', lambda: (None, binding, SimpleNamespace(events=[]), None, lambda: {}))
++    class Window:
++        def __init__(self, *args): self.journal = args[-1]
++        def train(self, gate, executor, stopped):
++            calls.append('TrainingWindow.train')
++            assert isinstance(executor, OriginalPilotExecutor)
++            assert executor.request_id == request['request_id']
++            gate()
++            return {'status': 'completed', 'synthetic_wiring_only': True}
++    monkeypatch.setattr(control, 'TrainingWindow', Window)
++    p = host.root/'first.request.claimed'; p.write_text(json.dumps(request)); host.run(p)
++    assert json.loads((host.root/'first.result.json').read_text())['ok'] is True
++    p = host.root/'duplicate.request.claimed'; p.write_text(json.dumps(request)); host.run(p)
++    assert json.loads((host.root/'duplicate.result.json').read_text())['ok'] is False
++    assert calls.count('TrainingWindow.train') == 1
++
++
++def test_changed_plan_rejected_before_host_lifecycle(tmp_path, monkeypatch):
++    host, request = make_request(tmp_path, monkeypatch)
++    Path(request['plan']).write_text('{}')
++    monkeypatch.setattr(host, 'setup', lambda: (_ for _ in ()).throw(AssertionError('host touched')))
++    p = host.root/'changed.request.claimed'; p.write_text(json.dumps(request)); host.run(p)
++    assert json.loads((host.root/'changed.result.json').read_text())['error'] == 'training_plan_scope_or_digest'
++
++
++def test_cancel_is_bound_to_request_and_plan(tmp_path, monkeypatch):
++    host, request = make_request(tmp_path, monkeypatch)
++    p = host.root/(request['request_id']+'.cancel.json')
++    p.write_text(json.dumps({k: request[k] for k in ('request_id', 'plan_sha256', 'expires_at')})); p.chmod(0o600)
++    assert host.cancelled(request)
++
++
++def test_native_cli_uses_real_run_file_and_explicit_current_roots(tmp_path):
++    plan = {'python_interpreter': {'path': '/test/python'},
++            'runtime_source_binding': {'roots': {'am_style': '/test/host', 'training': '/test/training'}}}
++    argv, env, cwd = OriginalPilotExecutor.command(tmp_path/'plan.json', plan)
++    assert argv[1] == str(cwd/'run.py') and (cwd/'run.py').is_file()
++    assert argv[2:] == ['pilot-execute', '--plan', str(tmp_path/'plan.json'), '--execute']
++    assert env['AM_R5_HOST_SRC'] == '/test/host' and env['AM_R5_TRAINING_ROOT'] == '/test/training'
++
++
++def test_complete_model_demand_observation_preserves_pure_io(tmp_path):
++    host = object.__new__(control.NativeTrainingControl)
++    db = sqlite3.connect(':memory:'); db.row_factory = sqlite3.Row
++    db.executescript('''CREATE TABLE am_harness_runs(state TEXT);
++        CREATE TABLE am_inbox(state TEXT,expires REAL,kind TEXT);
++        CREATE TABLE tasks(state TEXT); CREATE TABLE outbox(state TEXT,expires REAL);
++        INSERT INTO am_inbox VALUES('source_wait',99999999999,'conversation');
++        INSERT INTO am_inbox VALUES('source_wait',99999999999,'text');
++        INSERT INTO am_inbox VALUES('received',99999999999,'text');
++        INSERT INTO outbox VALUES('pending',99999999999);''')
++    host.store = SimpleNamespace(clock=lambda: time.time(), rows=lambda sql, args=():
++                                [dict(r) for r in db.execute(sql, args)])
++    chat = sqlite3.connect(':memory:'); chat.execute('CREATE TABLE inbox(state TEXT)')
++    group = sqlite3.connect(':memory:'); group.row_factory = sqlite3.Row
++    group.executescript("CREATE TABLE ledger_inbox(state TEXT,question TEXT);"
++                       "INSERT INTO ledger_inbox VALUES('queued','help');"
++                       "INSERT INTO ledger_inbox VALUES('queued','model query');")
++    info_root = tmp_path/'info'; info_root.mkdir()
++    with sqlite3.connect(info_root/'information.sqlite3') as c:
++        from am_info_sync.models import Source
++        c.executescript("CREATE TABLE jobs(kind TEXT,state TEXT,payload_json TEXT);"
++                       "CREATE TABLE sources(source_id TEXT,config_json TEXT);")
++        c.execute('INSERT INTO sources VALUES(?,?)', ('chat', json.dumps(Source('chat','im_chat','remote','tenant','owner').to_dict())))
++        c.execute('INSERT INTO jobs VALUES(?,?,?)', ('extract','pending',json.dumps({'source_id':'chat'})))
++        c.execute('INSERT INTO jobs VALUES(?,?,?)', ('collect','leased','{}'))
++    probe = tmp_path/'probe'; (probe/'requests').mkdir(parents=True)
++    finalizer = SimpleNamespace(directory=probe, future=None)
++    am = SimpleNamespace(training_requires_model=lambda row: row['kind']=='conversation',
++        conversation_futures=set(), conversation=SimpleNamespace(agent=SimpleNamespace(output_finalizer=finalizer)))
++    host.bridge = SimpleNamespace(am_self=am, mutex=threading.RLock(), db=chat,
++        group_ledger=SimpleNamespace(mutex=threading.RLock(), db=group,
++                                    can_process_without_model=lambda row: row['question']=='help'),
++        information=SimpleNamespace(root=info_root))
++    counts = host.queue_counts()
++    assert counts['source_wait']==1 and counts['group_ledger_model']==1 and counts['information_extract']==1
++    assert host.last_queue_classification['pure_io_am_rows']==2
++    assert host.last_queue_classification['delivery_outbox']==1
++    assert sum(counts.values())==3
++    db.execute("DELETE FROM am_inbox WHERE kind='conversation'")
++    group.execute("DELETE FROM ledger_inbox WHERE question='model query'")
++    with sqlite3.connect(info_root/'information.sqlite3') as c:
++        c.execute("DELETE FROM jobs WHERE kind='extract'")
++    assert sum(host.queue_counts().values())==0
++    (probe/'requests/queued.json').write_text('{}')
++    assert host.queue_counts()['original_probe_queue']==1
++    db.close(); chat.close(); group.close()
++
++
++def test_structured_information_jobs_do_not_need_model_or_change_business_state(tmp_path):
++    from am_info_sync.models import Source
++    host=object.__new__(control.NativeTrainingControl)
++    info=SimpleNamespace(root=tmp_path)
++    path=tmp_path/'information.sqlite3'
++    with sqlite3.connect(path) as c:
++        c.executescript('CREATE TABLE sources(source_id TEXT,config_json TEXT);'
++            'CREATE TABLE jobs(kind TEXT,state TEXT,payload_json TEXT);'
++            'CREATE TABLE observations(source_id TEXT,object_id TEXT,version TEXT,payload_json TEXT);')
++        sources=[Source('fields','bitable_snapshot','remote','tenant','owner',settings={'fact_mappings':{'record':{}}}),
++                 Source('text','bitable_snapshot','remote','tenant','owner',settings={'fact_mappings':{'record':{}},'extract_text':True}),
++                 Source('chat','im_chat','remote','tenant','owner',settings={'fact_mappings':{'record':{}}})]
++        for s in sources:
++            c.execute('INSERT INTO sources VALUES(?,?)',(s.source_id,json.dumps(s.to_dict())))
++            c.execute('INSERT INTO jobs VALUES(?,?,?)',('extract','pending',json.dumps({'source_id':s.source_id})))
++        c.execute('INSERT INTO jobs VALUES(?,?,?)',('extract','leased','{}'))
++    before=path.read_bytes()
++    assert host.information_demand(info)=={'model_required':2,'deterministic_io':1,'unknown':1}
++    assert path.read_bytes()==before
++
++
++def test_expired_request_does_not_touch_host(tmp_path, monkeypatch):
++    host, request = make_request(tmp_path, monkeypatch)
++    request['expires_at'] = time.time()-1
++    monkeypatch.setattr(host, 'setup', lambda: (_ for _ in ()).throw(AssertionError('host touched')))
++    p = host.root/'expired.request.claimed'; p.write_text(json.dumps(request)); host.run(p)
++    assert json.loads((host.root/'expired.result.json').read_text())['error']=='training_request_expired_or_unbounded'
++
++
++def test_eval_uses_same_training_window_without_bypassing_original_pilot(tmp_path, monkeypatch):
++    host, request = make_request(tmp_path, monkeypatch)
++    original = Path(request['plan'])
++    eval_dir = host.plan_scope/'eval'; eval_dir.mkdir()
++    plan = eval_dir/'plan.json'; plan.write_text('{}')
++    request.update(operation='eval-mlx', pilot_plan=str(original), pilot_plan_sha256=digest(original),
++                   plan=str(plan), plan_sha256=digest(plan), arm='mlx_base', run_id='eval-base-001')
++    calls=[]
++    monkeypatch.setattr(control, 'OriginalEvaluationGate', lambda *args: lambda: calls.append('eval_gate'))
++    binding=HostBinding('test-instance','b'*64,ModelIdentity('original','a'*64),'llamacpp')
++    monkeypatch.setattr(host,'setup',lambda:(None,binding,SimpleNamespace(events=[]),None,lambda:{}))
++    class Window:
++        def __init__(self,*args): pass
++        def train(self,gate,executor,stopped):
++            assert isinstance(executor,control.OriginalMlxEvalExecutor)
++            calls.append('eval_window');gate()
++            return {'status':'completed','synthetic_wiring_only':True}
++    monkeypatch.setattr(control,'TrainingWindow',Window)
++    p=host.root/'eval.request.claimed';p.write_text(json.dumps(request));host.run(p)
++    assert json.loads((host.root/'eval.result.json').read_text())['ok'] is True
++    assert calls.count('eval_window')==1 and calls.count('eval_gate')==2
+diff --git a/am-integrated-r6/tests/resource_window/test_r7_process_guard.py b/am-integrated-r6/tests/resource_window/test_r7_process_guard.py
+new file mode 100644
+index 00000000..e6f7b634
+--- /dev/null
++++ b/am-integrated-r6/tests/resource_window/test_r7_process_guard.py
+@@ -0,0 +1,106 @@
++"""Real isolated OS process control; no model, training, or business service."""
++import json
++import os
++from pathlib import Path
++import signal
++import subprocess
++import sys
++import tempfile
++import time
++import unittest
++import uuid
++
++from am_training_window.process_guard import BoundProcessGuard, private_json
++from am_training_window.window import WindowError
++
++
++class ProcessGuardTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name).resolve()
++        self.python = os.environ.get('AM_R7_TEST_PYTHON', sys.executable)
++        self.plan = self.root/'plan.json'; self.plan.write_text('{}')
++        self.children = []
++        self.addCleanup(self.cleanup_children)
++
++    def cleanup_children(self):
++        for p in self.children:
++            if p.poll() is None:
++                try: os.killpg(p.pid, signal.SIGKILL)
++                except ProcessLookupError: pass
++            p.wait(timeout=5)
++
++    def start(self, argv):
++        p = subprocess.Popen(argv, start_new_session=True, stdin=subprocess.DEVNULL,
++                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++        self.children.append(p)
++        return p
++
++    def guard(self, commands):
++        return BoundProcessGuard.create(self.root/'processes.json', python=self.python,
++            commands=commands, request_id=str(uuid.uuid4()), plan_path=self.plan,
++            run_directory=self.root/'run', sources={'synthetic_process_control_only': True})
++
++    def test_independent_fit_reload_groups_are_stopped_unrelated_process_survives(self):
++        commands = {role: [self.python, '-c', 'import time;time.sleep(40)', role, str(self.root)]
++                    for role in ('cli', 'fit', 'reload')}
++        guard = self.guard(commands)
++        owned = [self.start(argv) for argv in commands.values()]
++        unrelated = self.start([self.python, '-c', 'import time;time.sleep(40)', 'unrelated', str(self.root)])
++        guard.refresh()
++        self.assertEqual({p['role'] for p in guard.data['processes']}, set(commands))
++        self.assertEqual(len({p['pgid'] for p in guard.data['processes']}), 3)
++        self.assertFalse(guard.stopped())
++        self.assertTrue(guard.stop('synthetic_cancel', reap=lambda: [p.poll() for p in owned]))
++        self.assertIsNone(unrelated.poll())
++        self.assertTrue(BoundProcessGuard.load(guard.path).stopped())
++
++    def test_new_interpreter_recovers_from_durable_ledger_without_resume(self):
++        commands = {'fit': [self.python, '-c', 'import time;time.sleep(40)', str(self.root)]}
++        guard = self.guard(commands); worker = self.start(commands['fit']); guard.refresh()
++        # A separate interpreter reconstructs discovery/signalling from disk.
++        code = ('import sys,json;from am_training_window.process_guard import BoundProcessGuard;'
++                'g=BoundProcessGuard.load(sys.argv[1]);g.stop("synthetic_restart_recovery");'
++                'print(json.dumps(g.data))')
++        proc = subprocess.Popen([self.python, '-c', code, str(guard.path)],
++            env=os.environ.copy(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++        while proc.poll() is None:
++            worker.poll(); time.sleep(.05)
++        out, err = proc.communicate(timeout=5)
++        self.assertEqual(proc.returncode, 0, err)
++        result = json.loads(out)
++        self.assertEqual(result['stop_reason'], 'synthetic_restart_recovery')
++        self.assertTrue(BoundProcessGuard.load(guard.path).stopped())
++        self.assertEqual(len(result['processes']), 1)
++
++    def test_pid_start_identity_mismatch_is_never_signalled(self):
++        commands = {'fit': [self.python, '-c', 'import time;time.sleep(40)', str(self.root)]}
++        guard = self.guard(commands); worker = self.start(commands['fit']); guard.refresh()
++        guard.data['processes'][0]['start_time'] -= 10
++        with self.assertRaisesRegex(WindowError, 'recorded_pid_reused'):
++            guard.stop('synthetic_bad_identity')
++        self.assertIsNone(worker.poll())
++        self.assertEqual(guard.data['events'], [])
++
++    def test_unknown_worker_state_does_not_allow_model_restoration(self):
++        guard = self.guard({})
++        (self.root/'run').mkdir()
++        self.assertFalse(guard.stopped())
++
++    def test_ledger_creation_cannot_overwrite_an_existing_request(self):
++        guard = self.guard({})
++        original = guard.path.read_bytes()
++        with self.assertRaises(FileExistsError):
++            self.guard({})
++        self.assertEqual(guard.path.read_bytes(), original)
++
++    def test_immutable_return_snapshot_survives_later_fresh_stop_checks(self):
++        guard = self.guard({})
++        self.assertTrue(guard.stopped())
++        path = self.root/'processes-at-return.json'
++        private_json(path, guard.data, exclusive=True)
++        saved = path.read_bytes()
++        self.assertTrue(guard.stopped())
++        self.assertEqual(path.read_bytes(), saved)
++        self.assertNotEqual(guard.path.read_bytes(), saved)
+diff --git a/am-integrated-r6/tests/resource_window/test_window.py b/am-integrated-r6/tests/resource_window/test_window.py
+index 43908027..258428cc 100644
+--- a/am-integrated-r6/tests/resource_window/test_window.py
++++ b/am-integrated-r6/tests/resource_window/test_window.py
+@@ -121,6 +121,21 @@ class TrainingWindowTests(unittest.TestCase):
+         self.assertLess(self.host.calls.index("unlock"), self.host.calls.index("trainer"))
+         self.assertLess(self.host.calls.index("restore"), self.host.calls.index("unfence"))
+ 
++    def test_idle_expired_q8_is_preloaded_under_same_fence_and_lock(self):
++        self.host.value = replace(self.host.value, loaded_models=())
++        result = self.window('training').train(self.gate, self.executor, lambda: True)
++        self.assertEqual(result['status'], 'completed')
++        self.assertLess(self.host.calls.index('fence'), self.host.calls.index('restore'))
++        self.assertLess(self.host.calls.index('restore'), self.host.calls.index('unload'))
++        self.assertEqual(self.host.calls.count('restore'), 2)
++
++    def test_blocked_inputs_with_idle_expired_q8_have_no_lifecycle_side_effect(self):
++        self.host.value = replace(self.host.value, loaded_models=())
++        result = self.window('training').train(lambda: GateObservation(False, 'c'*64, ('missing',)), self.executor, lambda: True)
++        self.assertEqual(result['status'], 'failed_restored')
++        self.assertEqual(self.host.calls, [])
++        self.assertEqual(self.host.value.loaded_models, ())
++
+     def test_changed_gate_during_drain_blocks_and_restores(self):
+         gates = iter((GateObservation(True, "c" * 64), GateObservation(True, "d" * 64)))
+         result = self.window("training").train(lambda: next(gates), self.executor, lambda: True)
+diff --git a/am-integrated-r6/tools/training_control.py b/am-integrated-r6/tools/training_control.py
+new file mode 100644
+index 00000000..39bd3669
+--- /dev/null
++++ b/am-integrated-r6/tools/training_control.py
+@@ -0,0 +1,73 @@
++"""Submit or inspect one exact private R7 request; never run a shell or worker.
++
++The original bridge performs all fresh gates, ownership checks and execution.
++Submitting a request is not proof that a trainer started or completed.
++"""
++from pathlib import Path
++import argparse
++import json
++import sys
++import time
++import uuid
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(ROOT/'am-integrated-r6'))
++from am_training_window.process_guard import digest, private_json
++
++
++def main():
++    p = argparse.ArgumentParser(description=__doc__)
++    p.add_argument('operation', choices=('train', 'eval-mlx', 'cancel', 'recover', 'inspect'))
++    p.add_argument('--plan', type=Path)
++    p.add_argument('--pilot-plan', type=Path)
++    p.add_argument('--arm', choices=('mlx_base', 'mlx_sft'))
++    p.add_argument('--run-id')
++    p.add_argument('--request-id')
++    p.add_argument('--expires-seconds', type=int, default=900)
++    p.add_argument('--execute', action='store_true')
++    a = p.parse_args()
++    cfg = json.loads((Path.home()/'.local/share/local-qwen-feishu/config.json').read_text())
++    control = Path(cfg['state_directory'])/'training-window-r7'
++    if not control.is_dir() or control.is_symlink():
++        p.error('original live training control directory is not installed')
++    if not 1 <= a.expires_seconds <= 3600:
++        p.error('expiry must be within 1..3600 seconds')
++    request_id = a.request_id or str(uuid.uuid4())
++    if str(uuid.UUID(request_id)) != request_id:
++        p.error('request ID must be a canonical UUID')
++    if a.operation in ('cancel', 'recover', 'inspect') and not a.request_id:
++        p.error('supply the original --request-id')
++    if a.operation == 'inspect':
++        files = [control/(request_id+suffix) for suffix in ('.receipt.json', '.journal.json', '.result.json')]
++        print(json.dumps({x.name: json.loads(x.read_text()) for x in files if x.is_file()}, ensure_ascii=False, indent=2))
++        return 0
++    request = {'operation': a.operation, 'request_id': request_id,
++               'expires_at': time.time()+a.expires_seconds}
++    suffix = '.request.json'
++    if a.operation in ('train', 'eval-mlx'):
++        if a.plan is None or not a.plan.is_absolute():
++            p.error('supply the actual absolute --plan')
++        plan = json.loads(a.plan.read_text())
++        run_id = Path(plan['run_directory']).name if a.operation == 'train' else a.run_id
++        request.update(plan=str(a.plan), plan_sha256=digest(a.plan), run_id=run_id)
++        if a.operation == 'eval-mlx':
++            if not a.pilot_plan or not a.pilot_plan.is_absolute() or not a.arm or not run_id:
++                p.error('evaluation requires --pilot-plan, --arm and new --run-id')
++            request.update(pilot_plan=str(a.pilot_plan), pilot_plan_sha256=digest(a.pilot_plan), arm=a.arm)
++    elif a.operation == 'cancel':
++        original = json.loads((control/(request_id+'.receipt.json')).read_text())
++        request = {'request_id': request_id, 'plan_sha256': original['plan_sha256'],
++                   'expires_at': request['expires_at']}
++        suffix = '.cancel.json'
++    # Recovery uses a fresh envelope filename while retaining the original ID.
++    name = request_id if a.operation != 'recover' else request_id+'-recover-'+uuid.uuid4().hex
++    destination = control/(name+suffix)
++    if a.execute:
++        private_json(destination, request, exclusive=True)
++    print(json.dumps({'submitted': a.execute, 'request_id': request_id, 'path': str(destination),
++                      'request': request, 'training_status': 'not_observed'}, ensure_ascii=False, indent=2))
++    return 0
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())
+diff --git a/local-qwen3.8/feishu-bridge/am_training_control.py b/local-qwen3.8/feishu-bridge/am_training_control.py
+new file mode 100644
+index 00000000..3980baf9
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/am_training_control.py
+@@ -0,0 +1,261 @@
++"""Private R7 training requests executed inside the original live consumer.
++
++The diagnostic port retains its diagnostic/recover contract. This separate
++port accepts only a sealed local pilot plan, a unique request/run identity and
++an expiry. Cancellation and restart recovery never start or resume training.
++"""
++from __future__ import annotations
++
++import json
++import math
++import os
++from pathlib import Path
++import re
++import sqlite3
++import sys
++import time
++import uuid
++
++from am_resource_window import NativeResourceWindow, REPO
++from am_training_window.native_r5 import OriginalPilotExecutor
++from am_training_window.native_eval import OriginalEvaluationGate, OriginalMlxEvalExecutor
++from am_training_window.process_guard import BoundProcessGuard, digest, private_json
++from am_training_window.r5_gate import OriginalR5InputGate
++from am_training_window.window import Journal, TrainingWindow, WindowError, _check_host
++
++
++class NativeTrainingControl(NativeResourceWindow):
++    def __init__(self, bridge):
++        super().__init__(bridge)
++        self.root = bridge.root / 'training-window-r7'
++        self.root.mkdir(mode=0o700, exist_ok=True)
++        if self.root.is_symlink():
++            raise WindowError('training_control_directory_symlink')
++        self.root.chmod(0o700)
++        self.plan_scope = (REPO / 'AM-HARNESS-20261031-01/R7/private').resolve()
++
++    def information_demand(self, info):
++        """Reuse the extraction worker's exact deterministic/model boundary.
++
++        A job named 'extract' can be a trusted field mapping with no model call.
++        Inspect only routing metadata (manual provenance when needed), never
++        change a job state, and retain malformed/unknown jobs as demand.
++        """
++        from am_info_sync.models import Source
++        from am_info_sync.facts import _structured_enabled, _trusted_manual_actor
++        result = {'model_required': 0, 'deterministic_io': 0, 'unknown': 0}
++        db = info.root/'information.sqlite3'
++        with sqlite3.connect(db.resolve().as_uri()+'?mode=ro', uri=True, timeout=.3) as connection:
++            connection.execute('BEGIN')
++            for (raw,) in connection.execute("SELECT payload_json FROM jobs WHERE kind='extract' AND state IN ('pending','leased')"):
++                try:
++                    job = json.loads(raw)
++                    row = connection.execute('SELECT config_json FROM sources WHERE source_id=?', (job['source_id'],)).fetchone()
++                    source = Source.from_dict(json.loads(row[0]))
++                    deterministic = _structured_enabled(source) and bool(source.settings.get('fact_mappings'))
++                    if source.kind == 'manual':
++                        row = connection.execute('SELECT payload_json FROM observations WHERE source_id=? AND object_id=? AND version=?',
++                            (job['source_id'], job['object_id'], job['version'])).fetchone()
++                        payload = json.loads(row[0])
++                        deterministic = _trusted_manual_actor(source, payload) and bool(payload.get('structured_claims'))
++                    key = 'deterministic_io' if deterministic and not source.settings.get('extract_text', False) else 'model_required'
++                    result[key] += 1
++                except (ValueError, TypeError, KeyError, IndexError):
++                    result['unknown'] += 1
++            connection.rollback()
++        return result
++
++    def queue_counts(self):
++        """Classify with the host's own routing; preserve pure-I/O work."""
++        now = self.store.clock()
++        counts = {'harness': self.store.rows(
++            "SELECT count(*) AS n FROM am_harness_runs WHERE state IN ('queued','running')")[0]['n']}
++        rows = self.store.rows("SELECT * FROM am_inbox WHERE state IN "
++            "('received','processing','harness_admitting','source_wait') AND expires>?", (now,))
++        counts['am_model_demand'] = sum(row['state'] != 'source_wait' and
++            self.bridge.am_self.training_requires_model(dict(row)) for row in rows)
++        counts['source_wait'] = sum(row['state'] == 'source_wait' and
++            self.bridge.am_self.training_requires_model(dict(row)) for row in rows)
++        counts['tasks'] = self.store.rows("SELECT count(*) AS n FROM tasks WHERE state NOT IN "
++            "('done','completed','expired','timed_out','failed','cancelled','canceled','rejected')")[0]['n']
++        with self.bridge.mutex:
++            counts['ordinary_chat'] = self.bridge.db.execute("SELECT count(*) FROM inbox WHERE state NOT IN "
++                "('done','completed','expired','timed_out','failed','cancelled','canceled','rejected','sending')").fetchone()[0]
++        ledger = self.bridge.group_ledger
++        if ledger is not None:
++            with ledger.mutex:
++                group_rows = ledger.db.execute("SELECT * FROM ledger_inbox WHERE state IN ('queued','processing')").fetchall()
++            counts['group_ledger_model'] = sum(not ledger.can_process_without_model(dict(row)) for row in group_rows)
++        info = self.bridge.information
++        information = {'model_required': 0, 'deterministic_io': 0, 'unknown': 0}
++        if info is not None:
++            information = self.information_demand(info)
++            counts['information_extract'] = information['model_required'] + information['unknown']
++        conversation = getattr(self.bridge.am_self, 'conversation', None)
++        finalizer = getattr(getattr(conversation, 'agent', None), 'output_finalizer', None)
++        if finalizer is not None:
++            counts['original_probe_queue'] = len(list((finalizer.directory/'requests').glob('*.json')))
++            future = getattr(finalizer, 'future', None)
++            counts['original_probe_active'] = int(future is not None and not future.done())
++        counts['conversation_futures'] = sum(not f.done() for f in
++            list(getattr(self.bridge.am_self, 'conversation_futures', ())))
++        self.last_queue_classification = {
++            'model_demand': counts.copy(),
++            'information_jobs': information,
++            'pure_io_am_rows': sum(not self.bridge.am_self.training_requires_model(dict(r)) for r in rows),
++            'delivery_outbox': self.store.rows("SELECT count(*) AS n FROM outbox WHERE state IN "
++                "('pending','sending') AND expires>?", (now,))[0]['n'],
++            'policy': 'original route classification; source_wait retained; deliveries and source I/O continue',
++        }
++        return counts
++
++    def validate_request(self, request):
++        operation = request.get('operation')
++        keys = {'operation', 'request_id', 'expires_at'}
++        if operation in ('train', 'eval-mlx'):
++            keys |= {'plan', 'plan_sha256', 'run_id'}
++        if operation == 'eval-mlx':
++            keys |= {'pilot_plan', 'pilot_plan_sha256', 'arm'}
++        if set(request) != keys or operation not in ('train', 'eval-mlx', 'recover'):
++            raise WindowError('training_request_schema')
++        request_id = request['request_id']
++        if str(uuid.UUID(request_id)) != request_id:
++            raise WindowError('training_request_id_not_canonical')
++        expiry = request['expires_at']
++        if type(expiry) not in (float, int) or not math.isfinite(expiry) or not time.time() < expiry <= time.time()+3600:
++            raise WindowError('training_request_expired_or_unbounded')
++        if operation in ('train', 'eval-mlx'):
++            path = Path(request['plan'])
++            if (not path.is_absolute() or path.is_symlink() or not path.resolve().is_relative_to(self.plan_scope)
++                    or path.name != 'plan.json' or digest(path) != request['plan_sha256']):
++                raise WindowError('training_plan_scope_or_digest')
++            plan = json.loads(path.read_text())
++            if operation == 'eval-mlx':
++                original = Path(request['pilot_plan'])
++                if (not original.is_absolute() or original.is_symlink()
++                        or not original.resolve().is_relative_to(self.plan_scope)
++                        or digest(original) != request['pilot_plan_sha256']
++                        or request['arm'] not in ('mlx_base', 'mlx_sft')):
++                    raise WindowError('evaluation_pilot_or_arm_binding')
++                plan = json.loads(original.read_text())
++            if (plan['runtime_source_binding']['roots'] != {
++                    'am_style': str(REPO/'am-conversation-r1/src'), 'training': str(REPO/'am-style-r3')}
++                    or Path(plan['manifest']['path']) != REPO/'AM-HARNESS-20261031-01/R4/private/mlx-base.json'):
++                raise WindowError('training_requires_current_original_runtime')
++            if not isinstance(request['run_id'], str) or re.fullmatch('[A-Za-z0-9_-]{1,100}', request['run_id']) is None:
++                raise WindowError('training_run_identity_invalid')
++            run = Path(plan['run_directory']) if operation == 'train' else self.plan_scope/request['run_id']
++            if not run.is_absolute() or not run.resolve().is_relative_to(self.plan_scope) or run.name != request['run_id']:
++                raise WindowError('training_run_binding')
++        return request_id
++
++    def cancelled(self, request):
++        path = self.root / (request['request_id'] + '.cancel.json')
++        if not path.exists():
++            return False
++        st = path.lstat()
++        if path.is_symlink() or st.st_mode & 0o077 or st.st_uid != os.getuid() or st.st_size > 16000:
++            raise WindowError('invalid_private_cancel')
++        value = json.loads(path.read_text())
++        if (set(value) != {'request_id', 'plan_sha256', 'expires_at'}
++                or value['request_id'] != request['request_id'] or value['plan_sha256'] != request['plan_sha256']
++                or type(value['expires_at']) not in (float, int) or not math.isfinite(value['expires_at'])
++                or value['expires_at'] <= time.time()):
++            raise WindowError('cancel_binding_or_expiry')
++        return True
++
++    def run(self, path):
++        result = {'ok': False, 'trainer_start_attempts': 0, 'real_platform_sends': 0}
++        executor = None
++        try:
++            sys.path[:0] = [str(REPO/'am-style-r5/src'), str(REPO/'am-conversation-r1/src'), str(REPO/'am-style-r3')]
++            request = json.loads(path.read_text())
++            request_id = self.validate_request(request)
++            receipt = self.root / (request_id + '.receipt.json')
++            journal_path = self.root / (request_id + '.journal.json')
++            evidence = self.root / (request_id + '.evidence')
++            if request['operation'] != 'recover':
++                # Durable idempotency before any lifecycle or launch action.
++                private_json(receipt, request, exclusive=True)
++                run_marker = self.root / ('run-' + request['run_id'] + '.receipt.json')
++                raw_gate = (OriginalR5InputGate(request['plan']) if request['operation'] == 'train' else
++                        OriginalEvaluationGate(request['plan'], request['pilot_plan'], request['arm'],
++                                               self.plan_scope/request['run_id']))
++                def gate():
++                    self.validate_request(request)
++                    value = raw_gate()
++                    self.validate_request(request)
++                    return value
++                gate()
++                if self.cancelled(request):
++                    raise WindowError('cancelled_before_window')
++                private_json(run_marker, {'request_id': request_id, 'plan_sha256': request['plan_sha256']}, exclusive=True)
++            else:
++                original_request = json.loads(receipt.read_text())
++                if original_request['request_id'] != request_id:
++                    raise WindowError('recovery_request_binding')
++            host, binding, lifecycle, lock, probe = self.setup()
++            if request['operation'] == 'recover':
++                journal = Journal.load(journal_path)
++                stop_check = None
++                if journal.data['trainer_invoked']:
++                    guard = BoundProcessGuard.load(evidence/'processes.json')
++                    if guard.data['request_id'] != request_id or guard.data['plan_sha256'] != original_request['plan_sha256']:
++                        raise WindowError('recovery_process_binding')
++                    guard.stop('explicit_restart_recovery')
++                    stop_check = guard.stopped
++                output = TrainingWindow(host, binding, lock, probe, journal).recover(stop_check)
++            else:
++                journal = Journal.create(journal_path, 'training', binding)
++                journal.write('created', request_id=request_id, plan=request['plan'],
++                              operation=request['operation'],
++                              plan_sha256=request['plan_sha256'], run_id=request['run_id'],
++                              expires_at=request['expires_at'], evidence_directory=str(evidence))
++                history = []; initial_swap = None; last_metrics = 0
++
++                def supervise():
++                    nonlocal initial_swap, last_metrics
++                    if self.cancelled(request):
++                        return 'explicit_cancel'
++                    if time.time() >= request['expires_at']:
++                        return 'request_expired'
++                    observed = host.inspect()
++                    _check_host(observed, binding, journal.data['window_id'], model='absent')
++                    if observed.pending_business or observed.active_inference:
++                        return 'new_business_model_demand'
++                    if time.monotonic()-last_metrics >= 1:
++                        from training.mlx_r4_resources import check_metrics
++                        metrics = probe(); last_metrics = time.monotonic()
++                        if initial_swap is None:
++                            initial_swap = metrics['swap_used_GiB']
++                        metrics['queue_classification'] = self.last_queue_classification
++                        history.append(metrics)
++                        private_json(evidence/'supervision.json', history)
++                        check_metrics(metrics, before_load=False, initial_swap_gib=initial_swap)
++                    return None
++
++                options = dict(request_id=request_id, supervise=supervise, expires_at=request['expires_at'],
++                               expected_plan_sha256=request['plan_sha256'])
++                if request['operation'] == 'train':
++                    executor = OriginalPilotExecutor(request['plan'], evidence, **options)
++                else:
++                    executor = OriginalMlxEvalExecutor(request['plan'], request['pilot_plan'], request['arm'],
++                        self.plan_scope/request['run_id'], evidence, **options)
++                output = TrainingWindow(host, binding, lock, probe, journal).train(
++                    gate, executor, executor.stopped)
++            result.update(ok=output['status'] in ('completed', 'recovered'), window=output,
++                          lifecycle=lifecycle.events, final_observation=probe(),
++                          queue_classification=self.last_queue_classification,
++                          recover_request={'operation': 'recover', 'request_id': request_id,
++                                           'expires_at': 'set to current UTC epoch seconds + 900'})
++        except BaseException as exc:
++            result['error'] = str(exc) if isinstance(exc, (WindowError, FileExistsError)) else type(exc).__name__
++        if executor is not None:
++            result['cli_start_attempts'] = executor.cli_start_attempts
++            result['trainer_start_attempts'] = sum(p['role']=='fit' for p in
++                (executor.guard.data['processes'] if executor.guard else []))
++            if executor.result is not None:
++                result['trainer_start_attempts'] = max(result['trainer_start_attempts'],
++                    sum(p.get('phase')=='fit' and p.get('attempted') is True for p in executor.result.get('phases', [])))
++        result['finished_at'] = time.time()
++        private_json(path.with_name(path.name.replace('.request.claimed', '.result.json')), result)
+diff --git a/local-qwen3.8/feishu-bridge/bridge.py b/local-qwen3.8/feishu-bridge/bridge.py
+index b907471a..2cdb5897 100644
+--- a/local-qwen3.8/feishu-bridge/bridge.py
++++ b/local-qwen3.8/feishu-bridge/bridge.py
+@@ -313,12 +313,19 @@ class Bridge:
+         # The one consumer continues handling receipts while document generation runs.
+         # Ordinary chat must not overlap the existing single model lane.
+         resource = getattr(self, 'resource_window', None)
+-        if resource is not None:
++        training = getattr(self, 'training_control', None)
++        training_busy = training is not None and training.thread is not None and training.thread.is_alive()
++        if resource is not None and not training_busy:
+             resource.tick()
++        resource_busy = resource is not None and resource.thread is not None and resource.thread.is_alive()
++        if training is not None and not resource_busy:
++            training.tick()
+         worked = self.am_self.pump() if self.am_self is not None else False
+         conversation = getattr(getattr(self, 'am_self', None), 'conversation', None)
+         finalizer = getattr(getattr(conversation, 'agent', None), 'output_finalizer', None)
+-        if finalizer is not None and hasattr(finalizer, 'tick'):
++        if (finalizer is not None and hasattr(finalizer, 'tick')
++                and not self.poc.store.meta('resource_window_owner')
++                and not self.poc.store.meta('provider_pause')):
+             finalizer.tick()
+         worked = (self.poc.step() if self.poc is not None else False) or worked
+         busy = self.poc is not None and ((hasattr(self.poc, "model_busy") and self.poc.model_busy()) or self.poc.store.meta('resource_window_owner'))
+@@ -541,7 +548,9 @@ def serve(config):
+ 
+     if bridge.poc is not None and bridge.am_self is not None:
+         from am_resource_window import NativeResourceWindow
++        from am_training_control import NativeTrainingControl
+         bridge.resource_window = NativeResourceWindow(bridge)
++        bridge.training_control = NativeTrainingControl(bridge)
+ 
+     from health import loaded_manifest
+     loaded_manifest(bridge,config)

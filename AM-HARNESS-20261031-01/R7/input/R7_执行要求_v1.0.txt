@@ -1,0 +1,364 @@
+执行 AM-HARNESS-20261031-01 / R7。
+本轮执行要求 v1.0：首轮 gold SFT 后训练与对照验证。
+
+用户已明确授权“开始后训练”。
+完成本轮范围内必要修复、材料准备和验证；真实前置满足后，
+继续执行首轮 pilot。不要再次仅完成缺材料阻塞证明便结束。
+
+一、接续依据
+
+固定审核仓库：
+Catcherog/project-workbench-review
+
+固定审核提交：
+466d6ee57419440066972e1281c2c6071cebacc1
+
+必读入口：
+AM-HARNESS-20261031-01/R6/native-validation/00_当前交接.md
+
+已知实际源码：
+3dc1e3fb990ac4f50ee67346d2e3d321b3b69fed
+
+以原机当前真实工作树为准，保留 R6 自然对话主路径、
+后续有效修改及其他任务目录。先记录当前 HEAD、分支、
+相关已跟踪差异与未跟踪文件，不回退覆盖当前树。
+
+定向读取：
+1. R6 native-validation 下的 CHECKS_SUMMARY.json。
+2. evidence/native-input-check.json。
+3. evidence/resource-diagnostic.json。
+4. evidence/native-r5-callback-blocked.json。
+5. evidence/candidate-source-audit.json。
+6. 当前 am_training_window 的 window.py、native_r5.py、
+   r5_gate.py，以及原机 am_resource_window.py。
+7. 当前 R5 run.py、pilot.py、holdout_gate.py、
+   evaluation.py、arms.py、runners.py。
+8. 原 R4 训练、资源检查和 fit/reload 实现。
+
+沿用既有私有 plan 定位真实 Python、gold 快照、
+mechanics 原件、manifest 和服务路径。
+公开审核材料中的 /SOURCE、/workspace/am 等为脱敏路径，
+不能直接用于原机执行。
+
+先保存本轮指令及输入范围，再更新现有任务记录。
+
+二、本轮目标与边界
+
+本轮目标：
+完成当前 24 train / 8 dev 的一次真实 gold SFT pilot；
+保存 adapter，完成新进程 reload，恢复原 Q8，
+完成同基座训练前后对照并整理新增人评材料。
+
+复用三轮反馈和已认可 gold，不要求用户重评已认可内容。
+
+首轮不扩展 silver、DPO、自动多轮调参或更多 epoch。
+手机最终体验、新预览真人批准、独立工程师业务验收
+分别记录，继续沿用原有安排，不新增为离线训练前置条件。
+
+保持自然对话主路径、原 Qwen、唯一消费者、
+600 秒身份、ledger_write=false 及既定关闭项。
+生产终端表达继续 off；训练成功不会自动启用候选。
+
+三、修复真实 CLI 启动入口
+
+审查发现：
+R6 OriginalPilotExecutor 使用
+python -m am_style_r5 pilot-execute ...
+
+已回传包中没有 am_style_r5/__main__.py。
+cli.py 也没有直接执行 main() 的模块入口，
+因此不能仅改为 python -m am_style_r5.cli。
+
+先核对原机当前代码。
+若缺口仍在，优先复用已有 am-style-r5/run.py。
+
+回调使用计划绑定的原 Python 解释器，显式设置：
+AM_R5_HOST_SRC
+AM_R5_TRAINING_ROOT
+
+两者取当前计划与实际源码绑定中的绝对路径，
+防止 run.py 默认选用 bundled baseline。
+
+使用参数数组、shell=false。
+由受控回调重新调用：
+run.py pilot-execute --plan <实际plan路径> --execute
+
+先进行新进程 --help、无效子命令和无执行预检验证：
+确认真实解析命令、退出码符合语义，
+没有导入 MLX、加载模型或创建训练 worker。
+退出码 0 不能单独证明训练已执行。
+
+四、接齐原机训练、取消与恢复
+
+复用 live Store、ModelCoordinator、原实例和原协调锁，
+接入私有训练控制入口。保留原诊断入口的用途与契约。
+
+训练请求绑定：
+具体 plan、plan 摘要、唯一 request/run 身份、
+到期时间、私有 journal 和证据目录。
+
+不接受任意 shell 或任意执行参数。
+同一请求不可重复启动。
+
+执行顺序保持：
+1. 原 R5 fresh 输入门禁。
+2. 原维护 claim，排空已有完整业务任务。
+3. seal 推理暂停。
+4. 原锁内精确卸载同一 Q8，保持管理器和 metadata。
+5. 释放维护短锁。
+6. 再次 fresh 检查并比较输入绑定。
+7. 回调重新进入原 R5 pilot-execute。
+8. 原 R4 fit/reload 各自获取原 OriginalLease。
+9. 独立确认全部训练进程组停止。
+10. 原锁内恢复同模型、digest、上下文和配置。
+11. 核验消费者、队列和服务，再 CAS 释放本窗口暂停。
+
+处理 Q8 因空闲已经卸载的初始状态：
+复用 R6 已验证的受围栏保护的同模型 preload 流程，
+或实现具有同等身份与恢复证明的路径。
+避免新入口直接因 original_model_not_uniquely_present 拒绝。
+
+接齐训练期间的有界监督：
+- 覆盖与宿主一致的真实模型需求来源。
+- 核对 group ledger、information extract、source_wait 等，
+  补齐原 R4 部分队列检查的遗漏。
+- 保持消息接收和业务队列；不修改业务终态制造空闲。
+- 纯 I/O 与真正需要模型的任务按实际行为处理。
+- 新业务、取消、资源异常或时限到达时，受控结束训练并恢复业务。
+
+持久化本轮实际 CLI、fit、reload 的进程身份：
+PID、PGID、启动身份、run/request 绑定和必要源码信息。
+fit/reload 各自创建独立会话，不能只杀最外层 CLI 进程组。
+
+取消和恢复只处理已核验属于本轮的训练进程。
+独立确认所有相关进程组消失后，才允许恢复 Q8。
+停止状态未知时保留 recovery_required，给出准确恢复入口。
+
+重启后的 recover 必须能从持久化证据重建停止检查；
+只恢复原服务，不自动续训。
+
+优先在 R6 控制与监督层完成范围内修复，复用原 R4。
+若确实必须修改已绑定的训练实现，
+提供实际差异并重新处理源码及 mechanics 证据适用性；
+不得手改固定哈希来绕过来源检查。
+
+五、把独立测试准备成具体可审查材料
+
+继续利用现有授权且可读的来源。
+从有限必要的真实内容中选取候选，
+完成场景整理，而不是只再统计来源元数据。
+
+每个候选记录：
+来源与版本、采集时间、场景组和父组、
+固定事实、review_context、暴露情况。
+
+排除：
+- 当前 train/dev gold。
+- 已用于三轮反馈的 22 个校准场景及同组衍生。
+- 已用于调提示词、参数、阈值或候选筛选的场景。
+- 旧 SFT 留出、已暴露开发探针和公开回归样例。
+
+检查 R6 开发暴露记录。
+仅被索引或用于检索，不自动等于用于训练或调参；
+需要按实际使用记录判断。
+
+保留既定真实独立测试口径。
+合成 fixture 只用于代码验证，不改标为真实独立测试。
+
+用原 SpeechFrame、StylePolicy、build_messages 和
+coordinator_messages 生成匹配的冻结输入。
+执行原分组及近重复检查。
+不能只换姓名、日期、项目名或 case ID 制造独立性。
+
+冻结前不试跑候选输出再挑表现好的场景。
+运行原 eval-freeze，得到实际 case_manifest_sha256。
+样本数和覆盖范围如实记录，不自行增加新的硬数量门槛。
+
+若已有与同一 manifest 绑定的真实声明，核验后复用。
+若没有，先完成：
+- 样本清单及简要内容；
+- 来源与暴露核验；
+- 分组、排重结果；
+- 冻结摘要；
+- 其他不依赖该声明的代码修复与验证。
+
+然后仅向用户请求一次具体的未调参事实确认。
+说明这是既有 holdout_gate.py 对具体样本清单的要求，
+无需重新确认是否允许开始训练。
+
+不得代签真人声明，也不得把用户泛化的开训授权
+包装成对尚未形成的样本清单的独立性证明。
+
+收到真实回复后保留原件，用真实字节 SHA 形成声明。
+如果用户无法确认某些场景，排除或改列开发材料。
+
+六、重新准备和核验计划
+
+复用原命令：
+verify-snapshot
+eval-freeze
+pilot-plan
+pilot-preflight
+pilot-execute
+
+pilot-plan 绑定：
+--snapshot
+--mechanics
+--manifest
+--output
+--python
+--run-dir
+--host-src
+--training-root
+--holdout-cases
+--holdout-declaration
+--holdout-original
+
+使用新的计划与 run 目录，保留历史记录。
+
+明确区分：
+metadata_ready
+execution_gate
+resource_gate
+实际启动状态
+
+metadata_ready=true 或预检退出码 0 不代表允许训练。
+真正执行仍通过训练窗口，并在启动前 fresh 检查。
+不缓存或重放早先生成的 R4 argv。
+
+七、执行一次既定 gold SFT pilot
+
+采用已绑定独立 MLX 4-bit 基座：
+Qwen/Qwen3.8-27B
+revision：
+1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+
+从基座重新初始化 LoRA。
+旧 mechanics adapter 不作为续训起点。
+
+固定：
+- train24 / dev8；
+- 训练一遍；
+- accumulation4；
+- 完整成功应有6个optimizer steps；
+- 最后2层，rank8 / scale2 / dropout0；
+- 713472可训练参数；
+- AdamW lr1e-5 / weight_decay0.01 /
+  bias_correction=false；
+- seed221；
+- max_length1024，超限拒绝；
+- 每worker300秒；
+- 其他配置沿用原真实mechanics与pilot合同。
+
+资源门槛保持：
+启动可用内存至少24 GiB；
+运行中至少5 GiB；
+MLX内存上限22 GiB；
+原压力、swap增长及业务让路规则保持。
+
+每个训练ID恰好消费一次；
+dev和sealed_test不进入梯度更新。
+
+记录真实样本ID、优化步数、loss、梯度、
+参数变化、adapter哈希、保存与逐张量回读、
+fit退出、新进程reload及一致性诊断。
+
+保留单次成功或失败结果。
+遇到超时、业务抢占、OOM或停止未知，
+记录具体阶段和证据，不擅自延长时限、
+减少数据、增加训练遍数或循环重试。
+
+八、完成训练后对照
+
+复用已有三组：
+production_q8
+mlx_base
+mlx_sft
+
+先从真实完成的 pilot 生成 eval-arms，
+绑定实际 adapter、request、result、train/dev 摘要。
+
+adapter效果主要比较 mlx_base 与 mlx_sft；
+两组保持同基座、tokenizer、输入和生成设置。
+生产 Q8 单列为外部体验参照。
+
+沿用现有 MLX 生成配置：
+temperature0、seed221、max_tokens192、
+max_prompt_tokens1024、enable_thinking=false。
+
+Q8 使用原协调器及实际生产设置。
+未知参数如实保留，不臆造“三组参数完全一致”。
+
+复用：
+eval-arms、eval-plan、eval-qwen、eval-mlx、
+collect、eval-import、blind、report。
+
+MLX评测同样需要满足资源与原服务协调条件。
+先核验各runner的实际资源行为，
+有必要时复用同等卸载、停止和恢复窗口，
+避免恢复Q8后直接并行加载MLX再次触发资源不足。
+
+保留全部计划分母，以及失败、超时、截断、
+取消、缺失、拒绝和回退。
+不挑最好一次，不把回退到原文计作候选模型生成正确。
+
+人评只针对本轮新增候选完整输出。
+先核对事实，再评自然度、直接采用意愿和相对偏好。
+此前三轮已认可内容继续保留。
+
+测试结果一旦用于修改prompt、参数或候选选择，
+记录该批已成为开发暴露；后续不再声称它未用于调参。
+
+九、验证范围与完成判据
+
+新增验证重点：
+1. 正确CLI确实进入原门禁和真实执行路径。
+2. 新训练请求能到达TrainingWindow.train。
+3. 重复请求不重复启动。
+4. 输入变化导致fresh gate拒绝。
+5. 训练期间完整业务观察与受控停止。
+6. 独立进程组停止及重启恢复。
+7. 真实fit、保存、fresh reload及原Q8恢复。
+
+取消与恢复可先用真实隔离进程组验证控制逻辑；
+这类结果明确标为进程控制验证。
+真实训练期间发生的取消或抢占另列。
+不将模拟回调成功写成真实训练取消验收。
+
+复用对应版本仍有效的历史验证。
+相关源码修改后运行必要回归，
+既有失败按实际ID和断言比较，不能直接套用“原27失败”。
+
+十、回传
+
+在已授权审核仓库新增：
+AM-HARNESS-20261031-01/R7/00_当前交接.md
+
+保留R6、通知任务及其他目录。
+
+回传：
+- 本轮指令与输入范围；
+- 当前源码提交、实际相关差异及新增文件；
+- CLI修复、训练控制、监督与恢复实现；
+- 独立测试冻结与声明的脱敏绑定摘要；
+- 实际计划、训练与reload证据；
+- adapter及相关产物哈希；
+- 三组生成结果和评估；
+- 原Q8恢复、配置与加载核验；
+- 完成、失败、待人评和暂缓项目。
+
+真实业务原文、声明原件、认证材料、运行数据库
+和模型权重保留原机；公开审核只提供必要脱敏证据。
+
+分别报告四类状态：
+A. 训练执行；
+B. 候选效果与人评；
+C. 宿主接入与运行状态；
+D. 业务验收。
+
+上传后从固定远端提交回读本轮文件，
+提供审核SHA、源码SHA和固定入口。
+
+真实条件满足后持续推进到本轮完成判据。
+仍缺真实声明时，只暂停依赖它的训练动作，
+其余已授权准备完成后，提交具体可审查的确认项。
