@@ -1,0 +1,797 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/embedded.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/embedded.py
+index 91db6e7b..37c8acfd 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/embedded.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/embedded.py
+@@ -12,7 +12,7 @@ from .gateway import Gateway
+ from .message_text import MessageTextError, normalize_message
+ from .provider import atomic_json
+ from .qwen_provider import LocalQwenProvider
+-from .store import Store, scope_of
++from .store import Store, StoreBusyBeforeTransaction, scope_of
+ 
+ COMMANDS = {"/doc", "/progress", "/menu", "/retry", "/resend", "/chat", "/remind"}
+ 
+@@ -138,12 +138,26 @@ class EmbeddedPoC:
+             return False
+         try:
+             return self._step()
+-        except Exception:
++        except StoreBusyBeforeTransaction:
++            # No transaction began and no write was attempted. Leave durable
++            # work in place and let the original loop try its next tick.
++            atomic_json(self.config.root / "state" / "embedded-status.json", {
++                "time":time.time(),"suspended":False,"state":"waiting_for_store",
++                "error":"STORE_BUSY_BEFORE_TRANSACTION"})
++            return False
++        except Exception as exc:
+             # A PoC storage/worker fault cannot terminate the existing chat worker.
+             # Reject affected users' input until recovery instead of rerouting it.
+             self.suspended = True
++            import traceback
+             atomic_json(self.config.root / "state" / "embedded-status.json", {
+-                "time": time.time(), "suspended": True, "error": "POC_WORKER_FAILED"})
++                "time": time.time(), "suspended": True, "error": "POC_WORKER_FAILED",
++                "error_type":type(exc).__name__,
++                "sqlite_errorcode":getattr(exc,'sqlite_errorcode',None),
++                "sqlite_errorname":getattr(exc,'sqlite_errorname',None),
++                "transaction_open":self.store.conn.in_transaction,
++                "frames":[{'module':Path(f.filename).name,'function':f.name,'line':f.lineno}
++                          for f in traceback.extract_tb(exc.__traceback__)[-8:]]})
+             return False
+ 
+     def _step(self):
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
+index e7dfa1d9..8c4566dc 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/store.py
+@@ -59,6 +59,10 @@ def scope_of(row, route: str | None = None) -> str:
+     return json.dumps(parts + ([route] if route else []), separators=(",", ":"))
+ 
+ 
++class StoreBusyBeforeTransaction(RuntimeError):
++    """Another connection owns SQLite; this transaction performed no writes."""
++
++
+ class Store:
+     def __init__(self, path: Path, clock=time.time):
+         self.clock = clock
+@@ -78,7 +82,13 @@ class Store:
+     def tx(self):
+         wake = False
+         with self.lock:
+-            self.conn.execute("BEGIN IMMEDIATE")
++            try:
++                self.conn.execute("BEGIN IMMEDIATE")
++            except sqlite3.OperationalError as exc:
++                if (not self.conn.in_transaction and getattr(exc,'sqlite_errorcode',None)
++                        in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED)):
++                    raise StoreBusyBeforeTransaction('STORE_BUSY_BEFORE_TRANSACTION') from exc
++                raise
+             self._outbox_changed = False
+             try:
+                 guard = getattr(self, "local_write_guard", None)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2.py
+index 9f4a23e4..ac013d0c 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_am_ux2.py
+@@ -65,8 +65,8 @@ def test_U06_real_todo_pagination(ux):
+         am.items.create(am.owner,'page-'+str(n),project_ref='synthetic',description='事项'+str(n),requirements='',assignees=['ou_engineer_a'],source={'project_title':'合成项目'})
+     request(ux,'/todo',1);first=text(ux)
+     request(ux,'我的跟进 待处理 2',2);second=text(ux)
+-    assert '我的跟进' in first and '我的跟进' in second and first!=second
+-    assert '第 1 页' in first and '第 2 页' in second
++    assert '需要你处理' in first and '需要你处理' in second and first!=second
++    assert '接上文' not in first and '接上文' in second
+     assert ux[3].sent[-1]['kind']=='text'
+     assert not ux[2].rows("SELECT 1 FROM am_cards WHERE flow='ux'")
+     assert '台账候选' not in first and '台账候选' not in second
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_text_host.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_text_host.py
+index 3263efa6..3a8a5b3e 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_text_host.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_followup_text_host.py
+@@ -32,7 +32,8 @@ def test_plain_navigation_outbox_has_no_small_card_and_no_model(native):
+     assert row['kind']=='text'
+     n.am.step(row)
+     out=n.s.rows('SELECT * FROM outbox ORDER BY rowid DESC LIMIT 1')[0]
+-    assert out['kind']=='text' and '查看跟进 1' in out['body']
++    assert out['kind']=='text' and n.item['description'] in out['body']
++    assert '查看跟进 1' not in out['body'] and '切换分区' not in out['body']
+     assert not n.s.rows("SELECT * FROM am_cards WHERE flow='ux'")
+     assert n.am.query_delivery_authorized(out) is True
+     assert not n.calls
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_store_busy_recovery.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_store_busy_recovery.py
+new file mode 100644
+index 00000000..155a5963
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_store_busy_recovery.py
+@@ -0,0 +1,34 @@
++"""A busy BEGIN is deferred; other transaction faults still stop the PoC."""
++from types import SimpleNamespace as NS
++import sqlite3
++import pytest
++from fs_agent.store import Store,StoreBusyBeforeTransaction
++from fs_agent.embedded import EmbeddedPoC
++
++
++def test_external_writer_busy_never_permanently_suspends_consumer(tmp_path):
++    (tmp_path/'state').mkdir()
++    path=tmp_path/'gateway.sqlite3';s=Store(path);s.conn.execute('PRAGMA busy_timeout=1')
++    other=sqlite3.connect(path,isolation_level=None)
++    gate=NS(store=s,config=NS(root=tmp_path),stopping=NS(is_set=lambda:False))
++    embedded=EmbeddedPoC(gate)
++    embedded._step=lambda:s.execute("INSERT OR IGNORE INTO meta VALUES('synthetic-once','1')")
++    try:
++        other.execute('BEGIN IMMEDIATE')
++        assert embedded.step() is False and not embedded.suspended
++        assert not s.rows("SELECT * FROM meta WHERE key='synthetic-once'")
++        other.execute('ROLLBACK')
++        assert embedded.step()==1 and not embedded.suspended
++        assert embedded.step()==0 and len(s.rows("SELECT * FROM meta WHERE key='synthetic-once'"))==1
++    finally:other.close();s.close()
++
++
++def test_nested_transaction_is_not_misreported_as_contention(tmp_path):
++    (tmp_path/'state').mkdir();s=Store(tmp_path/'gateway.sqlite3')
++    gate=NS(store=s,config=NS(root=tmp_path),stopping=NS(is_set=lambda:False))
++    embedded=EmbeddedPoC(gate);embedded._step=lambda:s.execute("INSERT INTO meta VALUES('no','write')")
++    try:
++        s.conn.execute('BEGIN IMMEDIATE')
++        assert embedded.step() is False and embedded.suspended
++        assert not s.rows("SELECT * FROM meta WHERE key='no'")
++    finally:s.conn.execute('ROLLBACK');s.close()
+diff --git a/am-conversation-r1/src/am_conversation/capabilities.py b/am-conversation-r1/src/am_conversation/capabilities.py
+index 7bfc0c70..f4338ddd 100644
+--- a/am-conversation-r1/src/am_conversation/capabilities.py
++++ b/am-conversation-r1/src/am_conversation/capabilities.py
+@@ -3,7 +3,7 @@ import re
+ from .tools import Tool,obj,string
+ 
+ AREAS={
+- 'followups':{'list_followups','create_followup','change_followup','close_followup','submit_followup_feedback'},
++ 'followups':{'list_followups','read_followup_status','read_followup_feedback','prepare_followup_message','create_followup','change_followup','close_followup','submit_followup_feedback'},
+  'sending':{'list_targets','send_message','reconcile_send','list_pending_actions','revise_pending_action'},
+  'reminders':{'list_targets','schedule_reminder','list_reminders','control_reminder','revise_reminder','list_pending_actions','revise_pending_action'},
+  'documents':{'read_documents','edit_document','publish_document','list_pending_actions','revise_pending_action'},
+@@ -13,7 +13,7 @@ AREAS={
+  'information':{'read_information','list_projects','read_project'},
+ }
+ PATTERNS={
+- 'followups':r'跟进|事项|负责人|反馈|暂停|关闭|取消|处理中',
++ 'followups':r'跟进|事项|负责人|反馈|回复|回信|回话|催|暂停|关闭|取消|处理中',
+  'sending':r'发给|发送|发群|发.*(?:消息|这条|那条)|通知|催|核对.*发送',
+  'reminders':r'提醒|闹钟|定时|每天|工作日|改.*时间|暂停|取消',
+  'documents':r'文稿|稿件|文档|章程|生成|撰写|整理.*报告|写.*报告|新建.*报告|核对报告|采用.*(?:文字|稿)|预检|挂载|云端|这版',
+@@ -34,6 +34,11 @@ def install(bridge):
+         try:current=bridge._current(ctx)
+         except Exception:return [t for t in tools if t.name in BASE]
+         names=set(BASE)|current.get('expanded_tools',set());text=current['row']['body']
++        native=getattr(bridge,'native_followup_tools',None)
++        if native is not None and ctx.is_owner and bridge.s.rows(
++                'SELECT 1 FROM am_followup_text_choices WHERE scope=? AND expires>?',
++                (bridge.service.scope(current['row']),bridge.s.clock())):
++            names.update(AREAS['followups'])
+         for area,pattern in PATTERNS.items():
+             if re.search(pattern,text):names.update(AREAS[area])
+         # If a request spans several areas, retain a bounded catalog. Discovery
+diff --git a/am-conversation-r1/src/am_conversation/followup_tools.py b/am-conversation-r1/src/am_conversation/followup_tools.py
+new file mode 100644
+index 00000000..0882786a
+--- /dev/null
++++ b/am-conversation-r1/src/am_conversation/followup_tools.py
+@@ -0,0 +1,114 @@
++"""Natural conversation tools over the original followup state and preview.
++
++The language model can read or prepare a preview. Approval is deliberately
++absent from this catalog and remains an independently read original message.
++"""
++import hashlib
++import json
++
++from .tools import Tool, obj, string
++from .types import ConversationError, canonical
++
++
++class NativeFollowupTools:
++    def __init__(self, bridge):
++        self.b,self.am,self.s=bridge,bridge.service,bridge.s
++        self.h=self.am.followup
++        self.s.execute('''CREATE TABLE IF NOT EXISTS am_followup_conversation_reads(
++            event_id TEXT NOT NULL,item_id TEXT NOT NULL,hash TEXT NOT NULL,expires REAL NOT NULL,
++            PRIMARY KEY(event_id,item_id))''')
++
++    def register(self):
++        self.b.registry.register(Tool('read_followup_status',
++            '读取某项跟进的最新发送、准确回执、回复和业务状态。先从list_followups取得准确item_id；这几类状态不能混淆。',
++            obj({'item_id':string(128)}),self.status,owner_only=True))
++        self.b.registry.register(Tool('read_followup_feedback',
++            '读取指定跟进的完整反馈原话、归属和时间。先确定item_id；按页取完整记录，不把收到或自报当成完成。',
++            obj({'item_id':string(128),'offset':{'type':'integer','minimum':0,'maximum':1000}}),self.feedback,owner_only=True,final_reply=True))
++        self.b.registry.register(Tool('prepare_followup_message',
++            '用户请你问进度、催办或修改跟进时，给本人展示原渠道的完整发送预览。此工具不发送给负责人，不批准、不关闭事项。'
++            '必须先确定item_id；对象或私聊/群聊不明确则先问。已有预览修改后必须重新展示。',
++            obj({'item_id':string(128),'channel':{'type':'string','enum':['group','recipient_p2p']},
++                 'body':string(4000)},('channel',)),self.preview,'local',True))
++
++    def item(self,ctx,ident=None,*,manage=False):
++        self.b.authorize(ctx,'manage' if manage else 'read')
++        if not ctx.is_owner:raise ConversationError('OWNER_REQUIRED')
++        if ident is None:
++            row=self.b._current(ctx)['row']
++            choices=self.s.rows('SELECT items FROM am_followup_text_choices WHERE scope=? AND expires>?',
++                (self.am.scope(row),self.s.clock()))
++            items=json.loads(choices[0]['items']) if len(choices)==1 else []
++            if not isinstance(items,list) or len(items)!=1:raise ConversationError('FOLLOWUP_REFERENCE_AMBIGUOUS')
++            ident=items[0]
++        item=self.am.items.get(ident)
++        if item['owner']!=ctx.actor_id:raise ConversationError('OWNER_REQUIRED')
++        is_test=(item['project_ref'].startswith('validation:AM-FOLLOWUP-20261102-01:')
++                 and json.loads(item['source']).get('kind')=='synthetic_validation')
++        if not (ctx.can_access_project(item['project_ref']) or item['project_ref']=='personal:'+ctx.actor_id or is_test):
++            raise ConversationError('PROJECT_ACCESS_DENIED')
++        return item
++
++    def fingerprint(self,ident):
++        with self.s.lock:
++            item=self.am.items.get(ident)
++            value={'item':item,
++                'feedback':self.s.rows('SELECT id,kind,applied,created FROM item_feedback WHERE item_id=? ORDER BY id',(ident,)),
++                'links':self.s.rows('SELECT * FROM followup_reply_links WHERE item_id=? ORDER BY message_id',(ident,)),
++                'occurrences':self.s.rows('SELECT id,state,message_id,readback_state,hash,request_key,reconcile_attempts,next_reconcile FROM reminder_occurrences WHERE item_id=? ORDER BY id',(ident,))}
++            return hashlib.sha256(canonical(value).encode()).hexdigest()
++
++    def remember(self,ctx,ident,*,expires=None):
++        row=self.b._current(ctx)['row']
++        self.s.execute('INSERT INTO am_followup_conversation_reads VALUES(?,?,?,?) ON CONFLICT(event_id,item_id) DO UPDATE SET hash=excluded.hash,expires=excluded.expires',
++            (row['id'],ident,self.fingerprint(ident),min(row['expires'],self.s.clock()+600,expires or row['expires'])))
++
++    def current(self,event):
++        records=self.s.rows('SELECT * FROM am_followup_conversation_reads WHERE event_id=?',(event,))
++        return all(r['expires']>self.s.clock() and self.fingerprint(r['item_id'])==r['hash'] for r in records)
++
++    def output_authorized(self,row):
++        records=self.s.rows('SELECT event_id FROM am_conversation_outputs WHERE outbox_id=?',(row['id'],))
++        try:return not records or self.current(records[0]['event_id'])
++        except Exception:return False
++
++    def status(self,ctx,args,event):
++        item=self.item(ctx,args.get('item_id'));row=self.b._current(ctx)['row']
++        from am_style.contracts import ContractError
++        from am_style.followup import render_followup
++        try:
++            snapshot=self.h.expression.capture(row,item['id'])
++            result={'description':item['description'],'message':render_followup(snapshot),
++                    'delivery':snapshot.data['delivery'],'feedback':snapshot.data['feedback'],
++                    'business':snapshot.data['item']}
++        except ContractError:
++            # Older records have no exact shared receipt. Do not infer delivery.
++            result={'description':item['description'],'business_state':item['state'],
++                    'message':self.am.followup_state(item)[1],
++                    'delivery_verified':False,'qualification':'当前记录不足以单独证明这次消息已准确发送。'}
++        self.remember(ctx,item['id']);self.b.authorize(ctx,'read')
++        return result
++
++    def feedback(self,ctx,args,event):
++        item=self.item(ctx,args.get('item_id'));offset=args.get('offset',0)
++        records=list(reversed(self.am.items.history(item['id'],include_raw=True)))
++        selected=records[offset:offset+1]
++        self.remember(ctx,item['id'],expires=self.am.items.feedback_expiry(item['id']));self.b.authorize(ctx,'read')
++        if selected:
++            names={p['id']:p['name'] for p in json.loads(item['source']).get('target',{}).get('people',[])}
++            record=selected[0]
++            message=item['description']+'，'+names.get(record['actor'],'授权反馈人')+'最近这条回复的原话是：\n\n'+record['body']
++            message+='\n\n这条回复不代表业务已核验完成。'
++        else:message='这件事目前没有查到已关联的反馈原话。'
++        return {'description':item['description'],'records':selected,'has_more':offset+1<len(records),
++                'next_offset':offset+1,'message':message,
++                'qualification':'反馈原话不构成业务验收；原文超过原24小时留存期时只能报告保留的回应状态。'}
++
++    def preview(self,ctx,args,event):
++        item=self.item(ctx,args.get('item_id'),manage=True)
++        row=self.b._current(ctx)['row']
++        # Host creates the immutable preview and its own outbox record. The
++        # model never receives a confirmation token or a sender capability.
++        self.h.preview_text(row,item['id'],args['channel'],body=args.get('body'))
++        return {'status':'preview_queued','message':'完整预览已排入本人私聊，等待实际送达后确认；尚未给负责人发送消息。',
++                'instruction':'不要让用户输入命令、编号或确认码。请他查看完整预览，直接回复该条预览确认或说明修改。'}
+diff --git a/am-conversation-r1/src/am_conversation/legacy.py b/am-conversation-r1/src/am_conversation/legacy.py
+index b31558f4..0c80db8f 100644
+--- a/am-conversation-r1/src/am_conversation/legacy.py
++++ b/am-conversation-r1/src/am_conversation/legacy.py
+@@ -186,6 +186,11 @@ class LegacyConversationBridge:
+             self.briefings=BriefingTools(self);self.briefings.register()
+             from .capabilities import install
+             install(self)
++        self.native_followup_tools=None
++        if service.flags.get('items') and getattr(service,'followup',None) is not None:
++            from .followup_tools import NativeFollowupTools
++            self.native_followup_tools=NativeFollowupTools(self)
++            self.native_followup_tools.register()
+         output_finalizer = None
+         if "output_rewrite" in settings:
+             from .rewrite_host import OwnerPrivateRewrite
+@@ -294,6 +299,8 @@ class LegacyConversationBridge:
+         return host.store.access_version()
+ 
+     def delivery_source_authorized(self,row):
++        native=getattr(self,'native_followup_tools',None)
++        if native is not None and not native.output_authorized(row):return False
+         records=self.s.rows('SELECT context FROM am_conversation_outputs WHERE outbox_id=?',(row['id'],))
+         if not records:return True
+         try:return json.loads(records[0]['context']).get('source_access_version')==self.source_access_version()
+@@ -341,6 +348,10 @@ class LegacyConversationBridge:
+         self.authorize(ctx, "read", args)
+         keys = sorted(ctx.allowed_project_ids)
+         if ctx.is_owner and not args.get('project_id'):keys.append('personal:'+ctx.actor_id)
++        if ctx.is_owner and not args.get('project_id') and getattr(self,'native_followup_tools',None) is not None:
++            tests=self.s.rows("SELECT project_ref,source FROM action_items WHERE owner=? AND project_ref LIKE 'validation:AM-FOLLOWUP-20261102-01:%'",(ctx.actor_id,))
++            keys.extend(r['project_ref'] for r in tests if json.loads(r['source']).get('kind')=='synthetic_validation')
++            keys=sorted(set(keys))
+         if args.get("project_id"):
+             keys = [args["project_id"]]
+         result = {"record_kind": "am_followup", "source": "existing_am_action_items",
+@@ -374,10 +385,17 @@ class LegacyConversationBridge:
+             item = {key: row.get(key) for key in ("id", "version", "description", "requirements", "deadline",
+                     "deadline_kind", "timezone", "state", "paused", "updated", "latest_feedback")}
+             item.update(project_id=row["project_ref"], assignees=assignees)
++            if getattr(self,'native_followup_tools',None) is not None:
++                item['system_test_only']=row['project_ref'].startswith('validation:AM-FOLLOWUP-20261102-01:')
++                item['followup_state']=self.service.followup_state(row)[1]
++                self.native_followup_tools.remember(ctx,row['id'])
+             visible.append(item)
+         visible.sort(key=lambda value: value.get("updated") or 0, reverse=True)
+         limit = args.get("limit", 15)
+         result["items"], result["has_more"] = visible[:limit], len(visible) > limit
++        native=getattr(self,'native_followup_tools',None)
++        if native is not None and ctx.is_owner:
++            native.h.text_ui._remember(self._current(ctx)['row'],[item['id'] for item in result['items']])
+         # Re-check after the database read, before any result reaches the model.
+         self.authorize(ctx, "read", args)
+         return result
+@@ -451,6 +469,9 @@ class LegacyConversationBridge:
+         rendered = display(self, ctx, reply)
+         self.authorize(ctx, "read")
+         current = self._current(ctx)
++        native=getattr(self,'native_followup_tools',None)
++        if native is not None and not native.current(current['row']['id']):
++            raise ConversationError('FOLLOWUP_FACTS_CHANGED')
+         prepared_row = dict(current['row'], _source_meta=self.service.source_meta(current['row']), _source_access_version=ctx.source_access_version)
+         terminal=self.agent.terminal_expression
+         if terminal:
+@@ -474,6 +495,8 @@ class LegacyConversationBridge:
+     def enqueue_reply(self, conn, prepared, *, event_key):
+         """Local SQL only, using the caller's original outbox transaction."""
+         row = prepared['row']; ctx = AccessContext(**prepared['context']); grant = prepared['grant']
++        native=getattr(self,'native_followup_tools',None)
++        if native is not None and not native.current(row['id']):raise ConversationError('FOLLOWUP_FACTS_CHANGED')
+         # Recheck again inside the existing atomic outbox transaction. Preparation
+         # alone is never a send receipt and cannot outlive a cancellation fence.
+         if self.agent.terminal_expression:
+diff --git a/am-conversation-r1/src/am_conversation/prompts.py b/am-conversation-r1/src/am_conversation/prompts.py
+index 9bbfe99d..74d99170 100644
+--- a/am-conversation-r1/src/am_conversation/prompts.py
++++ b/am-conversation-r1/src/am_conversation/prompts.py
+@@ -1,9 +1,14 @@
+ """Versioned runtime instructions, not a copy of the owner's personal memory."""
+-PROMPT_VERSION = "am-dialogue-r1.3-studio"
++PROMPT_VERSION = "am-dialogue-r6-natural-followup"
+ 
+ SYSTEM_PROMPT = """你是AM，牧翊的项目工作助理。用简体中文自然沟通，按已确认的工作规则推进事项。
+ 
+ 沟通：默认1至3句话，结论或关键进展在前。仅追问会影响下一步的关键信息；对方已经给过的信息不重复问。
++用户是在和助理交谈，不是在操作菜单。理解“最近哪些事要跟进”“他回了吗”“帮我问问进展”“先别发”等自然表达。
++不要让用户输入命令、项目ID、工具名、编号或确认码。用事项名称、人员和当前上下文定位；歧义时用简短自然问题确认。
++查询跟进先读原系统已登记的事项；问是否发出或回复时核对准确回执；要反馈原话时读取仍有效的完整记录。
++已有跟进要催办或修改发送正文，先展示原渠道完整预览，不另开一条发送记录，也不自行批准。
++发出前由本人直接回复那条完整预览明确确认；“好”“收到”本身不批准。系统联调测试必须明确叫测试，不算真实项目跟进。
+ 理解指代、补充、改口和插话，多个项目分别处理。已有上下文能唯一定位时直接继续；存在两个合理对象时简短确认。
+ 对方只说“好了”不能自动解释为项目验收通过。分别保存预计时间、承诺时间、实际完成、提交材料和验收状态。
+ 说明不确定性时说清缺哪项事实；先完成不依赖缺口的部分。用户明确要求详细时才展开。
+diff --git a/am-integrated-r6/am_training_window/native_r5.py b/am-integrated-r6/am_training_window/native_r5.py
+new file mode 100644
+index 00000000..a8ad7901
+--- /dev/null
++++ b/am-integrated-r6/am_training_window/native_r5.py
+@@ -0,0 +1,100 @@
++"""Actual original R5 CLI callback and independent original R4 stop proof.
++
++This is supplied to TrainingWindow.train, after its maintenance lock is released.
++The diagnostic control port never imports or invokes it. No R4 argv is cached.
++"""
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++from pathlib import Path
++import subprocess
++import time
++import uuid
++
++from .r5_gate import OriginalR5InputGate
++from .window import ExecutionObservation, WindowError
++
++
++def group_gone(pid):
++    if type(pid) is not int or pid<=1:return False
++    try:os.killpg(pid,0)
++    except ProcessLookupError:return True
++    except PermissionError:return False
++    return False
++
++
++def phase_stop_proof(result, check_group=group_gone):
++    phases=result.get('phases')
++    if not isinstance(phases,list) or not phases:return False
++    names=[p.get('phase') for p in phases]
++    if names!=['fit','reload']:return False
++    if any(p.get('attempted') is not True and not (p.get('phase')=='reload'
++            and p.get('attempted') is False and p.get('status')=='skipped_fit_not_completed_or_stop_unconfirmed') for p in phases):return False
++    attempted=[p for p in phases if p.get('attempted') is True]
++    if not attempted:return False
++    return all(p.get('stop_confirmed') is True and check_group(p.get('pid')) for p in attempted)
++
++
++class OriginalPilotExecutor:
++    def __init__(self, plan_path, evidence_directory):
++        self.plan=Path(plan_path)
++        self.evidence=Path(evidence_directory)
++        if not self.plan.is_absolute() or not self.evidence.is_absolute():raise ValueError('absolute original paths required')
++        self.process=None;self.run_directory=None;self.result=None;self.cli_start_attempts=0
++
++    def stopped(self):
++        # Called independently by TrainingWindow before any Q8 restoration.
++        if self.process is None:return self.cli_start_attempts==0
++        if self.process.poll() is None:return False
++        if not group_gone(self.process.pid):return False
++        if self.result is None:
++            # A denied original CLI created no run. Otherwise absence of result
++            # is an unknown worker state, even if the parent has exited.
++            return self.run_directory is not None and not self.run_directory.exists()
++        return phase_stop_proof(self.result)
++
++    def __call__(self):
++        if self.process is not None or self.cli_start_attempts:raise WindowError('pilot_callback_already_used')
++        OriginalR5InputGate(self.plan)()  # Missing inputs do not even spawn a CLI.
++        from am_style_r5 import pilot
++        from am_style_r5.common import read_json
++        plan=read_json(self.plan)
++        self.run_directory=Path(plan['run_directory'])
++        if self.run_directory.exists():raise WindowError('original_run_directory_already_exists')
++        python=plan['python_interpreter']['path']
++        package_root=Path(pilot.__file__).resolve().parents[1]
++        self.evidence.mkdir(mode=0o700,parents=True,exist_ok=True)
++        if self.evidence.is_symlink():raise WindowError('execution_evidence_symlink')
++        label=uuid.uuid4().hex;log=self.evidence/(label+'.log')
++        env=dict(os.environ,PYTHONPATH=str(package_root),PYTHONDONTWRITEBYTECODE='1')
++        command=[python,'-m','am_style_r5','pilot-execute','--plan',str(self.plan),'--execute']
++        started=time.time()
++        fd=os.open(log,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
++        with os.fdopen(fd,'wb') as stream:
++            self.cli_start_attempts+=1
++            self.process=subprocess.Popen(command,cwd=package_root,env=env,stdin=subprocess.DEVNULL,
++                stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
++            # The unchanged R4 owns the reviewed fit/reload timeout policy.
++            # On interruption the caller retains maintenance until stopped().
++            code=self.process.wait()
++        result_path=self.run_directory/'result.json'
++        result_hash=None
++        if result_path.is_file() and not result_path.is_symlink() and result_path.stat().st_mtime>=started:
++            self.result=read_json(result_path)
++            if self.result.get('schema')!='am-style-mlx-r4-result/1':raise WindowError('original_r4_result_schema')
++            result_hash=hashlib.sha256(result_path.read_bytes()).hexdigest()
++        stopped=self.stopped()
++        completed=(code==0 and stopped and self.result is not None and self.result.get('mechanics_closed') is True
++                   and [p.get('phase') for p in self.result['phases']]==['fit','reload']
++                   and all(p.get('attempted') is True and p.get('status')=='completed' for p in self.result['phases']))
++        evidence={'schema':'am-original-r5-execution-observation/1','started':started,'finished':time.time(),
++            'cli_pid':self.process.pid,'cli_returncode':code,'cli_start_attempts':self.cli_start_attempts,
++            'original_r4_result_sha256':result_hash,'original_phases':None if self.result is None else self.result.get('phases'),
++            'original_cli_group_gone':group_gone(self.process.pid),'independent_worker_groups_gone':stopped,
++            'status':'completed' if completed else 'blocked_or_failed','log_sha256':hashlib.sha256(log.read_bytes()).hexdigest()}
++        raw=(json.dumps(evidence,ensure_ascii=False,sort_keys=True,indent=2)+'\n').encode()
++        path=self.evidence/(label+'.json');fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
++        with os.fdopen(fd,'wb') as stream:stream.write(raw)
++        return ExecutionObservation(evidence['status'],stopped,hashlib.sha256(raw).hexdigest())
+diff --git a/am-integrated-r6/tests/integration/test_natural_followup.py b/am-integrated-r6/tests/integration/test_natural_followup.py
+new file mode 100644
+index 00000000..c23a1e0d
+--- /dev/null
++++ b/am-integrated-r6/tests/integration/test_natural_followup.py
+@@ -0,0 +1,78 @@
++"""Natural followup uses existing state; language never grants send authority."""
++import json
++from types import SimpleNamespace as NS
++import pytest
++
++from test_followup_native import native, service, am_rig, base_rig
++from test_followup_text_host import incoming
++from test_gateway import drain
++from am_conversation.followup_tools import NativeFollowupTools
++from am_conversation.tools import ToolRegistry
++from am_conversation.types import AccessContext, ConversationError
++
++
++def tools(n):
++    row=dict(n.row,kind='conversation',body='他回复了吗？')
++    ctx=AccessContext(n.row['tenant'],n.row['app'],n.row['user'],n.row['chat'],
++        allowed_project_ids=frozenset([n.item['project_ref']]),is_owner=True,content_expires_at=n.row['expires'])
++    b=NS(service=n.am,s=n.s,registry=ToolRegistry(),authorize=lambda *a:None,_current=lambda c:{'row':row})
++    t=NativeFollowupTools(b);t.register()
++    return t,b,ctx,row
++
++
++def test_conversation_tools_cannot_approve_or_send(native):
++    n=native;t,b,ctx,row=tools(n)
++    assert set(b.registry._tools)=={'read_followup_status','read_followup_feedback','prepare_followup_message'}
++    result=t.status(ctx,{'item_id':n.item['id']},row['id'])
++    assert result['delivery_verified'] is False and not n.calls
++    assert t.current(row['id'])
++    n.am.items.change(n.am.owner,'pause-after-reading',n.item['id'],n.item['version'],'pause')
++    assert t.current(row['id']) is False
++
++
++def test_natural_quoted_confirmation_uses_single_original_send(native):
++    n=native;nonce=n.f.preview_text(n.row,n.item['id'],'recipient_p2p');drain(n.g)
++    card=n.s.rows('SELECT * FROM am_cards WHERE nonce=?',(nonce,))[0]
++    out=n.s.rows('SELECT * FROM outbox WHERE id=?',(card['outbox_id'],))[0]
++    assert '确认发送 ' not in out['body'] and '按这个发' in out['body']
++    row=incoming(n,'可以，发给他吧',2201,parent=card['message_id'],thread='natural-quote-thread')
++    n.am.step(row);n.am.scheduler.dispatch();n.am.scheduler.dispatch()
++    assert len(n.calls)==1
++    assert n.s.rows('SELECT state,readback_state FROM reminder_occurrences')==[{'state':'sent','readback_state':'verified'}]
++    t,b,ctx,question=tools(n)
++    assert t.status(ctx,{'item_id':n.item['id']},question['id'])['delivery']['state']=='verified'
++
++
++def test_unquoted_natural_confirmation_cannot_approve(native):
++    n=native;n.f.preview_text(n.row,n.item['id']);drain(n.g)
++    n.am.step(incoming(n,'按这个发',2202))
++    assert not n.s.rows('SELECT * FROM followup_intents') and not n.calls
++
++
++def test_ambiguous_pronoun_does_not_pick_an_item(native):
++    n=native;t,b,ctx,row=tools(n)
++    with pytest.raises(ConversationError,match='REFERENCE_AMBIGUOUS'):t.status(ctx,{},row['id'])
++    n.f.text_ui._remember(row,[n.item['id']])
++    assert t.status(ctx,{},row['id'])['description']==n.item['description']
++
++
++def test_new_feedback_invalidates_pending_natural_answer(native):
++    n=native;t,b,ctx,row=tools(n)
++    t.status(ctx,{'item_id':n.item['id']},row['id'])
++    n.s.execute('INSERT INTO followup_reply_links VALUES(?,?,?,?,?,?)',
++        ('later-reply',n.item['id'],'future-occurrence','ou_engineer_a','reported_update',n.clock()))
++    assert not t.current(row['id'])
++
++
++def test_original_conversation_registers_native_followup_tools(native):
++    from am_conversation.legacy import LegacyConversationBridge
++    n=native
++    b=LegacyConversationBridge(n.am,{'enabled':True})
++    try:
++        row=dict(n.row,kind='conversation',body='最近哪些事情需要我跟进？')
++        with b.request_context(row) as ctx:
++            result=b._followups(ctx,{},row['id'])
++            assert n.item['id'] in [x['id'] for x in result['items']]
++            assert b.native_followup_tools.current(row['id'])
++            assert 'prepare_followup_message' in b.registry._tools
++    finally:b.close()
+diff --git a/am-integrated-r6/tests/resource_window/test_native_r5.py b/am-integrated-r6/tests/resource_window/test_native_r5.py
+new file mode 100644
+index 00000000..f9040b49
+--- /dev/null
++++ b/am-integrated-r6/tests/resource_window/test_native_r5.py
+@@ -0,0 +1,31 @@
++import tempfile
++from pathlib import Path
++import unittest
++from unittest.mock import patch
++from am_training_window.native_r5 import OriginalPilotExecutor,phase_stop_proof
++from am_training_window.window import WindowError
++
++
++class NativeR5Tests(unittest.TestCase):
++    def test_missing_inputs_do_not_spawn_original_cli(self):
++        with tempfile.TemporaryDirectory() as d:
++            callback=OriginalPilotExecutor(Path(d)/'plan.json',Path(d)/'evidence')
++            with patch('am_training_window.native_r5.OriginalR5InputGate') as gate,patch('subprocess.Popen') as spawn:
++                gate.return_value.side_effect=WindowError('original_R5_input_gate_blocked: missing real holdout')
++                with self.assertRaises(WindowError):callback()
++                spawn.assert_not_called()
++            self.assertEqual(callback.cli_start_attempts,0)
++            self.assertTrue(callback.stopped())
++            self.assertFalse((Path(d)/'evidence').exists())
++
++    def test_phase_flags_alone_do_not_prove_process_groups_stopped(self):
++        result={'phases':[{'phase':'fit','attempted':True,'pid':45,'stop_confirmed':True},
++                          {'phase':'reload','attempted':True,'pid':46,'stop_confirmed':True}]}
++        self.assertFalse(phase_stop_proof(result,lambda pid:pid==45))
++        self.assertTrue(phase_stop_proof(result,lambda pid:True))
++        result['phases'][0]['stop_confirmed']=False
++        self.assertFalse(phase_stop_proof(result,lambda pid:True))
++
++    def test_empty_or_unidentified_phase_results_fail_closed(self):
++        for result in ({},{'phases':[]},{'phases':[{'phase':'reload','attempted':False}]}):
++            self.assertFalse(phase_stop_proof(result,lambda pid:True))
+diff --git a/local-qwen3.8/feishu-bridge/am_followup_host.py b/local-qwen3.8/feishu-bridge/am_followup_host.py
+index 2137a11d..1907a3ca 100644
+--- a/local-qwen3.8/feishu-bridge/am_followup_host.py
++++ b/local-qwen3.8/feishu-bridge/am_followup_host.py
+@@ -904,7 +904,7 @@ class FollowupHost:
+         self.actor(row)
+         item=self.am.items.get(item_id)
+         self.text_ui._remember(row,[item['id']])
+-        return self.text_ui.publish(row,'原预览已失效。修改正文请发送：修改跟进 1 '+('私聊' if channel=='recipient_p2p' else '群聊')+'｜完整正文。\n修改后会重新展示对象、完整正文及本次发送范围。')
++        return self.text_ui.publish(row,'原预览已失效。直接告诉我想改哪里，我会重新展示接收人和完整正文，确认后再发。')
+ 
+     def ingest_reply(self,payload):
+         h=payload.get('header',{});e=payload.get('event',{});m=e.get('message',{});sender=e.get('sender',{})
+@@ -1133,7 +1133,7 @@ class FollowupHost:
+             self.candidate_text(row,head[2])
+             return None
+         if q=='/followup':return self.dashboard(row)
+-        return ('发送“我的跟进”查看事项，再选择群聊或私聊跟进；核对完整文字预览后确认。\n'
++        return ('直接告诉我想跟进哪件事、想了解什么；需要联系对方时，我会先给你看完整预览。\n'
+                 '/followup 预览 事项ID 群聊|私聊｜完整正文\n生成预览不会向工程师发送。')
+ 
+     def dashboard(self,row):
+@@ -1156,7 +1156,7 @@ class FollowupHost:
+         if expiry is not None:
+             render_row['expires']=min(render_row['expires'],expiry)
+             if render_row['expires']<=self.s.clock():raise BoundaryError('FOLLOWUP_RAW_EXPIRED')
+-        return self.text_ui.publish(render_row,'待办与进展\n\n'+text+'\n\n发送“我的跟进”查看事项。')
++        return self.text_ui.publish(render_row,'目前的待办与进展：\n\n'+text+'\n\n需要我继续看哪件事，直接告诉我就好。')
+ 
+     def _dashboard_content(self,information_db=None):
+         """Pure local projection; no identity lookup, model, or external calls."""
+diff --git a/local-qwen3.8/feishu-bridge/am_followup_text.py b/local-qwen3.8/feishu-bridge/am_followup_text.py
+index ca56adb1..bfd9f5ee 100644
+--- a/local-qwen3.8/feishu-bridge/am_followup_text.py
++++ b/local-qwen3.8/feishu-bridge/am_followup_text.py
+@@ -34,11 +34,21 @@ _FLOW_ACTIONS = {
+ }
+ 
+ 
++def natural_action(text):
++    """Explicit speech only; it still requires an exact quoted preview below."""
++    value=re.sub(r'[，,。！!\s]','',text)
++    if value in ('按这个发','就这样发吧','可以发给他吧','确认按这条发','照这个发送','发吧'):
++        return '确认发送'
++    if value in ('先别发','不用发了','取消这次发送','先不要发'):
++        return '取消发送'
++    return None
++
++
+ def wants_text(text):
+     # Existing exact navigation keeps its original routing/thread precedence;
+     # only the new explicit commands use this additional route.
+     return (isinstance(text, str) and text.strip()!='我的跟进'
+-            and (text.strip() in _REPLY_ACTIONS or bool(_COMMAND.match(text.strip()))))
++            and (natural_action(text) is not None or text.strip() in _REPLY_ACTIONS or bool(_COMMAND.match(text.strip()))))
+ 
+ 
+ def _plain(message):
+@@ -120,11 +130,12 @@ class FollowupTextUI:
+         enabled = expected_action in {a for a, _ in actions}
+         text = title+'\n\n'+body
+         if enabled:
+-            text += '\n\n如内容无误，回复本消息“'+verb+'”，或发送：'+verb+' '+code
++            text += ('\n\n这段内容和接收人都合适的话，直接回复这条预览说“按这个发”即可。'
++                     if flow=='followup' else '\n\n内容合适的话，请直接回复这条预览明确确认。')
+         cancel = '取消发送' if flow == 'followup' else '取消操作'
+-        text += '\n暂不执行，请发送：'+cancel+' '+code
++        text += '\n需要修改哪处，也可以直接告诉我；暂时不发就回复这条预览说“先别发”。' if flow=='followup' else '\n暂不采用也可以直接告诉我。'
+         if flow == 'followup':
+-            text += '\n修改对象或正文会生成新预览；这次确认仅对应上方完整内容。'
++            text += '\n修改后我会重新给你看完整预览；这次确认只对应上面这一条。'
+         if len(text) > MAX_TEXT: raise BoundaryError('FOLLOWUP_TEXT_TOO_LARGE')
+         snapshot = dict(snapshot, _text_action_enabled=enabled)
+         fingerprint = digest(snapshot)
+@@ -289,16 +300,16 @@ class FollowupTextUI:
+             if page*3 >= len(rows) and page: raise BoundaryError('FOLLOWUP_TEXT_PAGE_INVALID')
+             selected = rows[page*3:(page+1)*3]
+             self._remember(row, [i['id'] for i, _ in selected])
+-            lines = ['我的跟进 · '+labels[bucket]+f' · 第 {page+1} 页']
++            headings={'action':'目前需要你处理的事项','waiting':'目前还在等待反馈的事项','closed':'已经关闭的事项'}
++            lines = [headings[bucket]+('（接上文）' if page else '')+'：']
+             for index, (item, status) in enumerate(selected, 1):
+                 title = item['description']
+                 if len(title) > 180: title = title[:180]+'…（查看事项可见完整内容）'
+                 lines.append(f'{index}. {title}\n{status}')
+-            if not selected: lines.append('当前分区没有已登记事项。')
+-            else: lines.append('查看详情请发送“查看跟进 1”；查看原话请发送“跟进反馈 1”。')
+-            if (page+1)*3 < len(rows): lines.append(f'下一页：我的跟进 {labels[bucket]} {page+2}')
+-            lines.append('切换分区：我的跟进 待处理 / 我的跟进 待反馈 / 我的跟进 已关闭。')
+-            lines.append('仅展示当前已登记事项，不代表所有来源已同步。')
++            if not selected: lines.append('当前没有查到相应的已登记事项。')
++            elif (page+1)*3 < len(rows): lines.append('还有其他事项，需要的话我继续往下看。')
++            else: lines.append('需要我展开哪件事，或看看对方的原话，直接告诉我就好。')
++            lines.append('以上是目前已登记的跟进记录。')
+             return self.publish(render, '\n\n'.join(lines))
+ 
+     def item(self, row, item_id):
+@@ -311,14 +322,13 @@ class FollowupTextUI:
+             lines = [item['description'], '负责人：'+names, '当前状态：'+status,
+                      '交付要求：'+(item['requirements'] or '尚未明确'),
+                      '业务完成：'+('已按核验依据关闭。' if item['state']=='closed' and item['close_evidence'] else '尚未核验完成。'),
+-                     '查看反馈原话：跟进反馈 1', '查看发送与反馈状态：跟进状态 1']
++                     '你可以接着问我对方有没有回复，或让我展开原话。']
+             incomplete = self.h.incomplete_import(item['id'])
+             if incomplete: lines.append('导入尚未完成，请先核对候选和历史；不会发送跟进。')
+             elif item['state'] not in ('closed', 'cancelled'):
+-                lines.append('需要跟进时，发送“群聊跟进 1”或“私聊跟进 1”，先查看完整预览。')
+-                lines.append('修改发送正文：修改跟进 1 群聊｜完整正文（私聊同理）。')
++                lines.append('需要我问一下进展的话，告诉我想私聊还是在原群里问；发送前我会把对象和完整正文给你看。')
+                 if self.s.rows('SELECT 1 FROM action_semantics WHERE item_id=?', (item['id'],)):
+-                    lines.append('重审当前依据：重审依据 1。')
++                    lines.append('如果依据变了，我们先重新核对。')
+             return self.publish(render, '\n\n'.join(lines))
+ 
+     def status(self, row, item_id):
+@@ -359,9 +369,9 @@ class FollowupTextUI:
+                 lines.append(h['body'] or '无补充')
+                 lines.append('这条回复不代表业务已核验完成。')
+                 if h['applied']:
+-                    lines.append('读完后可发送“反馈已阅 1”；仅标记本条反馈已阅，不关闭事项。')
++                    lines.append('这条可以标记为已阅，事项仍保留待核对状态。')
+                 self._remember(row, [item['id']])
+-                if page+1 < len(records): lines.append(f'下一条：跟进反馈 1 {page+2}')
++                if page+1 < len(records): lines.append('还有更早的反馈，需要的话我接着展开。')
+             else: lines.append('尚无已关联反馈。')
+             result = self.publish(render, '\n\n'.join(lines))
+             if records and records[page]['applied']:
+@@ -381,21 +391,22 @@ class FollowupTextUI:
+ 
+     def notice(self, row, item, summary, event):
+         self._remember(row, [item['id']])
+-        return self.publish(row, summary+'\n\n查看原话：跟进反馈 1。自报内容仍待核对。',
++        return self.publish(row, summary+'\n\n需要的话，我可以展开对方的原话。自报内容仍待核对。',
+                             kind='feedback_owner', event_key=event)
+ 
+     def handle(self, row):
+         text = row['body'].strip()
+         if not wants_text(text): return False, None
+         self._owner(row); row['_followup_text'] = True
+-        if text in _REPLY_ACTIONS:
++        explicit=natural_action(text) or text
++        if explicit in _REPLY_ACTIONS:
+             parent=self.am.source_meta(row).get('parent')
+             records=self.s.rows('SELECT t.code,t.scope FROM am_followup_text_actions t JOIN am_cards c ON c.nonce=t.nonce '
+                 'WHERE c.message_id=? AND t.actor=? AND t.chat=? AND t.superseded=0 AND t.expires>?',
+                 (parent,row['user'],row['chat'],self.s.clock())) if parent else []
+             records=[r for r in records if json.loads(r['scope'])[:4]==json.loads(self.am.scope(row))[:4]]
+             if len(records)!=1:raise BoundaryError('FOLLOWUP_TEXT_REPLY_MISMATCH')
+-            return True,self.confirm(row,text,records[0]['code'])
++            return True,self.confirm(row,explicit,records[0]['code'])
+         match = _APPROVAL.fullmatch(text)
+         if match: return True, self.confirm(row, match[1], match[2])
+         match = re.fullmatch(r'我的跟进(?:\s+(待处理|待反馈|已关闭))?(?:\s+(\d+))?', text)
+diff --git a/local-qwen3.8/feishu-bridge/am_service.py b/local-qwen3.8/feishu-bridge/am_service.py
+index a2775dd8..ded3354e 100644
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -22,7 +22,7 @@ from am_query import QueryMixin, SourceLoading, ENTRY_TEXT, READ_PAGES
+ from am_group_query import GroupQueryMixin
+ from am_direct_query import DirectQueryMixin
+ from query_rules import deterministic_intent,identifiers,resolve_identifiers,fields_for,choice_number
+-from am_followup_text import wants_text
++from am_followup_text import wants_text, natural_action
+ 
+ DEFAULT_FLAGS={'query':False,'snapshots':False,'items':False,'scheduler':False,'progress_collection':False,'ledger_write':False,'attachments':False,'precheck':False}
+ 
+@@ -204,9 +204,13 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+                     from am_query import field_followup
+                     focus=self.s.rows('SELECT 1 FROM am_sessions WHERE scope=? AND focus IS NOT NULL AND expires>?',(self.scope(session),self.s.clock()))
+                     if not (pending and choice_number(text)) and not (field_followup(text) and (focus or meta.get('parent'))):return False,False
+-                followup_navigation=(user==self.owner and (wants_text(text) or text in FOLLOWUP_ENTRY_TEXT)
++                exact_native_quote=bool(meta.get('parent') and self.s.rows(
++                    'SELECT 1 FROM am_followup_text_actions t JOIN am_cards c ON c.nonce=t.nonce WHERE c.message_id=? AND t.actor=? AND t.chat=?',
++                    (meta['parent'],user,m['chat_id'])))
++                followup_text=wants_text(text) and (natural_action(text) is None or exact_native_quote)
++                followup_navigation=(user==self.owner and (followup_text or text in FOLLOWUP_ENTRY_TEXT)
+                                      and m['message_type']=='text'
+-                                     and (wants_text(text) or not meta.get('parent') and not meta.get('root')))
++                                     and (followup_text or not meta.get('parent') and not meta.get('root')))
+                 row={'id':m['message_id'],'app':config.app_id,'tenant':config.tenant_key,'user':user,'chat':m['chat_id'],
+                      'chat_type':'p2p','created':int(m['create_time'])/1000,'kind':'collection' if collection else 'text' if followup_navigation else 'conversation' if self.conversation is not None and self.conversation.wants(text) else 'text',
+                      'body':canonical(json.loads(m['content']) if isinstance(m['content'],str) else m['content']) if m['message_type']=='file' else text}
