@@ -1,0 +1,260 @@
+{
+  "source_commit": "e68ca8bafa0a2bf3fe7d7c06fd9173e21f8a38f7",
+  "case_count": 12,
+  "real_model_calls": 11,
+  "one_attempt_per_case": true,
+  "evidence_class": "development_regression",
+  "independent_holdout": false,
+  "accepted_batches": 2,
+  "local_unconfirmed_candidates": 3,
+  "guard_assessments": {
+    "false_reject_source_clause": 1,
+    "correct_reject": 7,
+    "correct_accept": 2,
+    "safe_reject_reason_needs_improvement": 1,
+    "correct_pre_model_reject": 1
+  },
+  "business_accuracy": "not_passed",
+  "human_acceptance": false,
+  "external_business_writes": 0,
+  "production_fact_writes": 0,
+  "cases": [
+    {
+      "case": "CONDITION",
+      "expected": "条件预测及直接否定保留",
+      "model_assessment": "core_condition_forecast_and_negative_preserved",
+      "guard_assessment": "false_reject_source_clause",
+      "worker": {
+        "job_id": "bfa7aa239f794345bdf89655c3a558bb",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:source_clause_uncovered"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 12.632723624934442,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "ac2354dd6d9d1275d1965feabfc4fd5717bf0aa70a3d11045eea67387e213fa8"
+    },
+    {
+      "case": "CORRECTION",
+      "expected": "更正和否定完整，保留归因",
+      "model_assessment": "lost_reporter_correction_attribution",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "2cc9d30de6784d9796c559d8950757f2",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:attribution_uncovered,candidate_scope_incomplete,negation_or_correction_uncovered"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 15.703488875064068,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "6e31608163676ed6f751c8bbdee0e1e50b3ac8835a04e102dde2703d7c7b7989"
+    },
+    {
+      "case": "REPEATED",
+      "expected": "重复短句依明确项目分别归属",
+      "model_assessment": "correct_within_fixture",
+      "guard_assessment": "correct_accept",
+      "worker": {
+        "job_id": "226a06510e9740b08771a595856993f8",
+        "status": "done",
+        "inserted": 2,
+        "duplicates": 0,
+        "fact_ids": [
+          "a891b8bf0f9223461892fe391b36a33ff4936603c1468f4283a2a7ba37b3e691",
+          "21b395421dc568d9583794fa2dc25aaa642304663bd477573873cf53568516a1"
+        ]
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 12.003517708042637,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 2,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "807fc515ba1fb06fc1b423d4e4d22cc270ad19ef79494837aeaabbb27a2ab468"
+    },
+    {
+      "case": "SEM01-base",
+      "expected": "缺少记录，不等于实际未开测",
+      "model_assessment": "correct_within_fixture",
+      "guard_assessment": "correct_accept",
+      "worker": {
+        "job_id": "a7b5e763c37544b887804b63a5e57d7e",
+        "status": "done",
+        "inserted": 1,
+        "duplicates": 0,
+        "fact_ids": [
+          "fac72d63e411a424236ef166bdae4d027cf811ded3e064c79f9465a5cba4881f"
+        ]
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 56.04761700006202,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 1,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "71a0d03b9d7bbacdc64d00526ac247be1d213f92b91a64abb03aef629ffaf446"
+    },
+    {
+      "case": "SEM01-related",
+      "expected": "保留相关记录缺口",
+      "model_assessment": "missing_explicit_evidence_gap",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "9d4f6088b1a14a6c87733ceeaa84a60b",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:execution_evidence_missing,source_clause_uncovered"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 3.896485458011739,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "2966fbca36e697650dade415b8e7607a3e66523b6d127806e78a5c48235eb963"
+    },
+    {
+      "case": "SEM02-both",
+      "expected": "缺记录与未开测分别保留",
+      "model_assessment": "wrong_field_for_combined_record_gap_and_actual_negative",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "9f371eb48c2d4482b3c755e4d0fed81a",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:execution_dimension"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 8.812304416904226,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "0137eafc53d0ebf50227d3ab0d6c303be23b0f01d46d4ba2be33d05ae53276c2"
+    },
+    {
+      "case": "SEM02-negative",
+      "expected": "直接业务否定",
+      "model_assessment": "wrong_field_despite_preserved_negative_text",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "fb2f55d0ef0042a99e4d970110bdba00",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:execution_dimension"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 8.15927445795387,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "c77402e79c179cdf397517e34c9f7a788a04b06d28f92f1a60b52a1aafc24f76"
+    },
+    {
+      "case": "SEM03-reported",
+      "expected": "两项均保留转述归属",
+      "model_assessment": "lost_attribution",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "26dc675c40ee42a0bdb75c3bfade179c",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:attribution_uncovered,candidate_scope_incomplete"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 11.250250749988481,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "a18d4314605288da574c62577c8a365029562e0cd140a3e2d27f76f08af194d5"
+    },
+    {
+      "case": "SEM04-quoted",
+      "expected": "引语内保留工程师，外部独立命题不扩大转述",
+      "model_assessment": "lost_attribution_inside_quote",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "8239a95495d447a3ba65525ee2211f97",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:attribution_uncovered,candidate_scope_incomplete"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 11.863600875018165,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "9ff421340a658a7175032be7a53c8f8638441fb9ee7baadbb4ecc8da1391bd69"
+    },
+    {
+      "case": "SEM05-ambiguous",
+      "expected": "无主语测试归属不明应可见待核，不猜项目",
+      "model_assessment": "guessed_project_despite_complete_false",
+      "guard_assessment": "correct_reject",
+      "worker": {
+        "job_id": "7fb2414c99f44107b60f8a54ffe9610f",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:subject_binding_ambiguous"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 16.96878620807547,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "b62707149db1d76e242b5401115c9a4b717efc9be1d9ed8d3e45755c6fd7fda2"
+    },
+    {
+      "case": "SEM06-conflicting-hint",
+      "expected": "不把乙项目信息归入甲项目",
+      "model_assessment": "safe_empty_refusal_under_narrowed_hint_not_accuracy_pass",
+      "guard_assessment": "safe_reject_reason_needs_improvement",
+      "worker": {
+        "job_id": "de0d555807f84bd19a699446a61dee7a",
+        "status": "failed",
+        "code": "semantic_coverage_incomplete:execution_dimension,negation_or_correction_uncovered,source_clause_uncovered"
+      },
+      "real_model_called": true,
+      "elapsed_seconds": 4.484973166952841,
+      "model": "qwen3.8:27b-bartowski-q8_0",
+      "model_digest": "52b6ea169d93070c185373f6ff9ec33a7a5e88cfe9c844fc225ed4214683baef",
+      "original_consumer_pid": 68551,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "735172170c127fc297e92f7751d6cf01bd90b4be27e3447153d0a2dad2a66b57"
+    },
+    {
+      "case": "SEM06-unauthorized-hint",
+      "expected": "模型调用前拒绝越界hint",
+      "model_assessment": "not_called_scope_rejected_before_model",
+      "guard_assessment": "correct_pre_model_reject",
+      "worker": {
+        "job_id": "40d51e7944704aefaf1b4f24171092b4",
+        "status": "failed",
+        "code": "subject_outside_context"
+      },
+      "real_model_called": false,
+      "elapsed_seconds": 0.004824541974812746,
+      "model": null,
+      "model_digest": null,
+      "original_consumer_pid": null,
+      "committed_candidates": 0,
+      "all_committed_unconfirmed": true,
+      "raw_evidence_sha256": "fc6d5187dd7cc361b759cdbcfb90e8d52c1354656467f01710d311f063a3f02b"
+    }
+  ]
+}

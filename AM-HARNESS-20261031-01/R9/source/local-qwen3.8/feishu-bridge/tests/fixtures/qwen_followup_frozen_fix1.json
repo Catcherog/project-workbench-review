@@ -1,0 +1,263 @@
+{
+  "source_review_sha": "68efbab9b11c26ea5bdd64c23be63079160cdc68",
+  "source_path": "AM-FOLLOWUP-20261102-01/R1-FIX1/evidence/qwen-native",
+  "type": "frozen_previous_real_outputs_no_new_model_calls",
+  "cases": [
+    {
+      "case": "NEGATION",
+      "input": "演示项目负责人澄清：材料并未交付，审批没有通过，也没有撤回审批；之前的“已经完成”说法不成立。只确认收到了提醒，业务验收仍未进行。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-project",
+          "title": "演示项目"
+        }
+      ],
+      "output": {
+        "complete": true,
+        "candidates": [
+          {
+            "subject_id": "synthetic-project",
+            "field": "delivery",
+            "value": "材料并未交付",
+            "quote": "材料并未交付",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "review",
+            "value": "审批没有通过",
+            "quote": "审批没有通过",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "review",
+            "value": "没有撤回审批",
+            "quote": "也没有撤回审批",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "response",
+            "value": "只确认收到了提醒",
+            "quote": "只确认收到了提醒",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "acceptance",
+            "value": "业务验收仍未进行",
+            "quote": "业务验收仍未进行",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case": "MULTIPROJECT",
+      "input": "演示甲项目已收到样机，演示乙项目方案仍未发出。负责人说“它已经完成了，明天提交”，但没有说明指哪个项目或什么材料；该句话归属待核实。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-a",
+          "title": "演示甲项目"
+        },
+        {
+          "subject_id": "synthetic-b",
+          "title": "演示乙项目"
+        }
+      ],
+      "output": {
+        "complete": true,
+        "candidates": [
+          {
+            "subject_id": "synthetic-a",
+            "field": "delivery",
+            "value": "已收到样机",
+            "quote": "演示甲项目已收到样机",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-b",
+            "field": "delivery",
+            "value": "方案仍未发出",
+            "quote": "演示乙项目方案仍未发出",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case": "F12",
+      "input": "请把这项工作的预计投入记下来。项目、负责人和承诺截止日期均未明确。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-project",
+          "title": "演示项目"
+        }
+      ],
+      "output": {
+        "complete": false,
+        "candidates": [
+          {
+            "subject_id": "synthetic-project",
+            "field": "action_request",
+            "value": "请把这项工作的预计投入记下来",
+            "quote": "请把这项工作的预计投入记下来",
+            "assertion_type": "proposal"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "context",
+            "value": "项目、负责人和承诺截止日期均未明确",
+            "quote": "项目、负责人和承诺截止日期均未明确",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case": "F15",
+      "input": "演示项目工程师说材料已交付，但业务核验尚未完成。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-project",
+          "title": "演示项目"
+        }
+      ],
+      "output": {
+        "complete": true,
+        "candidates": [
+          {
+            "subject_id": "synthetic-project",
+            "field": "delivery",
+            "value": "材料已交付",
+            "quote": "材料已交付",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "acceptance",
+            "value": "业务核验尚未完成",
+            "quote": "业务核验尚未完成",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case": "CONDITION",
+      "input": "演示项目只有在安全评审通过后才允许对外发送报告；目前评审尚未通过。若设备周五到场，下周才可能开始测试；实际尚未开测。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-project",
+          "title": "演示项目"
+        }
+      ],
+      "output": {
+        "complete": true,
+        "candidates": [
+          {
+            "subject_id": "synthetic-project",
+            "field": "constraint",
+            "value": "只有在安全评审通过后才允许对外发送报告",
+            "quote": "只有在安全评审通过后才允许对外发送报告",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "progress",
+            "value": "目前评审尚未通过",
+            "quote": "目前评审尚未通过",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "forecast",
+            "value": "若设备周五到场，下周才可能开始测试",
+            "quote": "若设备周五到场，下周才可能开始测试",
+            "assertion_type": "forecast"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "acceptance",
+            "value": "实际尚未开测",
+            "quote": "实际尚未开测",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case": "F07",
+      "input": "演示项目测试方案已经发出。负责人回复 OK。没有提供实际开测记录。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-project",
+          "title": "演示项目"
+        }
+      ],
+      "output": {
+        "complete": true,
+        "candidates": [
+          {
+            "subject_id": "synthetic-project",
+            "field": "delivery",
+            "value": "测试方案已经发出",
+            "quote": "演示项目测试方案已经发出。",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "response",
+            "value": "负责人回复 OK",
+            "quote": "负责人回复 OK。",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "acceptance",
+            "value": "没有提供实际开测记录",
+            "quote": "没有提供实际开测记录。",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case": "F09",
+      "input": "演示项目本次审批已经通过，旧的待提审提醒可以撤除。这不是审批撤回，也不代表项目完成。",
+      "subjects": [
+        {
+          "subject_id": "synthetic-project",
+          "title": "演示项目"
+        }
+      ],
+      "output": {
+        "complete": true,
+        "candidates": [
+          {
+            "subject_id": "synthetic-project",
+            "field": "review",
+            "value": "本次审批已经通过",
+            "quote": "演示项目本次审批已经通过",
+            "assertion_type": "reported"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "action_request",
+            "value": "旧的待提审提醒可以撤除",
+            "quote": "旧的待提审提醒可以撤除",
+            "assertion_type": "proposal"
+          },
+          {
+            "subject_id": "synthetic-project",
+            "field": "constraint",
+            "value": "这不是审批撤回，也不代表项目完成",
+            "quote": "这不是审批撤回，也不代表项目完成",
+            "assertion_type": "reported"
+          }
+        ]
+      }
+    }
+  ]
+}
