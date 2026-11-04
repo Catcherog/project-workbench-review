@@ -1,0 +1,134 @@
+diff --git a/local-qwen3.8/feishu-bridge/group_ledger.py b/local-qwen3.8/feishu-bridge/group_ledger.py
+index 904439dc1..506fc2def 100644
+--- a/local-qwen3.8/feishu-bridge/group_ledger.py
++++ b/local-qwen3.8/feishu-bridge/group_ledger.py
+@@ -67,11 +67,14 @@ def parse_rows(values):
+     normalized = [compact(x) for x in headers]
+     indices = {}
+     for name in HEADERS:
+-        # The live ledger renamed this column on 2026.10.28. Bind only these
+-        # verified names; a duplicate or unknown heading still fails closed.
++        # Bind only independently observed headings. The progress alias was
++        # verified on 2026.10.28 and the owner-action alias on 2026.11.4.
++        # Duplicate aliases or unknown headings still fail closed.
+         aliases = {compact(name)}
+         if name == "项目进展":
+             aliases.add(compact("项目信息"))
++        if name == "待办":
++            aliases.add(compact("本人待办与跟进"))
+         matches = [i for i, h in enumerate(normalized) if h in aliases]
+         if len(matches) != 1:
+             raise LedgerError("LEDGER_HEADER_CHANGED")
+diff --git a/local-qwen3.8/feishu-bridge/info_sources.py b/local-qwen3.8/feishu-bridge/info_sources.py
+index 5b366f4ba..67d884f21 100644
+--- a/local-qwen3.8/feishu-bridge/info_sources.py
++++ b/local-qwen3.8/feishu-bridge/info_sources.py
+@@ -232,6 +232,15 @@ class Discovery:
+             try:
+                 old=h.store.get_source(sid)
+                 subjects=sorted(v for v in set(subjects)|set(old.settings.get('subject_ids') or [old.settings.get('subject_id')]) if v)
++                if kind=='docx' and old.kind==kind and old.remote_id==rid:
++                    # Multiple discovery paths supply different display labels
++                    # and anchored links for the same immutable read identity.
++                    # Keep the registered citation (including absence) stable.
++                    # Actual document titles/content remain revision-checked by
++                    # DocxAdapter; file_snapshot names still select its parser.
++                    for key in ('file_name','url'):
++                        if key in old.settings:settings[key]=old.settings[key]
++                        else:settings.pop(key,None)
+             except ScopeViolation:pass
+         if kind=='im_chat':
+             existing=[s for s in h.store.list_sources() if s.enabled and s.kind=='im_chat' and s.remote_id==rid]
+diff --git a/local-qwen3.8/feishu-bridge/test_group_ledger.py b/local-qwen3.8/feishu-bridge/test_group_ledger.py
+index 0e13922cf..0d351c0fb 100644
+--- a/local-qwen3.8/feishu-bridge/test_group_ledger.py
++++ b/local-qwen3.8/feishu-bridge/test_group_ledger.py
+@@ -41,6 +41,19 @@ class Port:
+ 
+ 
+ class LedgerTests(unittest.TestCase):
++    def test_live_owner_actions_heading_preserves_current_row_values(self):
++        values = [row[:] for row in VALUES]
++        values[0][3] = '本人待办与跟进'
++        self.assertEqual(parse_rows(values), parse_rows(VALUES))
++
++    def test_duplicate_owner_actions_alias_is_not_silently_selected(self):
++        values = [row[:] for row in VALUES]
++        values[0].append('本人待办与跟进')
++        for row in values[1:]:
++            row.append('不同的待办')
++        with self.assertRaisesRegex(LedgerError, 'LEDGER_HEADER_CHANGED'):
++            parse_rows(values)
++
+     def setUp(self):
+         self.tmp = tempfile.TemporaryDirectory()
+         self.now = 2000000000
+diff --git a/local-qwen3.8/feishu-bridge/test_info_sources.py b/local-qwen3.8/feishu-bridge/test_info_sources.py
+index 898e9d004..857fba4a0 100644
+--- a/local-qwen3.8/feishu-bridge/test_info_sources.py
++++ b/local-qwen3.8/feishu-bridge/test_info_sources.py
+@@ -6,13 +6,63 @@ from unittest.mock import Mock
+ from am_info_sync.models import Source, Principal, Observation, ScopeViolation, PermissionDenied
+ from am_info_sync.store import Store
+ from am_info_sync.runtime import InformationService
+-from info_sources import TasksCollection, ApprovalInstance, PinnedUserReader, record_observation, MeegleProject, mql_records
++from info_sources import TasksCollection, ApprovalInstance, PinnedUserReader, record_observation, MeegleProject, mql_records, Discovery
+ from info_extraction import BoundedCoordinatorExtractor
+ 
+ class SourceTests(unittest.TestCase):
+     def setUp(self):
+         self.store=Store(':memory:');self.service=InformationService(self.store)
+     def tearDown(self):self.store.close()
++    def discovery(self):
++        value=Discovery.__new__(Discovery)
++        value.h=NS(store=self.store,start_ms=0,
++            am=NS(owner='owner',g=NS(config=NS(tenant_key='tenant'))),
++            _register=self.store.register_source)
++        return value
++
++    def test_repeated_docx_discovery_keeps_policy_and_observation_identity(self):
++        from am_info_sync.document_policy import document_policy
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject','existing'],
++                                file_name='Registered title',url='https://example.invalid/docx/r#one')
++        observation=lambda source:Observation(source.source_id,'r','version',100,
++            text='Unchanged evidence',payload={'time_basis':'observed_at'},url=source.settings.get('url'))
++        self.store.record(observation(before))
++        after=discovery.source('docx:r','docx','r',['other'],
++                               file_name='Another backlink',url='https://example.invalid/docx/r#two')
++        self.assertEqual(document_policy(before,'subject'),document_policy(after,'subject'))
++        self.assertEqual(set(after.settings['subject_ids']),{'subject','existing','other'})
++        self.store.record(observation(after))  # Must not raise IntegrityConflict.
++        self.assertEqual(self.store.conn.execute('SELECT count(*) FROM observations').fetchone()[0],1)
++
++    def test_docx_rediscovery_without_labels_does_not_remove_registered_citation(self):
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject'],file_name='Title',url='https://example.invalid/docx/r')
++        after=discovery.source('docx:r','docx','r',['subject'])
++        self.assertEqual(after.settings,before.settings)
++
++    def test_docx_initial_absent_labels_stay_absent_on_new_backlink(self):
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject'])
++        after=discovery.source('docx:r','docx','r',['subject'],file_name='Title',url='https://example.invalid/docx/r')
++        self.assertEqual(after.settings,before.settings)
++
++    def test_docx_membership_representation_change_keeps_existing_fence(self):
++        from am_info_sync.document_policy import document_policy
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject'],file_name='Title')
++        after=discovery.source('docx:r','docx','r',['other'],file_name='Other label')
++        self.assertNotEqual(document_policy(before,'subject'),document_policy(after,'subject'))
++
++    def test_file_parser_filename_and_document_read_identity_are_not_frozen(self):
++        discovery=self.discovery()
++        discovery.source('file:r','file_snapshot','r',['subject'],file_name='input.docx')
++        after=discovery.source('file:r','file_snapshot','r',['subject'],file_name='input.pdf')
++        self.assertEqual(after.settings['file_name'],'input.pdf')
++        discovery.source('docx:r','docx','r',['subject'],file_name='Title')
++        with self.assertRaises(ScopeViolation):
++            discovery.source('docx:r','docx','other',['subject'],file_name='Changed')
++
+     def source(self,kind='tasks_collection'):
+         s=Source('s',kind,'r','tenant','owner',enabled=True,settings={'subject_id':'subject',
+             'fact_mappings':{'system_record':{'value_path':['record'],'quote_path':['quote']}}})

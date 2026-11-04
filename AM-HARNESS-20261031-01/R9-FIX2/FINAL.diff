@@ -1,0 +1,3076 @@
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/config/document-business.r9-fix2.example.json b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/config/document-business.r9-fix2.example.json
+new file mode 100644
+index 000000000..673b4054c
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/config/document-business.r9-fix2.example.json
+@@ -0,0 +1,28 @@
++{
++  "executable": "<APP_ROOT>/bin/meegle",
++  "sha256": "<PINNED_MEEGLE_BINARY_SHA256>",
++  "profile": "fs-doc-logic-r1",
++  "allowed_user": "<AUTHORIZED_FEISHU_USER>",
++  "user_key": "<VERIFIED_MEEGLE_USER_KEY>",
++  "targets": {
++    "synthetic-charter-example": {
++      "space": "<VERIFIED_SPACE_KEY>",
++      "project": "<VERIFIED_PROJECT_WORK_ITEM_ID>",
++      "project_type": "<VERIFIED_PROJECT_WORK_ITEM_TYPE_KEY>",
++      "project_code": "IRAD-2099-001",
++      "node": "<VERIFIED_NODE_KEY>",
++      "deliverable": "<VERIFIED_DELIVERABLE_WORK_ITEM_ID>",
++      "type": "<VERIFIED_DELIVERABLE_WORK_ITEM_TYPE_KEY>",
++      "document_type": "charter",
++      "document_kind_field": "<VERIFIED_DOCUMENT_KIND_FIELD_KEY>",
++      "document_link_field": "<VERIFIED_FILE_FIELD_KEY>",
++      "project_field": "<VERIFIED_PROJECT_RELATION_FIELD_KEY>",
++      "node_field": "<VERIFIED_NODE_RELATION_FIELD_KEY>",
++      "approval_field": "<VERIFIED_APPROVAL_FIELD_KEY>",
++      "delivery_mode_field": "<VERIFIED_DELIVERY_MODE_FIELD_KEY>",
++      "unreviewed_value": "<VERIFIED_UNREVIEWED_OPTION_VALUE>",
++      "url": "https://project.invalid/synthetic-target",
++      "display_name": "合成示例：项目章程正式目标"
++    }
++  }
++}
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/config/document-target-r9-fix2.md b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/config/document-target-r9-fix2.md
+new file mode 100644
+index 000000000..b70a955df
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/config/document-target-r9-fix2.md
+@@ -0,0 +1,79 @@
++# AM R9-FIX2：准确挂载目标配置与离线验证边界
++
++本说明对应 `document_target.py`、`meegle_port.py` 与 `document_delivery.py`。示例、测试中的工作项、字段、候选和业务编号均为合成数据；本轮没有调用真实 Meegle API，没有更换原机目标，也没有执行真实业务写入。配置示例不是可直接投入运行的原机配置。
++
++## 配置分工
++
++| 配置键 | 含义及独立读回要求 |
++| --- | --- |
++| `space` | 授权空间 key；项目和交付物返回的 `owned_project.key` 必须分别匹配。 |
++| `project` / `project_type` | 项目工作项 ID / 工作项类型 key；独立读取项目属性，验证 ID、空间及类型。这里的 `project_type` 是平台工作项类型，不是文档模板里的 IRAD 等业务分类。 |
++| `project_code` | 预期业务编号；项目真实标题必须能唯一解析出同一编号。配置中的编号不能代替实际读回。 |
++| `node` / `deliverable` / `type` | 节点 key / 交付物 ID / 交付物类型 key；节点必须属于请求的项目，返回的节点 key 必须一致，其原生下级工作项列表必须包含交付物；再核对交付物属性及项目、节点关系字段。 |
++| `document_type` | 预期文种，限 `charter`、`change`、`closure`、`test`。正式目标发现入口仍只接受前三类；`test` 保留已有测试报告路径。 |
++| `document_kind_field` | 实际存储文种身份的字段 key；字段元数据和实际单值必须共同证明文种。 |
++| `document_link_field` | 实际追加文档的写入字段 key。本版本沿用附件上传和附件列表更新流程，只支持 `file` 类型；没有新增 URL 列表写入器。 |
++| `project_field` / `node_field` | 交付物上的项目与节点关系字段。即使原生节点成员列表匹配，关系字段缺失、含多项目或不一致也会阻断。 |
++| `approval_field` / `delivery_mode_field` | 审核、交付方式字段；候选与当前值都需核验。原有未审核保护继续保留。 |
++| `unreviewed_value` | 已审查的“未审核”候选 ID。提交时实际审核字段必须为该值。 |
++| `document_type_bindings`（可选） | 已由管理员审查的 `{候选ID或文本值: 标准文种}` 映射。不会绕过字段类型、候选存在性或实际读值校验；候选的可识别文种标签与映射冲突时拒绝。 |
++| `verified_empty_revision`（可选） | 保留旧机制：只有人工在真实界面验证的初始空附件槽，才可绑定该次完整目标 revision。缺失字段不会自动当成空列表，也不会自动生成该配置值。 |
++
++文种、写入、项目关系、节点关系、审核、交付方式这六个字段角色必须使用不同字段。旧 `document_field` 可以继续存在，但只能与显式 `document_kind_field` 相同；旧 `attachment_field` 只能与显式 `document_link_field` 相同。旧字段不会补全新字段。只含旧字段、两个别名互相冲突或把 URL 字段当文种的配置均停止挂载。
++
++迁移也影响以 `target_alias` 绑定 `document-business.json` 的 `project_snapshot` 信息来源：`ExistingMeegleReader` 复用同一 `_state` 验证，因此这些已有别名也须先核验、补齐明确配置。独立的完整 `MeegleProject` 项目采集路径不依赖这份挂载别名配置，不受此次新增字段要求影响。
++
++## 当前严格支持的 metadata 和值形态
++
++使用现有读取命令：`workitem meta-fields --project-key <space> --work-item-type <type> --page-num <page>`，最多 20 页。每页必须有 `list` 数组以及布尔型 `pagination.has_more`；分页没有完整结束不能用于授权。允许现有信息适配器使用的分组字段定义，重复的目标字段定义会阻断。
++
++节点响应也必须明确返回布尔型 `pagination.has_more: false`。缺失、非布尔或仍有分页的节点读取不能证明本次完整目标。
++
++读取期限与取消检查共用一个 `ContextVar` 上下文：目标发现的原 `deadline`/`guard` 覆盖所有别名、metadata 页、`resolve` 和 `document_identity` 复读。嵌套读取只能缩短期限。每个 CLI 调用前后都检查取消/有效期，subprocess timeout 为 `min(40秒, 剩余秒数)`；超过期限不会发起下一页或下一次读取。不在发现上下文内的 `_state` 也有 120 秒整体读取上限，并受当前 row 的 `expires` 限制。这里没有为每页重开预算，也没有提高全局超时。
++
++| 字段角色 | 接受的 `field_type` | 接受的实际读值 |
++| --- | --- | --- |
++| 文种 | `text` 或 `select` | `text` 为非空字符串；`select` 为候选 ID 或 `{value, label?}` 单值。数组（包括单元素 URL 数组）不会转换为文种。 |
++| 文档写入 | `file` | 现有附件对象列表，或其 JSON 字符串；保留原有文件 token、名称、类型、大小校验及下载字节哈希复读。 |
++| 项目关系 | `work_item` | 单个 `{id: 项目工作项ID}` 对象。列表或缺少 `id` 的对象不支持。 |
++| 节点关系 | `text` 或 `select` | 文本节点 key，或已验证候选的 value；必须与配置节点 key 相同。 |
++| 审核 / 交付方式 | `select` | 候选 ID 或 `{value, label?}`。提交时审核仍须满足原有 `{value: unreviewed_value}` 保护条件。 |
++
++`select` 元数据必须具有 `options: [{value: "候选ID", label: "标签"}, ...]`。候选 ID 不得重复；当前 value 必须在候选中，若响应包含 label，它必须与 metadata 相同。多选、树形选项、其他嵌套候选格式、URL/link 字段等均返回具体诊断。这里列出的是本适配器支持的窄契约，**不是已在原机确认的真实字段 schema**。如果原机使用不同的字段类型名或响应形态，应先导出真实 metadata 进行审查，再做精确适配；不能通过把配置预期值填成相同值来绕过独立读回。
++
++无额外映射时，识别的文本或候选标签是：`项目章程`、`项目更改申请`、`项目变更申请`、`结项报告`、`项目结项报告`、`测试报告`。未加入按交付物名称猜测文种的兜底。
++
++## API、诊断与回读
++
++`resolve(principal, alias)`、`document_identity(principal, target)`、`commit`、`reconcile` 的调用形式保持不变。`document_identity` 仍返回 `{project_code, doc_type}`，但先重新读取完整绑定，任何版本变化都会拒绝旧 target。
++
++`resolve` 在原 target 字段上增加：
++
++- `document_identity`：由独立项目读回与文种值校验确认的身份。
++- `document_kind_field` / `document_link_field`：明确分离的两个字段。
++- `field_metadata_fingerprint`：六个相关字段的类型、选择候选等契约指纹。
++- `binding_fingerprint`：项目、节点、交付物、字段角色、metadata 和文种身份的不可变绑定指纹。
++
++可变 `revision` 仍覆盖交付物内容、附件列表、版本、节点状态和项目读回信息。写前和上传后、更新前均核对完整 revision。附件追加成功后，正常情况下附件列表和 revision 会改变；`reconcile` 比较不可变绑定指纹，同时要求目标文件唯一、既有文件 token 未丢失、实际下载内容哈希正确。因此不会仅因本次合法追加导致 revision 改变而误判失败。
++
++原 journal、幂等键、结果未知状态与对账路径保留。新验证失败且尚未发起上传，仍标记 `BusinessNotStarted`；上传开始后无法确认的情况不自动重发。旧 journal target 没有新绑定指纹时，也不会被新代码直接认定为已确认，需原机审查对账。
++
++`discover_targets` 保持只读。单一匹配且全量读取完成才返回 `available`；多个匹配为 `ambiguous`，仍需明确选择。如果某些别名核验成功但另一些失败，返回 `unresolved`，`targets` 为空；成功读到的候选仅放入 `reviewable_candidates` 供审查。没有写配置、创建候选或选择替代目标的行为。
++
++原有通用诊断仍使用 `alias/stage/status/error_code`；本次验证错误可附加内容最少的 `detail`（如缺失配置键、字段 key、支持类型、失败检查），不包含业务正文或文档 URL。关键阻断包括：
++
++- `BUSINESS_TARGET_CONFIG_INCOMPLETE` / `BUSINESS_TARGET_FIELD_CONFLICT`：含糊旧配置或角色冲突。
++- `BUSINESS_METADATA_UNAVAILABLE` / `BUSINESS_FIELD_METADATA_MISSING`：真实 metadata 缺失或请求失败。
++- `BUSINESS_READ_DEADLINE`：同一次读取的整体期限已到；不会继续下一页/别名。取消继续使用 `DOCUMENT_DELIVERY_SCOPE_CHANGED`。
++- `BUSINESS_FIELD_TYPE_UNSUPPORTED` / `BUSINESS_FIELD_CANDIDATES_UNVERIFIED`：不支持或无法证明的字段类型、候选形态。
++- `BUSINESS_PROJECT_CODE_MISMATCH` / `BUSINESS_PROJECT_CODE_UNVERIFIED`：实际项目编号不匹配或不唯一。
++- `BUSINESS_PARENT_CHANGED`：配置交付物不在配置节点的原生下级列表中。
++- `BUSINESS_PROJECT_RELATION_MISSING` / `BUSINESS_PROJECT_RELATION_UNVERIFIED`：项目关系字段未返回或不能证明唯一关联。
++- `BUSINESS_DOCUMENT_KIND_MISMATCH`：实际文种与预期/映射不一致。
++- `BUSINESS_TARGET_BINDING_CHANGED`：对账时身份或字段契约与 journal 中的目标不一致。
++
++## 原机接续顺序
++
++Codex 先用既有授权、既有固定 CLI 只读导出目标空间的字段 metadata、项目属性、原生节点及交付物字段。逐项核对上表并形成可审查的配置差异；原配置 member 不在 node、project code 不同、`document_field` 为 URL 列表、project field 没有返回的事实都应保留为阻断证据，不自动选新 ID。只有真实读回能证明同一项目、节点、交付物和独立文种/写入字段后，再由原流程进行选择、采用和正式挂载。
++
++离线测试只证明合成响应下的校验和对账行为。它不证明原机 metadata 可读、平台字段契约已适配、真实挂载成功或独立业务验收通过。
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_delivery.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_delivery.py
+index 3d99948a9..46552e071 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_delivery.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_delivery.py
+@@ -1,13 +1,26 @@
+ """Read-only discovery of already authorized document mounting targets."""
+ from __future__ import annotations
+ 
++from contextlib import nullcontext
+ import time
+ import re
+ 
+ from .config import BoundaryError
++from .document_target import TargetValidationError
+ 
+ 
+ def discover_targets(business, row, *, project_code, doc_type, guard, deadline, limit=32):
++    # Optional capability: existing fake/alternative ports retain their API.
++    # A Meegle port shares this deadline/guard across aliases, metadata pages,
++    # resolve and the independent identity reread rather than restarting it.
++    reader_scope = getattr(business, 'read_scope', None)
++    scope = reader_scope(row, guard=guard, deadline=deadline) if callable(reader_scope) else nullcontext()
++    with scope:
++        return _discover_targets(business, row, project_code=project_code, doc_type=doc_type,
++                                 guard=guard, deadline=deadline, limit=limit)
++
++
++def _discover_targets(business, row, *, project_code, doc_type, guard, deadline, limit):
+     if doc_type not in ('charter', 'change', 'closure'):
+         raise BoundaryError('DOCUMENT_DELIVERY_TYPE_INVALID')
+     if guard() is False:
+@@ -15,9 +28,10 @@ def discover_targets(business, row, *, project_code, doc_type, guard, deadline,
+     settings = getattr(business, 'settings', None)
+     configured = settings.get('targets') if isinstance(settings, dict) else None
+     diagnostics=[]
+-    def result(state, targets=(), unresolved=(), labels=None):
++    def result(state, targets=(), unresolved=(), labels=None, reviewable_candidates=()):
+         return {'state': state, 'targets': list(targets), 'unresolved': list(unresolved),
+-                'labels': labels or {}, 'doc_type': doc_type, 'read_only': True,'diagnostics':diagnostics}
++                'labels': labels or {}, 'doc_type': doc_type, 'read_only': True,'diagnostics':diagnostics,
++                'reviewable_candidates':list(reviewable_candidates)}
+     if not isinstance(configured, dict):
+         return result('not_configured')
+     if len(configured) > limit:
+@@ -35,13 +49,20 @@ def discover_targets(business, row, *, project_code, doc_type, guard, deadline,
+         stage='resolve'
+         try:
+             target = resolver(row, alias)
++            if not isinstance(target, dict):
++                raise BoundaryError('TARGET_BINDING_INCOMPLETE')
+             stage='document_identity'
+             identity = identity_reader(row, target)
++            if not isinstance(identity, dict):
++                raise BoundaryError('BUSINESS_DOCUMENT_IDENTITY_UNVERIFIED')
+         except BoundaryError as exc:
+             # A failure cannot prove that a formal target is absent.
+             code=str(exc)
+-            diagnostics.append({'alias':alias,'stage':stage,'status':'unresolved',
+-                'error_code':code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,100}',code) else 'BOUNDARY_ERROR'})
++            diagnostic={'alias':alias,'stage':stage,'status':'unresolved',
++                'error_code':code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,100}',code) else 'BOUNDARY_ERROR'}
++            if isinstance(exc, TargetValidationError) and exc.diagnostic:
++                diagnostic['detail']=dict(exc.diagnostic)
++            diagnostics.append(diagnostic)
+             unresolved.append(alias); continue
+         if guard() is False:
+             raise BoundaryError('DOCUMENT_DELIVERY_SCOPE_CHANGED')
+@@ -65,6 +86,10 @@ def discover_targets(business, row, *, project_code, doc_type, guard, deadline,
+                 'document_type_matches':identity.get('doc_type')==doc_type})
+     state = ('unresolved' if unresolved else 'ambiguous' if len(matches) > 1
+              else 'available' if matches else 'not_configured')
++    if unresolved:
++        # One readable candidate does not resolve an unreadable second binding.
++        # Retain observations for review, but expose no actionable target list.
++        return result(state, (), unresolved, labels, reviewable_candidates=matches)
+     return result(state, matches, unresolved, labels)
+ 
+ 
+@@ -76,8 +101,14 @@ def render_targets(result):
+         codes={d.get('error_code') for d in result.get('diagnostics',[]) if d.get('status')=='unresolved'}
+         reason=('项目编号或交付物文种尚未明确对应。' if 'BUSINESS_DOCUMENT_IDENTITY_UNVERIFIED' in codes
+                 else '目标版本已变化，需要重新核对。' if 'TARGET_REVISION_CHANGED' in codes
++                else '本次读取期限已到，尚未完成的目标需要重新核验。' if 'BUSINESS_READ_DEADLINE' in codes
++                else '配置仍缺少明确的文种身份字段、文档写入字段或预期项目身份，需要先按实际记录核对。' if codes & {'BUSINESS_TARGET_CONFIG_INCOMPLETE','BUSINESS_TARGET_CONFIG_INVALID','BUSINESS_TARGET_FIELD_CONFLICT'}
++                else '平台字段元数据未能完整读取，字段类型与候选值尚未核实。' if codes & {'BUSINESS_METADATA_UNAVAILABLE','BUSINESS_METADATA_LIMIT','BUSINESS_FIELD_METADATA_MISSING','BUSINESS_FIELD_METADATA_AMBIGUOUS'}
++                else '文种字段与文档写入字段的类型、候选值或实际文种未能对应；需要核对真实字段定义。' if codes & {'BUSINESS_FIELD_TYPE_UNSUPPORTED','BUSINESS_FIELD_CANDIDATES_UNVERIFIED','BUSINESS_FIELD_CANDIDATE_MISMATCH','BUSINESS_FIELD_VALUE_UNVERIFIED','BUSINESS_DOCUMENT_KIND_MISMATCH'}
++                else '平台未返回可验证的项目关系字段，需要补齐真实关系读回。' if codes & {'BUSINESS_PROJECT_RELATION_MISSING','BUSINESS_PROJECT_RELATION_UNVERIFIED'}
++                else '平台项目编号与预期项目尚未唯一对应。' if codes & {'BUSINESS_PROJECT_CODE_MISMATCH','BUSINESS_PROJECT_CODE_UNVERIFIED'}
+                 else '配置的交付物已无法在原节点的下级列表中找到，需要重新核对父子绑定。' if 'BUSINESS_PARENT_CHANGED' in codes
+-                else '配置的项目、节点或交付物与平台记录不一致。' if codes & {'BUSINESS_TARGET_CHANGED','BUSINESS_PROJECT_IDENTITY_CHANGED','BUSINESS_NODE_UNVERIFIED'}
++                else '配置的项目、节点或交付物与平台记录不一致。' if codes & {'BUSINESS_TARGET_CHANGED','BUSINESS_PROJECT_IDENTITY_CHANGED','BUSINESS_NODE_UNVERIFIED','BUSINESS_TARGET_BINDING_CHANGED','BUSINESS_TARGET_FIELD_MISSING'}
+                 else '目标读取尚未完成，具体失败阶段已记录。')
+         return '正式挂载目标尚未核验完整。'+reason+'草稿已保留。'
+     lines = ['已核验当前授权配置中的正式目标：' if state == 'available' else '找到多个匹配的正式目标，请明确选择：']
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_evidence.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_evidence.py
+index b27611557..3f76ca8a3 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_evidence.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_evidence.py
+@@ -6,21 +6,25 @@ the authenticated bundle and its current-version verifier.
+ from __future__ import annotations
+ 
+ import math
++import re
+ from datetime import datetime, timezone
+ from urllib.parse import quote
+ 
+-from am_doc_engine.models import canonical
++from am_doc_engine.models import canonical, fingerprint
+ from .config import BoundaryError
+ 
+ 
+-BINDING_SCHEMA = 'am-document-evidence-binding/1'
++BINDING_SCHEMA = 'am-document-evidence-binding/2'
++LEGACY_BINDING_SCHEMA = 'am-document-evidence-binding/1'
++BINDING_SCHEMAS = frozenset((LEGACY_BINDING_SCHEMA, BINDING_SCHEMA))
++COMPONENT_NAMES = frozenset(('authorization','project','sources','objects','facts','quality','gaps','pending'))
+ CONTRACT = 'am-document-evidence/1'
+ QUALIFIERS = ('modality', 'authority', 'business_state', 'polarity', 'time',
+               'time_scope', 'scope', 'condition', 'attribution', 'conflict_group', 'stale')
+ 
+ 
+ def validate_binding(row, binding, *, now, project_code=None, project_id=None):
+-    if not isinstance(binding, dict) or binding.get('schema') != BINDING_SCHEMA:
++    if not isinstance(binding, dict) or binding.get('schema') not in BINDING_SCHEMAS:
+         raise BoundaryError('DOCUMENT_SHARED_EVIDENCE_REGENERATE_REQUIRED')
+     expected = [row['tenant'], row['app'], row['user'], row['chat'], '']
+     if binding.get('scope') != expected:
+@@ -34,6 +38,13 @@ def validate_binding(row, binding, *, now, project_code=None, project_id=None):
+         raise BoundaryError('DOCUMENT_SHARED_EVIDENCE_EXPIRED')
+     if not isinstance(binding.get('state_hash'), str) or not binding['state_hash'] or 'access_version' not in binding:
+         raise BoundaryError('DOCUMENT_SHARED_EVIDENCE_BINDING_INVALID')
++    if binding['schema']==BINDING_SCHEMA:
++        components=binding.get('component_hashes')
++        if (not isinstance(binding.get('access_version'),str) or not binding['access_version']
++                or not isinstance(components,dict) or set(components)!=COMPONENT_NAMES
++                or any(not isinstance(v,str) or not re.fullmatch(r'[0-9a-f]{64}',v) for v in components.values())
++                or binding['state_hash']!=fingerprint({'schema':BINDING_SCHEMA,'components':components})):
++            raise BoundaryError('DOCUMENT_SHARED_EVIDENCE_BINDING_INVALID')
+     return binding
+ 
+ 
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_target.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_target.py
+new file mode 100644
+index 000000000..be950c53e
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_target.py
+@@ -0,0 +1,201 @@
++"""Strict, read-only validation of a configured Meegle document target.
++
++Only the response shapes listed here are supported. Configuration supplies an
++expectation; platform attributes, field metadata and field values must prove it.
++Unknown schemas are a diagnostic, never permission to guess another target.
++"""
++from __future__ import annotations
++
++import json
++
++from .config import BoundaryError
++from .doc_logic import digest
++from .project_catalog import business_ids
++
++
++DOCUMENT_TYPES = frozenset(("charter", "change", "closure", "test"))
++DOCUMENT_NAMES = {"项目章程": "charter", "项目更改申请": "change", "项目变更申请": "change",
++                  "结项报告": "closure", "项目结项报告": "closure", "测试报告": "test"}
++# These are deliberately narrow adapter contracts, not claims that every Meegle
++# installation uses this vocabulary. An unsupported native schema stays blocked.
++FIELD_TYPES = {
++    "document_kind_field": frozenset(("text", "select")),
++    "document_link_field": frozenset(("file",)),
++    "project_field": frozenset(("work_item",)),
++    "node_field": frozenset(("text", "select")),
++    "approval_field": frozenset(("select",)),
++    "delivery_mode_field": frozenset(("select",)),
++}
++
++
++class TargetValidationError(BoundaryError):
++    """A content-free, reviewable reason why a target could not be proven."""
++
++    def __init__(self, code, **diagnostic):
++        super().__init__(code)
++        self.diagnostic = diagnostic
++
++
++def fingerprint(value):
++    return digest(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
++
++
++def binding_config(value):
++    if not isinstance(value, dict):
++        raise TargetValidationError("BUSINESS_TARGET_CONFIG_INVALID")
++    required = ("space", "project", "project_type", "project_code", "node", "deliverable", "type",
++                "document_type", "document_kind_field", "document_link_field", "approval_field",
++                "node_field", "project_field", "delivery_mode_field", "unreviewed_value", "url")
++    missing = [key for key in required if not isinstance(value.get(key), str)
++               or not value[key].strip() or value[key] != value[key].strip()]
++    if missing:
++        raise TargetValidationError("BUSINESS_TARGET_CONFIG_INCOMPLETE", missing_config=missing)
++    if (value["document_type"] not in DOCUMENT_TYPES
++            or business_ids(value["project_code"]) != [value["project_code"]]):
++        raise TargetValidationError("BUSINESS_TARGET_CONFIG_INVALID", check="expected_identity")
++    # Legacy aliases may agree with the new explicit fields, but never supply
++    # their missing meaning and never silently override them.
++    for legacy, current in (("document_field", "document_kind_field"),
++                            ("attachment_field", "document_link_field")):
++        if legacy in value and value[legacy] != value[current]:
++            raise TargetValidationError("BUSINESS_TARGET_FIELD_CONFLICT", fields=[legacy, current])
++    fields = [value[key] for key in FIELD_TYPES]
++    if len(set(fields)) != len(fields):
++        raise TargetValidationError("BUSINESS_TARGET_FIELD_CONFLICT", check="distinct_field_roles")
++    mappings = value.get("document_type_bindings", {})
++    if not isinstance(mappings, dict) or any(not isinstance(k, str) or not k or not isinstance(v, str) or v not in DOCUMENT_TYPES
++                                           for k, v in mappings.items()):
++        raise TargetValidationError("BUSINESS_TARGET_CONFIG_INVALID", check="document_type_bindings")
++    return dict(value, attachment_field=value["document_link_field"])
++
++
++def _scalar(value):
++    if isinstance(value, bool) or not isinstance(value, (str, int)) or str(value) == "":
++        return None
++    return str(value)
++
++
++def _definitions(value):
++    # The existing metadata reader allows grouped field definitions. A field
++    # row itself is a leaf; do not mistake its options for more field rows.
++    if isinstance(value, dict):
++        if "field_key" in value:
++            yield value
++        else:
++            for item in value.values():
++                yield from _definitions(item)
++    elif isinstance(value, list):
++        for item in value:
++            yield from _definitions(item)
++
++
++def validate_metadata(binding, rows):
++    wanted = {binding[role]: role for role in FIELD_TYPES}
++    found = {}
++    for field in _definitions(rows):
++        key = field.get("field_key")
++        if not isinstance(key, str) or key not in wanted:
++            continue
++        if key in found:
++            raise TargetValidationError("BUSINESS_FIELD_METADATA_AMBIGUOUS", field_key=key)
++        found[key] = field
++    missing = sorted(set(wanted) - set(found))
++    if missing:
++        raise TargetValidationError("BUSINESS_FIELD_METADATA_MISSING", missing_fields=missing)
++    verified = {}
++    for key, role in wanted.items():
++        field = found[key]
++        typ = field.get("field_type")
++        if not isinstance(typ, str) or typ not in FIELD_TYPES[role]:
++            raise TargetValidationError("BUSINESS_FIELD_TYPE_UNSUPPORTED", field_key=key, role=role,
++                                        observed_type=typ if isinstance(typ, str) else "unrecognized",
++                                        supported_types=sorted(FIELD_TYPES[role]))
++        definition = {"field_key": key, "field_type": typ}
++        if typ == "select":
++            options = field.get("options")
++            if not isinstance(options, list) or not options or len(options) > 2000:
++                raise TargetValidationError("BUSINESS_FIELD_CANDIDATES_UNVERIFIED", field_key=key)
++            candidates = {}
++            for option in options:
++                value = _scalar(option.get("value")) if isinstance(option, dict) else None
++                label = option.get("label") if isinstance(option, dict) else None
++                if value is None or not isinstance(label, str) or not label.strip() or value in candidates:
++                    raise TargetValidationError("BUSINESS_FIELD_CANDIDATES_UNVERIFIED", field_key=key)
++                candidates[value] = label
++            definition["candidates"] = candidates
++        verified[key] = definition
++    return verified
++
++
++def field_value(fields, metadata, key):
++    if key not in fields:
++        raise TargetValidationError("BUSINESS_TARGET_FIELD_MISSING", field_key=key)
++    raw = fields[key]
++    if metadata[key]["field_type"] == "text":
++        if not isinstance(raw, str) or not raw.strip():
++            raise TargetValidationError("BUSINESS_FIELD_VALUE_UNVERIFIED", field_key=key)
++        return raw, raw
++    if metadata[key]["field_type"] == "select":
++        value = _scalar(raw.get("value") if isinstance(raw, dict) else raw)
++        candidates = metadata[key]["candidates"]
++        if value not in candidates:
++            raise TargetValidationError("BUSINESS_FIELD_CANDIDATE_MISMATCH", field_key=key)
++        label = candidates[value]
++        if isinstance(raw, dict) and "label" in raw and raw["label"] != label:
++            raise TargetValidationError("BUSINESS_FIELD_CANDIDATE_MISMATCH", field_key=key)
++        return value, label
++    raise TargetValidationError("BUSINESS_FIELD_TYPE_UNSUPPORTED", field_key=key)
++
++
++def project_identity(binding, project):
++    attr = project.get("work_item_attribute", {})
++    if (not isinstance(attr, dict) or _scalar(attr.get("work_item_id")) != binding["project"]
++            or not isinstance(attr.get("owned_project"), dict)
++            or attr["owned_project"].get("key") != binding["space"]
++            or not isinstance(attr.get("work_item_type"), dict)
++            or attr["work_item_type"].get("key") != binding["project_type"]):
++        raise TargetValidationError("BUSINESS_PROJECT_IDENTITY_CHANGED", check="project_attributes")
++    title = attr.get("work_item_name")
++    codes = business_ids(title) if isinstance(title, str) else []
++    if len(codes) != 1:
++        raise TargetValidationError("BUSINESS_PROJECT_CODE_UNVERIFIED", check="single_project_code")
++    if codes[0] != binding["project_code"]:
++        raise TargetValidationError("BUSINESS_PROJECT_CODE_MISMATCH", check="project_code")
++    return attr
++
++
++def target_identity(binding, fields, metadata):
++    project_key = binding["project_field"]
++    if project_key not in fields:
++        raise TargetValidationError("BUSINESS_PROJECT_RELATION_MISSING", field_key=project_key)
++    relation = fields[project_key]
++    if not isinstance(relation, dict) or _scalar(relation.get("id")) is None:
++        raise TargetValidationError("BUSINESS_PROJECT_RELATION_UNVERIFIED", field_key=project_key)
++    if _scalar(relation["id"]) != binding["project"]:
++        raise TargetValidationError("BUSINESS_TARGET_CHANGED", check="project_relation", field_key=project_key)
++    node, _ = field_value(fields, metadata, binding["node_field"])
++    if node != binding["node"]:
++        raise TargetValidationError("BUSINESS_TARGET_CHANGED", check="node_relation", field_key=binding["node_field"])
++    kind, label = field_value(fields, metadata, binding["document_kind_field"])
++    mapped = binding.get("document_type_bindings", {}).get(kind)
++    named = DOCUMENT_NAMES.get(label)
++    if mapped and named and mapped != named:
++        raise TargetValidationError("BUSINESS_DOCUMENT_KIND_MISMATCH", check="candidate_label_binding")
++    observed = mapped or named
++    if observed is None:
++        raise TargetValidationError("BUSINESS_DOCUMENT_IDENTITY_UNVERIFIED", field_key=binding["document_kind_field"])
++    if observed != binding["document_type"]:
++        raise TargetValidationError("BUSINESS_DOCUMENT_KIND_MISMATCH", field_key=binding["document_kind_field"])
++    # These selections affect protected-write semantics too. Unknown values or
++    # stale labels must not get past target resolution.
++    for role in ("approval_field", "delivery_mode_field"):
++        field_value(fields, metadata, binding[role])
++    return {"project_code": binding["project_code"], "doc_type": observed}, kind
++
++
++def immutable_binding(binding, metadata, identity, kind):
++    keys = ("space", "project", "project_type", "node", "deliverable", "type", "url",
++            "unreviewed_value", *FIELD_TYPES)
++    return fingerprint({"binding": {key: binding[key] for key in keys},
++                        "metadata": metadata, "identity": identity, "kind": kind,
++                        "document_type_bindings": binding.get("document_type_bindings", {})})
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_view_binding.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_view_binding.py
+index 96af14012..f78dedef4 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_view_binding.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/document_view_binding.py
+@@ -5,22 +5,30 @@ renewal, model call or business action takes place inside a dispatch fence.
+ """
+ import json
+ import math
++import sqlite3
+ from .config import BoundaryError
+ from .project_catalog import digest
+ from .store import scope_of
++from .document_evidence import BINDING_SCHEMA
++
++
++SCOPED_SOURCE_FENCE = 'am-document-source-fence/2:'
+ 
+ 
+ def init(store):
+     store.execute('CREATE TABLE IF NOT EXISTS am_document_view_outputs ('
+         'outbox_id TEXT PRIMARY KEY,binding TEXT NOT NULL,expires REAL NOT NULL)')
++    store.execute('CREATE TABLE IF NOT EXISTS am_document_source_outputs ('
++        'outbox_id TEXT PRIMARY KEY,source_fence TEXT NOT NULL)')
+ 
+ 
+-def capture(logic, row, draft):
++def _capture(logic, row, draft):
+     now=logic.s.clock()
+     if draft['scope']!=scope_of(row) or draft['expires']<=now:
+         raise BoundaryError('DOCUMENT_VIEW_EXPIRED')
+     # Collection pages without a result may still describe their neutral state.
+-    if any(draft.get(k) for k in ('content','analysis','review')) or draft['state']=='ready':
++    has_result=any(draft.get(k) for k in ('content','analysis','review')) or draft['state']=='ready'
++    if has_result:
+         logic.require_current_document_evidence(row,draft)
+     tables={r['name'] for r in logic.s.rows("SELECT name FROM sqlite_master WHERE type='table'")}
+     context=logic.s.rows('SELECT * FROM amdoc_context WHERE draft_id=?',(draft['id'],)) if 'amdoc_context' in tables else []
+@@ -29,6 +37,9 @@ def capture(logic, row, draft):
+     rules=json.loads(draft.get('rules') or '{}')
+     payload=json.loads(results[0]['payload']) if results else {}
+     evidence=payload.get('document_binding') or rules.get('document_binding')
++    if (isinstance(evidence,dict) and evidence.get('schema')==BINDING_SCHEMA
++            and not logic.is_standard_draft(draft)):
++        raise BoundaryError('DOCUMENT_VIEW_EVIDENCE_UNVERIFIED')
+     expiries=[row['expires'],draft['expires']]
+     expiries += [r['expires'] for r in context+results]
+     if evidence:
+@@ -37,14 +48,21 @@ def capture(logic, row, draft):
+         if raw is not None:expiries.append(raw/1000)
+     if any(type(t) not in (int,float) or not math.isfinite(t) or t<=now for t in expiries):
+         raise BoundaryError('DOCUMENT_VIEW_EXPIRED')
+-    return {'schema':'am-document-view/1','draft_id':draft['id'],'revision':draft['revision'],
++    view={'schema':'am-document-view/1','draft_id':draft['id'],'revision':draft['revision'],
+         'scope':draft['scope'],'content_hash':draft['content_hash'],
+         'payload_hash':digest([draft.get(k) for k in (
+             'content','analysis','review','rules','state','stage','accepted_hash','target')]),
+         'evidence_hash':digest([context,results,evidence]),'expires':min(expiries)}
++    # A neutral collection page has not passed the evidence verifier above and
++    # cannot obtain a scoped delivery fence from a dormant rules field.
++    return view,evidence if has_result else None
+ 
+ 
+-def require(logic, row, binding):
++def capture(logic, row, draft):
++    return _capture(logic,row,draft)[0]
++
++
++def _require(logic, row, binding):
+     if not isinstance(binding,dict) or binding.get('schema')!='am-document-view/1':
+         raise BoundaryError('DOCUMENT_VIEW_REOPEN_REQUIRED')
+     expiry=binding.get('expires')
+@@ -52,12 +70,45 @@ def require(logic, row, binding):
+         raise BoundaryError('DOCUMENT_VIEW_EXPIRED')
+     drafts=logic.s.rows('SELECT * FROM logic_drafts WHERE id=?',(binding.get('draft_id'),))
+     if not drafts:raise BoundaryError('DOCUMENT_VIEW_CHANGED')
+-    current=capture(logic,row,drafts[0])
++    current,evidence=_capture(logic,row,drafts[0])
+     if set(current)!=set(binding) or any(current[k]!=binding[k] for k in current if k!='expires') or expiry>current['expires']:
+         raise BoundaryError('DOCUMENT_VIEW_CHANGED')
++    return evidence
++
++
++def require(logic, row, binding):
++    _require(logic,row,binding)
+     return True
+ 
+ 
++def source_fence(logic, row, binding):
++    """Return a v2-only delivery marker after the full persisted-view check.
++
++    The marker is a routing discriminator, not an authorization grant. Every
++    use must repeat this verifier against the exact persisted output binding.
++    Legacy/unbound/collection views never gain a scoped marker on upgrade.
++    """
++    evidence=_require(logic,row,binding)
++    if isinstance(evidence,dict) and evidence.get('schema')==BINDING_SCHEMA:
++        return SCOPED_SOURCE_FENCE+digest(binding)
++    return None
++
++
++def bind_source_output(row, verified_view_fence):
++    """Bind the marker to this exact immutable outbox payload, not just a draft."""
++    keys=('id','task_id','app','tenant','user','chat','chat_type','origin_chat_type',
++          'kind','body','artifact','nonce','created','expires')
++    return SCOPED_SOURCE_FENCE+digest([verified_view_fence,{k:row[k] for k in keys}])
++
++
++def scoped_delivery_authorized(logic, row, marker):
++    records=logic.s.rows('SELECT binding FROM am_document_view_outputs WHERE outbox_id=?',(row['id'],))
++    if not records or not isinstance(marker,str) or not marker.startswith(SCOPED_SOURCE_FENCE):
++        return False
++    verified=source_fence(logic,row,json.loads(records[0]['binding']))
++    return verified is not None and bind_source_output(row,verified)==marker
++
++
+ def references_document(snapshot):
+     """Recognize older server-owned snapshots which predate the view binding."""
+     data=snapshot.get('data',{})
+@@ -82,11 +133,25 @@ def check_snapshot(logic,row,snapshot):
+ def valid_output(logic,row):
+     records=logic.s.rows('SELECT binding FROM am_document_view_outputs WHERE outbox_id=?',(row['id'],))
+     try:
+-        if records:require(logic,row,json.loads(records[0]['binding']))
++        marker=logic.s.rows('SELECT source_fence FROM am_document_source_outputs WHERE outbox_id=?',(row['id'],))
++        if marker and not records:return False
++        checked_binding=None
++        if records:
++            checked_binding=json.loads(records[0]['binding'])
++            verified=source_fence(logic,row,checked_binding)
++            if verified is not None:
++                if not marker or bind_source_output(row,verified)!=marker[0]['source_fence']:
++                    return False
++            elif marker:return False
+         for card in logic.s.rows('SELECT snapshot FROM am_cards WHERE outbox_id=?',(row['id'],)):
+-            check_snapshot(logic,row,json.loads(card['snapshot']))
++            snapshot=json.loads(card['snapshot'])
++            if snapshot.get('data',{}).get('document_binding') is not None and not records:return False
++            # Reuse only this function's exact checked binding. A later guard
++            # starts from current state again, including the final send guard.
++            if checked_binding is None or snapshot.get('data',{}).get('document_binding')!=checked_binding:
++                check_snapshot(logic,row,snapshot)
+         return True
+-    except (BoundaryError,ValueError,KeyError,TypeError):
++    except (BoundaryError,ValueError,KeyError,TypeError,sqlite3.Error):
+         return False
+ 
+ 
+@@ -122,3 +187,4 @@ def cleanup(store):
+         c.execute("UPDATE am_interactions SET current_view='{}',subject_refs='[]' WHERE expires<=?",(now,))
+         c.execute("UPDATE am_cards SET snapshot='{}' WHERE expires<=? AND outbox_id IN (SELECT outbox_id FROM am_document_view_outputs)",(now,))
+         c.execute("UPDATE outbox SET body=NULL,artifact=NULL,state=CASE WHEN state IN ('pending','callback_pending') THEN 'expired' ELSE state END WHERE id IN (SELECT outbox_id FROM am_document_view_outputs WHERE expires<=?)",(now,))
++        c.execute('DELETE FROM am_document_source_outputs WHERE outbox_id NOT IN (SELECT id FROM outbox)')
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py
+index c8815c486..ca9cea108 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/src/fs_agent/meegle_port.py
+@@ -1,5 +1,7 @@
+ """Scoped Meegle CLI adapter. Exact targets are bound by the service, never by model text."""
+ from __future__ import annotations
++from contextlib import contextmanager
++from contextvars import ContextVar
+ import fcntl
+ import hashlib
+ import json
+@@ -7,9 +9,13 @@ import os
+ import re
+ import subprocess
+ import tempfile
++import time
+ from pathlib import Path
+ from .config import BoundaryError
+ from .doc_logic import digest, read_source, MAX_BYTES
++from .document_target import (TargetValidationError, binding_config, fingerprint,
++                              immutable_binding, project_identity, target_identity,
++                              validate_metadata)
+ 
+ class BusinessNotStarted(BoundaryError):
+     """The adapter has proven that no external mutation was attempted."""
+@@ -18,6 +24,7 @@ class MeeglePort:
+     def __init__(self, gateway, settings):
+         self.g, self.s, self.c = gateway, gateway.store, gateway.config
+         self.settings = settings
++        self._read_context = ContextVar("meegle_document_read_scope", default=None)
+         self.binary = Path(settings["executable"])
+         if (self.binary.is_symlink() or not self.binary.resolve().is_relative_to(self.c.root / "bin")
+                 or digest(self.binary.read_bytes()) != settings["sha256"]):
+@@ -29,6 +36,45 @@ class MeeglePort:
+         if self.tmp.is_symlink():
+             raise BoundaryError("BUSINESS_DIRECTORY_INVALID")
+ 
++    @contextmanager
++    def read_scope(self, principal=None, *, guard=None, deadline=None):
++        """Share one bounded, context-local read budget across discovery/pages.
++
++        Nested state reads may narrow a budget, never extend an outer deadline.
++        The expiry uses the store's clock; elapsed I/O uses monotonic time.
++        """
++        now = time.monotonic()
++        current = self._read_context.get()
++        deadlines = [now + 120.0]
++        guards = current[1] if current is not None else ()
++        if current is not None:
++            deadlines.append(current[0])
++        if deadline is not None:
++            deadlines.append(deadline)
++        if principal is not None and principal.get("expires") is not None:
++            deadlines.append(now + max(0.0, principal["expires"] - self.s.clock()))
++        if guard is not None and guard not in guards:
++            guards += (guard,)
++        token = self._read_context.set((min(deadlines), guards))
++        try:
++            yield
++        finally:
++            self._read_context.reset(token)
++
++    def _read_timeout(self):
++        scope = self._read_context.get()
++        if scope is None:
++            return 40.0
++        if time.monotonic() >= scope[0]:
++            raise BoundaryError("BUSINESS_READ_DEADLINE")
++        for guard in scope[1]:
++            if guard() is False:
++                raise BoundaryError("DOCUMENT_DELIVERY_SCOPE_CHANGED")
++        remaining = scope[0] - time.monotonic()
++        if remaining <= 0:
++            raise BoundaryError("BUSINESS_READ_DEADLINE")
++        return min(40.0, remaining)
++
+     def _run(self, args, *, params=None, json_result=True):
+         env = {k:v for k,v in os.environ.items() if not k.startswith("MEEGLE_")}
+         env.update(MEEGLE_HOST="project.feishu.cn", MEEGLE_TELEMETRY="disabled",
+@@ -40,9 +86,11 @@ class MeeglePort:
+                 path.write_text(json.dumps(params, ensure_ascii=False)); path.chmod(0o600)
+                 command += ["--params", "@" + str(path)]
+             try:
+-                result = subprocess.run(command, env=env, capture_output=True, timeout=40)
++                result = subprocess.run(command, env=env, capture_output=True, timeout=self._read_timeout())
+             except (OSError, subprocess.TimeoutExpired):
++                self._read_timeout()
+                 raise BoundaryError("BUSINESS_CALL_UNCERTAIN") from None
++            self._read_timeout()
+         if result.returncode:
+             raise BoundaryError("BUSINESS_CALL_FAILED")
+         if not json_result:
+@@ -72,7 +120,13 @@ class MeeglePort:
+         fields = data.get("work_item_fields")
+         if not isinstance(fields, list):
+             raise BoundaryError("BUSINESS_FIELDS_INVALID")
+-        return {f["key"]:f.get("value") for f in fields if isinstance(f,dict) and "key" in f}
++        result = {}
++        for field in fields:
++            if (not isinstance(field, dict) or not isinstance(field.get("key"), str)
++                    or field["key"] in result):
++                raise BoundaryError("BUSINESS_FIELDS_INVALID")
++            result[field["key"]] = field.get("value")
++        return result
+ 
+     @staticmethod
+     def _files(raw):
+@@ -85,57 +139,100 @@ class MeeglePort:
+             raise BoundaryError("BUSINESS_FILES_INVALID")
+         return raw
+ 
++    def _metadata(self, binding):
++        # Use the same paginated CLI reader as the information source adapter.
++        # A missing page/completeness marker never authorizes a write.
++        rows = []
++        for page in range(1, 21):
++            try:
++                data = self._run(["workitem", "meta-fields", "--project-key", binding["space"],
++                                  "--work-item-type", binding["type"], "--page-num", str(page)])
++            except BoundaryError as exc:
++                code = str(exc)
++                if code not in {"BUSINESS_CALL_UNCERTAIN", "BUSINESS_CALL_FAILED",
++                                "BUSINESS_RESPONSE_LIMIT", "BUSINESS_RESPONSE_INVALID"}:
++                    raise
++                raise TargetValidationError("BUSINESS_METADATA_UNAVAILABLE",
++                    cause=code if re.fullmatch(r"[A-Z][A-Z0-9_]{0,100}", code) else "BOUNDARY_ERROR") from None
++            pagination = data.get("pagination") if isinstance(data, dict) else None
++            if (not isinstance(data, dict) or not isinstance(data.get("list"), list)
++                    or not isinstance(pagination, dict) or type(pagination.get("has_more")) is not bool):
++                raise TargetValidationError("BUSINESS_METADATA_UNAVAILABLE", check="complete_metadata_page")
++            rows.extend(data["list"])
++            if len(rows) > 4096:
++                raise TargetValidationError("BUSINESS_METADATA_LIMIT")
++            if not pagination["has_more"]:
++                return validate_metadata(binding, rows)
++        raise TargetValidationError("BUSINESS_METADATA_LIMIT")
++
+     def _state(self, principal, alias):
+-        b = self._authorize(principal, alias)
++        with self.read_scope(principal):
++            self._read_timeout()
++            result = self._read_state(principal, alias)
++            self._read_timeout()
++            return result
++
++    def _read_state(self, principal, alias):
++        b = binding_config(self._authorize(principal, alias))
++        metadata = self._metadata(b)
++        project = self._run(["workitem", "get", "--project-key", b["space"],
++                             "--work-item-id", b["project"]])
++        project_attr = project_identity(b, project)
+         node = self._run(["workflow","get-node","--project-key",b["space"],
+                           "--work-item-id",b["project"],"--node-id-list",b["node"],"--need-sub-task"])
+         nodes = node.get("list", [])
+-        if (len(nodes) != 1 or nodes[0].get("basic",{}).get("node_key") != b["node"]
+-                or node.get("pagination",{}).get("has_more")):
++        pagination = node.get("pagination")
++        if (not isinstance(nodes, list) or len(nodes) != 1 or not isinstance(nodes[0], dict)
++                or not isinstance(nodes[0].get("basic"), dict)
++                or nodes[0]["basic"].get("node_key") != b["node"]
++                or not isinstance(pagination, dict) or type(pagination.get("has_more")) is not bool
++                or pagination["has_more"]):
++            raise BoundaryError("BUSINESS_NODE_UNVERIFIED")
++        groups = nodes[0].get("sub_workitems")
++        if (not isinstance(groups, list) or any(not isinstance(group, dict)
++                or not isinstance(group.get("workitems"), list) for group in groups)):
+             raise BoundaryError("BUSINESS_NODE_UNVERIFIED")
+-        members = [str(i) for group in nodes[0].get("sub_workitems",[]) for i in group.get("workitems",[])]
++        members = [str(i) for group in groups for i in group["workitems"]
++                   if not isinstance(i, bool) and isinstance(i, (str, int))]
+         if b["deliverable"] not in members:
+             raise BoundaryError("BUSINESS_PARENT_CHANGED")
+-        keys = [b["attachment_field"],b["approval_field"],b["node_field"],b["project_field"],
+-                b["document_field"],b["delivery_mode_field"],"updated_at"]
++        keys = [b["document_link_field"],b["approval_field"],b["node_field"],b["project_field"],
++                b["document_kind_field"],b["delivery_mode_field"],"updated_at"]
+         item = self._run(["workitem","get","--project-key",b["space"],"--work-item-id",b["deliverable"],
+                           "--fields",",".join(keys)])
+         attr, fields = item.get("work_item_attribute",{}), self._fields(item)
+-        if (str(attr.get("work_item_id")) != b["deliverable"]
+-                or attr.get("owned_project",{}).get("key") != b["space"]
+-                or attr.get("work_item_type",{}).get("key") != b["type"]
+-                or str((fields.get(b["project_field"]) or {}).get("id")) != b["project"]
+-                or fields.get(b["node_field"]) != b["node"]):
++        if (not isinstance(attr, dict) or str(attr.get("work_item_id")) != b["deliverable"]
++                or not isinstance(attr.get("owned_project"), dict)
++                or attr["owned_project"].get("key") != b["space"]
++                or not isinstance(attr.get("work_item_type"), dict)
++                or attr["work_item_type"].get("key") != b["type"]):
+             raise BoundaryError("BUSINESS_TARGET_CHANGED")
++        identity, kind = target_identity(b, fields, metadata)
++        binding_hash = immutable_binding(b, metadata, identity, kind)
+         snapshot = {"id":attr["work_item_id"], "type":attr["work_item_type"]["key"],
+                     "name":attr.get("work_item_name"), "update_time":attr.get("update_time"),
+                     "status":attr.get("work_item_status"), "fields":fields,
+-                    "node_status":nodes[0]["basic"].get("status")}
++                    "node_status":nodes[0]["basic"].get("status"),
++                    "project_name":project_attr.get("work_item_name"),
++                    "project_update_time":project_attr.get("update_time"),
++                    "binding_fingerprint":binding_hash}
+         revision = digest(json.dumps(snapshot, ensure_ascii=False, sort_keys=True))
+         target = {"id":alias,"project_id":b["project"],"node_id":b["node"],"deliverable_id":b["deliverable"],
+                   "revision":revision,"business_status":attr.get("work_item_status"),
+                   "professional_review":fields.get(b["approval_field"]),
+-                  "url":b["url"]}
+-        return b, target, fields, self._files(fields.get(b["attachment_field"]))
++                  "url":b["url"], "document_identity":identity,
++                  "document_kind_field":b["document_kind_field"],
++                  "document_link_field":b["document_link_field"],
++                  "binding_fingerprint":binding_hash, "field_metadata_fingerprint":fingerprint(metadata)}
++        return b, target, fields, self._files(fields.get(b["document_link_field"]))
+ 
+     def resolve(self, principal, target_id):
+         return self._state(principal, target_id)[1]
+ 
+     def document_identity(self, principal, target):
+-        from .project_catalog import business_ids
+-        b,current,fields,_=self._state(principal,target['id'])
++        _,current,_,_=self._state(principal,target['id'])
+         if current!=target:raise BoundaryError('TARGET_REVISION_CHANGED')
+-        project=self._run(['workitem','get','--project-key',b['space'],'--work-item-id',b['project']])
+-        attribute=project.get('work_item_attribute',{})
+-        if str(attribute.get('work_item_id'))!=b['project']:raise BoundaryError('BUSINESS_PROJECT_IDENTITY_CHANGED')
+-        codes=business_ids(attribute.get('work_item_name',''))
+-        kind=fields.get(b['document_field']);kind=kind.get('label') or kind.get('value') if isinstance(kind,dict) else kind
+-        # Only explicit, recognizable platform values are accepted; opaque enum
+-        # IDs need an administrator-supplied, reviewed binding in the target config.
+-        names={'项目章程':'charter','项目更改申请':'change','项目变更申请':'change','结项报告':'closure','项目结项报告':'closure','测试报告':'test'}
+-        doc_type=names.get(kind) or b.get('document_type_bindings',{}).get(str(kind))
+-        if len(codes)!=1 or not doc_type:raise BoundaryError('BUSINESS_DOCUMENT_IDENTITY_UNVERIFIED')
+-        return {'project_code':codes[0],'doc_type':doc_type}
++        return dict(current['document_identity'])
+ 
+     def requirements(self,principal,target):
+         b,current,_,_=self._state(principal,target["id"])
+@@ -204,6 +301,14 @@ class MeeglePort:
+                 files=[]
+             if len(files)>=50:
+                 raise BoundaryError("BUSINESS_ATTACHMENT_LIMIT")
++            # A known-unpreservable existing file must fail before uploading a
++            # new object; do not create an uncertain external side effect first.
++            previous=[]
++            for f in files:
++                token=f.get("fileToken") or f.get("file_token")
++                if not token or not all(k in f for k in ("name","type","size")):
++                    raise BoundaryError("BUSINESS_EXISTING_ATTACHMENT_UNVERIFIED")
++                previous.append({"name":f["name"],"type":f["type"],"size":str(f["size"]),"fileToken":token})
+             with tempfile.TemporaryDirectory(dir=self.tmp) as tmp:
+                 path=Path(tmp)/f"logic-{idem[:16]}-{content_hash[:12]}.md"
+                 path.write_text(content,encoding="utf-8");path.chmod(0o600)
+@@ -215,7 +320,7 @@ class MeeglePort:
+                 started[0]=True
+                 upload=self._run(["attachment","+upload",str(path),"--resource-type","15",
+                                   "--project-key",b["space"],"--work-item-id",b["deliverable"],
+-                                  "--field-key",b["attachment_field"],"--content-type","text/markdown"])
++                                  "--field-key",b["document_link_field"],"--content-type","text/markdown"])
+                 if not all(upload.get(k) for k in ("file_token","name","size","mime_type")):
+                     raise BoundaryError("BUSINESS_UPLOAD_UNCERTAIN")
+                 self.s.execute("UPDATE logic_writes SET receipt=? WHERE idem=? AND state='unknown'",
+@@ -224,15 +329,9 @@ class MeeglePort:
+                 _,fresh,fresh_fields,fresh_files=self._state(principal,alias)
+                 if fresh != target or not guard():
+                     raise BoundaryError("TARGET_REVISION_CHANGED")
+-                previous=[]
+-                for f in files:
+-                    token=f.get("fileToken") or f.get("file_token")
+-                    if not token or not all(k in f for k in ("name","type","size")):
+-                        raise BoundaryError("BUSINESS_EXISTING_ATTACHMENT_UNVERIFIED")
+-                    previous.append({"name":f["name"],"type":f["type"],"size":str(f["size"]),"fileToken":token})
+                 new={"name":upload["name"],"type":upload["mime_type"],"size":str(upload["size"]),"fileToken":upload["file_token"]}
+                 self._run(["workitem","update","--project-key",b["space"],"--work-item-id",b["deliverable"]],
+-                          params={"fields":[{"field_key":b["attachment_field"],
++                          params={"fields":[{"field_key":b["document_link_field"],
+                                              "field_value":json.dumps(previous+[new],ensure_ascii=False)}]},json_result=False)
+                 result=self.reconcile(principal,idem)
+                 if result is None:
+@@ -243,6 +342,11 @@ class MeeglePort:
+         rows=self.s.rows("SELECT * FROM logic_writes WHERE idem=?",(idem,))
+         if len(rows)!=1: return None
+         write=rows[0];target=json.loads(write["target"]);b,current,_,files=self._state(principal,target["id"])
++        # The successful append changes the item revision and file list. Re-read
++        # the exact target contract, not its pre-write mutable revision.
++        if (not target.get("binding_fingerprint")
++                or current.get("binding_fingerprint") != target["binding_fingerprint"]):
++            raise BoundaryError("BUSINESS_TARGET_BINDING_CHANGED")
+         name=f"logic-{idem[:16]}-{write['content_hash'][:12]}.md"
+         matches=[f for f in (files or []) if f.get("name")==name]
+         if len(matches)!=1:
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_source_delivery_r9_fix2.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_source_delivery_r9_fix2.py
+new file mode 100644
+index 000000000..4df87848c
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_source_delivery_r9_fix2.py
+@@ -0,0 +1,292 @@
++"""Two real SQLite stores and the original gateway; only platform I/O is fake."""
++from copy import deepcopy
++from dataclasses import replace
++import json
++import threading
++from types import SimpleNamespace
++
++import pytest
++
++from am_information import AMInformation
++from am_info_sync.document_snapshot import capture_document_snapshot, request_scope
++from am_info_sync.models import Observation, Page, Principal, Source, digest
++from am_info_sync.runtime import InformationService
++from am_info_sync.store import Store
++from fs_agent.config import BoundaryError
++from fs_agent.document_view_binding import capture, SCOPED_SOURCE_FENCE
++from test_document_views_r9_fix1 import (
++    doc, harness, convo, ux, service, am_rig, base_rig, open_view)
++from test_am_ux1 import click
++from test_gateway import drain
++
++
++def set_binding(r, schema="am-document-evidence-binding/2"):
++    _, binding = capture_document_snapshot(r.info, r.info_service, r.project,
++        principal=Principal(r.row["user"], r.row["tenant"], ("th2-query",)),
++        scope=request_scope(r.row), project_code="IRAD-2099-001",
++        expires=r.clock()+600, expected_access_version=r.info.access_version(),
++        binding_schema=schema)
++    draft = r.s.rows("SELECT * FROM logic_drafts WHERE id=?", (r.ident,))[0]
++    rules = json.loads(draft["rules"])
++    rules["document_binding"] = binding
++    payload = {"document_binding": binding, "request": {"project_id": "p"}}
++    r.s.execute("UPDATE logic_drafts SET rules=? WHERE id=?", (json.dumps(rules), r.ident))
++    r.s.execute("UPDATE amdoc_results SET payload=? WHERE draft_id=?", (json.dumps(payload), r.ident))
++    return binding
++
++
++@pytest.fixture
++def scoped_doc(doc):
++    r = doc
++    r.info = Store(":memory:", clock=lambda: int(r.clock()*1000))
++    r.info_service = InformationService(r.info)
++    r.project = {"key": "p", "title": "IRAD-2099-001 合成项目",
++        "identity_status": "verified", "source_revision": "1",
++        "关键日期": "", "待办": "", "项目进展": "", "人员与职责": ""}
++    common = dict(tenant_id=r.row["tenant"], owner_user_id=r.row["user"],
++                  enabled=True, raw_retention_seconds=86400)
++    r.source = Source("source-a", "manual", "local-a", **common,
++        settings={"subject_id": "p", "freshness_seconds": 600})
++    r.other = Source("source-b", "manual", "local-b", **common,
++        settings={"subject_id": "other-project", "freshness_seconds": 600})
++    ledger = Source("th2-ledger", "ledger_snapshot", "fixed/sheet", **common,
++        settings={"host_managed": True, "subject_ids": ["p"],
++                  "freshness_seconds": 600})
++    for source in (r.source, r.other, ledger):
++        r.info.register_source(source)
++    record = {"title": r.project["title"], "identity_status": "verified",
++        "fields": {k: r.project[k] for k in ("关键日期", "待办", "项目进展", "人员与职责")}}
++    raw = Observation("th2-ledger", "p", "ledger:1:"+digest(record),
++        r.info.clock(), text="合成台账原件",
++        payload={"record": record, "subject_id": "p", "revision_id": 1,
++                 "quote": r.project["title"], "time_basis": "observed_at"})
++    r.info.record(raw, authoritative=True)
++    r.info_service.facts.process(r.info.get_observation(raw.source_id, raw.object_id, raw.version), [])
++    raw = Observation("source-a", "message", "v1", r.info.clock(), text="合成工程进展，待业务核验。")
++    r.info.record(raw, authoritative=True)
++    r.info_service.facts.process(r.info.get_observation(raw.source_id, raw.object_id, raw.version), [{
++        "source_id": raw.source_id, "object_id": raw.object_id, "version": raw.version,
++        "subject_id": "p", "field": "progress", "value": raw.text, "quote": raw.text,
++        "assertion_type": "reported"}])
++    r.info.conn.execute("UPDATE sources SET availability='ok',last_checked_ms=?", (r.info.clock(),))
++    host = AMInformation.__new__(AMInformation)
++    host.store, host.service = r.info, r.info_service
++    host.am = SimpleNamespace(
++        query_grant=lambda row: ["*"], query_projects=lambda row: [deepcopy(r.project)],
++        query_group=lambda row: None,
++        snapshots=SimpleNamespace(lock=threading.RLock(), latest="local",
++            versions={"local": {"complete": True, "rows": [r.project]}}))
++    r.info_host = host
++    previous = r.am.information
++    r.am.information = host
++    r.g.logic.shared_evidence = host.evidence_bundle
++    r.g.logic.shared_evidence_current = host.document_evidence_current
++    set_binding(r)
++    try:
++        yield r
++    finally:
++        r.am.information = previous
++        r.info.close()
++
++
++def enqueue(r, *, query=True, stale_query_epoch=None):
++    row = dict(r.row)
++    if query:
++        row.update(_query_read=True, _query_grant=r.am.query_grant(dict(row)))
++    if stale_query_epoch is not None:
++        row["_source_access_version"] = stale_query_epoch
++    draft = r.s.rows("SELECT * FROM logic_drafts WHERE id=?", (r.ident,))[0]
++    row["_document_binding"] = capture(r.g.logic, row, draft)
++    ident = r.am.notify(row, text="SYNTHETIC_SCOPED_DOCUMENT", kind="document_result",
++                       object_id=r.ident, version=draft["revision"])
++    return r.s.rows("SELECT * FROM outbox WHERE id=?", (ident,))[0]
++
++
++def change_other(r):
++    r.info.register_source(replace(r.other, readers=("user:unrelated-reader",)))
++
++
++def test_unrelated_acl_change_between_capture_queue_and_dispatch_still_delivers(scoped_doc):
++    r = scoped_doc
++    old_epoch = r.info.access_version()
++    change_other(r)
++    out = enqueue(r, stale_query_epoch=old_epoch)
++    assert r.s.rows('SELECT source_access_version FROM am_source_deliveries WHERE outbox_id=?',
++                    (out['id'],))[0]['source_access_version'] == old_epoch
++    assert r.s.rows('SELECT source_fence FROM am_document_source_outputs WHERE outbox_id=?',
++                    (out['id'],))[0]['source_fence'].startswith(SCOPED_SOURCE_FENCE)
++    assert not r.s.rows('SELECT 1 FROM am_conversation_outputs WHERE outbox_id=?', (out['id'],))
++    assert not r.s.rows('SELECT 1 FROM am_harness_outbox WHERE outbox_id=?', (out['id'],))
++    assert r.am.query_delivery_authorized(out) is True
++    assert r.g.deliver_one()
++    assert r.s.rows("SELECT state FROM outbox WHERE id=?", (out["id"],))[0]["state"] == "sent"
++    assert len(r.api.sent) == 1
++
++
++def test_queued_view_survives_unrelated_acl_at_final_transport_guard(scoped_doc):
++    r = scoped_doc
++    out = enqueue(r)
++    original = r.api.send
++    def send(row, guard):
++        change_other(r)
++        assert guard() is True
++        return original(row, guard)
++    r.api.send = send
++    assert r.g.deliver_one()
++    assert r.s.rows("SELECT state FROM outbox WHERE id=?", (out["id"],))[0]["state"] == "sent"
++
++
++def test_related_denial_then_restore_rejects_previously_queued_document(scoped_doc):
++    r = scoped_doc
++    out = enqueue(r)
++    r.info.mark_source_error("source-a", "synthetic-denial", permission_denied=True)
++    run = r.info.begin_sync("source-a")
++    r.info.save_page(run["run_id"], run["lease_token"], None, Page(()))
++    assert r.info.source_status("source-a")["availability"] == "ok"
++    assert r.am.query_delivery_authorized(out) is False
++    assert r.g.deliver_one()
++    assert r.s.rows("SELECT state FROM outbox WHERE id=?", (out["id"],))[0]["state"] == "rejected"
++    assert r.api.sent == []
++
++
++@pytest.mark.parametrize("change", ["body", "expires", "marker", "binding", "view_deleted", "both_deleted"])
++def test_scoped_fence_cannot_authorize_tampered_payload_or_extended_ttl(scoped_doc, change):
++    r = scoped_doc
++    out = enqueue(r, query=False)  # Completion notices also need the final fence.
++    if change == "body":
++        r.s.execute("UPDATE outbox SET body='tampered' WHERE id=?", (out["id"],))
++    elif change == "expires":
++        r.s.execute("UPDATE outbox SET expires=expires+60 WHERE id=?", (out["id"],))
++    elif change == "marker":
++        r.s.execute("DELETE FROM am_document_source_outputs WHERE outbox_id=?", (out["id"],))
++    elif change in ("view_deleted", "both_deleted"):
++        r.s.execute("DELETE FROM am_document_view_outputs WHERE outbox_id=?", (out["id"],))
++        if change == "both_deleted":
++            r.s.execute("DELETE FROM am_document_source_outputs WHERE outbox_id=?", (out["id"],))
++    else:
++        r.s.execute("UPDATE am_document_view_outputs SET binding='{}' WHERE outbox_id=?", (out["id"],))
++    assert r.g.deliver_one()
++    assert r.s.rows("SELECT state FROM outbox WHERE id=?", (out["id"],))[0]["state"] == "rejected"
++    assert r.api.sent == []
++
++
++def test_scoped_marker_cannot_be_transplanted_onto_an_ordinary_query(scoped_doc):
++    r = scoped_doc
++    document = enqueue(r)
++    marker = r.s.rows("SELECT source_fence FROM am_document_source_outputs WHERE outbox_id=?",
++                     (document["id"],))[0]["source_fence"]
++    row = dict(r.row, _query_read=True, _query_grant=r.am.query_grant(dict(r.row)))
++    ident = r.am.notify(row, text="ORDINARY_QUERY")
++    r.s.execute("INSERT INTO am_document_source_outputs VALUES(?,?)", (ident, marker))
++    forged = r.s.rows("SELECT * FROM outbox WHERE id=?", (ident,))[0]
++    assert r.am.query_delivery_authorized(forged) is False
++    # Copying the view record too still cannot reuse a different outbox's marker.
++    r.s.execute("INSERT INTO am_document_view_outputs SELECT ?,binding,expires FROM am_document_view_outputs WHERE outbox_id=?",
++                (ident, document["id"]))
++    assert r.am.query_delivery_authorized(forged) is False
++
++
++def test_legacy_document_keeps_global_fence_and_is_never_upgraded(scoped_doc):
++    r = scoped_doc
++    set_binding(r, "am-document-evidence-binding/1")
++    out = enqueue(r)
++    marker = r.s.rows("SELECT source_access_version FROM am_source_deliveries WHERE outbox_id=?",
++                     (out["id"],))[0]["source_access_version"]
++    assert not marker.startswith(SCOPED_SOURCE_FENCE)
++    assert not r.s.rows('SELECT 1 FROM am_document_source_outputs WHERE outbox_id=?', (out['id'],))
++    change_other(r)
++    assert r.g.deliver_one()
++    assert r.api.sent == []
++    assert r.s.rows("SELECT state FROM outbox WHERE id=?", (out["id"],))[0]["state"] == "rejected"
++
++
++def test_ordinary_query_keeps_global_fence(scoped_doc):
++    r = scoped_doc
++    row = dict(r.row, _query_read=True, _query_grant=r.am.query_grant(dict(r.row)))
++    ident = r.am.notify(row, text="ORDINARY_QUERY")
++    out = r.s.rows("SELECT * FROM outbox WHERE id=?", (ident,))[0]
++    change_other(r)
++    assert r.am.query_delivery_authorized(out) is False
++
++
++def test_new_document_capture_does_not_reuse_an_old_query_epoch(scoped_doc):
++    r = scoped_doc
++    row = dict(r.row, _source_access_version=r.info.access_version())
++    change_other(r)
++    _, bundle = r.info_host.evidence_bundle(row, "IRAD-2099-001")
++    assert bundle.data["document_binding"]["schema"] == "am-document-evidence-binding/2"
++    assert r.info_host.document_evidence_current(row, bundle.data["document_binding"]) is True
++
++
++def test_scoped_binding_covers_actual_pagination(scoped_doc):
++    r = scoped_doc
++    open_view(r)
++    drain(r.g)
++    change_other(r)
++    click(r.ux, "long_content")
++    assert len(r.api.sent) == 2
++    assert "第 2/" in r.api.sent[-1]["body"]
++    r.info.record(Observation("source-a", "unanalysed", "v1", r.info.clock(), text="新增未解析依据"))
++    before = len(r.api.sent)
++    failed = click(r.ux, "long_content")
++    assert failed["state"] == "failed"
++    assert all("SYNTHETIC_PRIVATE" not in row["body"] for row in r.api.sent[before:])
++
++
++def test_plain_completion_fails_when_information_host_is_unavailable(scoped_doc):
++    r = scoped_doc
++    out = enqueue(r, query=False)
++    r.am.information = None
++    assert r.g.deliver_one()
++    assert r.api.sent == []
++    assert r.s.rows('SELECT state FROM outbox WHERE id=?', (out['id'],))[0]['state'] == 'rejected'
++
++
++def test_orphan_result_without_standard_context_cannot_acquire_a_scoped_marker(scoped_doc):
++    r = scoped_doc
++    r.s.execute("UPDATE logic_drafts SET rules='{}' WHERE id=?", (r.ident,))
++    r.s.execute('DELETE FROM amdoc_context WHERE draft_id=?', (r.ident,))
++    with pytest.raises(BoundaryError, match='EVIDENCE_UNVERIFIED'):
++        enqueue(r, query=False)
++    assert not r.s.rows('SELECT 1 FROM outbox')
++    assert not r.s.rows('SELECT 1 FROM am_document_source_outputs')
++
++
++@pytest.mark.parametrize('replacement', ['legacy', 'neutral'])
++def test_persisted_scoped_output_cannot_downgrade_to_an_unscoped_view(scoped_doc, replacement):
++    r = scoped_doc
++    out = enqueue(r, query=False)
++    if replacement == 'legacy':
++        set_binding(r, 'am-document-evidence-binding/1')
++    else:
++        r.s.execute("UPDATE logic_drafts SET state='collecting',content=NULL,analysis=NULL,review=NULL WHERE id=?", (r.ident,))
++    draft = r.s.rows('SELECT * FROM logic_drafts WHERE id=?', (r.ident,))[0]
++    replacement_binding = capture(r.g.logic, r.row, draft)
++    r.s.execute('UPDATE am_document_view_outputs SET binding=? WHERE outbox_id=?',
++                (json.dumps(replacement_binding), out['id']))
++    assert r.g.deliver_one()
++    assert r.api.sent == []
++    assert r.s.rows('SELECT state FROM outbox WHERE id=?', (out['id'],))[0]['state'] == 'rejected'
++
++
++@pytest.mark.parametrize('corruption', ['missing_component','extra_component','invalid_component','inconsistent_state'])
++def test_local_and_host_validation_share_the_v2_component_contract(scoped_doc, corruption):
++    from fs_agent.document_evidence import validate_binding as local_validate
++    from am_info_sync.document_snapshot import validate_binding as host_validate, DocumentSnapshotError
++    r = scoped_doc
++    binding = set_binding(r)
++    local_validate(r.row,binding,now=r.clock())
++    host_validate(binding,r.row,r.info.clock())
++    bad = deepcopy(binding)
++    if corruption == 'missing_component':
++        bad['component_hashes'].pop('objects')
++    elif corruption == 'extra_component':
++        bad['component_hashes']['unexpected']='a'*64
++    elif corruption == 'invalid_component':
++        bad['component_hashes']['objects']='not-a-hash'
++    else:
++        bad['state_hash']='a'*64
++    with pytest.raises(BoundaryError, match='BINDING_INVALID'):
++        local_validate(r.row,bad,now=r.clock())
++    with pytest.raises(DocumentSnapshotError, match='BINDING_INVALID'):
++        host_validate(bad,r.row,r.info.clock())
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_target_budget_r9_fix2.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_target_budget_r9_fix2.py
+new file mode 100644
+index 000000000..a211fb9ae
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_target_budget_r9_fix2.py
+@@ -0,0 +1,141 @@
++"""Read budgets use a synthetic monotonic clock and mocked subprocess; no waits."""
++from contextvars import Context
++import json
++from types import SimpleNamespace
++
++import pytest
++
++import fs_agent.document_delivery as delivery_module
++import fs_agent.meegle_port as port_module
++from fs_agent.config import BoundaryError
++from fs_agent.document_delivery import discover_targets
++from fs_agent.meegle_port import MeeglePort
++from test_document_targets_r9_fix2 import target_rig, rig, base_rig, charter, assert_no_write
++
++
++class Clock:
++    def __init__(self):
++        self.now = 1000.0
++
++    def __call__(self):
++        return self.now
++
++
++def real_runner(monkeypatch, port, *, step=0.0, after=None, response=None):
++    """Exercise production _run, replacing only the subprocess boundary."""
++    clock = Clock()
++    clock_module = SimpleNamespace(monotonic=clock)
++    monkeypatch.setattr(port_module, "time", clock_module)
++    monkeypatch.setattr(delivery_module, "time", clock_module)
++    original = port._run
++    calls = []
++
++    def process(command, *, env, capture_output, timeout):
++        calls.append({"args": command[1:-4], "timeout": timeout})
++        data = original(command[1:-4]) if response is None else response
++        clock.now += step
++        if after is not None:
++            after()
++        return SimpleNamespace(returncode=0, stdout=json.dumps(data).encode())
++
++    monkeypatch.setattr(port_module.subprocess, "run", process)
++    port._run = MeeglePort._run.__get__(port, MeeglePort)
++    return clock, calls
++
++
++def test_subprocess_timeout_uses_remaining_outer_budget_and_nested_scope_cannot_extend_it(target_rig, monkeypatch):
++    _, store, row, _, port, _, _ = target_rig
++    row = dict(row, expires=store.clock() + 500)
++    clock, calls = real_runner(monkeypatch, port, step=20, response={})
++    with port.read_scope(row, deadline=clock() + 55):
++        port._run(["user", "me"])
++        with port.read_scope(row, deadline=clock() + 120):
++            port._run(["user", "me"])
++        assert port._read_timeout() == 15
++    assert [call["timeout"] for call in calls] == [40, 35]
++    assert port._read_context.get() is None
++
++
++def test_expired_scope_never_starts_a_subprocess(target_rig, monkeypatch):
++    _, _, row, _, port, state, _ = target_rig
++    clock, calls = real_runner(monkeypatch, port, response={})
++    with port.read_scope(row, deadline=clock()):
++        with pytest.raises(BoundaryError, match="BUSINESS_READ_DEADLINE"):
++            port._run(["user", "me"])
++    assert calls == []
++    assert_no_write(state)
++
++
++def test_guard_is_checked_after_io_and_before_any_later_io(target_rig, monkeypatch):
++    _, _, row, _, port, state, _ = target_rig
++    allowed = [True]
++    clock, calls = real_runner(monkeypatch, port, response={}, after=lambda: allowed.__setitem__(0, False))
++    with port.read_scope(row, guard=lambda: allowed[0], deadline=clock() + 20):
++        with pytest.raises(BoundaryError, match="DOCUMENT_DELIVERY_SCOPE_CHANGED"):
++            port._run(["user", "me"])
++        with pytest.raises(BoundaryError, match="DOCUMENT_DELIVERY_SCOPE_CHANGED"):
++            port._run(["user", "me"])
++    assert len(calls) == 1
++    assert_no_write(state)
++
++
++def test_io_finishing_at_deadline_is_not_used_and_next_read_is_not_started(target_rig, monkeypatch):
++    _, _, row, _, port, _, _ = target_rig
++    clock, calls = real_runner(monkeypatch, port, step=5, response={})
++    with port.read_scope(row, deadline=clock() + 5):
++        for _ in range(2):
++            with pytest.raises(BoundaryError, match="BUSINESS_READ_DEADLINE"):
++                port._run(["user", "me"])
++    assert len(calls) == 1 and calls[0]["timeout"] == 5
++
++
++@pytest.mark.parametrize("ttl,step,expected", [(500, 40, [40, 40, 40]), (7, 7, [7])])
++def test_standalone_state_has_whole_read_budget_and_row_expiry(target_rig, monkeypatch, ttl, step, expected):
++    _, store, row, _, port, state, _ = target_rig
++    row = dict(row, expires=store.clock() + ttl)
++    _, calls = real_runner(monkeypatch, port, step=step)
++    with pytest.raises(BoundaryError, match="BUSINESS_READ_DEADLINE"):
++        port.resolve(row, "report")
++    assert [call["timeout"] for call in calls] == expected
++    assert_no_write(state)
++
++
++def test_discovery_and_identity_reread_share_one_budget(target_rig, monkeypatch):
++    _, store, row, _, port, state, binding = target_rig
++    row = dict(row, expires=store.clock() + 500)
++    charter(state, binding)
++    clock, calls = real_runner(monkeypatch, port, step=1)
++    result = discover_targets(port, row, project_code="IRAD-2099-001", doc_type="charter",
++                              guard=lambda: True, deadline=clock() + 8)
++    assert result["state"] == "unresolved" and result["targets"] == []
++    assert result["diagnostics"][0]["stage"] == "document_identity"
++    assert result["diagnostics"][0]["error_code"] == "BUSINESS_READ_DEADLINE"
++    assert [call["timeout"] for call in calls] == list(range(8, 0, -1))
++    assert_no_write(state)
++
++
++def test_metadata_page_does_not_renew_budget_or_start_next_page_after_expiry(target_rig, monkeypatch):
++    _, _, row, _, port, state, _ = target_rig
++    state["metadata_response"] = {"list": [], "pagination": {"has_more": True}}
++    clock, calls = real_runner(monkeypatch, port, step=1)
++    result = discover_targets(port, row, project_code="IRAD-2099-001", doc_type="charter",
++                              guard=lambda: True, deadline=clock() + 2)
++    assert result["state"] == "unresolved"
++    assert result["diagnostics"][0]["error_code"] == "BUSINESS_READ_DEADLINE"
++    assert [call["args"][:2] for call in calls] == [["user", "me"], ["workitem", "meta-fields"]]
++    assert calls[-1]["timeout"] == 1
++    assert_no_write(state)
++
++
++def test_read_budget_is_context_local_and_restored_after_nested_exception(target_rig, monkeypatch):
++    _, _, row, _, port, _, _ = target_rig
++    clock, _ = real_runner(monkeypatch, port, response={})
++    with port.read_scope(row, deadline=clock() + 10):
++        assert port._read_timeout() == 10
++        assert Context().run(port._read_timeout) == 40
++        with pytest.raises(ValueError):
++            with port.read_scope(row, deadline=clock() + 2):
++                assert port._read_timeout() == 2
++                raise ValueError("synthetic")
++        assert port._read_timeout() == 10
++    assert port._read_context.get() is None
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_targets_r9_fix2.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_targets_r9_fix2.py
+new file mode 100644
+index 000000000..b9400e875
+--- /dev/null
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_document_targets_r9_fix2.py
+@@ -0,0 +1,307 @@
++"""Offline target contracts. Every ID, field, candidate and response is synthetic."""
++import copy
++import json
++import time
++
++import pytest
++
++from fs_agent.config import BoundaryError
++from fs_agent.document_delivery import discover_targets, render_targets
++from fs_agent.meegle_port import BusinessNotStarted
++from test_doc_logic import rig, ready
++from test_gateway import rig as base_rig
++from test_meegle_port import bound, port_fixture
++
++
++@pytest.fixture
++def target_rig(rig):
++    g, store, row, draft = ready(rig)
++    port, state, settings = port_fixture(g)
++    return g, store, row, draft, port, state, settings["targets"]["report"]
++
++
++def field(state, key):
++    return next(item for item in state["metadata"] if item["field_key"] == key)
++
++
++def assert_no_write(state):
++    assert state["uploads"] == state["updates"] == 0
++    assert ["attachment", "+upload"] not in state["calls"]
++    assert ["workitem", "update"] not in state["calls"]
++
++
++def discover(port, row):
++    return discover_targets(port, row, project_code="IRAD-2099-001", doc_type="charter",
++                            guard=lambda: True, deadline=time.monotonic() + 10)
++
++
++def charter(state, binding):
++    state["kind"] = "项目章程"
++    binding["document_type"] = "charter"
++
++
++def test_legacy_ambiguous_config_fails_before_metadata_and_has_reviewable_diagnostic(target_rig):
++    _, _, row, _, port, state, binding = target_rig
++    for key in ("document_kind_field", "document_link_field", "project_code", "project_type", "document_type"):
++        binding.pop(key)
++    state["kind"] = ["https://files.invalid/old-document"]
++    result = discover(port, row)
++    assert result["state"] == "unresolved" and result["targets"] == []
++    diagnostic = result["diagnostics"][0]
++    assert diagnostic["error_code"] == "BUSINESS_TARGET_CONFIG_INCOMPLETE"
++    assert "document_kind_field" in diagnostic["detail"]["missing_config"]
++    assert state["calls"] == [["user", "me"]]
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("key,typ", [("doc", "file"), ("doc", "multi_select"),
++    ("files", "url"), ("files", "text"), ("parent", "text"), ("node", "file")])
++def test_role_type_mismatch_is_blocked_before_item_reads(target_rig, key, typ):
++    _, _, row, _, port, state, _ = target_rig
++    field(state, key)["field_type"] = typ
++    with pytest.raises(BoundaryError, match="BUSINESS_FIELD_TYPE_UNSUPPORTED") as error:
++        port.resolve(row, "report")
++    assert error.value.diagnostic["field_key"] == key
++    assert ["workitem", "get"] not in state["calls"]
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("value", [["https://files.invalid/document"], ["测试报告"],
++                                     {"url": "https://files.invalid/document"}])
++def test_list_of_urls_or_multiple_kind_values_never_becomes_identity(target_rig, value):
++    _, _, row, _, port, state, _ = target_rig
++    state["kind"] = value
++    with pytest.raises(BoundaryError, match="BUSINESS_FIELD_VALUE_UNVERIFIED"):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("legacy,current", [("document_field", "files"), ("attachment_field", "doc"),
++                                             ("document_kind_field", "files")])
++def test_conflicting_field_roles_or_aliases_are_not_silently_repaired(target_rig, legacy, current):
++    _, _, row, _, port, state, binding = target_rig
++    binding[legacy] = current
++    with pytest.raises(BoundaryError, match="BUSINESS_TARGET_FIELD_CONFLICT"):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("response", [{}, {"list": []}, {"list": [], "pagination": {"has_more": False}},
++    {"list": [], "pagination": {"has_more": "false"}}])
++def test_absent_or_incomplete_metadata_cannot_be_inferred_from_config(target_rig, response):
++    _, _, row, _, port, state, _ = target_rig
++    state["metadata_response"] = response
++    result = discover(port, row)
++    assert result["state"] == "unresolved" and not result["targets"]
++    assert result["diagnostics"][0]["error_code"] in (
++        "BUSINESS_METADATA_UNAVAILABLE", "BUSINESS_FIELD_METADATA_MISSING")
++    assert "元数据" in render_targets(result)
++    assert_no_write(state)
++
++
++def test_metadata_call_failure_is_explicit_and_read_only(target_rig):
++    _, _, row, _, port, state, _ = target_rig
++    state["metadata_error"] = "BUSINESS_CALL_FAILED"
++    result = discover(port, row)
++    assert result["diagnostics"][0]["error_code"] == "BUSINESS_METADATA_UNAVAILABLE"
++    assert result["diagnostics"][0]["detail"]["cause"] == "BUSINESS_CALL_FAILED"
++    assert_no_write(state)
++
++
++def test_paged_metadata_requires_all_pages_and_rejects_duplicate_field_definitions(target_rig):
++    _, _, row, _, port, state, _ = target_rig
++    state["metadata_pages"] = {
++        1: {"list": state["metadata"][:3], "pagination": {"has_more": True}},
++        2: {"list": state["metadata"][3:], "pagination": {"has_more": False}},
++    }
++    assert port.resolve(row, "report")["document_identity"]["doc_type"] == "test"
++    pages = [args[args.index("--page-num") + 1] for args in state["commands"] if args[:2] == ["workitem", "meta-fields"]]
++    assert pages == ["1", "2"]
++    state["metadata_pages"][2]["list"].append(copy.deepcopy(field(state, "doc")))
++    with pytest.raises(BoundaryError, match="BUSINESS_FIELD_METADATA_AMBIGUOUS"):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++def test_incomplete_metadata_has_a_fixed_page_budget(target_rig):
++    _, _, row, _, port, state, _ = target_rig
++    state["metadata_response"] = {"list": [], "pagination": {"has_more": True}}
++    with pytest.raises(BoundaryError, match="BUSINESS_METADATA_LIMIT"):
++        port.resolve(row, "report")
++    assert state["calls"].count(["workitem", "meta-fields"]) == 20
++    assert_no_write(state)
++
++
++def test_select_kind_requires_actual_metadata_candidate_and_matching_label(target_rig):
++    _, _, row, _, port, state, binding = target_rig
++    field(state, "doc").update(field_type="select", options=[{"value": "kind-test", "label": "测试报告"}])
++    state["kind"] = {"value": "kind-test", "label": "测试报告"}
++    target = port.resolve(row, "report")
++    assert port.document_identity(row, target) == {"project_code": "IRAD-2099-001", "doc_type": "test"}
++    state["kind"]["label"] = "项目章程"
++    with pytest.raises(BoundaryError, match="BUSINESS_FIELD_CANDIDATE_MISMATCH"):
++        port.resolve(row, "report")
++    state["kind"] = "not-a-candidate"
++    binding["document_type_bindings"] = {"not-a-candidate": "test"}
++    with pytest.raises(BoundaryError, match="BUSINESS_FIELD_CANDIDATE_MISMATCH"):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("options", [None, [], [{"value": "v", "label": "测试报告"},
++    {"value": "v", "label": "项目章程"}], [{"value": ["v"], "label": "测试报告"}]])
++def test_missing_or_ambiguous_select_candidates_fail_closed(target_rig, options):
++    _, _, row, _, port, state, _ = target_rig
++    field(state, "doc").update(field_type="select", options=options)
++    state["kind"] = {"value": "v"}
++    with pytest.raises(BoundaryError, match="BUSINESS_FIELD_CANDIDATES_UNVERIFIED"):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++def test_configured_document_type_does_not_override_observed_kind(target_rig):
++    _, _, row, _, port, state, binding = target_rig
++    binding["document_type"] = "charter"
++    with pytest.raises(BoundaryError, match="BUSINESS_DOCUMENT_KIND_MISMATCH"):
++        port.resolve(row, "report")
++    binding["document_type_bindings"] = {"测试报告": "charter"}
++    with pytest.raises(BoundaryError, match="BUSINESS_DOCUMENT_KIND_MISMATCH"):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("attribute,value,error", [
++    ("work_item_name", "IRAD-2099-002 合成项目", "BUSINESS_PROJECT_CODE_MISMATCH"),
++    ("work_item_name", "IRAD-2099-001 / IRAD-2099-002", "BUSINESS_PROJECT_CODE_UNVERIFIED"),
++    ("work_item_name", "没有业务编号", "BUSINESS_PROJECT_CODE_UNVERIFIED"),
++    ("work_item_id", "101", "BUSINESS_PROJECT_IDENTITY_CHANGED"),
++    ("owned_project", {"key": "another-space"}, "BUSINESS_PROJECT_IDENTITY_CHANGED"),
++    ("work_item_type", {"key": "deliverable"}, "BUSINESS_PROJECT_IDENTITY_CHANGED"),
++])
++def test_project_identity_is_proved_by_independent_project_read(target_rig, attribute, value, error):
++    _, _, row, _, port, state, _ = target_rig
++    state["project_attribute"][attribute] = value
++    with pytest.raises(BoundaryError, match=error):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++def test_missing_project_relation_has_specific_diagnostic_even_when_node_contains_member(target_rig):
++    _, _, row, _, port, state, _ = target_rig
++    state["missing_fields"] = ["parent"]
++    result = discover(port, row)
++    assert result["state"] == "unresolved" and result["targets"] == []
++    assert result["diagnostics"][0]["error_code"] == "BUSINESS_PROJECT_RELATION_MISSING"
++    request = next(args for args in state["commands"] if args[:2] == ["workitem", "get"] and "--fields" in args)
++    assert "parent" in request[request.index("--fields") + 1].split(",")
++    assert "项目关系" in render_targets(result)
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("overrides,error", [({"parent": {"id": 101}}, "BUSINESS_TARGET_CHANGED"),
++    ({"parent": [{"id": 100}, {"id": 101}]}, "BUSINESS_PROJECT_RELATION_UNVERIFIED"),
++    ({"node": "state-other"}, "BUSINESS_TARGET_CHANGED")])
++def test_membership_does_not_override_conflicting_or_ambiguous_relation_fields(target_rig, overrides, error):
++    _, _, row, _, port, state, _ = target_rig
++    state["field_overrides"] = overrides
++    with pytest.raises(BoundaryError, match=error):
++        port.resolve(row, "report")
++    assert_no_write(state)
++
++
++@pytest.mark.parametrize("pagination", [None, [], {}, {"has_more": "false"}, {"has_more": True}])
++def test_unknown_or_partial_node_pagination_is_structured_unresolved(target_rig, pagination):
++    _, _, row, _, port, state, _ = target_rig
++    state["node_pagination"] = pagination
++    result = discover(port, row)
++    assert result["state"] == "unresolved" and not result["targets"]
++    assert result["diagnostics"][0]["error_code"] == "BUSINESS_NODE_UNVERIFIED"
++    assert_no_write(state)
++
++
++def test_mixed_resolved_and_unresolved_bindings_are_only_reviewable(target_rig):
++    _, _, row, _, port, state, binding = target_rig
++    charter(state, binding)
++    port.settings["targets"]["unresolved"] = {"document_field": "old-links"}
++    original = copy.deepcopy(port.settings["targets"])
++    result = discover(port, row)
++    assert result["state"] == "unresolved" and result["targets"] == []
++    assert [target["id"] for target in result["reviewable_candidates"]] == ["report"]
++    assert result["unresolved"] == ["unresolved"]
++    assert port.settings["targets"] == original
++    assert_no_write(state)
++
++
++def test_multiple_verified_bindings_require_explicit_selection(target_rig):
++    _, _, row, _, port, state, binding = target_rig
++    charter(state, binding)
++    port.settings["targets"]["another"] = copy.deepcopy(binding)
++    result = discover(port, row)
++    assert result["state"] == "ambiguous"
++    assert {target["id"] for target in result["targets"]} == {"another", "report"}
++    assert "明确选择" in render_targets(result)
++    assert_no_write(state)
++
++
++def test_only_matching_project_and_document_type_is_a_discovery_candidate(target_rig):
++    _, _, row, _, port, state, _ = target_rig
++    result = discover(port, row)  # verified test report; caller requests charter
++    assert result["state"] == "not_configured" and result["targets"] == []
++    assert result["diagnostics"][0]["document_type_matches"] is False
++    assert_no_write(state)
++
++
++def test_document_identity_rereads_and_rejects_stale_mutable_revision(target_rig):
++    _, _, row, _, port, state, _ = target_rig
++    target = port.resolve(row, "report")
++    before = len(state["calls"])
++    assert port.document_identity(row, target) == {"project_code": "IRAD-2099-001", "doc_type": "test"}
++    assert ["workitem", "meta-fields"] in state["calls"][before:]
++    state["revision"] = "changed"
++    with pytest.raises(BoundaryError, match="TARGET_REVISION_CHANGED"):
++        port.document_identity(row, target)
++    assert_no_write(state)
++
++
++def test_successful_append_changes_revision_but_preserves_target_binding(rig):
++    g, store, row, draft, port, state, _ = bound(rig)
++    before = port.resolve(row, "report")
++    result = g.logic.mount(row, draft["id"])
++    assert result["receipt"] is not None
++    after = port.resolve(row, "report")
++    assert after["revision"] != before["revision"]
++    assert after["binding_fingerprint"] == before["binding_fingerprint"]
++    assert after["field_metadata_fingerprint"] == before["field_metadata_fingerprint"]
++    write = store.rows("SELECT * FROM logic_writes")[0]
++    assert port.reconcile(row, write["idem"]) == result["receipt"]
++    assert state["updates"] == state["uploads"] == 1
++    assert json.loads(write["target"])["document_link_field"] == "files"
++
++
++def test_metadata_contract_change_cannot_reconcile_against_old_target(rig):
++    g, store, row, draft, port, state, _ = bound(rig)
++    assert g.logic.mount(row, draft["id"])["receipt"] is not None
++    field(state, "mode")["options"][0]["label"] = "文档（新定义）"
++    write = store.rows("SELECT * FROM logic_writes")[0]
++    with pytest.raises(BoundaryError, match="BUSINESS_TARGET_BINDING_CHANGED"):
++        port.reconcile(row, write["idem"])
++    assert state["updates"] == state["uploads"] == 1
++
++
++def test_metadata_change_before_write_is_proven_not_started(target_rig):
++    _, _, row, draft, port, state, binding = target_rig
++    target = port.resolve(row, "report")
++    binding["verified_empty_revision"] = target["revision"]
++    field(state, "mode")["options"][0]["label"] = "文档（新定义）"
++    with pytest.raises(BusinessNotStarted, match="TARGET_REVISION_CHANGED"):
++        port.commit(row, target, draft["content"], draft["content_hash"], "synthetic-idem", lambda: True)
++    assert_no_write(state)
++
++
++def test_unpreservable_existing_attachment_is_proven_not_started(target_rig):
++    _, _, row, draft, port, state, _ = target_rig
++    state["files"] = [{"name": "existing.md", "url": "https://files.invalid/existing.md"}]
++    target = port.resolve(row, "report")
++    with pytest.raises(BusinessNotStarted, match="BUSINESS_EXISTING_ATTACHMENT_UNVERIFIED"):
++        port.commit(row, target, draft["content"], draft["content_hash"], "synthetic-idem", lambda: True)
++    assert_no_write(state)
+diff --git a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_meegle_port.py b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_meegle_port.py
+index 979303d69..a01d896e9 100644
+--- a/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_meegle_port.py
++++ b/FS-AGENT-GROK-POC-20261017-01_R1_Studio/tests/test_meegle_port.py
+@@ -14,26 +14,52 @@ def port_fixture(g):
+     settings={"executable":str(binary),"sha256":digest(binary.read_bytes()),"profile":"fs-doc-logic-r1",
+               "allowed_user":"ou_a","user_key":"project-user-A","targets":{"report":{
+                   "space":"space-A","project":"100","node":"state-test","deliverable":"200","type":"deliverable",
++                  "project_type":"project","project_code":"IRAD-2099-001","document_type":"test",
+                   "attachment_field":"files","approval_field":"review","node_field":"node","project_field":"parent",
+-                  "document_field":"doc","delivery_mode_field":"mode","unreviewed_value":"not_reviewed",
++                  "document_field":"doc","document_kind_field":"doc","document_link_field":"files",
++                  "delivery_mode_field":"mode","unreviewed_value":"not_reviewed",
+                   "url":"https://project.invalid/report"}}}
+     port=MeeglePort(g,settings)
+     state={"files":None,"revision":"r1","review":"not_reviewed","updates":0,"uploads":0,"calls":[],"identity":"project-user-A","race":False,"links":[200],"data":{}}
++    state.update(kind="测试报告", field_overrides={}, missing_fields=[], commands=[],
++        project_attribute={"work_item_id":"100","work_item_type":{"key":"project"},
++            "owned_project":{"key":"space-A"},"work_item_name":"IRAD-2099-001 合成项目"},
++        metadata=[{"field_key":"doc","field_name":"文种","field_type":"text"},
++            {"field_key":"files","field_name":"文档附件","field_type":"file"},
++            {"field_key":"parent","field_name":"所属项目","field_type":"work_item"},
++            {"field_key":"node","field_name":"所属节点","field_type":"text"},
++            {"field_key":"review","field_name":"审核","field_type":"select","options":[
++                {"value":"not_reviewed","label":"未审核"},{"value":"approved","label":"已审核"}]},
++            {"field_key":"mode","field_name":"交付方式","field_type":"select","options":[
++                {"value":"doc","label":"文档"}]}])
+     def run(args, *, params=None, json_result=True):
+         state["calls"].append(args[:2])
++        state["commands"].append(list(args))
+         if args[:2]==["user","me"]:return {"user_key":state["identity"]}
++        if args[:2]==["workitem","meta-fields"]:
++            if "metadata_error" in state:raise BoundaryError(state["metadata_error"])
++            if "metadata_response" in state:return copy.deepcopy(state["metadata_response"])
++            if "metadata_pages" in state:
++                return copy.deepcopy(state["metadata_pages"][int(args[args.index("--page-num")+1])])
++            return {"list":copy.deepcopy(state["metadata"]),"pagination":{"has_more":False}}
+         if args[:2]==["workflow","get-node"]:
+             return {"list":[{"basic":{"node_key":"state-test","status":"not_started"},
+-                            "sub_workitems":[{"workitems":state["links"]}]}],"pagination":{"has_more":False}}
++                            "sub_workitems":[{"workitems":state["links"]}]}],
++                    "pagination":copy.deepcopy(state.get("node_pagination", {"has_more":False}))}
+         if args[:2]==["workitem","get"]:
+-            fields={"review":{"value":state["review"],"label":"未审核"},"node":"state-test","parent":{"id":100},
+-                    "doc":["existing-document"],"mode":{"value":"doc"}}
++            if args[args.index("--work-item-id")+1]=="100":
++                return {"work_item_attribute":copy.deepcopy(state["project_attribute"])}
++            fields={"review":{"value":state["review"],"label":"已审核" if state["review"]=="approved" else "未审核"},
++                    "node":"state-test","parent":{"id":100},"doc":state["kind"],"mode":{"value":"doc"}}
+             if state["files"] is not None:fields["files"]=state["files"]
++            fields.update(state["field_overrides"])
++            for key in state["missing_fields"]:fields.pop(key,None)
+             return {"work_item_attribute":{"work_item_id":"200","work_item_type":{"key":"deliverable"},
+                     "work_item_name":"same-name","owned_project":{"key":"space-A"},"update_time":state["revision"],
+                     "work_item_status":{"key":"Not started","name":"未开始"}},
+                     "work_item_fields":[{"key":k,"value":v} for k,v in fields.items()]}
+         if args[:2]==["attachment","+upload"]:
++            assert args[args.index("--field-key")+1]=="files"
+             state["uploads"]+=1;name=Path(args[2]).name;state["data"][name]=Path(args[2]).read_bytes()
+             if state["race"]:state["revision"]="external-edit"
+             return {"file_token":"token-"+name,"file_url":"https://files.invalid/"+name,
+diff --git a/local-qwen3.8/feishu-bridge/am_info_sync/document_policy.py b/local-qwen3.8/feishu-bridge/am_info_sync/document_policy.py
+new file mode 100644
+index 000000000..1df195527
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/am_info_sync/document_policy.py
+@@ -0,0 +1,74 @@
++"""Document-only policy projection; ordinary query/access fences stay unchanged.
++
++Only the two documented scheduling fields are omitted. In particular overlap,
++raw retention, analysis settings and unknown future settings remain semantic.
++Membership lists are projected onto the requested project; their history is
++separately fenced by durable Store epochs.
++"""
++from __future__ import annotations
++
++from .models import Source
++
++
++def effective_freshness_seconds(source: Source) -> int | float:
++    # Keep the same fallback rule as Facts.query, including invalid overrides.
++    value = source.settings.get('freshness_seconds', max(120, source.poll_seconds * 2))
++    if type(value) not in (int, float) or value < 1:
++        value = max(120, source.poll_seconds * 2)
++    return value
++
++
++def project_membership(source: Source, subject: str) -> dict:
++    fixed = source.settings.get('subject_id')
++    allowed = source.settings.get('subject_ids')
++    return {'fixed': None if fixed is None else fixed == subject,
++            'allowed': None if allowed is None else subject in allowed}
++
++
++def membership_changes(old: Source, new: Source) -> tuple[bool, list[str]]:
++    """Find changed project scopes, conservatively fencing unrestricted changes.
++
++    A restriction being added/removed can affect subjects not yet in either
++    explicit list, so that case advances the whole source epoch. Ordinary list
++    changes advance only the affected projects (not every shared-ledger row).
++    """
++    old_fixed, new_fixed = old.settings.get('subject_id'), new.settings.get('subject_id')
++    old_allowed, new_allowed = old.settings.get('subject_ids'), new.settings.get('subject_ids')
++    source_wide = ((old_fixed is None) != (new_fixed is None) or
++                   (old_allowed is None) != (new_allowed is None))
++    subjects = {v for v in (old_fixed, new_fixed) if isinstance(v, str)}
++    for allowed in (old_allowed, new_allowed):
++        if allowed is None:
++            continue
++        if not isinstance(allowed, (list, tuple)) or any(not isinstance(v, str) for v in allowed):
++            # Legacy configurations with non-list membership cannot be safely
++            # enumerated. Preserve a source-wide fence for those writes.
++            source_wide = True
++        else:
++            subjects.update(allowed)
++    changed = sorted(s for s in subjects if project_membership(old, s) != project_membership(new, s))
++    return source_wide, changed
++
++
++def authorization_policy(source: Source, subject: str) -> dict:
++    return {**{k: getattr(source, k) for k in (
++        'source_id', 'kind', 'remote_id', 'tenant_id', 'owner_user_id',
++        'enabled')},
++        'readers': sorted(set(source.readers)),
++        'output_chats': sorted(set(source.output_chats)),
++        'read_identity': source.settings.get('read_identity'),
++        'membership': project_membership(source, subject)}
++
++
++def document_policy(source: Source, subject: str) -> dict:
++    policy = source.to_dict()
++    policy.pop('poll_seconds')
++    policy.pop('reconcile_seconds')
++    policy['readers'] = sorted(set(source.readers))
++    policy['output_chats'] = sorted(set(source.output_chats))
++    settings = policy['settings']
++    settings.pop('subject_id', None)
++    settings.pop('subject_ids', None)
++    policy['project_membership'] = project_membership(source, subject)
++    policy['effective_freshness_seconds'] = effective_freshness_seconds(source)
++    return policy
+diff --git a/local-qwen3.8/feishu-bridge/am_info_sync/document_snapshot.py b/local-qwen3.8/feishu-bridge/am_info_sync/document_snapshot.py
+index 5cfc29863..9a3179722 100644
+--- a/local-qwen3.8/feishu-bridge/am_info_sync/document_snapshot.py
++++ b/local-qwen3.8/feishu-bridge/am_info_sync/document_snapshot.py
+@@ -4,7 +4,8 @@ No second fact store, remote call, permission grant or business-state promotion.
+ The host resolves identity/project scope before entering this local transaction.
+ Unknown subject membership in a mapped message source is deliberately covered
+ at source granularity; an unanalysed new message can invalidate the old draft.
+-The existing global source-access epoch remains an independent fence.
++Legacy bindings keep the global source-access fence. Version 2 uses durable
++source/project revocation history and a conservative legacy-writer fallback.
+ """
+ from __future__ import annotations
+ 
+@@ -15,9 +16,14 @@ from typing import Any
+ 
+ from .models import Principal, Source, digest
+ from .policy import can_read
++from .document_policy import (authorization_policy, document_policy,
++                              effective_freshness_seconds)
+ 
+ 
+-SCHEMA = 'am-document-evidence-binding/1'
++LEGACY_SCHEMA = 'am-document-evidence-binding/1'
++SCHEMA = 'am-document-evidence-binding/2'
++COMPONENT_NAMES = frozenset({'authorization', 'project', 'sources', 'objects',
++                             'facts', 'quality', 'gaps', 'pending'})
+ 
+ 
+ class DocumentSnapshotError(ValueError):
+@@ -38,7 +44,7 @@ def _deadline(value: Any) -> float:
+ 
+ 
+ def validate_binding(binding: Any, row: dict[str, Any], now_ms: int) -> None:
+-    if not isinstance(binding, dict) or binding.get('schema') != SCHEMA:
++    if not isinstance(binding, dict) or binding.get('schema') not in (LEGACY_SCHEMA, SCHEMA):
+         raise DocumentSnapshotError('DOCUMENT_EVIDENCE_BINDING_REQUIRED')
+     if binding.get('scope') != request_scope(row):
+         raise DocumentSnapshotError('DOCUMENT_EVIDENCE_SCOPE_CHANGED')
+@@ -48,6 +54,14 @@ def validate_binding(binding: Any, row: dict[str, Any], now_ms: int) -> None:
+     if not isinstance(binding.get('state_hash'), str) or not re.fullmatch(
+             r'[0-9a-f]{64}', binding['state_hash']):
+         raise DocumentSnapshotError('DOCUMENT_EVIDENCE_BINDING_INVALID')
++    if binding['schema'] == SCHEMA:
++        components = binding.get('component_hashes')
++        if (not isinstance(components, dict) or set(components) != COMPONENT_NAMES
++                or any(not isinstance(v, str) or not re.fullmatch(r'[0-9a-f]{64}', v)
++                       for v in components.values())):
++            raise DocumentSnapshotError('DOCUMENT_EVIDENCE_BINDING_INVALID')
++        if binding['state_hash'] != digest({'schema': SCHEMA, 'components': components}):
++            raise DocumentSnapshotError('DOCUMENT_EVIDENCE_BINDING_INVALID')
+     if min(_deadline(binding.get('expires')), _deadline(row.get('expires'))) * 1000 <= now_ms:
+         raise DocumentSnapshotError('DOCUMENT_EVIDENCE_EXPIRED')
+ 
+@@ -89,13 +103,17 @@ def projection_version(info: dict[str, Any]) -> str:
+ def capture_document_snapshot(store, service, project: dict[str, Any], *,
+                               principal: Principal, scope: list[str],
+                               project_code: str, expires: float,
+-                              expected_access_version: str) -> tuple[dict, dict]:
++                              expected_access_version: str | None = None,
++                              binding_schema: str = SCHEMA) -> tuple[dict, dict]:
+     """Return information plus a body-free binding from one local SQLite view.
+ 
+     This is read-only despite using Store.transaction's existing BEGIN
+     IMMEDIATE fence. It never holds a database lock across identity, model or
+     platform calls. Callers must not already hold an Information transaction.
+     """
++    if binding_schema not in (LEGACY_SCHEMA, SCHEMA):
++        raise DocumentSnapshotError('DOCUMENT_EVIDENCE_BINDING_REQUIRED')
++    legacy = binding_schema == LEGACY_SCHEMA
+     subject = project.get('key')
+     if not isinstance(subject, str) or not subject or not project_code:
+         raise DocumentSnapshotError('DOCUMENT_PROJECT_AMBIGUOUS')
+@@ -106,7 +124,8 @@ def capture_document_snapshot(store, service, project: dict[str, Any], *,
+         now = store.clock()
+         if expiry * 1000 <= now:
+             raise DocumentSnapshotError('DOCUMENT_EVIDENCE_EXPIRED')
+-        if store.access_version() != expected_access_version:
++        observed_access_version = store.access_version()
++        if legacy and observed_access_version != expected_access_version:
+             raise DocumentSnapshotError('SOURCE_ACCESS_CHANGED')
+         info = service.query(subject, principal, connection=db)
+         fact_sources = {f['evidence']['source_id'] for f in info['facts']}
+@@ -114,18 +133,21 @@ def capture_document_snapshot(store, service, project: dict[str, Any], *,
+         objects = []
+         dependencies = []
+         selected = {}
++        selected_status = {}
+         ledger_evidence = None
+         for row in db.execute('SELECT * FROM sources ORDER BY source_id').fetchall():
+             source = Source.from_dict(json.loads(row['config_json']))
+             # Denied/unreadable sources do not leak through coverage counts or
+-            # dependency diagnostics. The global access epoch fences revocation.
++            # diagnostics. Durable epochs also catch revocation then restoration.
+             if not can_read(source, principal) or row['availability'] == 'denied':
+                 continue
+             if not (_mapped(source, subject) or source.source_id in fact_sources):
+                 continue
+             selected[source.source_id] = source
++            selected_status[source.source_id] = row
+             sources.append({'source_id': source.source_id,
+-                            'policy_hash': digest(source.to_dict()),
++                            'policy_hash': digest(source.to_dict() if legacy else
++                                                  document_policy(source, subject)),
+                             'availability': row['availability']})
+             records = db.execute('''SELECT o.object_id,o.current_version,o.state,
+                 r.body_hash,r.deleted,r.completeness,r.purged,r.raw_expires_at_ms,
+@@ -167,6 +189,10 @@ def capture_document_snapshot(store, service, project: dict[str, Any], *,
+                         'raw_available': not record['purged'] and record['raw_expires_at_ms'] > now,
+                         'raw_expires_at_ms': record['raw_expires_at_ms']}
+                 objects.append(item)
++                if not legacy and item['raw_available']:
++                    # Unanalysed current objects are dependencies as well. Their
++                    # remaining retention may shorten, never renew, the draft.
++                    expiry = min(expiry, item['raw_expires_at_ms'] / 1000)
+                 dependencies.append({k: item[k] for k in
+                                      ('source_id', 'object_id', 'version', 'raw_expires_at_ms')})
+         # Project fields have their own raw source, separate from derived facts.
+@@ -201,6 +227,20 @@ def capture_document_snapshot(store, service, project: dict[str, Any], *,
+                 expiry = min(expiry, limit / 1000)
+             facts.append({'fact_id': fact['fact_id'], 'hash': digest(fact)})
+         coverage = info.get('coverage', {})
++        if not legacy:
++            # Ordinary coverage currently derives freshness directly from the
++            # scheduler, while facts already honor effective freshness. Make
++            # this returned document view agree with the facts and its binding;
++            # preserve the legacy/ordinary query behavior outside this view.
++            for item in coverage.get('sources', []):
++                source = selected[item['source_id']]
++                status = selected_status[source.source_id]
++                checked = status['last_checked_ms']
++                item['stale'] = (source.kind != 'manual' and (
++                    status['availability'] != 'ok' or checked is None or
++                    now - checked > effective_freshness_seconds(source) * 1000))
++            coverage['needs_refresh_or_review'] = not coverage.get('sources') or any(
++                item['stale'] or item['gap_kinds'] for item in coverage.get('sources', []))
+         quality = {
+             'sources': sorted(({'source_id': s['source_id'], 'stale': s.get('stale'),
+                                 'unprocessed_jobs': s.get('unprocessed_jobs'),
+@@ -214,9 +254,24 @@ def capture_document_snapshot(store, service, project: dict[str, Any], *,
+         state = {'project': _project_state(project), 'sources': sources,
+                  'objects': objects, 'facts': facts, 'quality': quality,
+                  'gaps': gaps, 'pending': pending}
+-        binding = {'schema': SCHEMA, 'project_id': subject, 'project_code': project_code,
++        components = None
++        if not legacy:
++            authorization = {
++                'history': store.document_access_state(db, list(selected), subject),
++                'policies': [authorization_policy(selected[sid], subject) for sid in sorted(selected)]}
++            # Component hashes expose no raw content and allow the host to
++            # distinguish authorization invalidation from evidence changes.
++            components = {'authorization': digest(authorization),
++                          **{name: digest(value) for name, value in state.items()}}
++            # The database namespace, relevant revocation epochs and all
++            # semantic components participate; the observed global epoch does
++            # not. V1 retains its exact original state/hash algorithm above.
++            state = {'schema': SCHEMA, 'components': components}
++        binding = {'schema': binding_schema, 'project_id': subject, 'project_code': project_code,
+                    'scope': list(scope), 'expires': expiry,
+-                   'access_version': expected_access_version,
++                   'access_version': observed_access_version,
+                    'state_hash': digest(state), 'dependencies': dependencies,
+                    'ledger_evidence': ledger_evidence}
++        if components is not None:
++            binding['component_hashes'] = components
+         return info, binding
+diff --git a/local-qwen3.8/feishu-bridge/am_info_sync/store.py b/local-qwen3.8/feishu-bridge/am_info_sync/store.py
+index ed3fbdb2b..c7e1d8136 100644
+--- a/local-qwen3.8/feishu-bridge/am_info_sync/store.py
++++ b/local-qwen3.8/feishu-bridge/am_info_sync/store.py
+@@ -17,6 +17,7 @@ from typing import Any, Iterator, Sequence
+ 
+ from .models import (Source, Observation, Page, Clock, canonical, digest, now_ms,
+                      ScopeViolation, IntegrityConflict, LeaseLost)
++from .document_policy import membership_changes
+ 
+ 
+ SCHEMA = """
+@@ -81,6 +82,19 @@ CREATE TABLE IF NOT EXISTS discoveries(
+ """
+ 
+ 
++DOCUMENT_ACCESS_SCHEMA = {
++    'document_access_meta': '''CREATE TABLE IF NOT EXISTS document_access_meta(
++        singleton INTEGER PRIMARY KEY CHECK(singleton=1), namespace TEXT NOT NULL,
++        access_namespace TEXT NOT NULL, access_revision INTEGER NOT NULL,
++        fallback_epoch INTEGER NOT NULL DEFAULT 0)''',
++    'document_source_access_epochs': '''CREATE TABLE IF NOT EXISTS document_source_access_epochs(
++        source_id TEXT PRIMARY KEY, revision INTEGER NOT NULL)''',
++    'document_project_access_epochs': '''CREATE TABLE IF NOT EXISTS document_project_access_epochs(
++        source_id TEXT NOT NULL, subject_id TEXT NOT NULL, revision INTEGER NOT NULL,
++        PRIMARY KEY(source_id,subject_id))''',
++}
++
++
+ def _no_credentials(value: Any) -> None:
+     if isinstance(value, dict):
+         for key, child in value.items():
+@@ -112,6 +126,23 @@ class Store:
+         self.conn.execute("INSERT OR IGNORE INTO source_access_version VALUES(1,?,0)", (uuid.uuid4().hex,))
+         if self.conn.execute("SELECT MAX(version) FROM schema_meta").fetchone()[0] != 1:
+             raise RuntimeError("Unsupported database schema; explicit migration is required")
++        with self.transaction() as db:
++            existing = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
++                        if row[0] in DOCUMENT_ACCESS_SCHEMA}
++            for statement in DOCUMENT_ACCESS_SCHEMA.values():
++                db.execute(statement)
++            current = db.execute("SELECT namespace,revision FROM source_access_version WHERE singleton=1").fetchone()
++            # A fresh document namespace makes migration (or recreation of the
++            # epoch tables) unable to authenticate a pre-existing v2 binding.
++            db.execute("""INSERT OR IGNORE INTO document_access_meta
++                (singleton,namespace,access_namespace,access_revision,fallback_epoch)
++                VALUES(1,?,?,?,0)""", (uuid.uuid4().hex, current['namespace'], current['revision']))
++            if existing and existing != set(DOCUMENT_ACCESS_SCHEMA):
++                # Partial migration/table recreation lost some history. Rotate
++                # before committing the recreation, so no concurrent capture
++                # can authenticate an old binding against empty epoch tables.
++                db.execute("UPDATE document_access_meta SET namespace=? WHERE singleton=1", (uuid.uuid4().hex,))
++            self._reconcile_document_access(db)
+ 
+     def close(self) -> None:
+         with self._lock:
+@@ -165,7 +196,12 @@ class Store:
+                                     s.settings.get('read_identity'), s.settings.get('subject_id'),
+                                     s.settings.get('subject_ids'))
+                 if access(old) != access(source):
+-                    db.execute("UPDATE source_access_version SET revision=revision+1 WHERE singleton=1")
++                    scope_changed, subjects = membership_changes(old, source)
++                    source_access = lambda s: (s.enabled, frozenset(s.readers), frozenset(s.output_chats),
++                                               s.settings.get('read_identity'))
++                    self._bump_source_access(db, source.source_id,
++                        source_wide=scope_changed or source_access(old) != source_access(source),
++                        subjects=subjects)
+                     if not source.enabled or not old.enabled or old.settings.get('read_identity')!=source.settings.get('read_identity'):
+                         db.execute("UPDATE sources SET availability='denied',last_error='source_access_revalidation_required' WHERE source_id=?",(source.source_id,))
+                 analysis = lambda s: {k:s.settings.get(k) for k in (
+@@ -201,6 +237,63 @@ class Store:
+             row = self.conn.execute("SELECT namespace,revision FROM source_access_version WHERE singleton=1").fetchone()
+         return row[0] + ':' + str(row[1])
+ 
++    def _reconcile_document_access(self, db: sqlite3.Connection) -> None:
++        """Persist a conservative fence for writes by pre-v2/rollback code.
++
++        Older writers still advance the global revision. They cannot identify
++        which source changed, so an unsynchronised revision invalidates every
++        previous v2 binding, including revoke-then-restore histories. This runs
++        only at initialization or a known access write, never during capture.
++        """
++        current = db.execute("SELECT namespace,revision FROM source_access_version WHERE singleton=1").fetchone()
++        db.execute("""UPDATE document_access_meta SET fallback_epoch=fallback_epoch+1,
++            access_namespace=?,access_revision=? WHERE singleton=1 AND
++            (access_namespace<>? OR access_revision<>?)""",
++            (current['namespace'], current['revision'], current['namespace'], current['revision']))
++
++    def _bump_source_access(self, db: sqlite3.Connection, source_id: str, *,
++                            source_wide: bool = True, subjects: Sequence[str] = ()) -> None:
++        # All three existing global-epoch mutation paths call this helper in
++        # their original transaction. The global behavior remains unchanged.
++        self._reconcile_document_access(db)
++        if source_wide:
++            db.execute("""INSERT INTO document_source_access_epochs VALUES(?,1)
++                ON CONFLICT(source_id) DO UPDATE SET revision=revision+1""", (source_id,))
++        for subject in subjects:
++            db.execute("""INSERT INTO document_project_access_epochs VALUES(?,?,1)
++                ON CONFLICT(source_id,subject_id) DO UPDATE SET revision=revision+1""", (source_id, subject))
++        db.execute("UPDATE source_access_version SET revision=revision+1 WHERE singleton=1")
++        db.execute("""UPDATE document_access_meta SET
++            access_namespace=(SELECT namespace FROM source_access_version WHERE singleton=1),
++            access_revision=(SELECT revision FROM source_access_version WHERE singleton=1)
++            WHERE singleton=1""")
++
++    def document_access_state(self, connection: sqlite3.Connection,
++                              source_ids: Sequence[str], subject: str) -> dict[str, Any]:
++        """Read scoped history from the same transaction as the evidence.
++
++        An untracked global write is represented in the returned fingerprint,
++        without repairing metadata or otherwise writing during capture. A later
++        initialization/known writer durably folds it into fallback_epoch.
++        """
++        with self.read_in_transaction(connection) as db:
++            current = db.execute("SELECT namespace,revision FROM source_access_version WHERE singleton=1").fetchone()
++            meta = db.execute("SELECT * FROM document_access_meta WHERE singleton=1").fetchone()
++            if meta is None:
++                raise RuntimeError('Document access history is unavailable')
++            untracked = None
++            if (meta['access_namespace'], meta['access_revision']) != (current['namespace'], current['revision']):
++                untracked = current['namespace'] + ':' + str(current['revision'])
++            epochs = []
++            for source_id in sorted(source_ids):
++                source = db.execute("SELECT revision FROM document_source_access_epochs WHERE source_id=?", (source_id,)).fetchone()
++                project = db.execute("SELECT revision FROM document_project_access_epochs WHERE source_id=? AND subject_id=?", (source_id, subject)).fetchone()
++                epochs.append({'source_id': source_id, 'source_epoch': source[0] if source else 0,
++                               'project_epoch': project[0] if project else 0})
++            return {'namespace': meta['namespace'], 'access_namespace': current['namespace'],
++                    'fallback_epoch': meta['fallback_epoch'], 'untracked_access_version': untracked,
++                    'sources': epochs}
++
+     def get_source(self, source_id: str) -> Source:
+         with self._lock:
+             row = self.conn.execute("SELECT config_json FROM sources WHERE source_id=?", (source_id,)).fetchone()
+@@ -475,7 +568,7 @@ class Store:
+             db.execute("UPDATE sources SET availability=?,last_error=?,updated_at_ms=? WHERE source_id=?",
+                        ("denied" if denied else "error", code[:100], self.clock(), source_id))
+             if permission_denied and old and old[0] != 'denied':
+-                db.execute("UPDATE source_access_version SET revision=revision+1 WHERE singleton=1")
++                self._bump_source_access(db, source_id)
+             self._gap(db, source_id, "", "source_read", code[:100])
+             if permission_denied:
+                 # An in-flight response obtained before revocation cannot restore
+@@ -542,7 +635,7 @@ class Store:
+                  self.clock() if done else None, run_id))
+             if done:
+                 if db.execute("SELECT availability FROM sources WHERE source_id=?", (run['source_id'],)).fetchone()[0] == 'denied':
+-                    db.execute("UPDATE source_access_version SET revision=revision+1 WHERE singleton=1")
++                    self._bump_source_access(db, run['source_id'])
+                 # Only incremental runs can advance contiguous historical coverage.
+                 watermark = run["end_ms"] if coverage and run["mode"] == "incremental" else None
+                 db.execute("""UPDATE sources SET availability='ok',last_checked_ms=?,last_error=NULL,
+diff --git a/local-qwen3.8/feishu-bridge/am_information.py b/local-qwen3.8/feishu-bridge/am_information.py
+index 76bbdf360..9d137a671 100644
+--- a/local-qwen3.8/feishu-bridge/am_information.py
++++ b/local-qwen3.8/feishu-bridge/am_information.py
+@@ -334,9 +334,10 @@ class AMInformation:
+         from am_outcome.evidence import EvidenceBundle
+         from am_info_sync.document_snapshot import (capture_document_snapshot,
+             request_scope, DocumentSnapshotError)
++        # A new v2 document captures its own current, scoped authority and
++        # evidence. An epoch copied from an earlier ordinary query is not its
++        # authority; ordinary query/follow-up delivery keeps the global fence.
+         version = self.store.access_version()
+-        if row.setdefault('_source_access_version', version) != version:
+-            raise BoundaryError('SOURCE_ACCESS_CHANGED')
+         # Authenticate before reading project scope. Do not reuse an old scope
+         # supplied by a prior turn or inferred by the model.
+         row['_query_grant'] = self.am.query_grant(row)
+@@ -376,13 +377,13 @@ class AMInformation:
+         """
+         from fs_agent.project_catalog import business_ids
+         from query_rules import identifiers
+-        from am_info_sync.document_snapshot import (validate_binding,
++        from am_info_sync.document_snapshot import (validate_binding, LEGACY_SCHEMA,
+             capture_document_snapshot, request_scope, DocumentSnapshotError)
+         try:
+             validate_binding(binding, row, self.store.clock())
+         except DocumentSnapshotError as exc:
+             raise BoundaryError(str(exc)) from exc
+-        if self.store.access_version() != binding['access_version']:
++        if binding['schema'] == LEGACY_SCHEMA and self.store.access_version() != binding['access_version']:
+             raise BoundaryError('SOURCE_ACCESS_CHANGED')
+         current_row = dict(row, _direct_return=True)
+         grant = self.am.query_grant(current_row)
+@@ -406,9 +407,13 @@ class AMInformation:
+             _, current = capture_document_snapshot(self.store, self.service, project,
+                 principal=principal, scope=request_scope(row), project_code=binding['project_code'],
+                 expires=min(row['expires'], binding['expires']),
+-                expected_access_version=binding['access_version'])
++                expected_access_version=binding['access_version'],binding_schema=binding['schema'])
+         except DocumentSnapshotError as exc:
+             raise BoundaryError(str(exc)) from exc
++        if binding['schema'] != LEGACY_SCHEMA and (
++                current.get('component_hashes',{}).get('authorization') !=
++                binding.get('component_hashes',{}).get('authorization')):
++            raise BoundaryError('SOURCE_ACCESS_CHANGED')
+         if project['key'] != binding['project_id'] or current['state_hash'] != binding['state_hash']:
+             raise BoundaryError('DOCUMENT_EVIDENCE_CHANGED')
+         return True
+diff --git a/local-qwen3.8/feishu-bridge/am_query.py b/local-qwen3.8/feishu-bridge/am_query.py
+index 59b014c43..39ad5c0e3 100644
+--- a/local-qwen3.8/feishu-bridge/am_query.py
++++ b/local-qwen3.8/feishu-bridge/am_query.py
+@@ -278,7 +278,12 @@ class QueryMixin:
+         try:
+             bound=self.s.rows('SELECT source_access_version FROM am_source_deliveries WHERE outbox_id=?',(row['id'],))
+             host=getattr(self,'information',None)
+-            if host is not None and (not bound or bound[0]['source_access_version']!=host.store.access_version()):return False
++            version=bound[0]['source_access_version'] if bound else None
++            from fs_agent.document_view_binding import scoped_delivery_authorized
++            scoped=self.s.rows('SELECT source_fence FROM am_document_source_outputs WHERE outbox_id=?',(row['id'],))
++            if scoped:
++                if host is None or not bound or not scoped_delivery_authorized(self.g.logic,row,scoped[0]['source_fence']):return False
++            elif host is not None and version!=host.store.access_version():return False
+             conversation=getattr(self,'conversation',None)
+             if conversation is not None and not conversation.delivery_source_authorized(row):return False
+             return digest(self.query_grant(row)) == notes[0]['scope_hash']
+diff --git a/local-qwen3.8/feishu-bridge/am_service.py b/local-qwen3.8/feishu-bridge/am_service.py
+index 8f6951b37..b37a0a3f0 100644
+--- a/local-qwen3.8/feishu-bridge/am_service.py
++++ b/local-qwen3.8/feishu-bridge/am_service.py
+@@ -242,21 +242,28 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+             old=conn.execute('SELECT outbox_id FROM am_notice_keys WHERE notice_key=?',(notice_key,)).fetchone()
+             if old:return old[0]
+         binding=row.get('_document_binding')
++        scoped_source=None
+         if binding:
+-            from fs_agent.document_view_binding import require
+-            require(self.g.logic,row,binding)
++            from fs_agent.document_view_binding import source_fence
++            scoped_source=source_fence(self.g.logic,row,binding)
+             row=dict(row,expires=min(row['expires'],binding['expires']))
++        if scoped_source is not None and self.information is None:
++            raise BoundaryError('DOCUMENT_SHARED_EVIDENCE_VERIFIER_REQUIRED')
+         source_version=row.get('_source_access_version')
+         if self.information is not None:
+             current=self.information.store.access_version()
+-            if source_version is not None and source_version!=current:raise BoundaryError('SOURCE_ACCESS_CHANGED')
+-            source_version=current
++            if scoped_source is None and source_version is not None and source_version!=current:raise BoundaryError('SOURCE_ACCESS_CHANGED')
++            if source_version is None:source_version=current
+         from am_response.topology import notice_family
+         presented_row = dict(row, _response_kind=kind, _response_family=notice_family(kind),
+                              _response_object=object_id, _response_version=version, _response_payload_hash=hash)
+         out=self.s.add_outbox(presented_row,text=text,card=card,private=not row.get('_public_query'),conn=conn)
+         if binding:
+             conn.execute('INSERT INTO am_document_view_outputs VALUES(?,?,?)',(out,canonical(binding),binding['expires']))
++        if scoped_source is not None:
++            from fs_agent.document_view_binding import bind_source_output
++            output_fence=bind_source_output(dict(conn.execute('SELECT * FROM outbox WHERE id=?',(out,)).fetchone()),scoped_source)
++            conn.execute('INSERT INTO am_document_source_outputs VALUES(?,?)',(out,output_fence))
+         if source_version is not None:
+             conn.execute('INSERT INTO am_source_deliveries VALUES(?,?)',(out,source_version))
+         if row.get('_direct_return'):conn.execute("UPDATE outbox SET state='callback_pending' WHERE id=?",(out,))
+@@ -293,6 +300,10 @@ class AmSelfService(DirectQueryMixin,GroupQueryMixin,QueryMixin,PresentationMixi
+     def valid_notification(self,row):
+         notices=self.s.rows('SELECT * FROM am_notifications WHERE outbox_id=?',(row['id'],))
+         if not notices:return None
++        if any(n['kind']=='document_result' for n in notices) and not self.s.rows('SELECT 1 FROM am_document_view_outputs WHERE outbox_id=?',(row['id'],)):
++            return False
++        if self.information is None and self.s.rows('SELECT 1 FROM am_document_source_outputs WHERE outbox_id=?',(row['id'],)):
++            return False
+         from fs_agent.document_view_binding import valid_output
+         if not valid_output(self.g.logic,row):return False
+         if self.view_delivery(row) is False:return False
+diff --git a/local-qwen3.8/feishu-bridge/group_ledger.py b/local-qwen3.8/feishu-bridge/group_ledger.py
+index 904439dc1..506fc2def 100644
+--- a/local-qwen3.8/feishu-bridge/group_ledger.py
++++ b/local-qwen3.8/feishu-bridge/group_ledger.py
+@@ -67,11 +67,14 @@ def parse_rows(values):
+     normalized = [compact(x) for x in headers]
+     indices = {}
+     for name in HEADERS:
+-        # The live ledger renamed this column on 2026.10.28. Bind only these
+-        # verified names; a duplicate or unknown heading still fails closed.
++        # Bind only independently observed headings. The progress alias was
++        # verified on 2026.10.28 and the owner-action alias on 2026.11.4.
++        # Duplicate aliases or unknown headings still fail closed.
+         aliases = {compact(name)}
+         if name == "项目进展":
+             aliases.add(compact("项目信息"))
++        if name == "待办":
++            aliases.add(compact("本人待办与跟进"))
+         matches = [i for i, h in enumerate(normalized) if h in aliases]
+         if len(matches) != 1:
+             raise LedgerError("LEDGER_HEADER_CHANGED")
+diff --git a/local-qwen3.8/feishu-bridge/info_readers.py b/local-qwen3.8/feishu-bridge/info_readers.py
+index 71ed639eb..c86d27017 100644
+--- a/local-qwen3.8/feishu-bridge/info_readers.py
++++ b/local-qwen3.8/feishu-bridge/info_readers.py
+@@ -14,6 +14,28 @@ from am_info_sync.models import (Observation, Page, PermissionDenied, RetryableE
+     ScopeViolation, Source, canonical, digest)
+ 
+ 
++_MEEGLE_SCOPE_FAILURES = frozenset({
++    'BUSINESS_SCOPE_DENIED', 'BUSINESS_IDENTITY_CHANGED',
++    'BUSINESS_TARGET_CHANGED', 'BUSINESS_PARENT_CHANGED',
++    'BUSINESS_PROJECT_IDENTITY_CHANGED', 'BUSINESS_PROJECT_CODE_MISMATCH',
++    'BUSINESS_PROJECT_CODE_UNVERIFIED', 'BUSINESS_PROJECT_RELATION_MISSING',
++    'BUSINESS_PROJECT_RELATION_UNVERIFIED', 'BUSINESS_NODE_UNVERIFIED',
++    'BUSINESS_DOCUMENT_KIND_MISMATCH', 'BUSINESS_DOCUMENT_IDENTITY_UNVERIFIED',
++    'BUSINESS_TARGET_BINDING_CHANGED',
++    # A successfully read configuration/schema/value that cannot prove the
++    # registered binding is not a still-readable stale source. These exact
++    # validator failures require correction and successful revalidation.
++    'BUSINESS_TARGET_CONFIG_INVALID', 'BUSINESS_TARGET_CONFIG_INCOMPLETE',
++    'BUSINESS_TARGET_FIELD_CONFLICT', 'BUSINESS_FIELD_METADATA_AMBIGUOUS',
++    'BUSINESS_FIELD_METADATA_MISSING', 'BUSINESS_FIELD_TYPE_UNSUPPORTED',
++    'BUSINESS_FIELD_CANDIDATES_UNVERIFIED', 'BUSINESS_TARGET_FIELD_MISSING',
++    'BUSINESS_FIELD_VALUE_UNVERIFIED', 'BUSINESS_FIELD_CANDIDATE_MISMATCH',
++})
++# Transport failures, response/read budgets and metadata acquisition failures
++# (BUSINESS_METADATA_UNAVAILABLE/LIMIT) are deliberately absent. An exception
++# class/prefix alone cannot prove a revocation; unknown failures still retry.
++
++
+ class ExistingSDKReader:
+     """Use the already constructed original bot client and its token cache."""
+     def __init__(self, client, *, app_id, tenant_id):
+@@ -86,17 +108,24 @@ class ExistingMeegleReader:
+             raise ScopeViolation('owner_origin_unavailable')
+         try:
+             binding, target, fields, files = self.port._state(principal, alias)
++            # Never equate reviewed delivery, work-item status and node completion.
++            node_data = self.port._run(['workflow','get-node','--project-key',binding['space'],
++                '--work-item-id',binding['project'],'--node-id-list',binding['node'],'--need-sub-task'])
+         except Exception as exc:
+-            if str(exc) in ('BUSINESS_SCOPE_DENIED', 'BUSINESS_IDENTITY_CHANGED', 'BUSINESS_TARGET_CHANGED', 'BUSINESS_PARENT_CHANGED'):
++            if str(exc) in _MEEGLE_SCOPE_FAILURES:
+                 raise PermissionDenied('meegle_identity_or_scope_changed') from None
+             raise RetryableError('meegle_read_unavailable') from None
+-        # Never equate reviewed delivery, work-item status and node completion.
+-        node_data = self.port._run(['workflow','get-node','--project-key',binding['space'],
+-            '--work-item-id',binding['project'],'--node-id-list',binding['node'],'--need-sub-task'])
++        if not isinstance(node_data, dict) or not isinstance(node_data.get('list'), list):
++            raise RetryableError('meegle_read_unavailable')
+         nodes = node_data.get('list', [])
+-        if (len(nodes) != 1 or nodes[0].get('basic',{}).get('node_key') != binding['node']
+-                or node_data.get('pagination',{}).get('has_more')):
+-            raise ScopeViolation('registered_node_identity_changed')
++        pagination = node_data.get('pagination', {})
++        if not isinstance(pagination, dict):
++            raise RetryableError('meegle_read_unavailable')
++        if (len(nodes) != 1 or not isinstance(nodes[0], dict)
++                or not isinstance(nodes[0].get('basic'), dict)
++                or nodes[0]['basic'].get('node_key') != binding['node']
++                or pagination.get('has_more')):
++            raise PermissionDenied('meegle_identity_or_scope_changed')
+         node = nodes[0]
+         schedule = node.get('schedule') or {}
+         plan = {k:schedule.get(k) for k in ('estimate_start_time','estimate_finish_time')}
+diff --git a/local-qwen3.8/feishu-bridge/info_sources.py b/local-qwen3.8/feishu-bridge/info_sources.py
+index 5b366f4ba..67d884f21 100644
+--- a/local-qwen3.8/feishu-bridge/info_sources.py
++++ b/local-qwen3.8/feishu-bridge/info_sources.py
+@@ -232,6 +232,15 @@ class Discovery:
+             try:
+                 old=h.store.get_source(sid)
+                 subjects=sorted(v for v in set(subjects)|set(old.settings.get('subject_ids') or [old.settings.get('subject_id')]) if v)
++                if kind=='docx' and old.kind==kind and old.remote_id==rid:
++                    # Multiple discovery paths supply different display labels
++                    # and anchored links for the same immutable read identity.
++                    # Keep the registered citation (including absence) stable.
++                    # Actual document titles/content remain revision-checked by
++                    # DocxAdapter; file_snapshot names still select its parser.
++                    for key in ('file_name','url'):
++                        if key in old.settings:settings[key]=old.settings[key]
++                        else:settings.pop(key,None)
+             except ScopeViolation:pass
+         if kind=='im_chat':
+             existing=[s for s in h.store.list_sources() if s.enabled and s.kind=='im_chat' and s.remote_id==rid]
+diff --git a/local-qwen3.8/feishu-bridge/test_document_snapshot_r9.py b/local-qwen3.8/feishu-bridge/test_document_snapshot_r9.py
+index 05e89bd25..666f039f6 100644
+--- a/local-qwen3.8/feishu-bridge/test_document_snapshot_r9.py
++++ b/local-qwen3.8/feishu-bridge/test_document_snapshot_r9.py
+@@ -205,7 +205,12 @@ def test_other_actor_cannot_replay_binding(rig):
+ def test_an_unrelated_acl_change_keeps_original_global_guard(rig):
+     other = replace(rig.source, source_id='source-b', remote_id='local-b', settings={'subject_id': 'project-b'})
+     rig.store.register_source(other)
+-    _, binding = rig.capture()
++    # Legacy output keeps its original global fence; only newly captured v2
++    # output may use scoped authorization. This does not reissue old bindings.
++    _, binding = capture_document_snapshot(rig.store, rig.service, rig.project,
++        principal=Principal('owner', 'tenant', ('th2-query',)), scope=request_scope(rig.row),
++        project_code='IRAD-2099-001', expires=rig.row['expires'],
++        expected_access_version=rig.store.access_version(),binding_schema='am-document-evidence-binding/1')
+     rig.store.register_source(replace(other, readers=('user:new-user',)))
+     with pytest.raises(BoundaryError, match='SOURCE_ACCESS_CHANGED'):
+         rig.host.document_evidence_current(rig.row, binding)
+diff --git a/local-qwen3.8/feishu-bridge/test_document_snapshot_r9_fix2.py b/local-qwen3.8/feishu-bridge/test_document_snapshot_r9_fix2.py
+new file mode 100644
+index 000000000..948323c98
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/test_document_snapshot_r9_fix2.py
+@@ -0,0 +1,383 @@
++"""Real SQLite regressions for scoped document bindings, without remote calls."""
++from copy import deepcopy
++from dataclasses import replace
++import json
++import sqlite3
++import subprocess
++import sys
++
++import pytest
++
++from am_info_sync.document_snapshot import (
++    SCHEMA, LEGACY_SCHEMA, DocumentSnapshotError, capture_document_snapshot,
++    request_scope, validate_binding)
++from am_info_sync.models import Observation, Page, Principal
++from am_info_sync.runtime import InformationService
++from am_info_sync.store import Store
++from test_document_snapshot_r9 import Rig
++
++
++@pytest.fixture
++def rig(tmp_path):
++    value = Rig(tmp_path / 'information.sqlite')
++    value.add()
++    try:
++        yield value
++    finally:
++        value.close()
++
++
++def capture(rig, *, schema=SCHEMA, expected=None, user='owner', expires=None):
++    return capture_document_snapshot(rig.store, rig.service, rig.project,
++        principal=Principal(user, 'tenant', ('th2-query',)),
++        scope=request_scope({**rig.row, 'user': user}), project_code='IRAD-2099-001',
++        expires=rig.row['expires'] if expires is None else expires,
++        expected_access_version=rig.store.access_version() if expected is None else expected,
++        binding_schema=schema)
++
++
++def reopen(rig):
++    path = rig.store.path
++    rig.store.close()
++    rig.store = Store(path, clock=lambda: rig.time[0])
++    rig.service = InformationService(rig.store)
++
++
++def unrelated(rig):
++    source = replace(rig.source, source_id='source-b', remote_id='local-b',
++                     settings={'subject_id': 'project-b'})
++    rig.store.register_source(source)
++    return source
++
++
++def authorization(binding):
++    return binding['component_hashes']['authorization']
++
++
++def test_v2_defaults_and_capture_does_not_write(rig):
++    traced = []
++    rig.store.conn.set_trace_callback(traced.append)
++    before = rig.store.conn.total_changes
++    _, binding = capture(rig)
++    assert binding['schema'] == SCHEMA
++    validate_binding(binding, rig.row, rig.time[0])
++    assert rig.store.conn.total_changes == before
++    assert sum(sql.startswith('BEGIN') for sql in traced) == 1
++    assert not any(sql.lstrip().split()[0].upper() in {'INSERT', 'UPDATE', 'DELETE', 'REPLACE'}
++                   for sql in traced)
++    assert '工程师' not in json.dumps(binding, ensure_ascii=False)
++
++
++def test_unrelated_acl_changes_keep_current_document_valid(rig):
++    other = unrelated(rig)
++    _, old = capture(rig)
++    rig.store.register_source(replace(other, readers=('another-user',)))
++    _, new = capture(rig, expected=old['access_version'])
++    assert old['access_version'] != new['access_version']
++    assert old['state_hash'] == new['state_hash']
++    assert authorization(old) == authorization(new)
++
++
++def test_same_ledger_other_project_membership_changes_are_scoped(rig):
++    _, old = capture(rig)
++    for subjects in (['project-a'], ['project-a', 'project-c'], ['project-c', 'project-a', 'project-a']):
++        rig.store.register_source(replace(rig.ledger_source,
++            settings={**rig.ledger_source.settings, 'subject_ids': subjects}))
++        _, current = capture(rig, expected=old['access_version'])
++        assert current['state_hash'] == old['state_hash']
++        assert authorization(current) == authorization(old)
++    assert rig.store.access_version() != old['access_version']
++
++
++def test_ledger_current_project_remove_then_restore_keeps_history(rig):
++    _, old = capture(rig)
++    rig.store.register_source(replace(rig.ledger_source,
++        settings={**rig.ledger_source.settings, 'subject_ids': ['project-b']}))
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_LEDGER_EVIDENCE_UNAVAILABLE'):
++        capture(rig)
++    rig.store.register_source(rig.ledger_source)
++    _, restored = capture(rig)
++    assert authorization(restored) != authorization(old)
++    assert restored['state_hash'] != old['state_hash']
++    assert restored['component_hashes']['sources'] == old['component_hashes']['sources']
++    reopen(rig)
++    _, reopened = capture(rig)
++    assert reopened['state_hash'] == restored['state_hash']
++
++
++def test_reader_revocation_and_restore_from_another_process(rig):
++    for source in (rig.source, rig.ledger_source):
++        rig.store.register_source(replace(source, readers=('user:viewer',)))
++    _, old = capture(rig, user='viewer')
++    # A distinct interpreter/connection performs the ACL cycle. The original
++    # process must observe the monotonic history even though current ACL agrees.
++    program = '''
++from dataclasses import replace
++from am_info_sync.store import Store
++import sys
++store = Store(sys.argv[1])
++source = store.get_source('source-a')
++store.register_source(replace(source, readers=()))
++store.register_source(source)
++store.close()
++'''
++    subprocess.run([sys.executable, '-c', program, rig.store.path], check=True,
++                   capture_output=True, text=True, timeout=20)
++    _, restored = capture(rig, user='viewer', expected=old['access_version'])
++    assert authorization(restored) != authorization(old)
++    assert restored['component_hashes']['sources'] == old['component_hashes']['sources']
++    assert restored['component_hashes']['facts'] == old['component_hashes']['facts']
++
++
++def test_remote_permission_denial_and_successful_reacquisition_keep_history(rig):
++    rig.store.conn.execute("UPDATE sources SET availability='ok',last_checked_ms=? WHERE source_id='source-a'", (rig.time[0],))
++    _, old = capture(rig)
++    rig.store.mark_source_error('source-a', 'permission_denied', permission_denied=True)
++    run = rig.store.begin_sync('source-a')
++    rig.store.save_page(run['run_id'], run['lease_token'], None, Page(()))
++    _, restored = capture(rig)
++    assert authorization(restored) != authorization(old)
++    assert restored['component_hashes']['sources'] == old['component_hashes']['sources']
++    assert restored['component_hashes']['gaps'] == old['component_hashes']['gaps']
++
++
++def test_reader_and_output_chat_reorder_or_duplicates_are_semantically_stable(rig):
++    source = replace(rig.source, readers=('reader-a', 'reader-b'), output_chats=('chat-a', 'chat-b'))
++    rig.store.register_source(source)
++    _, old = capture(rig)
++    rig.store.register_source(replace(source, readers=('reader-b', 'reader-a', 'reader-a'),
++                                      output_chats=('chat-b', 'chat-b', 'chat-a')))
++    _, new = capture(rig)
++    assert old['access_version'] != new['access_version']  # Ordinary query fence retained.
++    assert old['state_hash'] == new['state_hash']
++    assert authorization(old) == authorization(new)
++
++
++def test_explicit_freshness_makes_poll_and_reconcile_operational(rig):
++    source = replace(rig.ledger_source,
++                     settings={**rig.ledger_source.settings, 'freshness_seconds': 600})
++    rig.store.register_source(source)
++    rig.time[0] += 500_000
++    info, old = capture(rig)
++    coverage = next(s for s in info['coverage']['sources'] if s['source_id'] == 'th2-ledger')
++    assert coverage['stale'] is False
++    assert info['coverage']['needs_refresh_or_review'] is False
++    assert info['incomplete_reasons'] == []
++    assert all(not f['stale'] for f in info['facts'])
++    rig.store.register_source(replace(source, poll_seconds=500, reconcile_seconds=7200))
++    current_info, new = capture(rig)
++    assert old['state_hash'] == new['state_hash']
++    assert current_info['coverage'] == info['coverage']
++    assert current_info['incomplete_reasons'] == info['incomplete_reasons']
++
++
++def test_default_freshness_change_is_semantic_even_before_becoming_stale(rig):
++    _, old = capture(rig)
++    rig.store.register_source(replace(rig.source, poll_seconds=240))
++    _, new = capture(rig)
++    assert authorization(old) == authorization(new)
++    assert old['state_hash'] != new['state_hash']
++
++
++def test_poll_change_under_same_default_freshness_floor_is_operational(rig):
++    rig.store.register_source(replace(rig.source, poll_seconds=30))
++    _, old = capture(rig)
++    rig.store.register_source(replace(rig.source, poll_seconds=50))
++    _, new = capture(rig)
++    assert old['state_hash'] == new['state_hash']
++
++
++def test_crossing_freshness_boundary_changes_returned_quality_and_binding(rig):
++    source = replace(rig.ledger_source,
++                     settings={**rig.ledger_source.settings, 'freshness_seconds': 600})
++    rig.store.register_source(source)
++    info, old = capture(rig)
++    assert info['coverage']['needs_refresh_or_review'] is False
++    rig.time[0] += 600_001
++    new_info, new = capture(rig)
++    assert new_info['coverage']['needs_refresh_or_review'] is True
++    assert any(f['stale'] for f in new_info['facts'])
++    assert old['state_hash'] != new['state_hash']
++
++
++@pytest.mark.parametrize('change', ['retention', 'overlap', 'unknown_setting', 'analysis_mapping'])
++def test_only_explicit_scheduling_metadata_is_excluded(rig, change):
++    _, old = capture(rig)
++    source = rig.source
++    if change == 'retention':
++        source = replace(source, raw_retention_seconds=172800)
++    elif change == 'overlap':
++        source = replace(source, overlap_seconds=600)
++    elif change == 'unknown_setting':
++        source = replace(source, settings={**source.settings, 'future_policy': {'mode': 'strict'}})
++    else:
++        source = replace(source, settings={**source.settings, 'mapping_version': 'new-analysis-v2'})
++    rig.store.register_source(source)
++    _, new = capture(rig)
++    assert old['state_hash'] != new['state_hash']
++
++
++@pytest.mark.parametrize('change', ['raw_revision', 'unknown_message', 'gap', 'authority', 'structured_mapping'])
++def test_real_evidence_and_quality_changes_invalidate(rig, change):
++    _, old = capture(rig)
++    if change == 'raw_revision':
++        rig.time[0] += 1
++        rig.add('材料尚未交付', version='v2')
++    elif change == 'unknown_message':
++        rig.store.record(Observation('source-a', 'not-yet-mapped', 'v1', rig.time[0], text='新消息的项目归属待解析'))
++    elif change == 'gap':
++        rig.store.mark_source_error('source-a', 'upstream_read_failed')
++    elif change == 'authority':
++        rig.store.conn.execute("UPDATE fact_candidates SET authority='owner_confirmed' WHERE source_id='source-a'")
++    else:
++        settings = deepcopy(rig.ledger_source.settings)
++        settings['fact_mappings']['ledger_record']['quote_path'] = ['new_quote']
++        rig.store.register_source(replace(rig.ledger_source, settings=settings))
++    _, new = capture(rig)
++    assert old['state_hash'] != new['state_hash']
++
++
++def test_retry_lease_metadata_is_stable_but_dead_state_is_not(rig):
++    row = rig.store.conn.execute("SELECT job_id FROM jobs WHERE kind='extract' AND state='pending' LIMIT 1").fetchone()
++    assert row is not None
++    _, old = capture(rig)
++    rig.store.conn.execute("""UPDATE jobs SET state='leased',attempts=3,available_at_ms=999999999,
++        lease_until_ms=999999999,lease_token='local-test',last_error='retry_later' WHERE job_id=?""", (row[0],))
++    _, leased = capture(rig)
++    assert old['state_hash'] == leased['state_hash']
++    rig.store.conn.execute("UPDATE jobs SET state='dead' WHERE job_id=?", (row[0],))
++    _, dead = capture(rig)
++    assert dead['state_hash'] != old['state_hash']
++
++
++def test_unparsed_current_raw_deadline_limits_document_and_is_never_extended(rig):
++    short = replace(rig.source, source_id='short-source', remote_id='short-local', raw_retention_seconds=60)
++    rig.store.register_source(short)
++    observation = Observation('short-source', 'unknown-message', 'v1', rig.time[0], text='尚未解析')
++    rig.store.record(observation)
++    _, old = capture(rig)
++    assert old['expires'] == (rig.time[0] + 60_000) / 1000
++    rig.store.register_source(replace(short, raw_retention_seconds=3600))
++    rig.time[0] += 1000
++    rig.store.record(observation)
++    _, current = capture(rig, expires=old['expires'])
++    assert current['expires'] == old['expires']
++    rig.time[0] += 59_000
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_EVIDENCE_EXPIRED'):
++        capture(rig, expires=old['expires'])
++
++
++def test_ledger_payload_must_agree_with_resolved_project(rig):
++    payload = json.loads(rig.store.conn.execute("SELECT payload_json FROM observations WHERE source_id='th2-ledger'").fetchone()[0])
++    payload['record']['fields']['项目进展'] = '与已解析项目不同'
++    rig.store.conn.execute("UPDATE observations SET payload_json=? WHERE source_id='th2-ledger'", (json.dumps(payload),))
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_LEDGER_CHANGED_DURING_READ'):
++        capture(rig)
++
++
++def test_legacy_binding_keeps_global_fence_and_full_source_policy(rig):
++    other = unrelated(rig)
++    _, legacy = capture(rig, schema=LEGACY_SCHEMA)
++    assert legacy['schema'] == LEGACY_SCHEMA
++    assert 'component_hashes' not in legacy
++    validate_binding(legacy, rig.row, rig.time[0])
++    rig.store.register_source(replace(rig.source, reconcile_seconds=7200))
++    _, changed = capture(rig, schema=LEGACY_SCHEMA)
++    assert changed['state_hash'] != legacy['state_hash']
++    rig.store.register_source(replace(other, readers=('another-user',)))
++    with pytest.raises(DocumentSnapshotError, match='SOURCE_ACCESS_CHANGED'):
++        capture(rig, schema=LEGACY_SCHEMA, expected=legacy['access_version'])
++
++
++def test_unknown_schema_and_malformed_authorization_are_rejected(rig):
++    _, binding = capture(rig)
++    bad = deepcopy(binding)
++    bad['schema'] = 'am-document-evidence-binding/999'
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_EVIDENCE_BINDING_REQUIRED'):
++        validate_binding(bad, rig.row, rig.time[0])
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_EVIDENCE_BINDING_REQUIRED'):
++        capture(rig, schema=bad['schema'])
++    bad = deepcopy(binding)
++    bad['component_hashes'].pop('authorization')
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_EVIDENCE_BINDING_INVALID'):
++        validate_binding(bad, rig.row, rig.time[0])
++    bad = deepcopy(binding)
++    bad['component_hashes']['facts'] = 'f' * 64
++    with pytest.raises(DocumentSnapshotError, match='DOCUMENT_EVIDENCE_BINDING_INVALID'):
++        validate_binding(bad, rig.row, rig.time[0])
++
++
++def test_legacy_database_migration_and_reopen_keep_global_history(rig):
++    _, legacy = capture(rig, schema=LEGACY_SCHEMA)
++    # Exact pre-v2 database shape: the original schema/global epoch remains,
++    # while none of the document epoch tables exist.
++    with rig.store.transaction() as db:
++        db.execute('DROP TABLE document_access_meta')
++        db.execute('DROP TABLE document_source_access_epochs')
++        db.execute('DROP TABLE document_project_access_epochs')
++    reopen(rig)
++    _, migrated_legacy = capture(rig, schema=LEGACY_SCHEMA, expected=legacy['access_version'])
++    assert migrated_legacy['state_hash'] == legacy['state_hash']
++    assert migrated_legacy['access_version'] == legacy['access_version']
++    _, migrated = capture(rig)
++    reopen(rig)
++    _, reopened = capture(rig)
++    assert migrated['state_hash'] == reopened['state_hash']
++
++
++def legacy_acl_cycle(path):
++    # Simulate the original writer: config+global epoch, no v2 metadata.
++    with sqlite3.connect(path, isolation_level=None) as db:
++        db.execute('BEGIN IMMEDIATE')
++        original = db.execute("SELECT config_json FROM sources WHERE source_id='source-a'").fetchone()[0]
++        revoked = json.loads(original)
++        revoked['readers'] = ['legacy-other-user']
++        db.execute("UPDATE sources SET config_json=? WHERE source_id='source-a'", (json.dumps(revoked),))
++        db.execute('UPDATE source_access_version SET revision=revision+1 WHERE singleton=1')
++        db.execute("UPDATE sources SET config_json=? WHERE source_id='source-a'", (original,))
++        db.execute('UPDATE source_access_version SET revision=revision+1 WHERE singleton=1')
++        db.execute('COMMIT')
++
++
++@pytest.mark.parametrize('repair', ['capture_only', 'reopen', 'known_unrelated_writer'])
++def test_legacy_writer_history_cannot_be_laundered(rig, repair):
++    other = unrelated(rig)
++    _, old = capture(rig)
++    legacy_acl_cycle(rig.store.path)
++    if repair == 'reopen':
++        reopen(rig)
++    elif repair == 'known_unrelated_writer':
++        rig.store.register_source(replace(other, readers=('another-user',)))
++    changes = rig.store.conn.total_changes
++    _, current = capture(rig)
++    assert rig.store.conn.total_changes == changes
++    assert authorization(current) != authorization(old)
++    assert current['component_hashes']['sources'] == old['component_hashes']['sources']
++    _, repeated = capture(rig)
++    assert repeated['state_hash'] == current['state_hash']
++    if repair != 'capture_only':
++        assert rig.store.conn.execute('SELECT fallback_epoch FROM document_access_meta').fetchone()[0] == 1
++
++
++def test_database_namespace_replacement_invalidates_even_with_same_data(rig):
++    _, old = capture(rig)
++    # Replacement namespace models restore/reinitialization of the store's
++    # access history while business records and source policy remain identical.
++    rig.store.conn.execute("UPDATE source_access_version SET namespace='replacement-database',revision=0")
++    _, current = capture(rig)
++    assert authorization(old) != authorization(current)
++    assert old['state_hash'] != current['state_hash']
++
++
++@pytest.mark.parametrize('missing', ['document_access_meta', 'document_source_access_epochs',
++                                    'document_project_access_epochs'])
++def test_partial_epoch_table_recreation_rotates_document_namespace(rig, missing):
++    _, old = capture(rig)
++    rig.store.conn.execute('DROP TABLE ' + missing)
++    reopen(rig)
++    _, recreated = capture(rig)
++    assert authorization(recreated) != authorization(old)
++    assert recreated['component_hashes']['sources'] == old['component_hashes']['sources']
++    reopen(rig)
++    _, stable = capture(rig)
++    assert stable['state_hash'] == recreated['state_hash']
+diff --git a/local-qwen3.8/feishu-bridge/test_group_ledger.py b/local-qwen3.8/feishu-bridge/test_group_ledger.py
+index 0e13922cf..0d351c0fb 100644
+--- a/local-qwen3.8/feishu-bridge/test_group_ledger.py
++++ b/local-qwen3.8/feishu-bridge/test_group_ledger.py
+@@ -41,6 +41,19 @@ class Port:
+ 
+ 
+ class LedgerTests(unittest.TestCase):
++    def test_live_owner_actions_heading_preserves_current_row_values(self):
++        values = [row[:] for row in VALUES]
++        values[0][3] = '本人待办与跟进'
++        self.assertEqual(parse_rows(values), parse_rows(VALUES))
++
++    def test_duplicate_owner_actions_alias_is_not_silently_selected(self):
++        values = [row[:] for row in VALUES]
++        values[0].append('本人待办与跟进')
++        for row in values[1:]:
++            row.append('不同的待办')
++        with self.assertRaisesRegex(LedgerError, 'LEDGER_HEADER_CHANGED'):
++            parse_rows(values)
++
+     def setUp(self):
+         self.tmp = tempfile.TemporaryDirectory()
+         self.now = 2000000000
+diff --git a/local-qwen3.8/feishu-bridge/test_info_reader_target_scopes_r9_fix2.py b/local-qwen3.8/feishu-bridge/test_info_reader_target_scopes_r9_fix2.py
+new file mode 100644
+index 000000000..cc972c811
+--- /dev/null
++++ b/local-qwen3.8/feishu-bridge/test_info_reader_target_scopes_r9_fix2.py
+@@ -0,0 +1,225 @@
++"""Real target validation and SQLite collection; synthetic CLI responses only."""
++from copy import deepcopy
++from types import SimpleNamespace
++
++import pytest
++
++from am_info_sync.models import PermissionDenied, Principal, RetryableError, Source
++from am_info_sync.runtime import InformationService
++from fs_agent.config import BoundaryError
++from info_readers import ExistingMeegleReader
++from test_document_snapshot_r9 import Rig
++from test_meegle_port import port_fixture
++
++
++@pytest.fixture
++def env(tmp_path):
++    rig = Rig(tmp_path / 'information.sqlite')
++    rig.add()
++    root = tmp_path / 'synthetic-meegle'
++    root.mkdir()
++    (root / 'state').mkdir()
++    gateway = SimpleNamespace(config=SimpleNamespace(root=root, owner='ou_a'),
++        store=SimpleNamespace(clock=lambda: rig.time[0] / 1000),
++        authorized=lambda principal: principal.get('user') == 'ou_a')
++    # This is the production MeeglePort/_state/document_target chain; only
++    # _run returns synthetic platform responses. No executable is invoked.
++    port, state, settings = port_fixture(gateway)
++    principal = {'user': 'ou_a', 'expires': rig.row['expires']}
++    reader = ExistingMeegleReader(port, lambda: principal)
++    source = Source('meegle-source', 'project_snapshot', '200', 'tenant', 'owner',
++        enabled=True, settings={'target_alias': 'report', 'subject_id': 'project-a',
++            'fact_mappings': {'system_record': {
++                'value_path': ['record'], 'quote_path': ['status_quote']}}})
++    rig.store.register_source(source)
++    rig.service = InformationService(rig.store, {'project_snapshot': reader})
++    rig.host.service = rig.service
++    result = SimpleNamespace(rig=rig, port=port, state=state, settings=settings,
++                             source=source, reader=reader, principal=principal)
++    collect(result)
++    try:
++        yield result
++    finally:
++        rig.close()
++
++
++def collect(env):
++    rig = env.rig
++    run = rig.service.sync_engine.run_source(env.source.source_id)
++    assert run['state'] == 'complete'
++    version = rig.store.conn.execute('SELECT current_version FROM objects WHERE source_id=?',
++                                    (env.source.source_id,)).fetchone()[0]
++    raw = rig.store.get_observation(env.source.source_id, env.source.remote_id, version)
++    rig.service.facts.process(raw, [])  # Trusted structured mapping, no model.
++
++
++def source_facts(env):
++    result = env.rig.service.query('project-a', Principal('owner', 'tenant'))
++    return [fact for fact in result['facts'] if fact['evidence']['source_id'] == env.source.source_id]
++
++
++def assert_read_only(env):
++    assert env.state['uploads'] == env.state['updates'] == 0
++    assert all(command[:2] in (['user', 'me'], ['workitem', 'meta-fields'],
++        ['workitem', 'get'], ['workflow', 'get-node']) for command in env.state['commands'])
++
++
++def invalidate(env, case):
++    state, binding = env.state, env.settings['targets']['report']
++    if case == 'cli_identity':
++        state['identity'] = 'another-user'
++    elif case == 'project_id':
++        state['project_attribute']['work_item_id'] = '101'
++    elif case == 'project_type':
++        state['project_attribute']['work_item_type'] = {'key': 'deliverable'}
++    elif case == 'project_code':
++        state['project_attribute']['work_item_name'] = 'IRAD-2099-002 其他项目'
++    elif case == 'project_code_ambiguous':
++        state['project_attribute']['work_item_name'] = 'IRAD-2099-001 / IRAD-2099-002'
++    elif case == 'project_relation_missing':
++        state['missing_fields'] = ['parent']
++    elif case == 'project_relation_ambiguous':
++        state['field_overrides'] = {'parent': [{'id': 100}, {'id': 101}]}
++    elif case == 'wrong_project_relation':
++        state['field_overrides'] = {'parent': {'id': 101}}
++    elif case == 'wrong_node_relation':
++        state['field_overrides'] = {'node': 'another-node'}
++    elif case == 'native_parent_changed':
++        state['links'] = [201]
++    elif case == 'node_unverified':
++        state['node_pagination'] = {'has_more': True}
++    elif case == 'wrong_document_kind':
++        state['kind'] = '项目章程'
++    elif case == 'unknown_document_kind':
++        state['kind'] = '未支持的文种'
++    elif case == 'legacy_config':
++        binding.pop('project_type')
++    elif case == 'field_roles_conflict':
++        binding['document_field'] = 'files'
++    elif case == 'unsupported_field_type':
++        state['metadata'][0]['field_type'] = 'file'
++    elif case == 'missing_field_definition':
++        state['metadata'] = [field for field in state['metadata'] if field['field_key'] != 'parent']
++    elif case == 'field_candidate_mismatch':
++        state['review'] = 'unknown-candidate'
++    else:
++        raise AssertionError(case)
++
++
++@pytest.mark.parametrize('case', [
++    'cli_identity', 'project_id', 'project_type', 'project_code', 'project_code_ambiguous',
++    'project_relation_missing', 'project_relation_ambiguous', 'wrong_project_relation',
++    'wrong_node_relation', 'native_parent_changed', 'node_unverified',
++    'wrong_document_kind', 'unknown_document_kind', 'legacy_config',
++    'field_roles_conflict', 'unsupported_field_type', 'missing_field_definition',
++    'field_candidate_mismatch'])
++def test_validated_scope_failures_revoke_old_readability_and_advance_epoch(env, case):
++    assert source_facts(env)
++    _, old = env.rig.capture()
++    before = env.rig.store.access_version()
++    observation_count = env.rig.store.conn.execute('SELECT COUNT(*) FROM observations').fetchone()[0]
++    invalidate(env, case)
++    with pytest.raises(PermissionDenied, match='^meegle_identity_or_scope_changed$'):
++        env.rig.service.sync_engine.run_source(env.source.source_id)
++    status = env.rig.store.source_status(env.source.source_id)
++    assert status['availability'] == 'denied'
++    assert status['last_error'] == 'permission_denied'
++    assert env.rig.store.access_version() != before
++    assert source_facts(env) == []
++    assert env.rig.store.conn.execute('SELECT COUNT(*) FROM observations').fetchone()[0] == observation_count
++    _, current = env.rig.capture()
++    assert old['component_hashes']['authorization'] != current['component_hashes']['authorization']
++    assert_read_only(env)
++
++
++def test_successful_revalidation_restores_source_but_cannot_restore_old_document_binding(env):
++    _, old = env.rig.capture()
++    original = deepcopy(env.state['project_attribute'])
++    invalidate(env, 'project_code')
++    with pytest.raises(PermissionDenied):
++        env.rig.service.sync_engine.run_source(env.source.source_id)
++    denied_epoch = env.rig.store.access_version()
++    env.state['project_attribute'] = original
++    collect(env)
++    assert env.rig.store.source_status(env.source.source_id)['availability'] == 'ok'
++    assert source_facts(env) and all(not fact['stale'] for fact in source_facts(env))
++    assert env.rig.store.access_version() != denied_epoch
++    _, restored = env.rig.capture()
++    for component in ('sources', 'objects', 'facts', 'gaps', 'quality', 'pending'):
++        assert restored['component_hashes'][component] == old['component_hashes'][component]
++    assert restored['component_hashes']['authorization'] != old['component_hashes']['authorization']
++    with pytest.raises(BoundaryError, match='SOURCE_ACCESS_CHANGED'):
++        env.rig.host.document_evidence_current(env.rig.row, old)
++    assert env.rig.host.document_evidence_current(env.rig.row, restored) is True
++    assert_read_only(env)
++
++
++@pytest.mark.parametrize('failure', ['network', 'metadata_transport', 'metadata_incomplete',
++                                    'metadata_budget', 'read_deadline', 'unknown_code'])
++def test_temporary_acquisition_failures_still_retry_without_revoking(env, failure):
++    before = env.rig.store.access_version()
++    if failure == 'metadata_transport':
++        env.state['metadata_error'] = 'BUSINESS_CALL_FAILED'
++    elif failure == 'metadata_incomplete':
++        env.state['metadata_response'] = {'list': [], 'pagination': {'has_more': 'unknown'}}
++    elif failure == 'metadata_budget':
++        env.state['metadata_response'] = {'list': [], 'pagination': {'has_more': True}}
++    elif failure == 'read_deadline':
++        env.principal['expires'] = env.rig.time[0] / 1000 - 1
++    else:
++        error = ConnectionError('synthetic transport body must not escape') if failure == 'network' else BoundaryError('BUSINESS_UNKNOWN_TRANSIENT')
++        def fail(*args, **kwargs):
++            raise error
++        env.port._run = fail
++    with pytest.raises(RetryableError, match='^meegle_read_unavailable$'):
++        env.rig.service.sync_engine.run_source(env.source.source_id)
++    status = env.rig.store.source_status(env.source.source_id)
++    assert status['availability'] == 'error'
++    assert status['last_error'] == 'retryable_error'
++    assert env.rig.store.access_version() == before
++    assert source_facts(env) and all(fact['stale'] for fact in source_facts(env))
++    assert_read_only(env)
++
++
++def test_sync_worker_preserves_retry_job_for_network_error(env):
++    before = env.rig.store.access_version()
++    env.state['metadata_error'] = 'BUSINESS_CALL_UNCERTAIN'
++    assert env.rig.service.scheduler.enqueue_due() == 1
++    assert env.rig.service.sync_worker.run_once() is True
++    row = env.rig.store.conn.execute("SELECT state,last_error,available_at_ms FROM jobs WHERE kind='sync'").fetchone()
++    assert row['state'] == 'pending' and row['last_error'] == 'retryable_error'
++    assert row['available_at_ms'] > env.rig.time[0]
++    assert env.rig.store.access_version() == before
++    assert env.rig.store.source_status(env.source.source_id)['availability'] == 'error'
++    assert_read_only(env)
++
++
++@pytest.mark.parametrize('failure', ['wrong_node', 'network'])
++def test_second_node_read_cannot_turn_scope_mismatch_into_stale_readability(env, failure):
++    original = env.port._run
++    count = 0
++    def changed(args, **kwargs):
++        nonlocal count
++        if args[:2] == ['workflow', 'get-node']:
++            count += 1
++            if count == 2 and failure == 'network':
++                raise ConnectionError('synthetic node transport body')
++        result = original(args, **kwargs)
++        if count == 2 and args[:2] == ['workflow', 'get-node']:
++            result['list'][0]['basic']['node_key'] = 'another-node'
++        return result
++    env.port._run = changed
++    before = env.rig.store.access_version()
++    if failure == 'wrong_node':
++        with pytest.raises(PermissionDenied, match='^meegle_identity_or_scope_changed$'):
++            env.rig.service.sync_engine.run_source(env.source.source_id)
++        assert env.rig.store.source_status(env.source.source_id)['availability'] == 'denied'
++        assert env.rig.store.access_version() != before
++        assert source_facts(env) == []
++    else:
++        with pytest.raises(RetryableError, match='^meegle_read_unavailable$'):
++            env.rig.service.sync_engine.run_source(env.source.source_id)
++        assert env.rig.store.source_status(env.source.source_id)['availability'] == 'error'
++        assert env.rig.store.access_version() == before
++        assert source_facts(env)
++    assert_read_only(env)
+diff --git a/local-qwen3.8/feishu-bridge/test_info_sources.py b/local-qwen3.8/feishu-bridge/test_info_sources.py
+index 898e9d004..857fba4a0 100644
+--- a/local-qwen3.8/feishu-bridge/test_info_sources.py
++++ b/local-qwen3.8/feishu-bridge/test_info_sources.py
+@@ -6,13 +6,63 @@ from unittest.mock import Mock
+ from am_info_sync.models import Source, Principal, Observation, ScopeViolation, PermissionDenied
+ from am_info_sync.store import Store
+ from am_info_sync.runtime import InformationService
+-from info_sources import TasksCollection, ApprovalInstance, PinnedUserReader, record_observation, MeegleProject, mql_records
++from info_sources import TasksCollection, ApprovalInstance, PinnedUserReader, record_observation, MeegleProject, mql_records, Discovery
+ from info_extraction import BoundedCoordinatorExtractor
+ 
+ class SourceTests(unittest.TestCase):
+     def setUp(self):
+         self.store=Store(':memory:');self.service=InformationService(self.store)
+     def tearDown(self):self.store.close()
++    def discovery(self):
++        value=Discovery.__new__(Discovery)
++        value.h=NS(store=self.store,start_ms=0,
++            am=NS(owner='owner',g=NS(config=NS(tenant_key='tenant'))),
++            _register=self.store.register_source)
++        return value
++
++    def test_repeated_docx_discovery_keeps_policy_and_observation_identity(self):
++        from am_info_sync.document_policy import document_policy
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject','existing'],
++                                file_name='Registered title',url='https://example.invalid/docx/r#one')
++        observation=lambda source:Observation(source.source_id,'r','version',100,
++            text='Unchanged evidence',payload={'time_basis':'observed_at'},url=source.settings.get('url'))
++        self.store.record(observation(before))
++        after=discovery.source('docx:r','docx','r',['other'],
++                               file_name='Another backlink',url='https://example.invalid/docx/r#two')
++        self.assertEqual(document_policy(before,'subject'),document_policy(after,'subject'))
++        self.assertEqual(set(after.settings['subject_ids']),{'subject','existing','other'})
++        self.store.record(observation(after))  # Must not raise IntegrityConflict.
++        self.assertEqual(self.store.conn.execute('SELECT count(*) FROM observations').fetchone()[0],1)
++
++    def test_docx_rediscovery_without_labels_does_not_remove_registered_citation(self):
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject'],file_name='Title',url='https://example.invalid/docx/r')
++        after=discovery.source('docx:r','docx','r',['subject'])
++        self.assertEqual(after.settings,before.settings)
++
++    def test_docx_initial_absent_labels_stay_absent_on_new_backlink(self):
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject'])
++        after=discovery.source('docx:r','docx','r',['subject'],file_name='Title',url='https://example.invalid/docx/r')
++        self.assertEqual(after.settings,before.settings)
++
++    def test_docx_membership_representation_change_keeps_existing_fence(self):
++        from am_info_sync.document_policy import document_policy
++        discovery=self.discovery()
++        before=discovery.source('docx:r','docx','r',['subject'],file_name='Title')
++        after=discovery.source('docx:r','docx','r',['other'],file_name='Other label')
++        self.assertNotEqual(document_policy(before,'subject'),document_policy(after,'subject'))
++
++    def test_file_parser_filename_and_document_read_identity_are_not_frozen(self):
++        discovery=self.discovery()
++        discovery.source('file:r','file_snapshot','r',['subject'],file_name='input.docx')
++        after=discovery.source('file:r','file_snapshot','r',['subject'],file_name='input.pdf')
++        self.assertEqual(after.settings['file_name'],'input.pdf')
++        discovery.source('docx:r','docx','r',['subject'],file_name='Title')
++        with self.assertRaises(ScopeViolation):
++            discovery.source('docx:r','docx','other',['subject'],file_name='Changed')
++
+     def source(self,kind='tasks_collection'):
+         s=Source('s',kind,'r','tenant','owner',enabled=True,settings={'subject_id':'subject',
+             'fact_mappings':{'system_record':{'value_path':['record'],'quote_path':['quote']}}})

@@ -1,0 +1,56 @@
+{
+  "template_only": true,
+  "runtime_loader_implemented": true,
+  "task_id": "FS-AGENT-GROK-POC-20261017-01",
+  "round": "R1",
+  "service": {
+    "user": "_fsagent",
+    "root_directory": "/Library/FSAgentGrok",
+    "python_executable": "/Library/FSAgentGrok/app/.venv/bin/python",
+    "sqlite_path": "/Library/FSAgentGrok/state/gateway.sqlite3",
+    "task_root": "/Library/FSAgentGrok/tasks"
+  },
+  "grok": {
+    "publisher": "@xai-official",
+    "executable": "/Library/FSAgentGrok/bin/grok",
+    "cli_version": null,
+    "noninteractive_arguments_verified": false,
+    "auth_method": "dedicated_device_oauth",
+    "dedicated_credential_reference": "/Library/FSAgentGrok/secrets/grok_auth.json",
+    "default_available_model_id": null,
+    "pinned_model_id": null,
+    "pinned_cli_version": null
+  },
+  "feishu": {
+    "app_id": null,
+    "tenant_key": null,
+    "bot_open_id": null,
+    "app_secret_reference": "/Library/FSAgentGrok/secrets/feishu_app_secret.txt",
+    "allowed_open_ids": [],
+    "required_test_user_count": 2,
+    "allowed_department_ids": [],
+    "allowed_test_chat_ids": [],
+    "owner_notification_open_id": null,
+    "department_match": null,
+    "exclusive_test_consumer_confirmed": false
+  },
+  "limits": {
+    "global_concurrency": 1,
+    "per_user_concurrency": 1,
+    "queue_timeout_seconds": 600,
+    "execution_timeout_seconds": 120,
+    "message_ttl_seconds": 86400
+  },
+  "features": {
+    "routes": [
+      "doc",
+      "progress"
+    ],
+    "synthetic_data_only": true,
+    "memory_enabled": false,
+    "subagents_enabled": false,
+    "search_enabled": false,
+    "personal_connectors_enabled": false,
+    "provider_fallback_enabled": false
+  }
+}
