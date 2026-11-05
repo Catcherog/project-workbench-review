@@ -1,0 +1,539 @@
+diff --git a/am_training_data_r10/README.md b/am_training_data_r10/README.md
+index 2977dfce7..b78a53010 100644
+--- a/am_training_data_r10/README.md
++++ b/am_training_data_r10/README.md
+@@ -1,12 +1,16 @@
+-# 本人风格合成训练候选
++# 本人风格合成训练候选（R10-FIX1）
+ 
+-`synthetic.py` 从已获授权且保存在本机的本人发送文本索引生成抽象风格画像，排除转发、附件、机器人测试和命令。实际人名、项目、日期和数量不进入合成任务。表达模板由本轮对真实样本的助手阅读形成，来源账号不等于每条均由本人亲笔。
++从已授权、尚在保留期限内的本人发送文本归纳表达特征。`profile.py` 为每条归纳保留匿名样本标识、来源哈希与计数；空来源返回“风格依据不足”，生成器拒绝继续。来源账号不证明每条都是本人亲笔，规则归纳不冒充本人逐项确认。
+ 
+-默认输出 20 个场景家族的 2400 条 SFT、1200 对 DPO 候选。train / dev 按家族分离；没有独立测试集。DPO 记录 synthetic_rule 偏好和原因类型，不伪造本人打分。清单始终保留 `training_eligible=false`，不执行训练或部署。
++`scenarios.py` 分开维护明确事实、事实陈述与标明“建议”的动作。`synthetic.py` 实际使用画像中的分段方式和请求语气生成正文。事实相同而画像不同的对照已覆盖全部20个家族。采购条件、检查点、计划完成日期、反馈期限、批准与回执保持各自含义；跟进主题缺失时澄清，提供了明确主题才生成对应预览。
++
++默认输出2400条SFT和1200对DPO候选，按16/4个家族隔离train/dev。风格DPO的两边共享事实陈述、均为自然表达；事实边界负例另行标记。每行保留对应R10旧候选ID与事实、答案、画像哈希。2400行不是2400个独立语义场景。
+ 
+ ```sh
+ python -m am_training_data_r10.synthetic --owner-messages /absolute/private/owner-messages.json --output /absolute/private/new-candidates
+ python -m unittest discover -s am_training_data_r10
+ ```
+ 
+-输入为对象数组，每条含 `text`、`text_sha256`、`exclude_reasons`、`raw_expires_at_ms`。原文到期或没有可验证期限的行不用于画像。使用方仍须从原来源核对本人身份、范围和来源版本；本生成器不取得访问权限。生成目录必须是新目录，不覆盖已审阅数据。生成行数不等于独立语义覆盖数，正式使用前仍需样本质量评审、独立测试与后端验证。
++输入对象包含`text`、原文SHA-256 `text_sha256`、`exclude_reasons`、`raw_expires_at_ms`。排除过期、来源哈希不符、转发、附件、命令和机器人代发，并去重。生成目录必须全新，禁止覆盖已审阅语料。
++
++生成器不执行训练或部署。`human_approved=false`、`training_eligible=false`表示这些仍是合成候选，不能伪装成现有MLX入口要求的gold。R10-FIX1已准备32训练/8开发的首批方案及14个合成保留测试；合成保留测试不等同于新独立真人业务留出集。
+diff --git a/am_training_data_r10/profile.py b/am_training_data_r10/profile.py
+new file mode 100644
+index 000000000..e839f7f03
+--- /dev/null
++++ b/am_training_data_r10/profile.py
+@@ -0,0 +1,84 @@
++"""Traceable, bounded style observations; no business text in the profile."""
++import hashlib
++import re
++import statistics
++import time
++
++
++class InsufficientStyleEvidence(ValueError):
++    pass
++
++
++def profile_from_owner_messages(rows, now_ms=None):
++    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
++    eligible, excluded, seen = [], {}, set()
++    for row in rows:
++        text = row.get('text', '')
++        ident = hashlib.sha256(text.encode()).hexdigest()
++        reasons = list(row.get('exclude_reasons', []))
++        expiry = row.get('raw_expires_at_ms')
++        if type(expiry) is not int or expiry <= now_ms:
++            reasons.append('raw_expired_or_expiry_unverified')
++        if row.get('text_sha256') != ident:
++            reasons.append('source_text_hash_mismatch')
++        if re.search(r'<forwarded_messages>|<file\b|\[Image:|img_v\d|https?://|^批准知识|^确认执行|来自.*助手|测试消息', text, re.I):
++            reasons.append('forward_attachment_control_or_automation')
++        if '@AM' in text or text.startswith('/doc'):
++            reasons.append('bot_query')
++        if not text.strip():
++            reasons.append('empty_text')
++        if reasons:
++            excluded[ident] = sorted(set(reasons))
++        elif ident not in seen:
++            seen.add(ident)
++            eligible.append((ident, text))
++    profile = {
++        'schema': 'am-owner-style-profile/2', 'status': 'insufficient_style_evidence',
++        'authorship': 'owner_sender; human authorship not independently certified',
++        'source_count': len(rows), 'eligible_count': len(eligible),
++        'source_text_hashes': [ident for ident, _ in eligible], 'excluded': excluded,
++        'observed_preferences': [], 'style': None,
++        'limits': ['有限授权来源；特征是规则归纳，不是本人逐项确认',
++                   '事实边界是独立规则，不从语气推断业务事实或权限',
++                   '只保留匿名来源标识，不复制业务正文到合成数据'],
++    }
++    if not eligible:
++        return profile
++    median = statistics.median(len(text) for _, text in eligible)
++    observations = []
++
++    def observe(key, pattern, summary):
++        matches = [ident for ident, text in eligible if re.search(pattern, text)]
++        if matches:
++            observations.append({'key': key, 'summary': summary,
++                                 'sample_ids': ['style-' + ident[:16] for ident in matches],
++                                 'source_text_hashes': matches, 'count': len(matches)})
++        return len(matches)
++
++    casual = observe('casual_request', r'一下|同步|告诉我|你要来吗|你看看|确认了吗', '直接请求确认或同步，常用短句')
++    formal = observe('polite_request', r'请|麻烦|劳烦|烦请', '用礼貌请求表达下一步')
++    observe('qualified_state', r'如果|预计|还未|尚未|未完成|待补', '保留条件、预计或缺项限定')
++    observe('status_before_request', r'(?:已|目前|现在|还未).{0,80}(?:请|需要|同步|确认|修改)', '先交代状态，再提出请求')
++    observe('structured_detail', r'\n|首先|其次|一、|二、|分点|详细', '部分事项使用分行或较详细说明')
++    observations.append({'key': 'length', 'summary': '有效文本长度中位数', 'median_chars': median,
++                         'sample_ids': ['style-' + ident[:16] for ident, _ in eligible],
++                         'source_text_hashes': [ident for ident, _ in eligible], 'count': len(eligible)})
++    profile.update(status='usable_observed_style', median_chars=median,
++                   observed_preferences=observations,
++                   style={'layout': 'compact' if median <= 80 else 'structured',
++                          'request_register': 'direct' if casual >= formal else 'polite'})
++    return profile
++
++
++def require_style(profile):
++    if (profile.get('status') != 'usable_observed_style' or not profile.get('eligible_count')
++            or not profile.get('source_text_hashes') or not profile.get('observed_preferences')):
++        raise InsufficientStyleEvidence('风格依据不足：不能生成声称由个人风格驱动的候选')
++    style = profile.get('style') or {}
++    if style.get('layout') not in {'compact', 'structured'} or style.get('request_register') not in {'direct', 'polite'}:
++        raise InsufficientStyleEvidence('风格配置缺失或无效')
++    sources = set(profile['source_text_hashes'])
++    if any(not p.get('source_text_hashes') or not set(p['source_text_hashes']) <= sources
++           for p in profile['observed_preferences']):
++        raise InsufficientStyleEvidence('风格归纳缺少对应来源')
++    return style
+diff --git a/am_training_data_r10/scenarios.py b/am_training_data_r10/scenarios.py
+new file mode 100644
+index 000000000..77deaaae3
+--- /dev/null
++++ b/am_training_data_r10/scenarios.py
+@@ -0,0 +1,79 @@
++"""Twenty reviewed semantic skeletons. Recommendations are labelled as such."""
++from datetime import date, timedelta
++
++FAMILIES = ['progress', 'conditional_purchase', 'supplier_date', 'missing_owner', 'review_pending',
++            'project_summary', 'followup_preview', 'pause', 'resume', 'unknown_send', 'node_vs_task',
++            'estimate_unit', 'partial_done', 'conflict', 'material_gap', 'meeting_invite',
++            'report_summary', 'outside_item', 'scope_missing', 'late_feedback']
++DEV = {'supplier_date', 'partial_done', 'outside_item', 'late_feedback'}
++
++
++def semantic_case(family, index):
++    day = date(2099, 1, 1) + timedelta(days=index)
++    when, later = day.isoformat(), (day + timedelta(days=7)).isoformat()
++    p, n, done = f'合成项目{index + 1:03d}', index + 2, index + 1
++    # question, facts, factual statements, labelled recommendation, incorrect boundary example
++    cases = {
++      'progress': ('现在进展怎么样？', {'project': p, 'reported': '样机已到', 'test_started': False, 'next_check': when},
++          [f'{p}样机已到，测试还没开始', f'下一检查点是{when}'], '届时核对测试进展', f'{p}测试已完成'),
++      'conditional_purchase': ('整理采购安排。', {'project': p, 'planned_quantity': n, 'condition': '样机测试无问题', 'order_placed': False},
++          [f'{p}如果样机测试无问题，计划按{n}件下单', '目前还未下单'], '', f'{p}已下单{n}件'),
++      'supplier_date': ('交期怎么回复？', {'project': p, 'estimated_arrival_date': when, 'supplier_confirmed': False},
++          [f'{p}目前预计{when}到料', '供应商还未确认'], '核对供应商的预计交期', f'{p}供应商已确认{when}到料'),
++      'missing_owner': ('这件事谁负责？', {'project': p, 'owner': None, 'next_check': when},
++          [f'{p}现有资料没有明确负责人', f'{when}是下一检查点，现有资料未提供确认期限'], '核对负责人', f'{p}由同事甲负责'),
++      'review_pending': ('这个交付物算完成了吗？', {'project': p, 'submitted': True, 'reviewed': False, 'count': n},
++          [f'{p}的{n}份材料已提交，审核还未完成', '暂不能按验收完成记录'], '', f'{p}的{n}份材料已验收完成'),
++      'project_summary': ('说一下计划、进展、卡点和下一步。', {'project': p, 'planned_test_completion_date': when, 'progress': '样机已到', 'blocker': '台架未排定'},
++          [f'{p}计划{when}完成测试，目前样机已到', '卡在台架尚未排定'], '确认台架档期及对计划的影响', f'{p}已按{when}完成测试，没有卡点'),
++      'followup_preview': ('准备一条跟进消息。', {'project': p, 'target': '同事甲', 'quantity': n, 'response_deadline': when, 'approved': False, 'item_type': None, 'followup_topic': None},
++          [f'拟跟进{p}，对象是同事甲，涉及{n}件，反馈期限为{when}', '物料类型和跟进主题缺失，正文尚未批准'], '补充物料类型和需要跟进的主题', f'已通知同事甲在{when}前完成{n}件样机'),
++      'pause': ('这个事项怎么处理？', {'project': p, 'decision': '暂停', 'next_check': when, 'completed': False},
++          [f'{p}当前决定为暂停，下一检查点为{when}', '事项还未完成'], '', f'{p}已完成并关闭'),
++      'resume': ('可以说恢复测试了吗？', {'project': p, 'status': '待恢复', 'planned_date': None, 'estimate': n, 'estimate_unit': '点'},
++          [f'{p}保留{n}点估分，目前仍为待恢复', '恢复时间未定，不能说已恢复测试'], '', f'{p}已恢复测试，将投入{n}人天'),
++      'unknown_send': ('上一条消息发出去了吗？', {'project': p, 'delivery': 'unknown', 'message_id': None},
++          [f'{p}这条消息的发送结果还不明确，尚未取得消息回执'], '先核对原请求，避免重复发送', f'{p}消息已发送成功，我再发一遍'),
++      'node_vs_task': ('子任务完成就代表节点完成吗？', {'project': p, 'finished_subtasks': done, 'all_subtasks': n, 'node': '进行中'},
++          [f'{p}的{n}项子任务中有{done}项已标记完成，节点仍为进行中', '不能写成整个节点已完成'], '', f'{p}节点已完成'),
++      'estimate_unit': ('这些估分是多少人天？', {'project': p, 'estimate': n, 'unit': None},
++          [f'{p}记录的估分数值为{n}', '没有注明工时单位，暂不能换算成人天'], '', f'{p}投入{n}人天'),
++      'partial_done': ('这批任务是否都结束了？', {'project': p, 'total': n, 'done': done, 'remaining': 1},
++          [f'{p}共{n}项，已完成{done}项，还剩1项未完成', '不能按全部结束记录'], '', f'{p}共{n}项，已经全部完成'),
++      'conflict': ('两个进度反馈不一致怎么办？', {'project': p, 'report_a': '已完成', 'report_b': '仍在测试', 'accepted_evidence': None},
++          [f'{p}一份反馈说已完成，另一份说仍在测试', '当前没有验收依据，结论待核'], '核实两份反馈的差异', f'{p}已完成，另一份反馈可以忽略'),
++      'material_gap': ('先给我一份草稿。', {'project': p, 'known_quantity': n, 'approval': None, 'responsible_person': None},
++          [f'{p}草稿：已知数量为{n}件', '批准状态和负责人缺少依据，标为待补'], '', f'{p}数量为{n}件，已批准，由同事甲负责'),
++      'meeting_invite': ('拟一句会议邀请。', {'project': p, 'meeting_topic': '问题确认', 'time': when + ' 10:00–11:00', 'sent': False},
++          [f'邀请草稿：{p}的问题确认会议拟于{when} 10:00–11:00，方便参加吗', '还未发送'], '', f'{p}会议已邀请所有人参加'),
++      'report_summary': ('这周进度怎么概括？', {'project': p, 'submitted': n, 'reviewed': done, 'next_check': when},
++          [f'{p}本周提交{n}份材料，其中{done}份已审核，剩余1份未审核', f'下一检查点是{when}'], '', f'{p}本周{n}份材料均已审核'),
++      'outside_item': ('这条应该放到哪个项目？', {'topic': p + '模板协调', 'explicit_outside': True, 'linked_project': None},
++          [f'{p}模板协调已明确为项目外事项，当前没有关联项目'], '按原主题继续跟进', f'已将{p}模板协调归入项目乙'),
++      'scope_missing': ('能直接采用这个结论吗？', {'project': p, 'reported_scope': '首轮样机', 'mass_production_verified': False},
++          [f'{p}现有结论只覆盖首轮样机', '尚未验证量产适用性，不能直接扩展到量产'], '', f'{p}结论已适用于量产'),
++      'late_feedback': ('检查点到了但没反馈，怎么写？', {'project': p, 'as_of_date': when, 'new_feedback': None, 'next_check': later},
++          [f'{p}截至{when}还没有收到新反馈，不能据此判定已完成', f'下一检查点为{later}'], '核实当前进度', f'{p}在{when}已经完成'),
++    }
++    question, facts, statements, suggestion, bad = cases[family]
++    if family == 'followup_preview' and index % 2:
++        facts.update(item_type='试制件', followup_topic='回样时间')
++        statements = [f'拟发给同事甲：{p}这{n}件试制件的回样时间确认了吗？请在{when}前同步一下', '正文待你确认后发送']
++        suggestion = ''
++    return {'family': family, 'question': question, 'facts': facts, 'statements': statements,
++            'suggestion': suggestion, 'incorrect_boundary_example': bad}
++
++
++def render(case, style):
++    statements = list(case['statements'])
++    if case['suggestion']:
++        action = case['suggestion']
++        statements.append(('建议' + action) if style['request_register'] == 'direct' else ('建议下一步请' + action))
++    if style['layout'] == 'structured':
++        return '\n'.join(f'{i + 1}. {text}。' for i, text in enumerate(statements))
++    return '。'.join(statements) + '。'
++
++
++def alternate_style(style):
++    return {'layout': 'structured' if style['layout'] == 'compact' else 'compact',
++            'request_register': 'polite' if style['request_register'] == 'direct' else 'direct'}
+diff --git a/am_training_data_r10/synthetic.py b/am_training_data_r10/synthetic.py
+index f17c40ff2..19f57ea7b 100644
+--- a/am_training_data_r10/synthetic.py
++++ b/am_training_data_r10/synthetic.py
+@@ -1,129 +1,93 @@
+-"""Generate reviewable style candidates without copying real business facts.
+-
+-The split is by scenario family, never by random paraphrase row. These are
+-templated candidates, not independent human gold or a sealed business test.
+-"""
++"""Source-driven, reviewable synthetic candidates. Never manufacture human gold."""
+ from pathlib import Path
+-from datetime import date,timedelta
+-import argparse,json,hashlib,re,statistics,time
++import argparse
++import hashlib
++import json
++import re
++from .profile import profile_from_owner_messages, require_style
++from .scenarios import FAMILIES, DEV, semantic_case, render, alternate_style
++
++SYSTEM = '你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。'
+ 
+-SYSTEM='你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。'
+-FAMILIES=['progress','conditional_purchase','supplier_date','missing_owner','review_pending','project_summary',
+-    'followup_preview','pause','resume','unknown_send','node_vs_task','estimate_unit','partial_done','conflict',
+-    'material_gap','meeting_invite','report_summary','outside_item','scope_missing','late_feedback']
+-DEV={'supplier_date','partial_done','outside_item','late_feedback'}
+ 
+-def digest(value):return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
++def digest(value):
++    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+ 
+-def profile_from_owner_messages(rows,now_ms=None):
+-    now_ms=int(time.time()*1000) if now_ms is None else now_ms
+-    eligible=[];excluded={}
+-    for row in rows:
+-        text=row['text'];reasons=list(row.get('exclude_reasons',[]))
+-        expires=row.get('raw_expires_at_ms')
+-        if type(expires) is not int or expires<=now_ms:reasons.append('raw_expired_or_expiry_unverified')
+-        if re.search(r'<forwarded_messages>|<file\b|\[Image:|img_v\d|^<p>https?://|^\s*https?://|^批准知识|^确认执行',text,re.I):reasons.append('forward_attachment_or_control')
+-        if '@AM' in text or text.startswith('/doc'):reasons.append('bot_query')
+-        if reasons:excluded[row['text_sha256']]=sorted(set(reasons));continue
+-        eligible.append(row)
+-    lengths=[len(row['text']) for row in eligible]
+-    return {'schema':'am-owner-style-profile/1','authorship':'owner_sender; human authorship not independently certified',
+-        'source_count':len(rows),'eligible_count':len(eligible),'median_chars':statistics.median(lengths) if lengths else None,
+-        'source_text_hashes':[row['text_sha256'] for row in eligible],'excluded':excluded,
+-        'observed_preferences':['先交代当前进度或具体事项，再提出需要确认的动作','保留如果、预计、尚未完成等条件',
+-            '需要对方反馈时直接说明对象、内容和时点','普通跟进允许简短自然语气；正式事项保留必要数量与日期'],
+-        'limits':['有限日期和既有授权群聊；不是全部历史沟通','转发正文、附件标记、测试和机器人命令排除',
+-            '只抽象表达习惯，不复制人员、项目、供应商、数量或实际日期到合成数据']}
+ 
+-def scenario(family,index):
+-    day=date(2099,1,1)+timedelta(days=index);when=day.isoformat();later=(day+timedelta(days=7)).isoformat()
+-    project=f'合成项目{index+1:03d}';n=index+2;done=index+1
+-    definitions={
+-      'progress':(f'{project}现在进展怎么样？',{'reported':'样机已到','test_started':False,'next_check':when},
+-        f'{project}样机已到，测试还没开始。请在{when}确认台架档期和开测时间。',f'{project}测试已完成。'),
+-      'conditional_purchase':('帮我整理采购安排。',{'project':project,'quantity':n,'condition':'样机测试无问题','order_placed':False},
+-        f'{project}如果样机测试无问题，预计按{n}件下单。目前还未下单。',f'{project}已下单{n}件。'),
+-      'supplier_date':('交期怎么回复？',{'project':project,'estimated_date':when,'supplier_confirmed':False},
+-        f'{project}目前预计{when}到料，供应商还未确认。确认后再同步实际预计交期。',f'{project}供应商已确认{when}到料。'),
+-      'missing_owner':('这件事谁负责？',{'project':project,'owner':None,'next_check':when},
+-        f'{project}现有资料没有明确负责人，需要在{when}前确认。',f'{project}由同事甲负责。'),
+-      'review_pending':('这个交付物算完成了吗？',{'project':project,'submitted':True,'reviewed':False,'count':n},
+-        f'{project}的{n}份材料已提交，审核还未完成，暂不能按验收完成记录。',f'{project}的{n}份材料已验收完成。'),
+-      'project_summary':('简单说一下计划、进展、卡点和下一步。',{'project':project,'plan':when,'progress':'样机已到','blocker':'台架未排定'},
+-        f'{project}计划{when}完成测试，目前样机已到。卡在台架尚未排定，下一步需要确认档期及对计划的影响。',f'{project}已按{when}完成测试，没有卡点。'),
+-      'followup_preview':('准备一条跟进消息。',{'project':project,'target':'同事甲','quantity':n,'deadline':when,'approved':False},
+-        f'拟发给同事甲：{project}这{n}件样机的回样时间确认了吗？请在{when}前同步一下。正文待你确认后发送。',f'已通知同事甲在{when}前完成{n}件样机。'),
+-      'pause':('这个事项先怎么处理？',{'project':project,'decision':'暂停','next_check':when,'completed':False},
+-        f'{project}按当前决定暂停，{when}再检查。事项还未完成。',f'{project}已经完成并关闭。'),
+-      'resume':('可以说恢复测试了吗？',{'project':project,'status':'待恢复','planned_date':None,'estimate':n},
+-        f'{project}保留{n}点估分，目前仍为待恢复，恢复时间未定，不能说已恢复测试。',f'{project}已恢复测试，将投入{n}人天。'),
+-      'unknown_send':('上一条消息发出去了吗？',{'project':project,'delivery':'unknown','message_id':None},
+-        f'{project}这条消息的发送结果还不明确，尚未取得消息回执，需要先核对原请求，避免重复发送。',f'{project}消息已发送成功，我再发一遍。'),
+-      'node_vs_task':('子任务勾完就代表节点完成了吗？',{'project':project,'finished_subtasks':done,'all_subtasks':n,'node':'进行中'},
+-        f'{project}目前{n}项子任务中有{done}项已标记完成，节点仍为进行中，不能写成整个节点已完成。',f'{project}节点已完成。'),
+-      'estimate_unit':('这些估分是多少人天？',{'project':project,'estimate':n,'unit':None},
+-        f'{project}记录为{n}点估分，没有注明工时单位，暂不能换算成人天。',f'{project}投入{n}人天。'),
+-      'partial_done':('这批任务是否都结束了？',{'project':project,'total':n,'done':done,'remaining':1},
+-        f'{project}共{n}项，已完成{done}项，还剩1项未完成，不能按全部结束记录。',f'{project}共{n}项，已经全部完成。'),
+-      'conflict':('两个进度反馈不一致怎么办？',{'project':project,'report_a':'已完成','report_b':'仍在测试','accepted_evidence':None},
+-        f'{project}一份反馈说已完成，另一份说仍在测试，当前没有验收依据。需要核实差异，先保留待核状态。',f'{project}已经完成，另一份反馈可以忽略。'),
+-      'material_gap':('先给我一份草稿。',{'project':project,'known_quantity':n,'approval':None,'responsible_person':None},
+-        f'{project}已知数量为{n}件。批准状态和负责人缺少依据，草稿中标为待补，完成核对后再确认。',f'{project}数量为{n}件，已批准，由同事甲负责。'),
+-      'meeting_invite':('帮我拟一句会议邀请。',{'project':project,'time':when+' 10:00–11:00','sent':False},
+-        f'拟发送：{project}的问题确认会议安排在{when}10:00–11:00，你方便参加吗？目前只是邀请草稿，还未发送。',f'{project}会议已邀请所有人参加，时间为{when}10:00–11:00。'),
+-      'report_summary':('这周进度怎么概括？',{'project':project,'submitted':n,'reviewed':done,'next_check':when},
+-        f'{project}本周提交{n}份材料，其中{done}份已审核。剩余1份待核，{when}再确认结果。',f'{project}本周{n}份材料均已审核。'),
+-      'outside_item':('这条应该放到哪个项目？',{'topic':project+'模板协调','explicit_outside':True,'linked_project':None},
+-        f'{project}模板协调已明确登记为项目外事项，当前没有关联项目，按原主题继续跟进。',f'已将{project}模板协调归入项目乙。'),
+-      'scope_missing':('能直接采用这个结论吗？',{'project':project,'reported_scope':'首轮样机','mass_production_verified':False},
+-        f'{project}现有结论只覆盖首轮样机，尚未验证量产适用性，不能直接扩展到量产。',f'{project}结论已适用于量产。'),
+-      'late_feedback':('检查点到了但没反馈，怎么写？',{'project':project,'check_date':when,'new_feedback':None,'next_check':later},
+-        f'{project}截至{when}还没有收到新反馈，不能据此判定已完成。下一检查点为{later}，先核实当前进度。',f'{project}在{when}已经完成。'),
+-    }
+-    question,facts,chosen,rejected=definitions[family]
+-    return question,facts,chosen,rejected
++def scenario(family, index, style=None):
++    case = semantic_case(family, index)
++    style = style or {'layout': 'compact', 'request_register': 'direct'}
++    return case['question'], case['facts'], render(case, style), case['incorrect_boundary_example']
+ 
+-def generate(profile,out,per_family=120):
+-    out=Path(out);out.mkdir(parents=True,mode=0o700,exist_ok=False)
+-    sft={'train':[],'dev':[]};dpo={'train':[],'dev':[]};provenance=[]
++
++def generate(profile, out, per_family=120):
++    style = require_style(profile)
++    if type(per_family) is not int or per_family < 4:
++        raise ValueError('per_family must be >=4')
++    out = Path(out)
++    out.mkdir(parents=True, mode=0o700, exist_ok=False)
++    sft, dpo, provenance = {'train': [], 'dev': []}, {'train': [], 'dev': []}, []
+     for family in FAMILIES:
+-        split='dev' if family in DEV else 'train'
++        split = 'dev' if family in DEV else 'train'
+         for i in range(per_family):
+-            question,facts,chosen,rejected=scenario(family,i)
+-            user=json.dumps({'task':question,'facts':facts,'synthetic':True},ensure_ascii=False,sort_keys=True)
+-            messages=[{'role':'system','content':SYSTEM},{'role':'user','content':user}]
+-            sample_id=f'r10-{family}-{i:04d}'
+-            sft[split].append({'messages':messages+[{'role':'assistant','content':chosen}]})
+-            provenance.append({'sample_id':sample_id,'family':family,'split':split,'input_sha256':digest(messages),
+-                'output_sha256':digest(chosen),'style_profile_sha256':digest(profile),'data_classification':'synthetic',
+-                'generator':'deterministic_scenario_candidates_v1','human_approved':False,'training_eligible':False})
+-            if i%2==0:
+-                # Some pairs differ only in expression; others contain explicit
+-                # factual/authority errors. Do not conflate these preferences.
+-                style_only=i%4==0
+-                negative=('关于您提出的这个问题，我为您进行了全面整理。'+chosen+'综上所述，'+chosen) if style_only else rejected
+-                dpo[split].append({'prompt':messages,'chosen':[{'role':'assistant','content':chosen}],
+-                    'rejected':[{'role':'assistant','content':negative}],'metadata':{'sample_id':sample_id,
+-                    'preference_kind':'style_only' if style_only else 'factual_boundary','preference_source':'synthetic_rule',
+-                    'human_approved':False,'family':family,'split':split}})
+-    manifest={'schema':'am-synthetic-training-candidates/1','style_profile_sha256':digest(profile),
+-        'scenario_families':len(FAMILIES),'train_families':sorted(set(FAMILIES)-DEV),'dev_families':sorted(DEV),
+-        'independent_test_cases':0,'training_executed':False,'human_approved_samples':0,'training_eligible':False,
+-        'limitations':['Template-generated variants are not independent semantic cases','DPO preferences are synthetic, not user votes',
+-            'Independent task completion holdout and sample review are required before training','No production model or route changes'],
+-        'counts':{},'files':{}}
+-    for kind,groups in [('sft',sft),('dpo',dpo)]:
+-        for split,rows in groups.items():
+-            assert len({digest(row) for row in rows})==len(rows)
+-            name=f'{kind}.{split}.jsonl';content=''.join(json.dumps(row,ensure_ascii=False)+'\n' for row in rows)
+-            assert not re.search(r'ou_[a-f0-9]{12}|oc_[a-f0-9]{12}|om_[a-f0-9]{12}|IRAD-2026|RA-2026|AR221',content)
+-            p=out/name;p.write_text(content);p.chmod(0o600);manifest['counts'][name]=len(rows)
+-            manifest['files'][name]=hashlib.sha256(p.read_bytes()).hexdigest()
+-    for name,value in [('profile.json',profile),('provenance.json',provenance),('manifest.json',manifest)]:
+-        p=out/name;p.write_text(json.dumps(value,ensure_ascii=False,indent=2));p.chmod(0o600)
++            case = semantic_case(family, i)
++            chosen = render(case, style)
++            user = json.dumps({'task': case['question'], 'facts': case['facts'], 'synthetic': True}, ensure_ascii=False, sort_keys=True)
++            messages = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': user}]
++            sid = f'r10-fix1-{family}-{i:04d}'
++            sft[split].append({'messages': messages + [{'role': 'assistant', 'content': chosen}]})
++            provenance.append({'sample_id': sid, 'previous_sample_id': f'r10-{family}-{i:04d}',
++                'family': family, 'split': split, 'input_sha256': digest(messages), 'output_sha256': digest(chosen),
++                'semantic_sha256': digest(case), 'style_profile_sha256': digest(profile), 'style_used': style,
++                'style_evidence_keys': [p['key'] for p in profile['observed_preferences']],
++                'data_classification': 'synthetic', 'generator': 'source_driven_semantic_templates_v2',
++                'human_approved': False, 'training_eligible': False})
++            if i % 2 == 0:
++                style_only = i % 4 == 0
++                negative = render(case, alternate_style(style)) if style_only else case['incorrect_boundary_example']
++                dpo[split].append({'prompt': messages, 'chosen': [{'role': 'assistant', 'content': chosen}],
++                    'rejected': [{'role': 'assistant', 'content': negative}], 'metadata': {
++                        'sample_id': sid, 'preference_kind': 'style_only' if style_only else 'factual_boundary',
++                        'preference_source': 'synthetic_rule_with_observed_style' if style_only else 'synthetic_fact_rule',
++                        'both_fact_correct_by_semantic_construction': style_only,
++                        'style_profile_sha256': digest(profile),
++                        'chosen_style': style,
++                        'rejected_style': alternate_style(style) if style_only else None,
++                        'preference_reason': ('同一事实，以有来源的表达配置为偏好；另一表达也是自然且事实正确的候选'
++                                              if style_only else '负例有意违反当前家族的事实或动作边界，独立于表达偏好'),
++                        'chosen_semantic_sha256': digest(case),
++                        'rejected_semantic_sha256': digest(case) if style_only else None,
++                        'human_approved': False, 'family': family, 'split': split}})
++    manifest = {'schema': 'am-synthetic-training-candidates/2', 'style_profile_sha256': digest(profile),
++        'scenario_families': len(FAMILIES), 'train_families': sorted(set(FAMILIES) - DEV), 'dev_families': sorted(DEV),
++        'independent_test_cases': 0, 'training_executed': False, 'human_approved_samples': 0, 'training_eligible': False,
++        'limitations': ['Template variants are not independent semantic cases', 'Style is rule-derived, not user-confirmed',
++                       'Synthetic candidates do not satisfy the existing human-gold MLX gate',
++                       'Reserved synthetic evaluation is not independent human business acceptance'],
++        'counts': {}, 'files': {}}
++    for kind, groups in [('sft', sft), ('dpo', dpo)]:
++        for split, rows in groups.items():
++            if len({digest(row) for row in rows}) != len(rows):
++                raise ValueError('duplicate candidates')
++            name = f'{kind}.{split}.jsonl'
++            content = ''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in rows)
++            if re.search(r'ou_[a-f0-9]{12}|oc_[a-f0-9]{12}|om_[a-f0-9]{12}|IRAD-2026|RA-2026|AR221', content):
++                raise ValueError('real identity in synthetic corpus')
++            path = out / name
++            path.write_text(content)
++            path.chmod(0o600)
++            manifest['counts'][name] = len(rows)
++            manifest['files'][name] = hashlib.sha256(path.read_bytes()).hexdigest()
++    for name, value in [('profile.json', profile), ('provenance.json', provenance), ('manifest.json', manifest)]:
++        path = out / name
++        path.write_text(json.dumps(value, ensure_ascii=False, indent=2))
++        path.chmod(0o600)
+     return manifest
+ 
+-if __name__=='__main__':
+-    p=argparse.ArgumentParser();p.add_argument('--owner-messages',required=True);p.add_argument('--output',required=True);a=p.parse_args()
+-    profile=profile_from_owner_messages(json.loads(Path(a.owner_messages).read_text()))
+-    print(json.dumps(generate(profile,a.output),ensure_ascii=False))
++
++if __name__ == '__main__':
++    parser = argparse.ArgumentParser()
++    parser.add_argument('--owner-messages', required=True)
++    parser.add_argument('--output', required=True)
++    args = parser.parse_args()
++    print(json.dumps(generate(profile_from_owner_messages(json.loads(Path(args.owner_messages).read_text())), args.output), ensure_ascii=False))
+diff --git a/am_training_data_r10/test_synthetic.py b/am_training_data_r10/test_synthetic.py
+index 4a46debb8..1b6ad2b37 100644
+--- a/am_training_data_r10/test_synthetic.py
++++ b/am_training_data_r10/test_synthetic.py
+@@ -1,37 +1,84 @@
+-import unittest,tempfile,json
++import hashlib,json,tempfile,unittest
+ from pathlib import Path
+-from am_training_data_r10.synthetic import generate,profile_from_owner_messages,FAMILIES,DEV,digest
++from am_training_data_r10.synthetic import generate,profile_from_owner_messages
++from am_training_data_r10.profile import InsufficientStyleEvidence
++from am_training_data_r10.scenarios import FAMILIES,semantic_case,render,alternate_style
+ 
+-class TrainingCandidateTests(unittest.TestCase):
+-    def test_forwarded_and_assistant_text_never_define_owner_style(self):
+-        rows=[{'text':text,'text_sha256':digest(text),'exclude_reasons':[],'raw_expires_at_ms':2000}
+-              for text in ['<forwarded_messages>别人的原话','[Image: x]','@AM 请查询','这件事进展怎么样，回样时间确认后同步一下。']]
+-        profile=profile_from_owner_messages(rows,now_ms=1000)
+-        self.assertEqual(profile['eligible_count'],1)
+-        self.assertEqual(profile['source_text_hashes'],[rows[-1]['text_sha256']])
+-
+-    def test_expired_or_unverified_raw_text_cannot_define_style(self):
+-        rows=[{'text':'真实原文','text_sha256':'hash','exclude_reasons':[],**expiry}
+-              for expiry in ({},{'raw_expires_at_ms':1000},{'raw_expires_at_ms':True})]
+-        self.assertEqual(profile_from_owner_messages(rows,now_ms=1000)['eligible_count'],0)
++def source(texts):
++    return [{'text':t,'text_sha256':hashlib.sha256(t.encode()).hexdigest(),'exclude_reasons':[],'raw_expires_at_ms':2000} for t in texts]
+ 
+-    def test_family_split_keeps_related_variants_together_and_no_fake_gold(self):
+-        profile=profile_from_owner_messages([])
+-        with tempfile.TemporaryDirectory() as directory:
+-            out=Path(directory)/'data';manifest=generate(profile,out,4)
+-            self.assertFalse(manifest['training_eligible'])
+-            self.assertEqual(manifest['independent_test_cases'],0)
+-            self.assertTrue(set(manifest['train_families']).isdisjoint(manifest['dev_families']))
+-            rows=json.loads((out/'provenance.json').read_text())
+-            self.assertTrue(all(row['split']==('dev' if row['family'] in DEV else 'train') for row in rows))
+-            self.assertTrue(all(not row['human_approved'] for row in rows))
+-            pairs=[json.loads(line) for line in (out/'dpo.train.jsonl').read_text().splitlines()]
+-            self.assertEqual({row['metadata']['preference_kind'] for row in pairs},{'style_only','factual_boundary'})
+-            self.assertTrue(all(row['chosen']!=row['rejected'] for row in pairs))
++class TrainingCandidateTests(unittest.TestCase):
++    def profile(self):
++        return profile_from_owner_messages(source(['确认后同步一下。','如果没有问题，再告诉我一下。']),now_ms=1000)
++    def test_empty_source_rejects_generation(self):
++        p=profile_from_owner_messages([],now_ms=1000)
++        self.assertEqual(p['observed_preferences'],[])
++        with tempfile.TemporaryDirectory() as t:
++            with self.assertRaisesRegex(InsufficientStyleEvidence,'风格依据不足'):generate(p,Path(t)/'data',4)
++            self.assertFalse((Path(t)/'data').exists())
++    def test_filtered_expired_tampered_or_bot_text(self):
++        r=source(['<forwarded_messages>原话','[Image: x]','@AM 查询','来自 Grok 助手：代发','请确认'])
++        r[-1]['text_sha256']='f'*64
++        r += [{'text':'过期','text_sha256':'x','raw_expires_at_ms':1000}]
++        self.assertEqual(profile_from_owner_messages(r,now_ms=1000)['eligible_count'],0)
++    def test_duplicate_source_count(self):
++        self.assertEqual(profile_from_owner_messages(source(['确认后同步一下。']*3),now_ms=1000)['eligible_count'],1)
++    def test_style_changes_output_without_changing_facts(self):
++        a=self.profile();b=profile_from_owner_messages(source(['请详细分点说明。首先列出状态，其次列出待确认事项。'*6]),now_ms=1000)
++        self.assertNotEqual(a['style'],b['style'])
++        for family in FAMILIES:
++            c=semantic_case(family,2);x=render(c,a['style']);y=render(c,b['style'])
++            self.assertNotEqual(x,y)
++            for s in c['statements']:self.assertIn(s,x);self.assertIn(s,y)
++    def test_followup_does_not_invent_missing_subject(self):
++        c=semantic_case('followup_preview',0);a=render(c,self.profile()['style'])
++        self.assertNotIn('样机',a);self.assertNotIn('回样',a);self.assertIn('主题缺失',a)
++        c=semantic_case('followup_preview',1)
++        self.assertEqual(c['facts']['followup_topic'],'回样时间')
++        self.assertIn('试制件的回样时间',render(c,self.profile()['style']))
++    def test_full_generation_uses_profile_with_identical_factual_inputs(self):
++        a=self.profile()
++        b=profile_from_owner_messages(source(['请详细分点说明。首先说明状态，其次列出下一步。'*6]),now_ms=1000)
++        with tempfile.TemporaryDirectory() as t:
++            ma=generate(a,Path(t)/'a',4);mb=generate(b,Path(t)/'b',4)
++            for name in ma['files']:
++                self.assertNotEqual(ma['files'][name],mb['files'][name])
++            for split in ('train','dev'):
++                x=[json.loads(l) for l in (Path(t)/f'a/sft.{split}.jsonl').read_text().splitlines()]
++                y=[json.loads(l) for l in (Path(t)/f'b/sft.{split}.jsonl').read_text().splitlines()]
++                for first,second in zip(x,y):
++                    self.assertEqual(first['messages'][:-1],second['messages'][:-1])
++                    self.assertNotEqual(first['messages'][-1],second['messages'][-1])
++    def test_date_types_remain_distinct(self):
++        a=render(semantic_case('missing_owner',0),self.profile()['style'])
++        self.assertIn('检查点',a);self.assertNotIn('日前确认',a)
++        c=semantic_case('project_summary',0)
++        self.assertIn('planned_test_completion_date',c['facts']);self.assertNotIn('plan',c['facts'])
++    def test_unit_and_meeting_topic_supported(self):
++        c=semantic_case('estimate_unit',0)
++        self.assertNotIn('2点',render(c,self.profile()['style']));self.assertIsNone(c['facts']['unit'])
++        self.assertEqual(semantic_case('meeting_invite',0)['facts']['meeting_topic'],'问题确认')
++    def test_style_alternative_retains_all_semantic_statements(self):
++        for family in FAMILIES:
++            c=semantic_case(family,0);s=self.profile()['style']
++            for statement in c['statements']:
++                self.assertIn(statement,render(c,s));self.assertIn(statement,render(c,alternate_style(s)))
++    def test_split_reproducibility_and_no_fake_gold(self):
++        with tempfile.TemporaryDirectory() as t:
++            a=generate(self.profile(),Path(t)/'a',4);b=generate(self.profile(),Path(t)/'b',4)
++            self.assertEqual(a['files'],b['files']);self.assertFalse(a['training_eligible'])
++            self.assertTrue(set(a['train_families']).isdisjoint(a['dev_families']))
++            p=json.loads((Path(t)/'a/provenance.json').read_text());self.assertEqual(len(p),80)
++            self.assertTrue(all(x['previous_sample_id'] and not x['human_approved'] for x in p))
++            for split in ('train','dev'):
++                pairs=[json.loads(l) for l in (Path(t)/f'a/dpo.{split}.jsonl').read_text().splitlines()]
++                for pair in pairs:
++                    self.assertNotEqual(pair['chosen'],pair['rejected']);m=pair['metadata']
++                    if m['preference_kind']=='style_only':self.assertEqual(m['chosen_semantic_sha256'],m['rejected_semantic_sha256'])
++            with self.assertRaises(FileExistsError):generate(self.profile(),Path(t)/'a',4)
++    def test_unbound_observation_rejected(self):
++        p=self.profile();p['observed_preferences'][0]['source_text_hashes']=['f'*64]
++        with tempfile.TemporaryDirectory() as t:
++            with self.assertRaises(InsufficientStyleEvidence):generate(p,Path(t)/'data',4)
+ 
+-    def test_generation_is_reproducible_and_cannot_overwrite_reviewed_corpus(self):
+-        with tempfile.TemporaryDirectory() as directory:
+-            profile=profile_from_owner_messages([])
+-            a=generate(profile,Path(directory)/'a',4);b=generate(profile,Path(directory)/'b',4)
+-            self.assertEqual(a['files'],b['files'])
+-            with self.assertRaises(FileExistsError):generate(profile,Path(directory)/'a',4)
++if __name__=='__main__':unittest.main()

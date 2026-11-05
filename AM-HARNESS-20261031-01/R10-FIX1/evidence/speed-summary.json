@@ -1,0 +1,66 @@
+{
+  "schema": "am-r10-fix1-speed-comparison/1",
+  "cases": 4,
+  "repeats_per_model": 3,
+  "planned": 24,
+  "completed": 24,
+  "models": {
+    "gpt-6.1-sol": {
+      "reasoning_effort": "high",
+      "planned": 12,
+      "completed": 12,
+      "schema_pass": 12,
+      "observed_tool_calls": 0,
+      "seconds": {
+        "median": 13.33765410399792,
+        "min": 12.56151470799523,
+        "max": 18.19247241599078,
+        "mean": 14.045813107413172
+      },
+      "per_case_median_seconds": {
+        "R7-H01": 13.358523792005144,
+        "R7-H02": 13.14741841700743,
+        "R7-H03": 16.907836457990925,
+        "R7-H04": 13.61226500000339
+      },
+      "median_output_chars": 147.5,
+      "assistant_flagged_state_qualification": 0
+    },
+    "gpt-6.1-terra": {
+      "reasoning_effort": "high",
+      "planned": 12,
+      "completed": 12,
+      "schema_pass": 12,
+      "observed_tool_calls": 0,
+      "seconds": {
+        "median": 11.162992687502992,
+        "min": 10.359531750000315,
+        "max": 19.609442250002758,
+        "mean": 12.166939350749695
+      },
+      "per_case_median_seconds": {
+        "R7-H01": 15.784908041998278,
+        "R7-H02": 11.502753666994977,
+        "R7-H03": 10.78007662500022,
+        "R7-H04": 10.90517629099486
+      },
+      "median_output_chars": 145.0,
+      "assistant_flagged_state_qualification": 2
+    }
+  },
+  "terra_vs_sol_median_reduction_percent": 16.304676965967204,
+  "latency_boundary": "CLI process launch to complete output; excludes Feishu ingress/egress and phone rendering",
+  "same_case_prompts_identical_across_models": true,
+  "tool_surface": "not proven empty; zero observed calls",
+  "independent_human_ratings": 0,
+  "full_agent_task_completion": null,
+  "phone_total_latency": null,
+  "production_choice": null,
+  "limitations": [
+    "Four reused historical expression tasks, not new holdout",
+    "Same CLI 0.163.0 but model-specific host instructions can differ",
+    "Three repeats are exploratory; server load/cache/revision and billed cost are uncontrolled or unavailable",
+    "Assistant semantic notes are not independent human acceptance",
+    "Historical Q8/MLX/Astra measurements have different boundaries or run times"
+  ]
+}
