@@ -34,7 +34,7 @@ report={'schema':'am-r10-fix1-speed-comparison/1','cases':4,'repeats_per_model':
  'Assistant semantic notes are not independent human acceptance','Historical Q8/MLX/Astra measurements have different boundaries or run times']}
 (T/'evidence/speed-summary.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 # Business identity and year transformation is explicit; original outputs remain private.
-replacements={'Digital Twin':'项目乙','VTS':'项目丙','德昌电机':'项目丁','工具包':'项目甲','2026':'2096','2027':'2097'}
+replacements=json.loads((T/'private/redaction-map.json').read_text())  # Private map excluded from this review copy
 def redact(s):
  for a,b in replacements.items():s=s.replace(a,b)
  return s

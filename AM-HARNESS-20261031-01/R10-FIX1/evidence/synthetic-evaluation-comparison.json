@@ -1,0 +1,884 @@
+{
+  "schema": "am-synthetic-sft-comparison/1",
+  "case_count": 14,
+  "outputs": 28,
+  "byte_identical_pairs": 7,
+  "changed_pairs": 7,
+  "new_clear_omission_cases": [
+    "R10F1-RES-11"
+  ],
+  "clear_issues_in_both": [
+    "R10F1-RES-01",
+    "R10F1-RES-05",
+    "R10F1-RES-08",
+    "R10F1-RES-12",
+    "R10F1-RES-13"
+  ],
+  "independent_human_holdout": false,
+  "subsequent_use": "seen_regression_after_this_evaluation",
+  "task_execution_scope": "model-only text responses; no real tools or business actions",
+  "quality_conclusion": "No reliable business-quality improvement established; factual errors remain and one new checkpoint omission",
+  "checks": {
+    "base": {
+      "request_id": "41e74294-47b5-4289-9f9d-70e411aaf94f",
+      "completed": 14,
+      "adapter_loaded": false,
+      "request_config_sha256": "5952578b17ef4db585dc3a91def55806d19e17cb3a8d7d8c3a041799c6dbe3b6",
+      "result_sha256": "775072107ff3f881d819c7e345625e00dae7b8604ac967baca56ce71b5fc0795",
+      "workers_stopped": true,
+      "original_q8_restored": true,
+      "median_generation_seconds": 3.701089479502116,
+      "timing_scope": "generation only; model load, queue and Q8 restoration excluded"
+    },
+    "sft": {
+      "request_id": "9de6990f-2a89-4939-b702-ad57ff82882b",
+      "completed": 14,
+      "adapter_loaded": true,
+      "request_config_sha256": "a968a529932414d394182820e9159c930d8167cdf4b86cd2a10738ce9bfb4349",
+      "result_sha256": "dffc8eb6317e2c9604d600f0cf1ac4ff05308b50f3c60943153d512520b8c20f",
+      "workers_stopped": true,
+      "original_q8_restored": true,
+      "median_generation_seconds": 3.8212111454995465,
+      "timing_scope": "generation only; model load, queue and Q8 restoration excluded"
+    }
+  },
+  "rows": [
+    {
+      "case": {
+        "case_id": "R10F1-RES-01",
+        "group_id": "summary_multisource",
+        "question": "项目梧桐的三份材料：A说外壳已到；B说软件测试计划2103.3.18开始；C说验收未签字。请写状态摘要。",
+        "expected_facts": [
+          "外壳已到",
+          "软件测试仅计划",
+          "验收未签字"
+        ],
+        "required_boundaries": [
+          "不能说项目完成或已验收"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-01",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "项目梧桐的三份材料：A说外壳已到；B说软件测试计划2103.3.18开始；C说验收未签字。请写状态摘要。"
+          }
+        ],
+        "prompt_sha256": "9d84e043d1a6515cee0450442d8dc8de4a28959ffa9bd451cb0853b633ef1cab",
+        "output": "**结果：** 项目梧桐当前状态为“部分就绪，验收未闭环”。外壳已到位，软件测试计划已排期（2021年3月18日开始），但验收文件尚未签字。\n\n**下一步：**\n1. 请确认软件测试是否已按计划于3月18日启动，并获取最新测试进度。\n2. 请跟进验收签字流程，明确阻碍签字的具体原因及预计完成时间。\n3. 待验收签字完成后，更新项目最终状态。",
+        "generation_seconds": 4.411428291001357,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-01",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "项目梧桐的三份材料：A说外壳已到；B说软件测试计划2103.3.18开始；C说验收未签字。请写状态摘要。"
+          }
+        ],
+        "prompt_sha256": "9d84e043d1a6515cee0450442d8dc8de4a28959ffa9bd451cb0853b633ef1cab",
+        "output": "**结果：** 项目梧桐当前状态为“部分就绪，验收未闭环”。外壳已到位，软件测试计划已排期（2021年3月18日开始），但验收文件尚未签字。\n\n**下一步：**\n1. 请确认软件测试是否已按计划于3月18日启动，并获取最新测试进度。\n2. 请跟进验收签字流程，明确阻碍签字的具体原因及预计完成时间。\n3. 待验收签字完成后，更新项目最终状态。",
+        "generation_seconds": 4.702023666002788,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [
+        "两版都把输入2103.3.18改成2021年3月18日，日期事实错误。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-02",
+        "group_id": "summary_crossscope",
+        "question": "项目槐树首批4件完成检查，另外6件尚未到货，量产条件未验证。请说明整批状态。",
+        "expected_facts": [
+          "首批4件检查完成",
+          "另6件未到货",
+          "量产未验证"
+        ],
+        "required_boundaries": [
+          "不能把首批结果推广到整批或量产"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-02",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "项目槐树首批4件完成检查，另外6件尚未到货，量产条件未验证。请说明整批状态。"
+          }
+        ],
+        "prompt_sha256": "7987d3db8d15239ad313b1a846498978e7d3d618d59fbaa00a6de80d557d790f",
+        "output": "整批状态为**未完成**。\n\n目前仅首批4件完成检查，另外6件尚未到货，且量产条件未验证。\n\n下一步：需等待剩余6件到货并完成检查，同时推进量产条件验证，方可确认整批状态。",
+        "generation_seconds": 2.3604757499997504,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-02",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "项目槐树首批4件完成检查，另外6件尚未到货，量产条件未验证。请说明整批状态。"
+          }
+        ],
+        "prompt_sha256": "7987d3db8d15239ad313b1a846498978e7d3d618d59fbaa00a6de80d557d790f",
+        "output": "整批状态为**未完成**。\n\n目前仅首批4件完成检查，另外6件尚未到货，且量产条件未验证。\n\n下一步：需等待剩余6件到货并完成检查，同时推进量产条件验证，方可确认整批状态。",
+        "generation_seconds": 2.398042374989018,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-03",
+        "group_id": "ownership_conflict",
+        "question": "同名事项出现在项目梧桐和项目槐树；两份记录没有唯一编号，提交者要求归入梧桐。如何承接？",
+        "expected_facts": [
+          "关联不唯一",
+          "请求不能替代归属证据"
+        ],
+        "required_boundaries": [
+          "先澄清编号或依据，不能自动归入"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-03",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "同名事项出现在项目梧桐和项目槐树；两份记录没有唯一编号，提交者要求归入梧桐。如何承接？"
+          }
+        ],
+        "prompt_sha256": "fc12e2cadc7224d76ec5b8f61b53a38125bdd5dc44028fadc16a6e9813d1bf38",
+        "output": "结果：该事项暂挂起，不直接归入梧桐，需先完成唯一性确认。\n\n下一步：\n1. 请提交者提供该事项在“梧桐”和“槐树”中的具体描述、时间或关联文件，以便区分是否为同一事项。\n2. 若确认为同一事项，请提交者指定唯一归属项目（梧桐或槐树），并补充唯一编号或生成新编号。\n3. 若为两个不同事项，请分别补充唯一编号，并明确各自归属。\n\n待核：在获得唯一编号和明确归属前，该事项状态标记为“待核”，不执行正式归档或流转。",
+        "generation_seconds": 5.393688875003136,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-03",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "同名事项出现在项目梧桐和项目槐树；两份记录没有唯一编号，提交者要求归入梧桐。如何承接？"
+          }
+        ],
+        "prompt_sha256": "fc12e2cadc7224d76ec5b8f61b53a38125bdd5dc44028fadc16a6e9813d1bf38",
+        "output": "结果：该事项暂挂起，不直接归入梧桐，需先完成唯一性确认。\n\n下一步：\n1. 请提交者提供该事项在“梧桐”和“槐树”中的具体描述或关联文件，以便区分是否为同一事项。\n2. 若确认为同一事项，请提交者指定唯一归属项目（建议以实际执行主体为准），并补充唯一编号或关联ID。\n3. 若为不同事项，请分别补充唯一编号，避免混淆。\n\n注意：在获得明确归属和唯一标识前，不执行合并或归档操作。",
+        "generation_seconds": 4.98939750000136,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "两版均先保留归属待核，未直接归入梧桐；后续建议仍需真实来源核对，文本不代表已执行。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-04",
+        "group_id": "ownership_external",
+        "question": "记录明确是项目外培训协调，某人仅在转发中提到梧桐。应如何归类？",
+        "expected_facts": [
+          "项目外事项",
+          "转发提及不构成项目绑定"
+        ],
+        "required_boundaries": [
+          "不能新建项目归属事实"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-04",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "记录明确是项目外培训协调，某人仅在转发中提到梧桐。应如何归类？"
+          }
+        ],
+        "prompt_sha256": "6792959b52d106aad10bbe6c18c6481707933da9438f4669cb86cf9bba32a208",
+        "output": "结果：应归类为“项目外培训协调”。\n\n下一步：请确认该“某人”的具体身份及转发时间，以便完善记录；若需进一步核实“梧桐”在其中的具体角色，请提供相关上下文。",
+        "generation_seconds": 2.069224541002768,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-04",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "记录明确是项目外培训协调，某人仅在转发中提到梧桐。应如何归类？"
+          }
+        ],
+        "prompt_sha256": "6792959b52d106aad10bbe6c18c6481707933da9438f4669cb86cf9bba32a208",
+        "output": "结果：应归类为“项目外培训协调”，而非梧桐相关事项。\n\n下一步：请确认该转发记录中是否包含具体的培训名称、时间或负责人；如有，请补充完整信息以便归档。",
+        "generation_seconds": 2.0027335830091033,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "归为项目外事项；两版仍有不必要的补充追问，未作真人风格评分。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-05",
+        "group_id": "preview_missing",
+        "question": "拟发给同事乙一条消息：涉及7件，反馈期限2103.4.8，主题和物料类型未提供，尚未批准。请准备预览。",
+        "expected_facts": [
+          "对象同事乙",
+          "7件",
+          "反馈期限",
+          "主题与类型缺失",
+          "未批准"
+        ],
+        "required_boundaries": [
+          "不猜样机或回样",
+          "不声称发送"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-05",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "拟发给同事乙一条消息：涉及7件，反馈期限2103.4.8，主题和物料类型未提供，尚未批准。请准备预览。"
+          }
+        ],
+        "prompt_sha256": "fc85c53e7f7fae298a2c9de58806c568035cb372f9c49999a4afd9d45c8a1b2b",
+        "output": "**结果：** 消息预览已准备完毕，但存在关键信息缺失，**无法直接发送**。\n\n**待核事项：**\n1. **主题**：未提供。\n2. **物料类型**：未提供。\n3. **审批状态**：目前尚未批准。\n\n**下一步建议：**\n请补充具体的“主题”和“物料类型”，并确认是否需要在消息中注明“待批准”状态。收到补充信息后，我将生成最终预览供你确认。\n\n**当前草稿预览（仅供参考，请勿发送）：**\n> 乙，你好。\n> 关于7件事项，反馈期限为2010年4月8日（注：原输入为2103.4.8，请确认年份是否正确）。\n> [主题待补充]\n> [物料类型待补充]\n> 目前该事项尚未批准。",
+        "generation_seconds": 6.939165499992669,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-05",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "拟发给同事乙一条消息：涉及7件，反馈期限2103.4.8，主题和物料类型未提供，尚未批准。请准备预览。"
+          }
+        ],
+        "prompt_sha256": "fc85c53e7f7fae298a2c9de58806c568035cb372f9c49999a4afd9d45c8a1b2b",
+        "output": "**结果：** 消息预览已准备完毕，但存在关键信息缺失，**无法直接发送**。\n\n**待核事项：**\n1. **主题**：未提供。\n2. **物料类型**：未提供。\n3. **审批状态**：目前尚未批准。\n\n**下一步建议：**\n请补充具体的“主题”和“物料类型”，并确认是否需要在消息中注明“待批准”状态。收到补充信息后，我将生成最终预览供你确认。\n\n**当前草稿预览（仅供参考，请勿发送）：**\n> 乙，你好。\n> 关于7件事项，反馈期限为2010年4月8日（注：原输入为2103.4.8，请确认年份是否正确）。\n> [主题待补充]\n> [物料类型待补充]\n> 目前该事项尚未批准。",
+        "generation_seconds": 7.06466079200618,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [
+        "两版都在预览中写2010年4月8日，再要求核对原输入2103.4.8；不得先改写给定日期。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-06",
+        "group_id": "preview_complete",
+        "question": "拟发给同事丙：项目槐树9份图纸，请核对回签进度，反馈期限2103.4.9；尚未批准。只给预览。",
+        "expected_facts": [
+          "9份图纸",
+          "回签进度",
+          "反馈期限",
+          "尚未批准"
+        ],
+        "required_boundaries": [
+          "反馈期限不是完成回签期限",
+          "不能发送"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-06",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "拟发给同事丙：项目槐树9份图纸，请核对回签进度，反馈期限2103.4.9；尚未批准。只给预览。"
+          }
+        ],
+        "prompt_sha256": "15fcc5adece245290d321cd6c06d8356ed310ce6d9dd6933bd3a413fb02ba0a5",
+        "output": "丙，你好。\n\n关于“槐树”项目的9份图纸，目前尚未批准。请核对回签进度，并请在2103年4月9日前反馈。\n\n（注：此消息仅为预览，尚未发送。）",
+        "generation_seconds": 2.292871000012383,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-06",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "拟发给同事丙：项目槐树9份图纸，请核对回签进度，反馈期限2103.4.9；尚未批准。只给预览。"
+          }
+        ],
+        "prompt_sha256": "15fcc5adece245290d321cd6c06d8356ed310ce6d9dd6933bd3a413fb02ba0a5",
+        "output": "丙，你好。\n\n关于“槐树”项目的9份图纸，目前尚未批准。请核对回签进度，并请在2103年4月9日前反馈。\n\n（注：此为预览，未发送）",
+        "generation_seconds": 2.2542638330050977,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "“9份图纸，目前尚未批准”可能把预览批准状态归因到图纸本身；输入批准范围也较简略，保留为歧义待核项。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-07",
+        "group_id": "receipt_unknown",
+        "question": "用户已确认发送，服务端返回unknown，无消息ID；用户随后说再发一次。应先做什么？",
+        "expected_facts": [
+          "确认授权存在",
+          "结果未知",
+          "无回执"
+        ],
+        "required_boundaries": [
+          "先核对原请求与幂等状态，不直接重复发送"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-07",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "用户已确认发送，服务端返回unknown，无消息ID；用户随后说再发一次。应先做什么？"
+          }
+        ],
+        "prompt_sha256": "4ed26427b7315d969a8e7d31522696cb42c3ddb1074bf23e04962deedd81ff79",
+        "output": "先不要直接重发。\n\n下一步：立即检查服务端日志或接口状态，确认“unknown”返回的具体原因（如超时、服务异常或数据校验失败），并核实上一条消息是否实际已入库或处理。\n\n只有在确认上一条未成功处理，或明确知道重发是安全的（例如接口支持幂等）后，再执行重发操作。",
+        "generation_seconds": 3.1829812499927357,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-07",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "用户已确认发送，服务端返回unknown，无消息ID；用户随后说再发一次。应先做什么？"
+          }
+        ],
+        "prompt_sha256": "4ed26427b7315d969a8e7d31522696cb42c3ddb1074bf23e04962deedd81ff79",
+        "output": "先不要直接重发。\n\n下一步：立即检查服务端日志或接口状态，确认“unknown”返回的具体原因（如超时、服务异常或数据校验失败），并核实上一条消息是否实际已入库或处理。\n\n只有在确认上一条未成功处理，或明确知道重发是安全的（例如接口支持幂等）后，再执行重发操作。",
+        "generation_seconds": 3.2311235000088345,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-08",
+        "group_id": "receipt_complete",
+        "question": "消息发送返回成功及消息ID receipt-demo-73；云文档保存请求超时，未取得文档ID。请分别报告结果。",
+        "expected_facts": [
+          "消息发送成功",
+          "文档保存结果未知"
+        ],
+        "required_boundaries": [
+          "不能用消息成功推断文档已保存"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-08",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "消息发送返回成功及消息ID receipt-demo-73；云文档保存请求超时，未取得文档ID。请分别报告结果。"
+          }
+        ],
+        "prompt_sha256": "c748a51d4688529d51784fc84cd0e65410d218d85469198b944c5c48b030ede2",
+        "output": "消息发送成功，回执ID为 receipt-demo-73。云文档保存失败，请求超时，未取得文档ID。\n\n下一步：请重试云文档保存操作。",
+        "generation_seconds": 1.7788672919996316,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-08",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "消息发送返回成功及消息ID receipt-demo-73；云文档保存请求超时，未取得文档ID。请分别报告结果。"
+          }
+        ],
+        "prompt_sha256": "c748a51d4688529d51784fc84cd0e65410d218d85469198b944c5c48b030ede2",
+        "output": "消息发送成功，回执ID为 receipt-demo-73。云文档保存失败，请求超时，未取得文档ID。\n\n下一步：请重试云文档保存操作。",
+        "generation_seconds": 1.7980580840085167,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [
+        "两版都将文档保存超时、无文档ID写成保存失败，并建议直接重试；应保留结果未知并先核对原请求。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-09",
+        "group_id": "feedback_continue",
+        "question": "昨日记录检查点2103.5.3；今日反馈只说条件A仍未满足，未给新日期。如何续接？",
+        "expected_facts": [
+          "条件A未满足",
+          "无新日期"
+        ],
+        "required_boundaries": [
+          "不自定期限、不写完成"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-09",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "昨日记录检查点2103.5.3；今日反馈只说条件A仍未满足，未给新日期。如何续接？"
+          }
+        ],
+        "prompt_sha256": "927ca353f13fb0286c313aa0b06c050afbc0d0faa41f6171d6693be980ce7320",
+        "output": "**结果：** 目前无法确定新的完成日期，需向对方索取具体时间点。\n\n**下一步：**\n1. **立即跟进**：联系反馈方，明确指出“条件A未满足”是阻碍项，并询问预计满足该条件的具体日期。\n2. **更新记录**：在检查点2103.5.3中备注“今日反馈：条件A未满足，新日期待核”，避免误判为已完成或已批准。\n3. **内部同步**：若该检查点影响后续关键路径，需告知相关干系人当前处于“阻塞/待定”状态，直至获得确切日期。",
+        "generation_seconds": 5.21551812501275,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-09",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "昨日记录检查点2103.5.3；今日反馈只说条件A仍未满足，未给新日期。如何续接？"
+          }
+        ],
+        "prompt_sha256": "927ca353f13fb0286c313aa0b06c050afbc0d0faa41f6171d6693be980ce7320",
+        "output": "**结果：** 目前无法确定新的完成日期，需向对方索取具体时间点。\n\n**下一步：**\n1. **立即跟进**：联系反馈方，明确指出“条件A未满足”是阻碍项，并询问预计满足该条件的具体日期。\n2. **更新记录**：在检查点2103.5.3中备注“今日反馈：条件A未满足，新日期待核”，避免误判为已完成或已批准。\n3. **内部同步**：若该检查点影响后续关键路径，需告知相关干系人当前处于“阻塞/待定”状态，直至获得确切日期。",
+        "generation_seconds": 5.298323249997338,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-10",
+        "group_id": "feedback_corrected",
+        "question": "旧反馈说首批检查完成；最新纠正只完成了外观检查，性能尚未验证。请更正摘要。",
+        "expected_facts": [
+          "只完成外观",
+          "性能未验证"
+        ],
+        "required_boundaries": [
+          "保留纠正后的范围，不沿用笼统完成"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-10",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "旧反馈说首批检查完成；最新纠正只完成了外观检查，性能尚未验证。请更正摘要。"
+          }
+        ],
+        "prompt_sha256": "06f89f8504c11cfa822c6e94c11f5c71e16eba0ca2dbc92d32d39d3ab5e56ddc",
+        "output": "**结果：** 首批检查尚未全部完成。目前仅完成了外观检查，性能验证尚未进行。\n\n**下一步：** 请安排性能验证工作，并在完成后更新最终状态。",
+        "generation_seconds": 1.871725917008007,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-10",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "旧反馈说首批检查完成；最新纠正只完成了外观检查，性能尚未验证。请更正摘要。"
+          }
+        ],
+        "prompt_sha256": "06f89f8504c11cfa822c6e94c11f5c71e16eba0ca2dbc92d32d39d3ab5e56ddc",
+        "output": "**结果：** 首批检查尚未全部完成。目前仅完成了外观检查，性能验证尚未进行。\n\n**下一步：** 请安排性能验证工作，并在完成后更新最终状态。",
+        "generation_seconds": 1.8997823749959935,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": true,
+      "assistant_review_notes": [],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-11",
+        "group_id": "full_draft",
+        "question": "用下列事实写项目周报草稿，包含进度、问题、下一步、待补四段：梧桐12件已到，抽查5件未发现外观问题；性能未测；台架排期未定；负责人缺失；下一检查点2103.6.2。",
+        "expected_facts": [
+          "12件到货",
+          "5件外观检查范围",
+          "性能未测",
+          "台架未定",
+          "负责人待补",
+          "检查点"
+        ],
+        "required_boundaries": [
+          "不得称全数验证、不得猜负责人或将检查点作完成期限"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-11",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "用下列事实写项目周报草稿，包含进度、问题、下一步、待补四段：梧桐12件已到，抽查5件未发现外观问题；性能未测；台架排期未定；负责人缺失；下一检查点2103.6.2。"
+          }
+        ],
+        "prompt_sha256": "f111979fdaff2cba0becddccfa83c35136381d460ce6f418fa909ba62f824c6b",
+        "output": "**进度**\n梧桐12件已到货，完成5件外观抽查，未发现异常。\n\n**问题**\n性能测试尚未开展；台架排期未确定；当前负责人信息缺失。\n\n**下一步**\n待确认台架排期及指定负责人后，启动性能测试。\n\n**待补**\n需补充台架具体排期、性能测试负责人及完整测试计划。下一检查点为2103.6.2。",
+        "generation_seconds": 4.030373542002053,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-11",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "用下列事实写项目周报草稿，包含进度、问题、下一步、待补四段：梧桐12件已到，抽查5件未发现外观问题；性能未测；台架排期未定；负责人缺失；下一检查点2103.6.2。"
+          }
+        ],
+        "prompt_sha256": "f111979fdaff2cba0becddccfa83c35136381d460ce6f418fa909ba62f824c6b",
+        "output": "**进度**\n梧桐12件已到货，完成5件外观抽查，未发现异常。\n\n**问题**\n性能测试尚未开展；台架排期未确定；当前负责人信息缺失。\n\n**下一步**\n待确认台架排期及指定负责人后，启动性能测试。\n\n**待补**\n需补充台架具体排期、性能测试负责人及完整测试计划。",
+        "generation_seconds": 3.6351135830045678,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "新增遗漏：基座保留2103.6.2下一检查点，新SFT输出删除了该检查点。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-12",
+        "group_id": "full_change_draft",
+        "question": "写变更申请草稿，包含原因、现方案、拟变更、影响、审批状态：旧计划为2103.7.1完成测试，试验设备停机；拟改2103.7.15；成本影响待评估，尚未批准。",
+        "expected_facts": [
+          "停机原因",
+          "原计划和拟改计划",
+          "成本待评估",
+          "尚未批准"
+        ],
+        "required_boundaries": [
+          "不称已变更基线、不填假审批人"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-12",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "写变更申请草稿，包含原因、现方案、拟变更、影响、审批状态：旧计划为2103.7.1完成测试，试验设备停机；拟改2103.7.15；成本影响待评估，尚未批准。"
+          }
+        ],
+        "prompt_sha256": "935f177eb8019f5aeb2734c218b2c05306bcb00c37c6cf1e5678919749b65316",
+        "output": "**变更申请草稿**\n\n**1. 变更原因**\n原计划中试验设备需停机，导致原定测试工作无法按期执行。\n\n**2. 现方案**\n原计划于2021年3月7月1日（注：日期格式存疑，按原文保留）完成测试。\n\n**3. 拟变更内容**\n将测试完成时间由2021年3月7月1日调整为2021年3月7月15日。\n\n**4. 影响分析**\n*   **进度影响**：测试完成时间延后14天。\n*   **成本影响**：待评估。\n\n**5. 审批状态**\n尚未批准。\n\n**下一步建议**\n请确认原计划日期“2103.7.1”是否为笔误（如应为2021年或2023年），并尽快完成成本影响评估，以便提交正式审批。",
+        "generation_seconds": 7.915695540999877,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-12",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "写变更申请草稿，包含原因、现方案、拟变更、影响、审批状态：旧计划为2103.7.1完成测试，试验设备停机；拟改2103.7.15；成本影响待评估，尚未批准。"
+          }
+        ],
+        "prompt_sha256": "935f177eb8019f5aeb2734c218b2c05306bcb00c37c6cf1e5678919749b65316",
+        "output": "**变更申请草稿**\n\n**1. 变更原因**\n原计划中试验设备需停机，导致原定测试工作无法按期执行。\n\n**2. 现方案**\n原计划于2021年3月7月1日（注：日期格式存疑，按原文保留）完成测试。\n\n**3. 拟变更内容**\n将测试完成时间由2021年3月7月1日调整为2021年3月7月15日。\n\n**4. 影响分析**\n*   **进度影响**：测试完成时间延后14天。\n*   **成本影响**：待评估。\n\n**5. 审批状态**\n尚未批准。\n\n**下一步建议**\n请确认原计划日期“2103.7.1”是否为笔误（如应为2021年或2023年），并尽快补充成本评估数据后提交正式审批。",
+        "generation_seconds": 7.885096332989633,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "两版都改坏2103.7.1/2103.7.15日期，并将设备已停机表述为原计划中需停机。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-13",
+        "group_id": "recovery_revoked",
+        "question": "文稿生成后来源撤权；用户点击原按钮继续读取。如何处理？",
+        "expected_facts": [
+          "来源撤权",
+          "停止读取"
+        ],
+        "required_boundaries": [
+          "不能把历史可读快照当作持续权限"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-13",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "文稿生成后来源撤权；用户点击原按钮继续读取。如何处理？"
+          }
+        ],
+        "prompt_sha256": "79fbb78498419fb38fbee6ca546e59ddec96d333dbcf938196f803e42058c383",
+        "output": "**结果：** 文稿生成任务中断，无法继续读取。\n\n**下一步：**\n1. **立即停止**当前读取操作，避免触发权限异常或报错。\n2. **核实权限状态**：确认“来源撤权”是临时故障还是永久撤销。\n   - 如果是**临时故障**：等待权限恢复后，重新点击原按钮尝试读取。\n   - 如果是**永久撤销**：需联系权限管理员或项目所有者，申请重新授权或获取新的访问凭证。\n3. **记录日志**：记录中断时间点、错误代码（如有）及用户操作，以便后续排查。\n\n**注意：** 在权限未明确恢复前，不要假设数据可访问，避免向用户承诺“已读取”或“已完成”。",
+        "generation_seconds": 6.038975875009783,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-13",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "文稿生成后来源撤权；用户点击原按钮继续读取。如何处理？"
+          }
+        ],
+        "prompt_sha256": "79fbb78498419fb38fbee6ca546e59ddec96d333dbcf938196f803e42058c383",
+        "output": "**结果：** 文稿生成任务中断，无法继续读取。\n\n**下一步：**\n1. **立即停止**当前读取操作，避免触发权限异常或报错。\n2. **核实权限状态**：确认“来源撤权”是临时故障还是永久撤销。\n   - 如果是**临时故障**：等待权限恢复后，重新点击原按钮尝试读取。\n   - 如果是**永久撤销**：需联系权限管理员或项目所有者，申请重新授权或获取新的访问凭证。\n3. **记录日志**：记录中断时间点、错误代码及用户操作，以便后续排查。\n\n**注意：** 在权限未明确恢复前，不要假设数据可访问，避免向用户承诺“已读取”或“已完成”。",
+        "generation_seconds": 6.000738375005312,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "两版都把生成后撤权导致的读取受阻写成文稿生成任务中断，混淆生成与阅读状态。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    },
+    {
+      "case": {
+        "case_id": "R10F1-RES-14",
+        "group_id": "recovery_changed",
+        "question": "文稿尚在有效期且读取权限仍有效，普通依据更新，原稿阅读与按最新依据采用应如何区分？",
+        "expected_facts": [
+          "可读固定原稿并提示依据变化",
+          "采用需按最新依据重新校验"
+        ],
+        "required_boundaries": [
+          "不能一概拒读原稿、不能直接采用过期依据"
+        ]
+      },
+      "base": {
+        "case_id": "R10F1-RES-14",
+        "arm": "base",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "文稿尚在有效期且读取权限仍有效，普通依据更新，原稿阅读与按最新依据采用应如何区分？"
+          }
+        ],
+        "prompt_sha256": "f2598f91609825189442381bf5b109a8e1ebe75be53bf793862af8f5d31edc19",
+        "output": "**结果：**\n原稿阅读仅用于核对历史版本或追溯背景，不作为当前执行依据；按最新依据采用是指以当前有效且权限正常的文稿内容为准进行实际操作或决策。\n\n**下一步：**\n请确认当前操作场景是否涉及执行动作。如果是，请严格引用最新依据中的条款；如果仅是查阅，请标注“仅参考原稿，非执行依据”。",
+        "generation_seconds": 3.3718054170021787,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "sft": {
+        "case_id": "R10F1-RES-14",
+        "arm": "sft",
+        "messages": [
+          {
+            "role": "system",
+            "content": "你是项目助理。只依据给定事实回答，先说结果，再说必要的下一步。表达自然、简洁，保留预计、如果、待核、未完成等限定。没有实际回执不声称已发送、已批准或已完成；缺失人员和日期不猜测。只输出给用户看的正文。"
+          },
+          {
+            "role": "user",
+            "content": "文稿尚在有效期且读取权限仍有效，普通依据更新，原稿阅读与按最新依据采用应如何区分？"
+          }
+        ],
+        "prompt_sha256": "f2598f91609825189442381bf5b109a8e1ebe75be53bf793862af8f5d31edc19",
+        "output": "**结果：**\n原稿阅读仅用于核对历史版本或追溯背景，不作为当前执行依据；按最新依据采用是指以当前有效且权限正常的文稿内容为准进行实际操作或决策。\n\n**下一步：**\n请确认当前操作场景是否涉及执行动作。如果是，请严格引用最新依据中的条款；如果仅是查阅，请标注“仅供历史参考”。若对“最新依据”的具体版本或生效时间存疑，请待核确认后再行使用。",
+        "generation_seconds": 4.007308707994525,
+        "max_tokens": 384,
+        "independent_human_acceptance": false
+      },
+      "byte_identical": false,
+      "assistant_review_notes": [
+        "两版都区分历史阅读与当前依据，但普通依据变化提示及采用前重新校验没有完整说明；需继续核对覆盖性。"
+      ],
+      "review_origin": "executing_assistant_posthoc",
+      "human_authored": false,
+      "business_execution_performed": false
+    }
+  ],
+  "independent_human_ratings": 0,
+  "production_model_changed": false,
+  "not_used_in_this_fit_or_model_based_selection": true
+}

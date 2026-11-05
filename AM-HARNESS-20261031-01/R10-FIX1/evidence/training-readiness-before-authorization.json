@@ -1,0 +1,36 @@
+{
+  "at_epoch": 1793858078.0047739,
+  "scope": "metadata_only; no execution request, model load, lease or production change",
+  "user_training_authorized": true,
+  "new_training_requests": 0,
+  "trainer_starts": 0,
+  "source_files": {
+    "am-style-r3/training/mlx_r4_contracts.py": "defa00d406a9e25a561aa0c8c4e4870e4098236623ad1296323ef381a2cdf97a",
+    "am-style-r5/src/am_style_r5/holdout_gate.py": "7f87fd870cc2e70ff0bf626ad0817a90d138d14646513322021297bda1ec2ea5",
+    "local-qwen3.8/feishu-bridge/am_training_control.py": "38bae400e99fba4b9ede2f4b4a2b0af896739f3b74d8724c16d66045d1fa8b0d"
+  },
+  "checks": [
+    {
+      "check": "existing_mlx_data_tier",
+      "status": "blocked",
+      "error_type": "TrainingInputError",
+      "reason": "This experiment uses one pass over approved gold only; never repeat one row to fill steps"
+    },
+    {
+      "check": "fresh_independent_holdout",
+      "status": "blocked",
+      "error_type": "R5Error",
+      "reason": "pilot execution requires frozen independent holdout, human declaration and retained original"
+    }
+  ],
+  "prepared_synthetic_first_batch": {
+    "train": 32,
+    "dev": 8,
+    "human_approved": false
+  },
+  "reserved_synthetic_evaluation": {
+    "count": 14,
+    "independent_human_declaration": false
+  },
+  "pending_question": "Use an explicitly labelled synthetic experimental path while preserving original human-gold gate and deferring independent business acceptance?"
+}
