@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:am-model-lab:report:1",
+  "title": "AM Model Lab report",
+  "$comment": "Structural checks only; core verifies seals, derived denominator, raw bytes and fixture/real separation.",
+  "type": "object",
+  "required": [
+    "schema",
+    "sha256",
+    "manifest_sha256",
+    "records_sha256",
+    "mode",
+    "result_scope",
+    "planned",
+    "recorded",
+    "missing",
+    "phases",
+    "paired_comparisons",
+    "data_complete",
+    "winner",
+    "production_activation"
+  ],
+  "properties": {
+    "schema": {
+      "const": "am-model-lab-report/1"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "records_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mode": {
+      "enum": [
+        "real",
+        "fixture"
+      ]
+    },
+    "result_scope": {
+      "type": "string"
+    },
+    "planned": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "recorded": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missing": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "phases": {
+      "type": "object"
+    },
+    "paired_comparisons": {
+      "type": "array"
+    },
+    "data_complete": {
+      "type": "boolean"
+    },
+    "winner": {
+      "type": "null"
+    },
+    "production_activation": {
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}

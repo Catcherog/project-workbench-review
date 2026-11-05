@@ -1,0 +1,357 @@
+diff --git a/app/workbench-v2.tsx b/app/workbench-v2.tsx
+index b4d6e08..2813ca2 100644
+--- a/app/workbench-v2.tsx
++++ b/app/workbench-v2.tsx
+@@ -1,3 +1,5 @@
++import {LedgerWorkbench} from '../extensions/ledger-workbench/web/LedgerWorkbench';
++import {createNativeLedgerRequest} from '../extensions/ledger-workbench/web/host-adapter';
+ import {P1Receipt} from './work-item-entry';
+ import {receiptInScope} from './integration/receipt-scope';
+ import {IntakeResult,IntakeFeedbackState} from './material-intake';
+@@ -302,6 +304,7 @@ export default function WorkbenchV2(){
+   const collaborationDirty=useRef(false);
+   useEffect(()=>{const beforeUnload=(event:BeforeUnloadEvent)=>{if(formDirty.current||collaborationDirty.current||projectDirty.current){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',beforeUnload);return()=>window.removeEventListener('beforeunload',beforeUnload)},[]);
+   const token=useRef(''),workspaceRef=useRef(workspace),busyRef=useRef(false),latest=useRef(s),formDirty=useRef(false),routeRef=useRef(window.location.href);latest.current=s;workspaceRef.current=workspace;
++  const ledgerRequest=useMemo(()=>createNativeLedgerRequest({readToken:()=>token.current}),[]);
+   const request=useCallback(async(url:string,body?:any)=>{const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{'X-Workbench-Token':token.current,'X-Workbench-Client':'ui',...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});let d:any;try{d=await r.json()}catch{throw Error('本地服务返回了无法读取的响应，请检查服务状态。')}if(!r.ok){const e:any=new Error(d.error||'本地保存失败');e.status=r.status;e.details=d.errors;e.state=d.state;throw e}return d},[]);
+   const refresh=useCallback(async()=>{const active=workspaceRef.current;const st=await request('/api/v2/status');if(workspaceRef.current!==active)return;token.current=st.csrfToken;setStatus(st);const selectedWorkspace=st.workspaces?.some((w:any)=>w.id===active)?active:st.workspaces?.find((w:any)=>w.type==='official')?.id||st.workspaces?.[0]?.id;if(!selectedWorkspace)throw Error('没有可读取的工作区，请检查本地数据库。');if(selectedWorkspace!==active){resetP1Scope();workspaceRef.current=selectedWorkspace;setWorkspace(selectedWorkspace)}const next=hydrateStateCollections(await request('/api/v2/snapshot?workspaceId='+encodeURIComponent(selectedWorkspace)));if(workspaceRef.current===selectedWorkspace)setS(current=>current&&current.workspaceId===next.workspaceId&&current.revision>next.revision?current:next)},[request]);
+   useEffect(()=>{let active=true;const read=()=>{const requestWorkspace=workspaceRef.current;void refresh().catch(e=>{if(active&&workspaceRef.current===requestWorkspace)setError(e)})};read();const t=setInterval(()=>{if(!busyRef.current)read()},3500);return()=>{active=false;clearInterval(t)}},[workspace,refresh]);
+@@ -393,6 +396,6 @@ export default function WorkbenchV2(){
+   {previewGroup&&preview&&<div className="v2-preview-banner"><div><strong>正在比较拟修改状态</strong><span>{s?.changeGroups.find(g=>g.id===previewGroup)?.purpose} · 正式台账未改变</span></div><div className="v2-row"><button className="v2-button" onClick={()=>{setGroupId(previewGroup);navigate('review')}}>返回审核台</button><button className="v2-icon" onClick={()=>setPreviewGroup('')} aria-label="退出草稿预览"><X size={18}/></button></div></div>}
+   {error&&<div className="v2-error v2-global-error" role="alert"><div className="v2-row between"><strong>{error.message||String(error)}</strong><button className="v2-icon" aria-label="收起错误提示" onClick={()=>setError(undefined)}><X size={16}/></button></div>{error.details?.map((e:any,i:number)=><p key={i}>{e.path}: {e.message}{'current'in e&&<span> · 原值 {textValue(e.before)} / 当前 {textValue(e.current)} / 拟修改 {textValue(e.proposed)}</span>}</p>)}{!s&&<button className="v2-button" onClick={()=>refresh().then(()=>setError(undefined)).catch(setError)}>重新连接本地服务</button>}</div>}
+   {s&&p1Receipt?.workspaceId===s.workspaceId&&!selected&&<P1Receipt key={s.workspaceId+':'+p1Receipt.operationId} receipt={p1Receipt} s={s} request={request} isCurrent={currentP1Scope} onOpen={live=>{if(currentP1Scope()&&receiptInScope(latest.current,live))open(live.sourceId);}} onEdit={live=>editP1(live)} onTime={live=>editP1(live,true)} onRefresh={next=>localSaved(next||p1Receipt,true)}/>}
+-  {!s?<div className="v2-loading"><Loader2 size={24} className="spin"/>正在读取本地工作区…</div>:<>{s&&projectItem&&<details className="integration-project-meeting"><summary>项目 / 节点会议</summary><ItemMeetingEntry s={s} context={itemContext(s,projectItem)} request={request} feedbackAction={feedbackAction} refresh={refresh}/></details>} {view==='weekly'&&<WeeklyMeeting key={s.workspaceId+':'+presentationProject} s={s} initialProjectId={presentationProject} onExit={()=>navigate('overview')} command={command} onDirtyChange={onProjectDirty} embedded/>} {view==='project'&&<ProjectWorkspace key={s.workspaceId+':'+detailProject} s={s} projectId={detailProject} nodeId={detailNode} onBack={()=>navigate('overview')} onSelectNode={selectDetailNode} open={open} edit={editRecord} add={quickAdd} command={command} onDirtyChange={onProjectDirty} onPlan={openPlan} onCollaboration={collaborate}/>} {view==='plans'&&<ProjectPlanView key={s.workspaceId+':'+detailProject} s={s} initialProjectId={detailProject} onProjectChange={id=>{setDetailProject(id);url({projectId:id})}} open={open} add={quickAdd} command={command} onBackToOverview={()=>navigate('overview')} onCollaboration={collaborate}/>}  {view==='collectionSettings'&&<CollectionConnections s={s} action={feedbackAction} request={request} open={open}/>} {view==='review'&&!dataReview&&<section className="business-review"><button className="v2-text-button" onClick={()=>navigate('attention')}>返回风险管理</button>{reviewContent}</section>} {(['inbox','collaboration'].includes(view)||dataReview)&&<DataCenter key={s.workspaceId+':'+view} s={s} action={feedbackAction} request={request} open={open} refresh={refresh} groupId={dataReview?groupId:''} selectGroup={id=>id?selectGroup(id):navigate('inbox')} initialTab={view==='collaboration'?'sources':'review'} onProject={openProject} onRisk={id=>{navigate('attention');const item=attentionItems.find(item=>item.targetId===id);if(item)selectIntegratedItem(item);}} review={reviewContent}/> } {['overview','attention'].includes(view)&&<WorkbenchOverview key={s.workspaceId+':'+view+':'+(view==='attention'?detailProject+':'+attentionFilter:'')} s={s} initialFilter={attentionFilter} feedbackAction={feedbackAction} command={command} readDocument={readDocument} mode={view==='attention'?'attention':'overview'} initialProjectId={view==='attention'?detailProject:''} attentionItems={attentionItems} onSelectItem={selectIntegratedItem} open={open} onProject={openProject} onAttention={openAttention} onBulkReminders={()=>setBulkReminders(true)} onCreateProject={()=>quickAdd('projects')} classifySubject={async input=>{const result=await request('/api/v2/discovery-subjects',{workspaceId:s.workspaceId,...input});await refresh();setToast(result.target?.kind==='projects'?'已并入所选项目，风险仍按原核实状态保留。':'已归入专项，可在项目总览继续查看。');return result;}} navigate={navigate}/>} {view==='portfolio'&&(s.projects.some(p=>!p.archived)?<PortfolioBoard key={s.workspaceId} s={s} open={open} add={quickAdd} command={command} navigate={navigate} present={present} onProject={openProject} onEditProgress={project=>editRecord('projects',project)}/>:<Empty title="从你的第一个项目开始" action={<button className="v2-button primary" onClick={()=>quickAdd('projects')}><Plus size={16}/>创建项目</button>}>这是一个空的正式工作区。录入项目后，你可以添加里程碑、行动和来源，<br/>也可以让 Codex 整理复杂事项并提交修改草稿。</Empty>)}{view==='timeline'&&<TimelineView {...viewProps!}/>} {view==='changes'&&<ChangesView {...viewProps!}/>} {view==='graph'&&<GraphView {...viewProps!}/>} {view==='records'&&<RecordsView s={s} open={open} add={quickAdd} command={command}/>} {view==='reports'&&<ReportsView s={s} command={command} present={present}/>} {view==='assistant'&&<CodexAssistant previewMode={!!status?.testMode||s.workspaceType==='demo'} onOpen={open} key={s.workspaceId} s={s} contextRef={assistantScope?.workspaceId===s.workspaceId?assistantScope.ref:undefined} request={request} onReview={reviewAssistantGroup}/>} {view==='settings'&&status&&<><section className="v2-settings-card"><h2>连接与常用工具</h2><div className="v2-row"><button className="v2-button" onClick={()=>collaborate()}>飞书连接与同步</button><button className="v2-button" onClick={()=>navigate('collectionSettings')}>采集范围与状态</button><button className="v2-button" onClick={()=>navigate('records')}>全部记录与高级维护</button><button className="v2-button" onClick={()=>navigate('reports')}>本地汇报</button></div></section><AssistantControls key={s.workspaceId} workspaceId={s.workspaceId} request={request} onOpen={open}/><SettingsView s={s} status={status} request={request} refresh={refresh}/></>}</>}
++  {!s?<div className="v2-loading"><Loader2 size={24} className="spin"/>正在读取本地工作区…</div>:<>{s&&projectItem&&<details className="integration-project-meeting"><summary>项目 / 节点会议</summary><ItemMeetingEntry s={s} context={itemContext(s,projectItem)} request={request} feedbackAction={feedbackAction} refresh={refresh}/></details>} {view==='weekly'&&<WeeklyMeeting key={s.workspaceId+':'+presentationProject} s={s} initialProjectId={presentationProject} onExit={()=>navigate('overview')} command={command} onDirtyChange={onProjectDirty} embedded/>} {view==='project'&&<ProjectWorkspace key={s.workspaceId+':'+detailProject} s={s} projectId={detailProject} nodeId={detailNode} onBack={()=>navigate('overview')} onSelectNode={selectDetailNode} open={open} edit={editRecord} add={quickAdd} command={command} onDirtyChange={onProjectDirty} onPlan={openPlan} onCollaboration={collaborate}/>} {view==='plans'&&<ProjectPlanView key={s.workspaceId+':'+detailProject} s={s} initialProjectId={detailProject} onProjectChange={id=>{setDetailProject(id);url({projectId:id})}} open={open} add={quickAdd} command={command} onBackToOverview={()=>navigate('overview')} onCollaboration={collaborate}/>}  {view==='collectionSettings'&&<CollectionConnections s={s} action={feedbackAction} request={request} open={open}/>} {view==='review'&&!dataReview&&<section className="business-review"><button className="v2-text-button" onClick={()=>navigate('attention')}>返回风险管理</button>{reviewContent}</section>} {(['inbox','collaboration'].includes(view)||dataReview)&&<DataCenter key={s.workspaceId+':'+view} s={s} action={feedbackAction} request={request} open={open} refresh={refresh} groupId={dataReview?groupId:''} selectGroup={id=>id?selectGroup(id):navigate('inbox')} initialTab={view==='collaboration'?'sources':'review'} onProject={openProject} onRisk={id=>{navigate('attention');const item=attentionItems.find(item=>item.targetId===id);if(item)selectIntegratedItem(item);}} review={reviewContent}/> } {view==='overview'&&status?.ledgerWorkbench?.enabled===true&&status.ledgerWorkbench.workspaceId===s.workspaceId&&<LedgerWorkbench key={'ledger:'+s.workspaceId} request={ledgerRequest}/>} {(['overview','attention'].includes(view)&&!(view==='overview'&&status?.ledgerWorkbench?.enabled===true&&status.ledgerWorkbench.workspaceId===s.workspaceId))&&<WorkbenchOverview key={s.workspaceId+':'+view+':'+(view==='attention'?detailProject+':'+attentionFilter:'')} s={s} initialFilter={attentionFilter} feedbackAction={feedbackAction} command={command} readDocument={readDocument} mode={view==='attention'?'attention':'overview'} initialProjectId={view==='attention'?detailProject:''} attentionItems={attentionItems} onSelectItem={selectIntegratedItem} open={open} onProject={openProject} onAttention={openAttention} onBulkReminders={()=>setBulkReminders(true)} onCreateProject={()=>quickAdd('projects')} classifySubject={async input=>{const result=await request('/api/v2/discovery-subjects',{workspaceId:s.workspaceId,...input});await refresh();setToast(result.target?.kind==='projects'?'已并入所选项目，风险仍按原核实状态保留。':'已归入专项，可在项目总览继续查看。');return result;}} navigate={navigate}/>} {view==='portfolio'&&(s.projects.some(p=>!p.archived)?<PortfolioBoard key={s.workspaceId} s={s} open={open} add={quickAdd} command={command} navigate={navigate} present={present} onProject={openProject} onEditProgress={project=>editRecord('projects',project)}/>:<Empty title="从你的第一个项目开始" action={<button className="v2-button primary" onClick={()=>quickAdd('projects')}><Plus size={16}/>创建项目</button>}>这是一个空的正式工作区。录入项目后，你可以添加里程碑、行动和来源，<br/>也可以让 Codex 整理复杂事项并提交修改草稿。</Empty>)}{view==='timeline'&&<TimelineView {...viewProps!}/>} {view==='changes'&&<ChangesView {...viewProps!}/>} {view==='graph'&&<GraphView {...viewProps!}/>} {view==='records'&&<RecordsView s={s} open={open} add={quickAdd} command={command}/>} {view==='reports'&&<ReportsView s={s} command={command} present={present}/>} {view==='assistant'&&<CodexAssistant previewMode={!!status?.testMode||s.workspaceType==='demo'} onOpen={open} key={s.workspaceId} s={s} contextRef={assistantScope?.workspaceId===s.workspaceId?assistantScope.ref:undefined} request={request} onReview={reviewAssistantGroup}/>} {view==='settings'&&status&&<><section className="v2-settings-card"><h2>连接与常用工具</h2><div className="v2-row"><button className="v2-button" onClick={()=>collaborate()}>飞书连接与同步</button><button className="v2-button" onClick={()=>navigate('collectionSettings')}>采集范围与状态</button><button className="v2-button" onClick={()=>navigate('records')}>全部记录与高级维护</button><button className="v2-button" onClick={()=>navigate('reports')}>本地汇报</button></div></section><AssistantControls key={s.workspaceId} workspaceId={s.workspaceId} request={request} onOpen={open}/><SettingsView s={s} status={status} request={request} refresh={refresh}/></>}</>}
+   </div></main>{!['overview','attention','project','inbox','review','assistant','weekly'].includes(view)&&<DeskPet s={s} onOpenRecord={open} onOpenActions={()=>navigate('changes')} onOpenAssistant={()=>navigate('assistant')} onOpenReview={id=>{if(id)void reviewAssistantGroup(id).catch(setError);else navigate('review')}} onQuickAdd={(title,item)=>quickAdd('actions',item?.projectId,title?{title,followUp:title,status:'近期跟进',executionStatus:'待开始',sourceIds:item?.sourceRefs.filter(ref=>ref.available).map(ref=>ref.id)||[]}:undefined)}/>} {toast&&<div className="v2-toast" role="status"><Check size={17}/>{toast}<button className="v2-icon" aria-label="关闭保存提示" onClick={()=>setToast('')}><X size={14}/></button></div>}{bulkReminders&&s&&<Modal title="批量私信催办" close={()=>setBulkReminders(false)}><div className="v2-modal-body"><ReminderPanel s={s} action={reminderAction}/></div></Modal>}{form&&s&&<Modal title={form.record?'编辑'+v2Labels[form.kind]:'快速录入'} close={closeForm}><RecordForm key={form.record?.id||'new'} s={s} initialKind={form.kind} record={form.record} context={form.context} defaults={form.defaults} command={command} upload={upload} done={id=>{formDirty.current=false;setForm(undefined);if(view==='project'&&id===detailProject)return;open(id)}} cancel={closeForm} onDirty={()=>{formDirty.current=true}}/></Modal>}{selected&&s&&!form&&preview&&!find(s,selected)&&find(preview,selected)?<Modal title="拟新增对象 · 尚未生效" close={close}><div className="v2-modal-body"><Badge tone="amber">草稿预览</Badge><h2>{find(preview,selected)?.record.title}</h2><p className="v2-muted">这条记录仅在本次拟修改状态中。接受对应修改组后才会进入正式台账。</p><pre>{JSON.stringify(find(preview,selected)?.record,null,2)}</pre><button className="v2-button primary" onClick={()=>{close();setGroupId(previewGroup);navigate('review')}}>返回修改审核台</button></div></Modal>:selected&&s&&!form&&selectedContext&&!legacyDetail?<ItemWorkspace key={s.workspaceId+':'+selectedContext.key} openItem={open} initialEntry={p1Edit?.workspaceId===s.workspaceId&&p1Edit.sourceId===selectedContext.identity.id?p1Edit:undefined} onLocalSaved={localSaved} s={s} context={selectedContext} onClose={close} openRecord={openLegacyRecord} panels={{feedback:selectedContext.item.feedbackSourceIds?.map(id=>{const source=s.sources.find(row=>row.id===id);return source?<FeedbackDetail key={id} s={s} source={source} action={feedbackAction} open={open}/>:null}),documents:selectedContext.identity.kind==='deliverables'&&selectedContext.record?<DeliverableDocuments s={s} record={selectedContext.record} readDocument={readDocument} compact/>:undefined,operations:<ItemOperations s={s} context={selectedContext} request={request} feedbackAction={feedbackAction} refresh={refresh} onFollowup={followupAction} reminderAction={reminderAction} resultAction={resultAction} open={open} command={command} addSource={()=>quickAdd('sources',undefined,{caseIds:selectedContext.item.caseId?[selectedContext.item.caseId]:[],objectIds:[selectedContext.identity.id],projectIds:selectedContext.item.projectIds})} edit={selectedContext.record?()=>editRecord(selectedContext.identity.kind as V2Kind,selectedContext.record!):undefined}/>,hasResults:hasItemResults(s,selectedContext),history:<ItemResults s={s} context={selectedContext} history/>,results:<ItemResults s={s} context={selectedContext}/>,assistant:<ItemAssistant s={s} context={selectedContext} request={request} onReview={reviewAssistantGroup}/>}}/>:selected&&s&&!form&&<RecordDetail key={selected} s={s} id={selected} open={open} close={close} onEdit={(kind,record)=>{formDirty.current=false;setForm({kind,record})}} command={command} quickAdd={quickAdd} readDocument={readDocument} feedbackAction={feedbackAction} resultAction={resultAction} renderAssistant={ref=><ContextualAssistant s={s} contextRef={ref} request={request} onReview={reviewAssistantGroup}/>}/>}</div>
+ }
+diff --git a/extensions/ledger-workbench/integrations/wb/native-mount.mjs b/extensions/ledger-workbench/integrations/wb/native-mount.mjs
+new file mode 100644
+index 0000000..dc5e609
+--- /dev/null
++++ b/extensions/ledger-workbench/integrations/wb/native-mount.mjs
+@@ -0,0 +1,54 @@
++import {createHash} from 'node:crypto';
++import {createLedgerHandler} from '../../server/ledger-handler.mjs';
++import {SignedQueueBridge} from '../../server/queue-bridge.mjs';
++import {LedgerError} from '../../server/errors.mjs';
++import {open} from 'node:fs/promises';
++import {constants} from 'node:fs';
++
++const ALLOWED_SCOPES=new Set(['ledger:read','am:prepare','am:approve','review:resolve','reminder:manage']);
++
++export async function loadNativeLedgerOptions(configPath) {
++  const file=await open(configPath,constants.O_RDONLY|(constants.O_NOFOLLOW||0));
++  try{
++    const info=await file.stat();
++    if(!info.isFile()||(info.mode&0o077)||info.size>16384||(process.getuid&&info.uid!==process.getuid()))
++      throw new LedgerError('unsafe_ledger_config','台账接入配置的权限不正确。',503);
++    const config=JSON.parse(await file.readFile('utf8'));
++    if(!config||typeof config!=='object'||Array.isArray(config))throw new LedgerError('invalid_ledger_config','台账接入配置无效。',503);
++    return config;
++  }finally{await file.close();}
++}
++
++/** Native pm-workbench adapter for scripts/local-http.mjs.
++ * `authorize` is the ORIGINAL closure: token + Origin + uiOnly checks.
++ * `binding`/getBinding is server-owned, never request JSON or query parameters.
++ */
++export async function createNativeLedgerMount({authorize,store,sessionNonce,isRestoring=()=>false,options={}}) {
++  if(options.enabled===undefined&&process.env.PM_LEDGER_CONFIG)options=await loadNativeLedgerOptions(process.env.PM_LEDGER_CONFIG);
++  if(options.enabled!==true)return Object.assign(async()=>false,{publicStatus:()=>({enabled:false})});
++  if(typeof authorize!=='function'||!store?.load||!sessionNonce)throw new Error('Original WB host authorization is required');
++  const bridge=options.bridge || await new SignedQueueBridge({queueDir:options.queueDir,keyFile:options.keyFile}).init();
++  const getBinding=options.getBinding || (()=>options.binding);
++  const clock=options.clock||Date.now;
++  async function getSession(req) {
++    authorize(req,true);
++    const binding=await getBinding();
++    if(!binding || !['userId','tenantId','workspaceId'].every(k=>typeof binding[k]==='string'&&binding[k]))
++      throw new LedgerError('principal_binding_required','当前工作区尚未完成 AM 身份绑定。',503);
++    const state=store.load(binding.workspaceId);
++    if(!state || state.workspaceId!==binding.workspaceId)throw new LedgerError('workspace_binding_changed','当前工作区绑定已变化。',409);
++    const projectIds=options.resolveProjectIds ? await options.resolveProjectIds({state,binding}) : binding.projectIds;
++    if(!Array.isArray(projectIds)||projectIds.some(id=>typeof id!=='string'||!id))throw new LedgerError('project_scope_required','尚未取得项目授权范围。',503);
++    const scopes=(binding.scopes||[]).filter(scope=>ALLOWED_SCOPES.has(scope));
++    if(!scopes.includes('ledger:read'))throw new LedgerError('ledger_read_disabled','此工作区尚未开放台账读取。',403);
++    return {verified:true,id:createHash('sha256').update(JSON.stringify([sessionNonce,binding.userId,binding.tenantId,binding.workspaceId,projectIds,scopes])).digest('hex'),
++      userId:binding.userId,tenantId:binding.tenantId,workspaceId:binding.workspaceId,projectIds,scopes,
++      expiresAtMs:clock()+600000};
++  }
++  const handler=createLedgerHandler({bridge,getSession,clock,authorizeMutation(req){
++    authorize(req,true);
++    if(isRestoring())throw new LedgerError('workspace_restoring','工作区正在恢复，请稍后继续。',409);
++  }});
++  handler.publicStatus=async()=>{const binding=await getBinding();return {enabled:true,workspaceId:binding?.workspaceId||null};};
++  return handler;
++}
+diff --git a/extensions/ledger-workbench/web/ledger-workbench.css b/extensions/ledger-workbench/web/ledger-workbench.css
+new file mode 100644
+index 0000000..4f61d60
+--- /dev/null
++++ b/extensions/ledger-workbench/web/ledger-workbench.css
+@@ -0,0 +1,197 @@
++/* Product module: every selector stays inside .ledger-workbench.
++ * Inherit the WB host's typography, button classes and --v2-* values.
++ * Fallbacks below are limited to verified R4 product increment values.
++ */
++.ledger-workbench {
++  --lw-line: var(--wb-line, var(--v2-line, #d8e1dc));
++  --lw-muted: var(--wb-muted, var(--v2-muted, #66736c));
++  --lw-soft: var(--wb-soft, var(--v2-soft, #f4f7f5));
++  --lw-attention: var(--v2-warning-text, #9b422d);
++  width: 100%;
++  max-width: 1120px;
++  min-width: 0;
++  margin-inline: auto;
++  font: inherit;
++  line-height: 1.6;
++  color: inherit;
++}
++.ledger-workbench *,
++.ledger-workbench *::before,
++.ledger-workbench *::after { box-sizing: border-box; }
++.ledger-workbench h1,
++.ledger-workbench h2,
++.ledger-workbench h3,
++.ledger-workbench h4,
++.ledger-workbench p { margin: 0; }
++.ledger-workbench button:not(.v2-button),
++.ledger-workbench input,
++.ledger-workbench select,
++.ledger-workbench textarea { font: inherit; color: inherit; }
++.ledger-workbench button { cursor: pointer; }
++.ledger-workbench button:disabled { cursor: default; opacity: .55; }
++.ledger-workbench button:focus-visible,
++.ledger-workbench input:focus-visible,
++.ledger-workbench select:focus-visible,
++.ledger-workbench textarea:focus-visible,
++.ledger-workbench summary:focus-visible {
++  outline: 2px solid currentColor;
++  outline-offset: 3px;
++}
++.ledger-workbench .lw-header,
++.ledger-workbench .lw-header-actions,
++.ledger-workbench .lw-main-actions,
++.ledger-workbench .lw-panel-header,
++.ledger-workbench .lw-pane-toolbar,
++.ledger-workbench .lw-preview-top,
++.ledger-workbench .lw-preview-actions,
++.ledger-workbench .lw-reminder-actions { display: flex; align-items: center; gap: 12px; }
++.ledger-workbench .lw-header { justify-content: space-between; margin-bottom: 22px; }
++.ledger-workbench .lw-eyebrow { color: var(--lw-muted); font-size: 12px; letter-spacing: .08em; }
++.ledger-workbench h1 { margin-top: 2px; font-size: 24px; line-height: 1.4; font-weight: 600; }
++.ledger-workbench h2 { font-size: 19px; line-height: 1.5; font-weight: 600; }
++.ledger-workbench h3 { font-size: 17px; font-weight: 600; }
++.ledger-workbench h4 { font-size: 15px; font-weight: 600; }
++.ledger-workbench .lw-muted,
++.ledger-workbench .lw-meta { color: var(--lw-muted); font-size: 13px; }
++.ledger-workbench .lw-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
++.ledger-workbench .lw-attention,
++.ledger-workbench .lw-error-text { color: var(--lw-attention); }
++.ledger-workbench .lw-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
++.ledger-workbench .lw-search { display: flex; align-items: center; gap: 8px; min-width: 220px; flex: 0 1 320px; padding: 0 12px; border: 1px solid var(--lw-line); border-radius: 8px; }
++.ledger-workbench .lw-search svg { flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; color: var(--lw-muted); }
++.ledger-workbench .lw-search input { width: 100%; padding: 10px 0; min-width: 0; border: 0; background: transparent; outline-offset: 4px; }
++.ledger-workbench .lw-project-select { flex: 1 1 260px; }
++.ledger-workbench select { max-width: 100%; min-width: 0; border: 1px solid var(--lw-line); border-radius: 8px; padding: 10px 30px 10px 12px; background: transparent; }
++.ledger-workbench .lw-project-select select { width: 100%; }
++.ledger-workbench .lw-search-empty { flex-basis: 100%; color: var(--lw-muted); font-size: 13px; }
++.ledger-workbench .lw-project-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
++.ledger-workbench .lw-project-heading > div:first-child { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
++.ledger-workbench .lw-update { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; color: var(--lw-muted); font-size: 12px; }
++.ledger-workbench .lw-summary { margin: 0; border-top: 1px solid var(--lw-line); border-bottom: 1px solid var(--lw-line); }
++.ledger-workbench .lw-summary-row { display: grid; grid-template-columns: 106px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 18px 0; }
++.ledger-workbench .lw-summary-row + .lw-summary-row { border-top: 1px solid var(--lw-line); }
++.ledger-workbench .lw-summary dt { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; white-space: nowrap; }
++.ledger-workbench .lw-summary dd { margin: 0; min-width: 0; font-size: 15px; }
++.ledger-workbench .lw-summary dd.lw-row-action { text-align: right; }
++.ledger-workbench .lw-summary dd p { white-space: pre-line; overflow-wrap: anywhere; line-height: 1.7; }
++.ledger-workbench .lw-row-marker { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .35; flex-shrink: 0; }
++.ledger-workbench .lw-severity-critical .lw-row-marker,
++.ledger-workbench .lw-severity-attention .lw-row-marker { background: var(--lw-attention); opacity: 1; }
++.ledger-workbench .lw-severity-unknown .lw-row-marker { background: transparent; border: 1px solid currentColor; }
++.ledger-workbench .lw-located { background: var(--lw-soft); outline: 2px solid var(--lw-line); outline-offset: 5px; }
++.ledger-workbench .lw-link { background: none; border: 0; border-radius: 3px; padding: 2px 0; text-underline-offset: 4px; font-size: 13px; line-height: 1.7; }
++.ledger-workbench .lw-link:hover:not(:disabled) { text-decoration: underline; }
++.ledger-workbench .lw-row-more { color: var(--lw-muted); min-width: 46px; text-align: right; }
++.ledger-workbench .lw-main-actions { flex-wrap: wrap; padding: 20px 0 4px; }
++.ledger-workbench .lw-auto-note { margin-left: auto; }
++.ledger-workbench .lw-panel { margin-top: 24px; padding: 20px; border: 1px solid var(--lw-line); border-radius: 10px; }
++.ledger-workbench .lw-panel-header { justify-content: space-between; gap: 16px; margin-bottom: 18px; }
++.ledger-workbench .lw-panel-header h3:focus { outline: none; }
++.ledger-workbench .lw-close { display: flex; align-items: center; gap: 10px; background: none; padding: 0; border: 0; color: var(--lw-muted); font-size: 13px; }
++.ledger-workbench .lw-close span { font-size: 23px; line-height: 1; }
++.ledger-workbench .lw-pane-toolbar { justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; }
++.ledger-workbench .lw-checkbox { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; }
++.ledger-workbench .lw-checkbox input { margin: 0; accent-color: currentColor; }
++.ledger-workbench .lw-evidence-section + .lw-evidence-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--lw-line); }
++.ledger-workbench .lw-evidence-section h4 { margin-bottom: 10px; }
++.ledger-workbench .lw-source-entry + .lw-source-entry { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--lw-line); }
++.ledger-workbench .lw-source-entry > p { white-space: pre-line; }
++.ledger-workbench details { margin-top: 8px; }
++.ledger-workbench summary { width: fit-content; cursor: pointer; color: var(--lw-muted); font-size: 13px; }
++.ledger-workbench .lw-evidence-list { list-style: none; padding: 0; margin: 12px 0 0; }
++.ledger-workbench .lw-evidence-list li + li { margin-top: 14px; }
++.ledger-workbench blockquote { margin: 8px 0; padding: 8px 12px; border-left: 2px solid var(--lw-line); background: var(--lw-soft); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
++.ledger-workbench .lw-coverage { padding: 12px; margin-bottom: 16px; border: 1px solid var(--lw-line); border-radius: 8px; font-size: 13px; }
++.ledger-workbench .lw-coverage p { font-weight: 600; }
++.ledger-workbench .lw-coverage ul { margin: 6px 0 0; padding-left: 20px; color: var(--lw-muted); }
++.ledger-workbench .lw-review + .lw-review { border-top: 1px solid var(--lw-line); margin-top: 20px; padding-top: 20px; }
++.ledger-workbench .lw-review h4 { margin-bottom: 5px; }
++.ledger-workbench .lw-review-action { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
++.ledger-workbench .lw-review-action label { flex: 1 1 220px; max-width: 450px; }
++.ledger-workbench .lw-review-action select { width: 100%; }
++.ledger-workbench .lw-reminder-list { padding: 0; margin: 16px 0 0; list-style: none; }
++.ledger-workbench .lw-reminder { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 14px 0; }
++.ledger-workbench .lw-reminder + .lw-reminder { border-top: 1px solid var(--lw-line); }
++.ledger-workbench .lw-reminder-copy { flex: 1; min-width: 0; }
++.ledger-workbench .lw-reminder h4 { display: flex; align-items: center; gap: 8px; }
++.ledger-workbench .lw-reminder p { margin-top: 4px; }
++.ledger-workbench .lw-reminder-actions { flex-wrap: wrap; flex-shrink: 0; }
++.ledger-workbench .lw-unread { width: 6px; height: 6px; background: var(--lw-attention); border-radius: 50%; }
++.ledger-workbench .lw-am-select { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
++.ledger-workbench .lw-am-select > label { font-size: 13px; }
++.ledger-workbench .lw-am-select select { flex: 1 1 260px; }
++.ledger-workbench .lw-am-advice { margin-top: 18px; padding: 14px 18px; border-radius: 10px; background: var(--lw-soft); }
++.ledger-workbench .lw-am-advice p { margin-top: 6px; font-size: 14px; }
++.ledger-workbench .lw-preview { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--lw-line); }
++.ledger-workbench .lw-preview-top { justify-content: space-between; margin-bottom: 12px; }
++.ledger-workbench .lw-preview-meta { margin: 0 0 14px; font-size: 14px; }
++.ledger-workbench .lw-preview-meta > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 5px 0; }
++.ledger-workbench .lw-preview-meta dt { color: var(--lw-muted); }
++.ledger-workbench .lw-preview-meta dd { margin: 0; }
++.ledger-workbench .lw-target-edit { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; }
++.ledger-workbench .lw-target-edit label { display: flex; align-items: center; gap: 10px; font-size: 13px; }
++.ledger-workbench .lw-target-edit select { padding-top: 7px; padding-bottom: 7px; }
++.ledger-workbench .lw-message-label { display: block; margin-bottom: 7px; font-size: 13px; }
++.ledger-workbench textarea { width: 100%; min-height: 120px; resize: vertical; padding: 12px; border: 1px solid var(--lw-line); border-radius: 10px; background: transparent; line-height: 1.6; }
++.ledger-workbench .lw-preview > .lw-meta { margin: 8px 0 14px; }
++.ledger-workbench .lw-preview-actions { flex-wrap: wrap; }
++.ledger-workbench .lw-receipt { padding: 14px 18px; margin-top: 18px; border: 1px solid #cbded4; background: #f0f7f3; border-radius: 10px; }
++.ledger-workbench .lw-receipt p { margin: 6px 0; }
++.ledger-workbench .lw-receipt button { margin-top: 8px; margin-right: 12px; }
++.ledger-workbench .lw-recent-requests { margin-top: 18px; }
++.ledger-workbench .lw-recent-requests ul { padding: 0; margin: 10px 0 0; list-style: none; }
++.ledger-workbench .lw-recent-requests li { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 8px 0; }
++.ledger-workbench .lw-recent-requests li + li { border-top: 1px solid var(--lw-line); }
++.ledger-workbench .lw-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; margin: 12px 0; border: 1px solid #d5b16b; border-radius: 8px; background: #fffbf0; font-size: 14px; }
++.ledger-workbench .lw-error p { flex: 1; }
++.ledger-workbench .lw-error-text { margin-top: 14px; font-size: 14px; }
++.ledger-workbench .lw-notice { margin: 12px 0; font-size: 13px; color: var(--lw-muted); }
++.ledger-workbench .lw-loading,
++.ledger-workbench .lw-empty { min-height: 260px; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 24px; border: 1px solid var(--lw-line); border-radius: 10px; color: var(--lw-muted); }
++.ledger-workbench .lw-empty h2 { color: inherit; font-size: 18px; }
++.ledger-workbench .lw-empty-copy { padding: 14px 0; color: var(--lw-muted); }
++.ledger-workbench .lw-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
++@media (max-width: 760px) {
++  .ledger-workbench .lw-header { align-items: flex-start; }
++  .ledger-workbench h1 { font-size: 21px; }
++  .ledger-workbench .lw-header-actions { gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
++  .ledger-workbench .lw-search { flex: 1 1 100%; min-width: 0; }
++  .ledger-workbench .lw-project-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
++  .ledger-workbench .lw-update { justify-content: flex-start; }
++  .ledger-workbench .lw-summary-row { grid-template-columns: 80px minmax(0, 1fr) auto; gap: 10px; padding: 15px 0; }
++  .ledger-workbench .lw-summary dd { font-size: 14px; }
++  .ledger-workbench .lw-auto-note { flex-basis: 100%; margin-left: 0; }
++  .ledger-workbench .lw-panel { padding: 14px; }
++  .ledger-workbench .lw-reminder { align-items: flex-start; flex-direction: column; gap: 10px; }
++}
++@media (max-width: 480px) {
++  .ledger-workbench .lw-summary-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
++  .ledger-workbench .lw-summary dt { grid-column: 1; grid-row: 1; }
++  .ledger-workbench .lw-summary dd { grid-column: 1 / -1; grid-row: 2; padding-left: 14px; }
++  .ledger-workbench .lw-summary dd.lw-row-action { grid-column: 2; grid-row: 1; padding-left: 0; }
++  .ledger-workbench .lw-row-more { grid-column: 2; grid-row: 1; }
++  .ledger-workbench .lw-header { gap: 12px; }
++  .ledger-workbench .lw-preview-meta > div { grid-template-columns: 64px minmax(0, 1fr); }
++}
++@media (prefers-reduced-motion: reduce) {
++  .ledger-workbench * { scroll-behavior: auto !important; }
++}
++
++.ledger-workbench .lw-continuity { margin: 14px 0 20px; padding: 16px 18px; border: 1px solid var(--lw-line); border-radius: 10px; background: var(--lw-soft); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); column-gap: 24px; }
++.ledger-workbench .lw-continuity-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
++.ledger-workbench .lw-continuity-heading, .ledger-workbench .lw-continuity-time { grid-column: 1 / -1; }
++.ledger-workbench .lw-continuity h2 { font-size: 17px; }
++.ledger-workbench .lw-continuity h3 { font-size: 14px; margin: 14px 0 8px; }
++.ledger-workbench .lw-continuity .lw-link { text-align: left; white-space: normal; overflow-wrap: anywhere; }
++.ledger-workbench .lw-outside-topic { border-left: 2px solid var(--lw-line); padding: 4px 0 4px 12px; margin: 10px 0; }
++.ledger-workbench .lw-outside-topic ul { list-style: none; margin: 6px 0; padding: 0; }
++.ledger-workbench .lw-outside-topic li { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 4px 0; }
++.ledger-workbench .lw-continuation-list { list-style: none; padding: 0; margin: 0; }
++.ledger-workbench .lw-continuation-list li { display: flex; gap: 12px; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--lw-line); }
++.ledger-workbench .lw-continuation-list li > div { min-width: 0; }
++.ledger-workbench .lw-continuation-list p { font-size: 13px; margin: 4px 0; overflow-wrap: anywhere; }
++.ledger-workbench .lw-continuity-time { font-size: 12px; color: var(--lw-muted); margin-top: 12px; }
++@media (max-width: 760px) {
++  .ledger-workbench .lw-continuity { grid-template-columns: minmax(0, 1fr); }
++}
++
+diff --git a/scripts/local-http.mjs b/scripts/local-http.mjs
+index 761085f..23f4640 100644
+--- a/scripts/local-http.mjs
++++ b/scripts/local-http.mjs
+@@ -1,4 +1,5 @@
+ import {WorkbenchRules} from './workbench-rules.mjs';
++import {createNativeLedgerMount} from '../extensions/ledger-workbench/integrations/wb/native-mount.mjs';
+ import {WorkItems} from './work-items.mjs';
+ import {connectAssistantActions} from './assistant-actions-integration.mjs';
+ import {ManagementSignals} from './management-signals.mjs';
+@@ -157,11 +158,13 @@ export async function startServer(options={}) {
+     if(!from&&client!=='codex'&&client!=='ui')throw fail('请求来源不明：需同源界面或声明 Codex CLI',403);
+     if(uiOnly&&client==='codex')throw fail('Codex CLI 只允许读取、校验与提交草稿；业务接受请在审核台完成',403);
+   }
++  const ledgerRoute=await createNativeLedgerMount({authorize,store,sessionNonce:token,isRestoring:()=>!!restoreInFlight,options:options.ledgerWorkbench||{}});
+   async function handle(req,res) {
+     const host=req.headers.host;
+     if(host!=='127.0.0.1:'+port&&host!=='localhost:'+port)throw fail('仅接受回环地址请求',403);
+     const url=new URL(req.url,origin),p=url.pathname,w=url.searchParams.get('workspaceId');
+     if(req.method==='OPTIONS')throw fail('不允许跨源调用',403);
++    if(p.startsWith('/api/v2/ledger/')){if(await ledgerRoute(req,res))return;}
+     if(p==='/api/v2/core/material'){
+       authorize(req,true);
+       if(req.method!=='GET')throw fail('资料阅读仅支持只读请求',405);
+@@ -426,7 +429,7 @@ export async function startServer(options={}) {
+       throw fail('助手接口不存在',404);
+     }
+     if(req.method==='GET'&&(p==='/api/v2/status'||p==='/api/local-status')) {
+-      return json(res,{application:'pm-workbench',version:2,release,mode:'local-only',testMode:!!testMode,ready:true,csrfToken:token,workspaces:store.list(),dataDir,backupSettings:store.getSetting('backupSettings'),lastRestore:store.getSetting('lastRestore')});
++      return json(res,{application:'pm-workbench',version:2,release,mode:'local-only',testMode:!!testMode,ready:true,csrfToken:token,ledgerWorkbench:await ledgerRoute.publicStatus(),workspaces:store.list(),dataDir,backupSettings:store.getSetting('backupSettings'),lastRestore:store.getSetting('lastRestore')});
+     }
+     if(req.method==='GET'&&p==='/api/v2/workspaces')return json(res,{workspaces:store.list()});
+     if(req.method==='GET'&&p==='/api/v2/snapshot'){
+diff --git a/scripts/test-ledger-native-mount.mjs b/scripts/test-ledger-native-mount.mjs
+new file mode 100644
+index 0000000..cdc50e4
+--- /dev/null
++++ b/scripts/test-ledger-native-mount.mjs
+@@ -0,0 +1,29 @@
++import assert from 'node:assert/strict';
++import {mkdtemp,realpath,rm} from 'node:fs/promises';
++import {tmpdir} from 'node:os';
++import {join} from 'node:path';
++import {startServer} from './local-http.mjs';
++import {DemoBridge} from '../extensions/ledger-workbench/demo/demo-bridge.mjs';
++
++const directory=await realpath(await mkdtemp(join(tmpdir(),'r10-host-ledger-')));
++const bridge=new DemoBridge();bridge.snapshot.workspaceId='official';
++let app;
++try {
++  app=await startServer({dataDir:directory,port:5186,testMode:true,legacy:null,ledgerWorkbench:{enabled:true,bridge,
++    binding:{userId:'demo-owner',tenantId:'demo-tenant',workspaceId:'official',projectIds:['demo-sample'],scopes:['ledger:read']}}});
++  const status=await fetch(app.origin+'/api/v2/status').then(r=>r.json());
++  assert.deepEqual(status.ledgerWorkbench,{enabled:true,workspaceId:'official'});
++  assert.equal((await fetch(app.origin+'/api/v2/ledger/bootstrap')).status,403);
++  const headers={'X-Workbench-Token':status.csrfToken,'X-Workbench-Client':'ui'};
++  let response=await fetch(app.origin+'/api/v2/ledger/bootstrap',{headers});assert.equal(response.status,200);
++  const data=await response.json();assert.ok(JSON.stringify(data).includes('demo-sample'));
++  assert.equal((await fetch(app.origin+'/api/v2/ledger/bootstrap',{headers:{...headers,Origin:'https://untrusted.example'}})).status,403);
++  assert.equal((await fetch(app.origin+'/api/v2/ledger/bootstrap',{headers:{...headers,'X-Workbench-Client':'codex'}})).status,403);
++  response=await fetch(app.origin+'/api/v2/ledger/am/approve',{method:'POST',headers:{...headers,'Content-Type':'application/json'},
++    body:JSON.stringify({scopes:['am:approve'],userId:'demo-owner',previewId:'forged-preview',requestId:'forged-request'})});
++  assert.equal(response.status,403);assert.equal(bridge.calls.filter(c=>c.method==='approve').length,0);
++  await app.close();app=null;
++  app=await startServer({dataDir:directory,port:5187,testMode:true,legacy:null});
++  const disabled=await fetch(app.origin+'/api/v2/status',{headers:{Connection:'close'}}).then(r=>r.json());assert.deepEqual(disabled.ledgerWorkbench,{enabled:false});
++  console.log(JSON.stringify({checks:7,passed:7,real_business_writes:0,original_host_authorization_preserved:true}));
++} finally {if(app)await app.close();await rm(directory,{recursive:true,force:true});}

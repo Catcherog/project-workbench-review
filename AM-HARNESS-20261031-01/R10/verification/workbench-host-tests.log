@@ -1,0 +1,129 @@
+
+> pm-workbench@2.18.1 test
+> node scripts/test-domain.mjs && node scripts/test-v2-domain.mjs && node scripts/test-portfolio.mjs && node scripts/test-project-presentation.mjs && node scripts/test-weekly-meeting.mjs && node scripts/test-workbench-overview.mjs
+
+PASS REGRESSION: negative completion feedback never becomes completed
+PASS REGRESSION: an unrelated meeting date cannot change a milestone
+PASS REGRESSION: reanalysis refreshes a conflicting pending candidate
+PASS REGRESSION: retry rejects another object or output kind
+PASS Forecast edits preserve committed and actual dates
+PASS New-action acceptance and reanalysis remain idempotent
+PASS Ignored candidates stay ignored after reanalysis
+PASS Failed publication retries once and retains its exact snapshot
+PASS Feedback returns to the same action and is idempotent without overriding acceptance
+PASS Decision history retains conclusions, basis, decider and time
+PASS Report excludes private notes, pending candidates and unconfirmed judgments
+PASS Mutations advance one revision and no-op replays preserve revision
+
+12/12 domain checks passed.
+Build output: /var/folders/sn/mfcb7sy50fjgcq6jhwh4k9w80000gn/T/pm-domain-tests-Xmhcbx
+Scope: in-memory domain regressions only; database concurrency and HTTP/browser flows are not executed.
+PASS A03 empty official state has no demo rows; IDs may repeat in isolated workspaces
+PASS A23 normalization preserves every legacy business row, candidate and audit snapshot
+PASS Legacy pending candidates become review groups without business application
+PASS A04 forecast and feedback remain separate from commitment and acceptance
+PASS Calendar validation rejects nonexistent dates and does not shift valid local dates
+PASS A06 draft validation and submission do not modify formal dates or create actions
+PASS A08 three dates and two linked actions apply once and preserve originals
+PASS A07 editing any draft content invalidates its previous approval version
+PASS A09 invalid reference in an indivisible group causes zero formal or audit changes
+PASS A10 same-field concurrent edit returns before/current/proposed and preserves current feedback
+PASS A10 unrelated same-record and other-record updates survive approval
+PASS Conflict rebase keeps history, requires explicit new original values and applies reviewed revision
+PASS A11 independent partial approval and rejection preserve remaining formal values
+PASS A11 relation cannot be accepted without its same-group new endpoint; atomic subsets rejected
+PASS A12 persisted request receipts prevent duplicate groups, audit and manual creation
+PASS A13 compensating undo restores only changed fields and adds audit once
+PASS A13 undo refuses to overwrite later changes to applied fields
+PASS A13 undo new objects with later references fails; complete new subgraphs archive together
+PASS Single direct edit undo and archive restore retain source records
+PASS A14 judgment staleness is scoped to referenced fields and preserves original confirmation
+PASS A14 reconfirmation keeps judgment history and captures the current basis
+PASS Unconfirmed or superseded evidence cannot sustain a current confirmed judgment
+PASS A16 explicit viewed baseline persists and does not confirm sources or close risks
+PASS A17 graph follows resource to decision to person and supporting evidence
+PASS A18 duplicate relation tuples rejected; same-name people/resources stay distinct
+PASS Archived relations and endpoints disappear from active graph; temporal history is marked
+PASS A20 report excludes pending/private/unconfirmed/stale content and retains record citations
+PASS A22 workspace boundary and protected metadata are rejected
+PASS Decision confirmation records conclusion, basis, decision-maker and durable history
+PASS Audit and approved operation IDs remain stable across JSON persistence and normalization
+PASS Evidence version changes after submission require re-review even when target fields match
+PASS New linked evidence in one atomic group supports a confirmed judgment
+PASS Accepted hypotheses retain their nature and remain outside default reports
+PASS Reviewed person merge rewires explicit references and archives old identity with audit
+PASS Malformed restored collections and draft fields return located errors without mutation
+PASS Restored workspace scope metadata does not falsely block compensation of creation
+PASS Historical event timestamps remain exact while new timezone-free writes are rejected
+PASS UI acceptance evidence references participate in validation, graph and compensation safety
+PASS UI resource dependencies and stable person selections preserve distinct business roles
+PASS Partial creation of a source retains version protection for remaining dependent operations
+PASS Unconfirmed new evidence marks the same-group judgment as needing review
+PASS Merges cannot leave active scalar or relationship references behind
+PASS A new project keeps its own context when the UI sends an empty project list
+PASS Merging identity preserves historical judgment basis and requests scoped re-review
+PASS Node type edits preserve workflow state and support unclassified legacy records
+
+45/45 v2 domain checks passed.
+Scope: pure immutable business validation, concurrency, idempotency, audit, compensation, graph and report rules. No live data touched.
+PASS manual fields persist together and leave commitment and acceptance independent
+PASS legacy rows remain byte-equivalent and unspecified values stay unspecified
+PASS new field validation rejects wrong types and invalid calendar dates
+PASS source processing is explicit and does not infer from evidence confirmation
+PASS AI proposals preserve manual values until accepted and show conflicts without overwriting
+PASS approving a draft retains unrelated manual changes and supports undo of optional fields
+PASS priority sort is stable, immutable and preserves unsorted projects
+PASS single-field moves work for unranked projects and stay within priority
+PASS department groups keep one owning record and collaboration references
+PASS moving projects skips archived neighbours while retaining original fallback ranks
+PASS work summaries do not convert uncollected information or execution feedback to acceptance
+PASS follow-up filters use my check date, blocker and overdue work while excluding acceptance
+
+12/12 portfolio checks passed. No live data touched.
+PASS empty and unavailable projects remain empty without invented progress
+PASS export projection excludes private fields, source originals, histories and pending drafts
+PASS every displayed collection filters private, archived, unconfirmed, stale and proposal rows
+PASS execution completion, acceptance and unknown feedback remain separate counts
+PASS project health requires valid confirmed judgment and rechecks changed evidence
+PASS standalone HTML escapes ledger text and contains no active or remote payload
+PASS export options omit hidden owners and entire disabled sections from file contents
+PASS snapshots remain immutable, project-scoped and isolated across equal IDs in different workspaces
+PASS compact reporting selects current milestones and clearly limits sections while full export retains every row
+
+9/9 presentation checks passed. No live data touched.
+PASS actual node completion advances the next gate without adding manager content acceptance
+PASS engineer review records delivery while old manager acceptance and node ownership remain distinct
+PASS shared or cross-project legacy milestone records cannot infer two accepted nodes
+PASS invalid dates do not become a next gate and non-IPD projects do not inherit IPD defaults
+PASS public meeting projection excludes private, pending and raw source content
+PASS blockers come from actual work and unconfirmed risks stay out of a meeting
+PASS empty and missing data stay explicit rather than becoming healthy or complete
+PASS snapshot stays frozen and retains workspace identity without changing the ledger
+PASS registered field pages supply current IPD and progress metadata without raw payload exposure
+9/9 weekly meeting checks passed; no production or Feishu writes.
+PASS existing flow nodes supply stage, accepted gates and next gate without requiring duplicate local actions
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
+  [
+-   'reviewed',
+    'submitted'
+  ]
+
+    at file://<home>/Documents/ChatGPT/%E5%A4%9Aagent%E7%B3%BB%E7%BB%9F/AM-HARNESS-20261031-01/R10/workbench-host/scripts/test-workbench-overview.mjs:30:12
+    at test (file://<home>/Documents/ChatGPT/%E5%A4%9Aagent%E7%B3%BB%E7%BB%9F/AM-HARNESS-20261031-01/R10/workbench-host/scripts/test-workbench-overview.mjs:22:30)
+    at file://<home>/Documents/ChatGPT/%E5%A4%9Aagent%E7%B3%BB%E7%BB%9F/AM-HARNESS-20261031-01/R10/workbench-host/scripts/test-workbench-overview.mjs:27:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [ 'submitted' ],
+  expected: [ 'reviewed', 'submitted' ],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.15.0

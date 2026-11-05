@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:am-model-lab:manifest:1",
+  "title": "AM Model Lab manifest",
+  "$comment": "Structural checks only; core verifies seals, derived denominator, raw bytes and fixture/real separation.",
+  "type": "object",
+  "required": [
+    "schema",
+    "sha256",
+    "mode",
+    "synthetic_only",
+    "data_classification",
+    "cases",
+    "arms",
+    "repeats",
+    "planned_slots",
+    "expected_results",
+    "policy"
+  ],
+  "properties": {
+    "schema": {
+      "const": "am-model-lab-manifest/1"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mode": {
+      "enum": [
+        "real",
+        "fixture"
+      ]
+    },
+    "synthetic_only": {
+      "const": true
+    },
+    "data_classification": {
+      "const": "synthetic"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "phase",
+          "split",
+          "messages",
+          "response_schema",
+          "case_sha256",
+          "facts_sha256",
+          "messages_sha256"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,100}$"
+          },
+          "phase": {
+            "enum": [
+              "module",
+              "end_to_end"
+            ]
+          },
+          "split": {
+            "enum": [
+              "fixture",
+              "regression",
+              "calibration",
+              "sealed_test"
+            ]
+          },
+          "response_schema": {
+            "type": "object"
+          },
+          "checks": {
+            "type": "array"
+          },
+          "case_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "facts_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "messages_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "messages": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "content"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "arms": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "kind",
+          "identity",
+          "identity_sha256",
+          "settings"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "production_q8",
+              "mlx_base",
+              "mlx_adapter",
+              "codex_cli",
+              "cascade"
+            ]
+          },
+          "identity": {
+            "type": "object"
+          },
+          "identity_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "settings": {
+            "type": "object"
+          },
+          "runtime": {
+            "type": "object"
+          },
+          "route": {
+            "type": "object",
+            "required": [
+              "stages",
+              "policy",
+              "max_calls",
+              "review_instruction"
+            ],
+            "properties": {
+              "stages": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "policy": {
+                "enum": [
+                  "always_review",
+                  "on_guard_failure"
+                ]
+              },
+              "max_calls": {
+                "const": 2
+              },
+              "review_instruction": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "repeats": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20
+    },
+    "planned_slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "arm",
+          "repeat",
+          "phase",
+          "slot_id"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "arm": {
+            "type": "string"
+          },
+          "repeat": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "phase": {
+            "enum": [
+              "module",
+              "end_to_end"
+            ]
+          },
+          "slot_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          }
+        }
+      }
+    },
+    "expected_results": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "stop_on_unknown",
+        "production_activation"
+      ],
+      "properties": {
+        "stop_on_unknown": {
+          "const": true
+        },
+        "production_activation": {
+          "const": false
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

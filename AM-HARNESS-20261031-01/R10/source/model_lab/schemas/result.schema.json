@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:am-model-lab:result:1",
+  "title": "AM Model Lab result",
+  "$comment": "Structural checks only; core verifies seals, derived denominator, raw bytes and fixture/real separation.",
+  "type": "object",
+  "required": [
+    "schema",
+    "sha256",
+    "manifest_sha256",
+    "case_id",
+    "arm",
+    "repeat",
+    "phase",
+    "slot_id",
+    "mode",
+    "case_sha256",
+    "facts_sha256",
+    "messages_sha256",
+    "identity_sha256",
+    "status",
+    "model_attempted",
+    "output",
+    "output_sha256",
+    "raw",
+    "timings_ms",
+    "measurements",
+    "stages",
+    "external_sends",
+    "production_changed",
+    "quality"
+  ],
+  "properties": {
+    "schema": {
+      "const": "am-model-lab-result/1"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "case_id": {
+      "type": "string"
+    },
+    "arm": {
+      "type": "string"
+    },
+    "repeat": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "phase": {
+      "enum": [
+        "module",
+        "end_to_end"
+      ]
+    },
+    "slot_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{24}$"
+    },
+    "mode": {
+      "enum": [
+        "real",
+        "fixture"
+      ]
+    },
+    "case_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "facts_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "messages_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "identity_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "blocked",
+        "not_run",
+        "provider_failed",
+        "timeout",
+        "cancelled",
+        "stop_unknown",
+        "invalid",
+        "truncated",
+        "missing"
+      ]
+    },
+    "model_attempted": {
+      "type": "boolean"
+    },
+    "output": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "output_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "raw": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "timings_ms": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0
+      }
+    },
+    "measurements": {
+      "type": "object",
+      "required": [
+        "tokens",
+        "resources",
+        "cost"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "object",
+          "required": [
+            "input",
+            "output",
+            "cached_input"
+          ],
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "value",
+              "unit",
+              "missing_reason",
+              "source",
+              "scope"
+            ],
+            "properties": {
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "missing_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scope": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "resources": {
+          "type": "object",
+          "required": [
+            "peak_rss_mib",
+            "peak_accelerator_mib",
+            "energy_wh"
+          ],
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "value",
+              "unit",
+              "missing_reason",
+              "source",
+              "scope"
+            ],
+            "properties": {
+              "value": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "missing_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scope": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "cost": {
+          "type": "object",
+          "required": [
+            "billed",
+            "currency",
+            "billing_basis",
+            "subscription_allocation"
+          ],
+          "properties": {
+            "billed": {
+              "type": "object",
+              "required": [
+                "value",
+                "unit",
+                "missing_reason",
+                "source",
+                "scope"
+              ],
+              "properties": {
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "unit": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "missing_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scope": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "stages": {
+      "type": "array"
+    },
+    "external_sends": {
+      "const": 0
+    },
+    "production_changed": {
+      "const": false
+    },
+    "quality": {
+      "type": "object",
+      "required": [
+        "schema",
+        "checks",
+        "fact_guard",
+        "errors"
+      ],
+      "properties": {
+        "schema": {
+          "enum": [
+            "pass",
+            "fail",
+            "indeterminate",
+            "not_run"
+          ]
+        },
+        "fact_guard": {
+          "enum": [
+            "pass",
+            "fail",
+            "indeterminate",
+            "not_run"
+          ]
+        },
+        "checks": {
+          "type": "array"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:am-model-lab:selection:1",
+  "title": "AM Model Lab selection",
+  "$comment": "Structural checks only; core verifies seals, derived denominator, raw bytes and fixture/real separation.",
+  "type": "object",
+  "required": [
+    "schema",
+    "sha256",
+    "manifest_sha256",
+    "report_sha256",
+    "selected_arm",
+    "selected_definition",
+    "reason",
+    "status",
+    "blockers",
+    "production_activation",
+    "writes_to_production",
+    "automatic_winner"
+  ],
+  "properties": {
+    "schema": {
+      "const": "am-model-lab-selection-proposal/1"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "report_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selected_arm": {
+      "type": "string"
+    },
+    "selected_definition": {
+      "type": "object",
+      "required": [
+        "kind",
+        "identity",
+        "identity_sha256",
+        "settings"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "production_q8",
+            "mlx_base",
+            "mlx_adapter",
+            "codex_cli",
+            "cascade"
+          ]
+        },
+        "identity": {
+          "type": "object"
+        },
+        "identity_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "settings": {
+          "type": "object"
+        },
+        "runtime": {
+          "type": "object"
+        },
+        "route": {
+          "type": "object",
+          "required": [
+            "stages",
+            "policy",
+            "max_calls",
+            "review_instruction"
+          ],
+          "properties": {
+            "stages": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "string"
+              }
+            },
+            "policy": {
+              "enum": [
+                "always_review",
+                "on_guard_failure"
+              ]
+            },
+            "max_calls": {
+              "const": 2
+            },
+            "review_instruction": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "const": "proposal_requires_evidence_and_user_decision"
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "production_activation": {
+      "const": false
+    },
+    "writes_to_production": {
+      "const": 0
+    },
+    "automatic_winner": {
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}
