@@ -1,0 +1,62 @@
+--- a/local-qwen3.8/feishu-bridge/bridge.py
++++ b/local-qwen3.8/feishu-bridge/bridge.py
+@@ -159,6 +159,11 @@
+     def ingest(self, payload):
+         if self.information is not None:
+             self.information.capture_verified(payload)
++        realtime = getattr(self, 'grok_realtime', None)
++        if realtime is not None:
++            admission = realtime.ingest(payload)
++            if admission.handled:
++                return admission.status != 'duplicate'
+         if self.am_self is not None:
+             handled, accepted = self.am_self.ingest(payload)
+             if handled:
+@@ -466,6 +471,14 @@
+         bridge.am_self.g.logic.shared_evidence_readable = bridge.information.document_evidence_readable
+         bridge.am_self.g.logic.shared_evidence_authorize = bridge.information.authorize_document_evidence
+ 
++    bridge.grok_realtime = None
++    grok_settings = config.get('grok_realtime', {})
++    if not isinstance(grok_settings, dict) or type(grok_settings.get('enabled', False)) is not bool:
++        raise RuntimeError('INVALID_GROK_SETTINGS')
++    if grok_settings.get('enabled', False):
++        from integration.am_grok_host import install
++        bridge.grok_realtime = install(bridge, config, reply)
++
+     def on_message(event):
+         receive_started=time.monotonic()
+         payload = json.loads(lark.JSON.marshal(event))
+@@ -517,8 +530,13 @@
+             if accepted:bridge.wakeup.set()
+ 
+     def on_recalled(event):
+-        if bridge.information is not None:
+-            bridge.information.capture_verified(json.loads(lark.JSON.marshal(event)))
++        payload = json.loads(lark.JSON.marshal(event))
++        try:
++            if bridge.grok_realtime is not None:
++                bridge.grok_realtime.recall(payload)
++        finally:
++            if bridge.information is not None:
++                bridge.information.capture_verified(payload)
+ 
+     handler = (lark.EventDispatcherHandler.builder('','',lark.LogLevel.CRITICAL)
+                .register_p2_im_message_receive_v1(on_message)
+@@ -581,11 +599,15 @@
+         pass
+     finally:
+         bridge.stop.set()
++        grok_stopped = True
++        if bridge.grok_realtime is not None:
++            grok_stop = bridge.grok_realtime.stop()
++            grok_stopped = grok_stop['scheduler_stopped'] and not grok_stop['ports_in_flight']
+         if bridge.poc is not None:
+             bridge.poc.gateway.stopping.set()
+         bridge.wakeup.set()
+         thread.join(timeout=2)
+-        information_stopped = bridge.information is None or bridge.information.close()
++        information_stopped = grok_stopped and (bridge.information is None or bridge.information.close())
+         if bridge.am_self is not None and not thread.is_alive() and information_stopped:
+             bridge.am_self.close_query()
+             if bridge.am_self.conversation is not None:bridge.am_self.conversation.close()
